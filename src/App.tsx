@@ -16,6 +16,8 @@ import Servicios from "./pages/Servicios";
 import Especialistas from "./pages/Especialistas";
 import Contratos from "./pages/Contratos";
 import Clientes from "./pages/Clientes";
+import Liquidaciones from "./pages/Liquidaciones";
+import MisLiquidaciones from "./pages/MisLiquidaciones";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +41,8 @@ const App = () => (
             <Route path="/presupuestos" element={<ProtectedRoute><Presupuestos /></ProtectedRoute>} />
             <Route path="/solicitudes" element={<ProtectedRoute><Solicitudes /></ProtectedRoute>} />
             <Route path="/facturas" element={<ProtectedRoute><Facturas /></ProtectedRoute>} />
+            <Route path="/liquidaciones" element={<ProtectedRoute><Liquidaciones /></ProtectedRoute>} />
+            <Route path="/mis-liquidaciones" element={<ProtectedRoute><MisLiquidaciones /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

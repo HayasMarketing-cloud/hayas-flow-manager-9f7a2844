@@ -17,6 +17,7 @@ const Clientes = () => {
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const queryClient = useQueryClient();
   const { canManageClients, loading: rolesLoading } = useUserRole();
+  const canManage = canManageClients();
 
   const { data: clients, isLoading, error } = useQuery({
     queryKey: ['clients'],
@@ -78,7 +79,7 @@ const Clientes = () => {
               className="pl-10"
             />
           </div>
-          {!rolesLoading && canManageClients && (
+          {!rolesLoading && canManage && (
             <Button onClick={handleNewClient}>
               <Plus className="h-4 w-4 mr-2" />
               Nuevo Cliente
@@ -147,7 +148,7 @@ const Clientes = () => {
                       </span>
                     </div>
                   )}
-                  {!rolesLoading && canManageClients && (
+                  {!rolesLoading && canManage && (
                     <div className="pt-3">
                       <Button
                         variant="outline"
@@ -175,7 +176,7 @@ const Clientes = () => {
                   ? 'Intenta con otros términos de búsqueda'
                   : 'Crea tu primer cliente para comenzar'}
               </p>
-              {!rolesLoading && canManageClients && !searchTerm && (
+              {!rolesLoading && canManage && !searchTerm && (
                 <Button onClick={handleNewClient}>
                   <Plus className="h-4 w-4 mr-2" />
                   Crear Cliente

@@ -9,7 +9,8 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import DashboardMensual from "./pages/DashboardMensual";
-import Solicitudes from "@/pages/Solicitudes";
+import Solicitudes from "./pages/Solicitudes";
+import Facturas from "./pages/Facturas";
 import Presupuestos from "./pages/Presupuestos";
 import Servicios from "./pages/Servicios";
 import Especialistas from "./pages/Especialistas";
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/contratos" element={<ProtectedRoute><Contratos /></ProtectedRoute>} />
             <Route path="/presupuestos" element={<ProtectedRoute><Presupuestos /></ProtectedRoute>} />
             <Route path="/solicitudes" element={<ProtectedRoute><Solicitudes /></ProtectedRoute>} />
+            <Route path="/facturas" element={<ProtectedRoute><Facturas /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

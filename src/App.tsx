@@ -9,11 +9,12 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import DashboardMensual from "./pages/DashboardMensual";
-import Clientes from "./pages/Clientes";
+import Solicitudes from "@/pages/Solicitudes";
+import Presupuestos from "./pages/Presupuestos";
 import Servicios from "./pages/Servicios";
 import Especialistas from "./pages/Especialistas";
 import Contratos from "./pages/Contratos";
-import Presupuestos from "./pages/Presupuestos";
+import Clientes from "./pages/Clientes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/especialistas" element={<ProtectedRoute><Especialistas /></ProtectedRoute>} />
             <Route path="/contratos" element={<ProtectedRoute><Contratos /></ProtectedRoute>} />
             <Route path="/presupuestos" element={<ProtectedRoute><Presupuestos /></ProtectedRoute>} />
+            <Route path="/solicitudes" element={<ProtectedRoute><Solicitudes /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

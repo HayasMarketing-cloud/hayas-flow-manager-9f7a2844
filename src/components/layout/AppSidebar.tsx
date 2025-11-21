@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Package, UserCheck, FileText, Calculator } from 'lucide-react';
+import { LayoutDashboard, Users, Package, UserCheck, FileText, Calculator, FileCheck } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
   Sidebar,
@@ -19,6 +19,7 @@ const items = [
   { title: 'Especialistas', url: '/especialistas', icon: UserCheck },
   { title: 'Contratos', url: '/contratos', icon: FileText },
   { title: 'Presupuestos', url: '/presupuestos', icon: Calculator },
+  { title: 'Solicitudes', url: '/solicitudes', icon: FileCheck },
 ];
 
 export function AppSidebar() {

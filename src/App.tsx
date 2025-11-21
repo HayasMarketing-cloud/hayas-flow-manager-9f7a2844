@@ -8,7 +8,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
-import Clients from "./pages/Clients";
+import Clientes from "./pages/Clientes";
 import Services from "./pages/Services";
 import Specialists from "./pages/Specialists";
 import Contracts from "./pages/Contracts";
@@ -27,12 +27,12 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
-            <Route path="/services" element={<ProtectedRoute><Services /></ProtectedRoute>} />
-            <Route path="/specialists" element={<ProtectedRoute><Specialists /></ProtectedRoute>} />
-            <Route path="/contracts" element={<ProtectedRoute><Contracts /></ProtectedRoute>} />
-            <Route path="/budgets" element={<ProtectedRoute><Budgets /></ProtectedRoute>} />
+            <Route path="/dashboard-mensual" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
+            <Route path="/servicios" element={<ProtectedRoute><Services /></ProtectedRoute>} />
+            <Route path="/especialistas" element={<ProtectedRoute><Specialists /></ProtectedRoute>} />
+            <Route path="/contratos" element={<ProtectedRoute><Contracts /></ProtectedRoute>} />
+            <Route path="/presupuestos" element={<ProtectedRoute><Budgets /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

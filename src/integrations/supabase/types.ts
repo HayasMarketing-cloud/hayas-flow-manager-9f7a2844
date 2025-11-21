@@ -64,6 +64,9 @@ export type Database = {
       clients: {
         Row: {
           address: string | null
+          city: string | null
+          code: string | null
+          country: string | null
           created_at: string
           created_by: string
           email: string | null
@@ -71,10 +74,15 @@ export type Database = {
           name: string
           notes: string | null
           phone: string | null
+          status: string | null
+          tax_id: string | null
           updated_at: string
         }
         Insert: {
           address?: string | null
+          city?: string | null
+          code?: string | null
+          country?: string | null
           created_at?: string
           created_by: string
           email?: string | null
@@ -82,10 +90,15 @@ export type Database = {
           name: string
           notes?: string | null
           phone?: string | null
+          status?: string | null
+          tax_id?: string | null
           updated_at?: string
         }
         Update: {
           address?: string | null
+          city?: string | null
+          code?: string | null
+          country?: string | null
           created_at?: string
           created_by?: string
           email?: string | null
@@ -93,6 +106,8 @@ export type Database = {
           name?: string
           notes?: string | null
           phone?: string | null
+          status?: string | null
+          tax_id?: string | null
           updated_at?: string
         }
         Relationships: []

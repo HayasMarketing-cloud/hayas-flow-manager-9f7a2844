@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Package, UserCheck, FileText, Calculator, FileCheck, Receipt } from 'lucide-react';
+import { LayoutDashboard, Users, Package, UserCheck, FileText, Calculator, FileCheck, Receipt, Wallet } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
   Sidebar,
@@ -21,6 +21,8 @@ const items = [
   { title: 'Presupuestos', url: '/presupuestos', icon: Calculator },
   { title: 'Solicitudes', url: '/solicitudes', icon: FileCheck },
   { title: 'Facturas', url: '/facturas', icon: Receipt },
+  { title: 'Liquidaciones', url: '/liquidaciones', icon: Wallet },
+  { title: 'Mis Liquidaciones', url: '/mis-liquidaciones', icon: Wallet },
 ];
 
 export function AppSidebar() {

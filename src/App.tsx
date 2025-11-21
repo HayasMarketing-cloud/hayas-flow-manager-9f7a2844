@@ -8,11 +8,12 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import DashboardMensual from "./pages/DashboardMensual";
 import Clientes from "./pages/Clientes";
-import Services from "./pages/Services";
-import Specialists from "./pages/Specialists";
-import Contracts from "./pages/Contracts";
-import Budgets from "./pages/Budgets";
+import Servicios from "./pages/Servicios";
+import Especialistas from "./pages/Especialistas";
+import Contratos from "./pages/Contratos";
+import Presupuestos from "./pages/Presupuestos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,12 +28,13 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/dashboard-mensual" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/dashboard-mensual" element={<ProtectedRoute><DashboardMensual /></ProtectedRoute>} />
             <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
-            <Route path="/servicios" element={<ProtectedRoute><Services /></ProtectedRoute>} />
-            <Route path="/especialistas" element={<ProtectedRoute><Specialists /></ProtectedRoute>} />
-            <Route path="/contratos" element={<ProtectedRoute><Contracts /></ProtectedRoute>} />
-            <Route path="/presupuestos" element={<ProtectedRoute><Budgets /></ProtectedRoute>} />
+            <Route path="/servicios" element={<ProtectedRoute><Servicios /></ProtectedRoute>} />
+            <Route path="/especialistas" element={<ProtectedRoute><Especialistas /></ProtectedRoute>} />
+            <Route path="/contratos" element={<ProtectedRoute><Contratos /></ProtectedRoute>} />
+            <Route path="/presupuestos" element={<ProtectedRoute><Presupuestos /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

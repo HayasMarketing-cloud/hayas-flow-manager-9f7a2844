@@ -18,6 +18,7 @@ import Contratos from "./pages/Contratos";
 import Clientes from "./pages/Clientes";
 import Liquidaciones from "./pages/Liquidaciones";
 import MisLiquidaciones from "./pages/MisLiquidaciones";
+import RequestFlowTracker from "./pages/RequestFlowTracker";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -43,6 +44,7 @@ const App = () => (
             <Route path="/facturas" element={<ProtectedRoute><Facturas /></ProtectedRoute>} />
             <Route path="/liquidaciones" element={<ProtectedRoute><Liquidaciones /></ProtectedRoute>} />
             <Route path="/mis-liquidaciones" element={<ProtectedRoute><MisLiquidaciones /></ProtectedRoute>} />
+            <Route path="/flujo-requests" element={<ProtectedRoute><RequestFlowTracker /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

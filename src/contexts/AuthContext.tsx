@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         description: "Bienvenido de vuelta",
       });
 
-      navigate('/dashboard');
+      navigate('/dashboard-mensual');
       return { error: null };
     } catch (error: any) {
       toast({
@@ -89,7 +89,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         description: "Tu cuenta ha sido creada",
       });
 
-      navigate('/dashboard');
+      navigate('/dashboard-mensual');
       return { error: null };
     } catch (error: any) {
       toast({

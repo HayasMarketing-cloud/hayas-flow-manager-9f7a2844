@@ -162,6 +162,238 @@ export type Database = {
           },
         ]
       }
+      invoice_items: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          invoice_id: string
+          quantity: number
+          request_id: string | null
+          total: number
+          unit_price: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          invoice_id: string
+          quantity?: number
+          request_id?: string | null
+          total: number
+          unit_price: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          invoice_id?: string
+          quantity?: number
+          request_id?: string | null
+          total?: number
+          unit_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          client_id: string
+          code: string
+          created_at: string
+          due_date: string | null
+          id: string
+          invoice_date: string
+          notes: string | null
+          paid_at: string | null
+          pdf_url: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["invoice_status"]
+          subtotal: number
+          tax_amount: number
+          tax_rate: number
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          code: string
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          invoice_date?: string
+          notes?: string | null
+          paid_at?: string | null
+          pdf_url?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          code?: string
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          invoice_date?: string
+          notes?: string | null
+          paid_at?: string | null
+          pdf_url?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      liquidation_items: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          liquidation_id: string
+          quantity: number
+          request_id: string | null
+          total: number
+          unit_price: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          liquidation_id: string
+          quantity?: number
+          request_id?: string | null
+          total: number
+          unit_price: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          liquidation_id?: string
+          quantity?: number
+          request_id?: string | null
+          total?: number
+          unit_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liquidation_items_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "liquidations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidation_items_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      liquidations: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          notes: string | null
+          paid_at: string | null
+          pdf_url: string | null
+          period_month: number
+          period_year: number
+          sent_at: string | null
+          specialist_id: string
+          status: Database["public"]["Enums"]["liquidation_status"]
+          subtotal: number
+          tax_amount: number
+          tax_rate: number
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          pdf_url?: string | null
+          period_month: number
+          period_year: number
+          sent_at?: string | null
+          specialist_id: string
+          status?: Database["public"]["Enums"]["liquidation_status"]
+          subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          pdf_url?: string | null
+          period_month?: number
+          period_year?: number
+          sent_at?: string | null
+          specialist_id?: string
+          status?: Database["public"]["Enums"]["liquidation_status"]
+          subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liquidations_specialist_id_fkey"
+            columns: ["specialist_id"]
+            isOneToOne: false
+            referencedRelation: "specialists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -186,6 +418,148 @@ export type Database = {
           full_name?: string | null
           id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      requests: {
+        Row: {
+          billed_invoice_id: string | null
+          budget_id: string | null
+          client_id: string
+          code: string
+          completed_at: string | null
+          cost: number | null
+          created_at: string
+          deadline: string | null
+          description: string | null
+          id: string
+          liquidation_id: string | null
+          margin: number | null
+          quantity: number
+          service_id: string
+          specialist_id: string | null
+          status: Database["public"]["Enums"]["request_status"]
+          title: string
+          total: number
+          unit_price: number
+          updated_at: string
+        }
+        Insert: {
+          billed_invoice_id?: string | null
+          budget_id?: string | null
+          client_id: string
+          code: string
+          completed_at?: string | null
+          cost?: number | null
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          liquidation_id?: string | null
+          margin?: number | null
+          quantity?: number
+          service_id: string
+          specialist_id?: string | null
+          status?: Database["public"]["Enums"]["request_status"]
+          title: string
+          total: number
+          unit_price: number
+          updated_at?: string
+        }
+        Update: {
+          billed_invoice_id?: string | null
+          budget_id?: string | null
+          client_id?: string
+          code?: string
+          completed_at?: string | null
+          cost?: number | null
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          liquidation_id?: string | null
+          margin?: number | null
+          quantity?: number
+          service_id?: string
+          specialist_id?: string | null
+          status?: Database["public"]["Enums"]["request_status"]
+          title?: string
+          total?: number
+          unit_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "requests_billed_invoice_id_fkey"
+            columns: ["billed_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "liquidations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_specialist_id_fkey"
+            columns: ["specialist_id"]
+            isOneToOne: false
+            referencedRelation: "specialists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sequences: {
+        Row: {
+          created_at: string
+          current_value: number
+          id: string
+          name: string
+          prefix: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          current_value?: number
+          id?: string
+          name: string
+          prefix: string
+          updated_at?: string
+          year?: number
+        }
+        Update: {
+          created_at?: string
+          current_value?: number
+          id?: string
+          name?: string
+          prefix?: string
+          updated_at?: string
+          year?: number
         }
         Relationships: []
       }
@@ -293,6 +667,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_code: { Args: { sequence_name: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -311,6 +686,16 @@ export type Database = {
         | "especialista"
         | "account_manager"
         | "seller"
+      invoice_status: "draft" | "sent" | "paid" | "overdue" | "cancelled"
+      liquidation_status: "draft" | "sent" | "paid" | "disputed"
+      request_status:
+        | "draft"
+        | "pending_approval"
+        | "approved"
+        | "in_progress"
+        | "completed"
+        | "billed"
+        | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -447,6 +832,17 @@ export const Constants = {
         "especialista",
         "account_manager",
         "seller",
+      ],
+      invoice_status: ["draft", "sent", "paid", "overdue", "cancelled"],
+      liquidation_status: ["draft", "sent", "paid", "disputed"],
+      request_status: [
+        "draft",
+        "pending_approval",
+        "approved",
+        "in_progress",
+        "completed",
+        "billed",
+        "cancelled",
       ],
     },
   },

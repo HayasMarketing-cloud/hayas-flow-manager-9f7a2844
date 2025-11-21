@@ -1,4 +1,4 @@
-import { AppLayout } from '@/components/AppLayout';
+import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Briefcase, UserCheck, FileText } from 'lucide-react';
 import { useEffect, useState } from 'react';

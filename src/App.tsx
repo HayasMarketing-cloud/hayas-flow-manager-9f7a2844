@@ -9,6 +9,8 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import DashboardMensual from "./pages/DashboardMensual";
+import DashboardFinanzas from "./pages/DashboardFinanzas";
+import DashboardEspecialista from "./pages/DashboardEspecialista";
 import Solicitudes from "./pages/Solicitudes";
 import Facturas from "./pages/Facturas";
 import Presupuestos from "./pages/Presupuestos";
@@ -35,6 +37,8 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard-mensual" element={<ProtectedRoute><DashboardMensual /></ProtectedRoute>} />
+            <Route path="/dashboard-finanzas" element={<ProtectedRoute><DashboardFinanzas /></ProtectedRoute>} />
+            <Route path="/dashboard-especialista" element={<ProtectedRoute><DashboardEspecialista /></ProtectedRoute>} />
             <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
             <Route path="/servicios" element={<ProtectedRoute><Servicios /></ProtectedRoute>} />
             <Route path="/especialistas" element={<ProtectedRoute><Especialistas /></ProtectedRoute>} />

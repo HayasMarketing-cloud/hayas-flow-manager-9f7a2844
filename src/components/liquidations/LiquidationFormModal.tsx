@@ -10,11 +10,14 @@ import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { calculateTaxAmount, calculateTotalAmount, formatPeriod } from '@/lib/liquidation-utils';
 import { Database } from '@/integrations/supabase/types';
 import { generateLiquidationPDF } from '@/utils/pdf/liquidationPDFGenerator';
-import { FileDown } from 'lucide-react';
+import { FileDown, Plus } from 'lucide-react';
+import { useInvoicedRequestsForLiquidation } from '@/hooks/useRequestFlow';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 type LiquidationStatus = Database['public']['Enums']['liquidation_status'];
 
@@ -41,6 +44,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
   const queryClient = useQueryClient();
   const isViewMode = mode === 'view';
   const isEditable = mode === 'create' || (mode === 'edit' && liquidation?.status === 'draft');
+  const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
 
   const { register, handleSubmit, formState: { errors }, watch, setValue, reset } = useForm<LiquidationFormData>({
     resolver: zodResolver(liquidationSchema),
@@ -73,6 +77,11 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
   const selectedSpecialistId = watch('specialist_id');
   const selectedYear = watch('period_year');
   const selectedMonth = watch('period_month');
+
+  // Obtener requests pendientes de liquidación para el especialista seleccionado
+  const { data: pendingRequests, refetch: refetchPendingRequests } = useInvoicedRequestsForLiquidation(
+    isEditable && selectedSpecialistId ? selectedSpecialistId : undefined
+  );
 
   const taxAmount = calculateTaxAmount(subtotal, taxRate);
   const totalAmount = calculateTotalAmount(subtotal, taxAmount);
@@ -124,6 +133,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
         notes: '',
       });
     }
+    setSelectedRequests([]);
   }, [liquidation, isOpen, reset]);
 
   const createMutation = useMutation({
@@ -179,6 +189,95 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       toast.error('Error al actualizar liquidación: ' + error.message);
     },
   });
+
+  const addRequestsMutation = useMutation({
+    mutationFn: async (requestIds: string[]) => {
+      if (!liquidation?.id) throw new Error('Liquidación no encontrada');
+
+      // Obtener los requests seleccionados con sus datos
+      const { data: requests, error: fetchError } = await supabase
+        .from('requests')
+        .select('*, service:services(name)')
+        .in('id', requestIds);
+
+      if (fetchError) throw fetchError;
+      if (!requests) throw new Error('No se encontraron los requests');
+
+      // Crear liquidation_items
+      const items = requests.map((req) => ({
+        liquidation_id: liquidation.id,
+        request_id: req.id,
+        description: req.service?.name || req.title,
+        quantity: req.quantity,
+        unit_price: req.cost || 0,
+        total: (req.cost || 0) * req.quantity,
+      }));
+
+      const { error: insertError } = await supabase
+        .from('liquidation_items')
+        .insert(items);
+
+      if (insertError) throw insertError;
+
+      // Actualizar los requests para marcarlos como liquidados
+      const { error: updateError } = await supabase
+        .from('requests')
+        .update({ liquidation_id: liquidation.id })
+        .in('id', requestIds);
+
+      if (updateError) throw updateError;
+
+      // Recalcular totales de la liquidación
+      const { data: allItems, error: itemsError } = await supabase
+        .from('liquidation_items')
+        .select('total')
+        .eq('liquidation_id', liquidation.id);
+
+      if (itemsError) throw itemsError;
+
+      const newSubtotal = allItems?.reduce((sum, item) => sum + Number(item.total), 0) || 0;
+      const newTaxAmount = calculateTaxAmount(newSubtotal, liquidation.tax_rate);
+      const newTotalAmount = calculateTotalAmount(newSubtotal, newTaxAmount);
+
+      const { error: updateLiquidationError } = await supabase
+        .from('liquidations')
+        .update({
+          subtotal: newSubtotal,
+          tax_amount: newTaxAmount,
+          total_amount: newTotalAmount,
+        })
+        .eq('id', liquidation.id);
+
+      if (updateLiquidationError) throw updateLiquidationError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      queryClient.invalidateQueries({ queryKey: ['liquidation-items'] });
+      queryClient.invalidateQueries({ queryKey: ['invoiced-requests-for-liquidation'] });
+      toast.success('Solicitudes agregadas a la liquidación');
+      setSelectedRequests([]);
+      refetchPendingRequests();
+    },
+    onError: (error) => {
+      toast.error('Error al agregar solicitudes: ' + error.message);
+    },
+  });
+
+  const handleToggleRequest = (requestId: string) => {
+    setSelectedRequests((prev) =>
+      prev.includes(requestId)
+        ? prev.filter((id) => id !== requestId)
+        : [...prev, requestId]
+    );
+  };
+
+  const handleAddSelectedRequests = () => {
+    if (selectedRequests.length === 0) {
+      toast.error('Selecciona al menos una solicitud');
+      return;
+    }
+    addRequestsMutation.mutate(selectedRequests);
+  };
 
   // Query para cargar items de la liquidación (para PDF)
   const { data: liquidationItems } = useQuery({
@@ -401,6 +500,63 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
               disabled={isViewMode || !isEditable}
             />
           </div>
+
+          {/* Widget de Requests Pendientes */}
+          {mode === 'edit' && liquidation?.status === 'draft' && pendingRequests && pendingRequests.length > 0 && (
+            <div className="border rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-semibold">Solicitudes Pendientes de Liquidación</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleAddSelectedRequests}
+                  disabled={selectedRequests.length === 0 || addRequestsMutation.isPending}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Agregar Seleccionadas ({selectedRequests.length})
+                </Button>
+              </div>
+              
+              <ScrollArea className="h-[200px] rounded-md border p-3">
+                <div className="space-y-2">
+                  {pendingRequests.map((request) => (
+                    <div
+                      key={request.id}
+                      className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors"
+                    >
+                      <Checkbox
+                        id={request.id}
+                        checked={selectedRequests.includes(request.id)}
+                        onCheckedChange={() => handleToggleRequest(request.id)}
+                      />
+                      <label
+                        htmlFor={request.id}
+                        className="flex-1 cursor-pointer space-y-1"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-sm">{request.code}</span>
+                          <span className="text-sm font-semibold text-primary">
+                            {((request.cost || 0) * request.quantity).toFixed(2)} €
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {request.service?.name || request.title}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Cliente: {request.client?.name} • Factura: {request.billed_invoice?.code}
+                        </div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+              
+              <p className="text-xs text-muted-foreground">
+                Estas solicitudes están facturadas pero aún no han sido liquidadas.
+                Selecciona las que deseas agregar a esta liquidación.
+              </p>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>

@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Package, UserCheck, FileText, Calculator, FileCheck, Receipt, Wallet, GitBranch } from 'lucide-react';
+import { LayoutDashboard, Users, Package, UserCheck, FileText, Calculator, FileCheck, Receipt, Wallet, GitBranch, BarChart3 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
   Sidebar,
@@ -24,6 +24,7 @@ const items = [
   { title: 'Liquidaciones', url: '/liquidaciones', icon: Wallet },
   { title: 'Mis Liquidaciones', url: '/mis-liquidaciones', icon: Wallet },
   { title: 'Flujo Requests', url: '/flujo-requests', icon: GitBranch },
+  { title: 'Reportes', url: '/reportes', icon: BarChart3 },
 ];
 
 export function AppSidebar() {

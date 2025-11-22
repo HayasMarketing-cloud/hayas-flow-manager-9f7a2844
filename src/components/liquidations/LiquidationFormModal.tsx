@@ -13,6 +13,8 @@ import { toast } from 'sonner';
 import { useEffect } from 'react';
 import { calculateTaxAmount, calculateTotalAmount, formatPeriod } from '@/lib/liquidation-utils';
 import { Database } from '@/integrations/supabase/types';
+import { generateLiquidationPDF } from '@/utils/pdf/liquidationPDFGenerator';
+import { FileDown } from 'lucide-react';
 
 type LiquidationStatus = Database['public']['Enums']['liquidation_status'];
 
@@ -177,6 +179,48 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       toast.error('Error al actualizar liquidación: ' + error.message);
     },
   });
+
+  // Query para cargar items de la liquidación (para PDF)
+  const { data: liquidationItems } = useQuery({
+    queryKey: ['liquidation-items', liquidation?.id],
+    queryFn: async () => {
+      if (!liquidation?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('liquidation_items')
+        .select('*')
+        .eq('liquidation_id', liquidation.id)
+        .order('created_at');
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: isViewMode && !!liquidation?.id,
+  });
+
+  const handleDownloadPDF = async () => {
+    if (!liquidation || !liquidationItems) {
+      toast.error('No hay datos para generar el PDF');
+      return;
+    }
+
+    const specialist = specialists?.find((s) => s.id === liquidation.specialist_id);
+    if (!specialist) {
+      toast.error('Especialista no encontrado');
+      return;
+    }
+
+    try {
+      await generateLiquidationPDF({
+        liquidation,
+        items: liquidationItems,
+        specialist,
+      });
+      toast.success('PDF generado correctamente');
+    } catch (error: any) {
+      toast.error('Error al generar PDF: ' + error.message);
+    }
+  };
 
   const onSubmit = (data: LiquidationFormData) => {
     if (existingLiquidation) {
@@ -362,6 +406,12 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
             <Button type="button" variant="outline" onClick={onClose}>
               {isViewMode ? 'Cerrar' : 'Cancelar'}
             </Button>
+            {isViewMode && liquidation && (
+              <Button type="button" variant="outline" onClick={handleDownloadPDF}>
+                <FileDown className="h-4 w-4 mr-2" />
+                Descargar PDF
+              </Button>
+            )}
             {!isViewMode && isEditable && (
               <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
                 {createMutation.isPending || updateMutation.isPending ? 'Guardando...' : 'Guardar'}

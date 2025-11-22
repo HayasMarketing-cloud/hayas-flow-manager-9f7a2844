@@ -11,9 +11,10 @@ interface BudgetCardProps {
   onView: (budget: any) => void;
   onEdit?: (budget: any) => void;
   onDuplicate?: (budget: any) => void;
+  onConvertToContract?: (budget: any) => void;
 }
 
-export const BudgetCard = ({ budget, onView, onEdit, onDuplicate }: BudgetCardProps) => {
+export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToContract }: BudgetCardProps) => {
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader className="space-y-2">

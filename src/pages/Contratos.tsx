@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { LayoutGrid, Table as TableIcon, Plus, X } from 'lucide-react';
+import { LayoutGrid, Table as TableIcon, Plus, X, FileCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useContractFilters } from '@/hooks/useContractFilters';
@@ -14,12 +14,16 @@ import { ContractTableView } from '@/components/contracts/ContractTableView';
 import { ContractFormModal } from '@/components/contracts/ContractFormModal';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 export default function Contratos() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedContract, setSelectedContract] = useState<any>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [contractToDelete, setContractToDelete] = useState<any>(null);
 
   const { user } = useAuth();
   const { filters, updateFilter, resetFilters } = useContractFilters();

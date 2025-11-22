@@ -15,16 +15,16 @@ interface BudgetTableViewProps {
 
 export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate }: BudgetTableViewProps) => {
   return (
-    <div className="rounded-md border">
+    <div className="rounded-md border overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Título</TableHead>
-            <TableHead>Cliente</TableHead>
-            <TableHead>Monto Total</TableHead>
-            <TableHead>Estado</TableHead>
-            <TableHead>Válido Hasta</TableHead>
-            <TableHead className="text-right">Acciones</TableHead>
+            <TableHead className="min-w-[200px]">Título</TableHead>
+            <TableHead className="min-w-[150px]">Cliente</TableHead>
+            <TableHead className="min-w-[120px]">Monto Total</TableHead>
+            <TableHead className="min-w-[100px]">Estado</TableHead>
+            <TableHead className="min-w-[120px]">Válido Hasta</TableHead>
+            <TableHead className="text-right min-w-[150px]">Acciones</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

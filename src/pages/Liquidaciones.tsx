@@ -5,7 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, LayoutGrid, Table as TableIcon, X } from 'lucide-react';
+import { Plus, LayoutGrid, Table as TableIcon, X, Download, FileDown } from 'lucide-react';
+import { exportLiquidationsToExcel } from '@/utils/excel/liquidationsExporter';
+import { generateLiquidationPDF } from '@/utils/pdf/liquidationPDFGenerator';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useLiquidationFilters, PeriodType } from '@/hooks/useLiquidationFilters';
@@ -240,6 +243,22 @@ export default function Liquidaciones() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (!liquidations || liquidations.length === 0) {
+                        toast.error('No hay datos para exportar');
+                        return;
+                      }
+                      exportLiquidationsToExcel(liquidations, filters);
+                      toast.success('Exportando a Excel...');
+                    }}
+                    disabled={!liquidations || liquidations.length === 0}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Exportar Excel
+                  </Button>
                   <Button
                     variant={viewMode === 'cards' ? 'default' : 'outline'}
                     size="sm"

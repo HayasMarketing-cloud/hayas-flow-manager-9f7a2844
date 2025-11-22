@@ -12,6 +12,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { calculateTaxAmount, calculateTotalAmount, calculateDueDate } from '@/lib/invoice-utils';
+import { generateInvoicePDF } from '@/utils/pdf/invoicePDFGenerator';
+import { FileDown } from 'lucide-react';
 
 const invoiceSchema = z.object({
   client_id: z.string().uuid('Selecciona un cliente'),
@@ -152,6 +154,48 @@ export const InvoiceFormModal = ({ isOpen, onClose, invoice, mode }: InvoiceForm
       toast.error(`Error al actualizar factura: ${error.message}`);
     },
   });
+
+  // Query para cargar items de la factura (para PDF)
+  const { data: invoiceItems } = useQuery({
+    queryKey: ['invoice-items', invoice?.id],
+    queryFn: async () => {
+      if (!invoice?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('invoice_items')
+        .select('*')
+        .eq('invoice_id', invoice.id)
+        .order('created_at');
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: isViewMode && !!invoice?.id,
+  });
+
+  const handleDownloadPDF = async () => {
+    if (!invoice || !invoiceItems) {
+      toast.error('No hay datos para generar el PDF');
+      return;
+    }
+
+    const client = clients?.find((c) => c.id === invoice.client_id);
+    if (!client) {
+      toast.error('Cliente no encontrado');
+      return;
+    }
+
+    try {
+      await generateInvoicePDF({
+        invoice,
+        items: invoiceItems,
+        client,
+      });
+      toast.success('PDF generado correctamente');
+    } catch (error: any) {
+      toast.error('Error al generar PDF: ' + error.message);
+    }
+  };
 
   const onSubmit = (data: InvoiceFormData) => {
     if (isViewMode) return;
@@ -316,6 +360,12 @@ export const InvoiceFormModal = ({ isOpen, onClose, invoice, mode }: InvoiceForm
             <Button type="button" variant="outline" onClick={onClose}>
               {isViewMode ? 'Cerrar' : 'Cancelar'}
             </Button>
+            {isViewMode && invoice && (
+              <Button type="button" variant="outline" onClick={handleDownloadPDF}>
+                <FileDown className="h-4 w-4 mr-2" />
+                Descargar PDF
+              </Button>
+            )}
             {!isViewMode && (!isEditMode || !isNonDraftInvoice) && (
               <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
                 {createMutation.isPending || updateMutation.isPending

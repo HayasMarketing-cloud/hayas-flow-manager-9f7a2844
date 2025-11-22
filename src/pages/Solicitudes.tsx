@@ -10,7 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, LayoutGrid, Table as TableIcon } from 'lucide-react';
+import { Plus, Search, LayoutGrid, Table as TableIcon, Download } from 'lucide-react';
+import { exportRequestsToExcel } from '@/utils/excel/requestsExporter';
+import { toast } from 'sonner';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -117,6 +119,22 @@ const Solicitudes = () => {
               />
             </div>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (!requests || requests.length === 0) {
+                    toast.error('No hay datos para exportar');
+                    return;
+                  }
+                  exportRequestsToExcel(requests, filters);
+                  toast.success('Exportando a Excel...');
+                }}
+                disabled={!requests || requests.length === 0}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Exportar Excel
+              </Button>
               <Button
                 variant={viewMode === 'cards' ? 'default' : 'outline'}
                 size="icon"

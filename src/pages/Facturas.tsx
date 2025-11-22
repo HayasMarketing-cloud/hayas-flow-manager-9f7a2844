@@ -4,7 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, LayoutGrid, Table as TableIcon, X } from 'lucide-react';
+import { Plus, LayoutGrid, Table as TableIcon, X, Download, FileDown } from 'lucide-react';
+import { exportInvoicesToExcel } from '@/utils/excel/invoicesExporter';
+import { generateInvoicePDF } from '@/utils/pdf/invoicePDFGenerator';
+import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -219,6 +222,22 @@ export default function Facturas() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (!invoices || invoices.length === 0) {
+                        toast.error('No hay datos para exportar');
+                        return;
+                      }
+                      exportInvoicesToExcel(invoices, filters);
+                      toast.success('Exportando a Excel...');
+                    }}
+                    disabled={!invoices || invoices.length === 0}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Exportar Excel
+                  </Button>
                   <Button
                     variant={viewMode === 'cards' ? 'default' : 'outline'}
                     size="sm"

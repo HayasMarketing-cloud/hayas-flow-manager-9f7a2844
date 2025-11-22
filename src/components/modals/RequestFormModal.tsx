@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -30,8 +30,9 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 import { calculateTotal } from '@/lib/request-utils';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const requestSchema = z.object({
   client_id: z.string().uuid('Selecciona un cliente'),
@@ -73,6 +74,8 @@ export const RequestFormModal = ({
 }: RequestFormModalProps) => {
   const isViewMode = mode === 'view';
 
+  const [marginWarning, setMarginWarning] = useState(false);
+
   const form = useForm<RequestFormData>({
     resolver: zodResolver(requestSchema),
     defaultValues: {
@@ -89,44 +92,43 @@ export const RequestFormModal = ({
     },
   });
 
-  const { data: clients } = useQuery({
-    queryKey: ['clients'],
+  // Optimized: Load all data in parallel with Promise.all
+  const { data: formData } = useQuery({
+    queryKey: ['request-form-data'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('clients')
-        .select('id, name, code')
-        .eq('status', 'active')
-        .order('name');
-      if (error) throw error;
-      return data;
+      const [clientsRes, servicesRes, specialistsRes] = await Promise.all([
+        supabase
+          .from('clients')
+          .select('id, name, code')
+          .eq('status', 'active')
+          .order('name'),
+        supabase
+          .from('services')
+          .select('id, name, price')
+          .eq('active', true)
+          .order('name'),
+        supabase
+          .from('specialists')
+          .select('id, name')
+          .eq('active', true)
+          .order('name'),
+      ]);
+
+      if (clientsRes.error) throw clientsRes.error;
+      if (servicesRes.error) throw servicesRes.error;
+      if (specialistsRes.error) throw specialistsRes.error;
+
+      return {
+        clients: clientsRes.data || [],
+        services: servicesRes.data || [],
+        specialists: specialistsRes.data || [],
+      };
     },
   });
 
-  const { data: services } = useQuery({
-    queryKey: ['services'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('services')
-        .select('id, name, price')
-        .eq('active', true)
-        .order('name');
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: specialists } = useQuery({
-    queryKey: ['specialists'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('specialists')
-        .select('id, name')
-        .eq('active', true)
-        .order('name');
-      if (error) throw error;
-      return data;
-    },
-  });
+  const clients = formData?.clients;
+  const services = formData?.services;
+  const specialists = formData?.specialists;
 
   const mutation = useMutation({
     mutationFn: async (data: RequestFormData) => {
@@ -186,12 +188,80 @@ export const RequestFormModal = ({
     }
   }, [initialData, form]);
 
-  const onServiceChange = (serviceId: string) => {
-    const service = services?.find((s) => s.id === serviceId);
-    if (service?.price) {
-      form.setValue('unit_price', service.price);
+  // Improved: Pre-populate prices from contract_services first, then services
+  const onServiceChange = async (serviceId: string) => {
+    const clientId = form.getValues('client_id');
+    
+    if (!clientId || !serviceId) return;
+
+    try {
+      // Priority 1: Load price from active contract_services
+      const { data: activeContracts } = await supabase
+        .from('contracts')
+        .select('id')
+        .eq('client_id', clientId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (activeContracts && activeContracts.length > 0) {
+        const { data: contractService } = await supabase
+          .from('contract_services')
+          .select('unit_price')
+          .eq('contract_id', activeContracts[0].id)
+          .eq('service_id', serviceId)
+          .maybeSingle();
+
+        if (contractService?.unit_price) {
+          console.log(`✅ Pre-populated price from contract: €${contractService.unit_price}`);
+          form.setValue('unit_price', contractService.unit_price);
+          toast.success('Precio cargado desde contrato activo');
+          return;
+        }
+      }
+
+      // Priority 2: Fallback to base service price
+      const service = services?.find((s) => s.id === serviceId);
+      if (service?.price) {
+        console.log(`✅ Pre-populated price from service: €${service.price}`);
+        form.setValue('unit_price', service.price);
+      }
+    } catch (error) {
+      console.error('Error loading price:', error);
+      // Fallback to service price on error
+      const service = services?.find((s) => s.id === serviceId);
+      if (service?.price) {
+        form.setValue('unit_price', service.price);
+      }
     }
   };
+
+  // Auto-calculate total and margin, show warning if margin is negative
+  useEffect(() => {
+    const subscription = form.watch((value) => {
+      const { quantity, unit_price, cost } = value;
+
+      if (quantity && unit_price && cost) {
+        const total = quantity * unit_price;
+        const margin = total - (cost * quantity);
+
+        if (margin < 0) {
+          setMarginWarning(true);
+          console.warn(`⚠️ Negative margin: €${margin.toFixed(2)}`);
+        } else {
+          setMarginWarning(false);
+        }
+
+        console.log(
+          `💰 Total: €${total.toFixed(2)} | Cost: €${(cost * quantity).toFixed(2)} | Margin: €${margin.toFixed(2)}`
+        );
+      } else {
+        setMarginWarning(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [form]);
 
   const onSubmit = (data: RequestFormData) => {
     mutation.mutate(data);
@@ -219,6 +289,15 @@ export const RequestFormModal = ({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {marginWarning && !isViewMode && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  ⚠️ <strong>Margen negativo:</strong> El costo es mayor que el precio de venta. Estás perdiendo dinero en esta solicitud.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}

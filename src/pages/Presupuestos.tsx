@@ -1,9 +1,355 @@
-import { AppLayout } from "@/components/layout/AppLayout";
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent } from '@/components/ui/card';
+import { LayoutGrid, Table as TableIcon, Plus, X, Copy } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useBudgetFilters } from '@/hooks/useBudgetFilters';
+import { BudgetCard } from '@/components/budgets/BudgetCard';
+import { BudgetTableView } from '@/components/budgets/BudgetTableView';
+import { BudgetFormModal } from '@/components/budgets/BudgetFormModal';
+import { toast } from 'sonner';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Presupuestos() {
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedBudget, setSelectedBudget] = useState<any>(null);
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
+
+  const { user } = useAuth();
+  const { filters, updateFilter, resetFilters } = useBudgetFilters();
+  const queryClient = useQueryClient();
+
+  const { data: budgets, isLoading } = useQuery({
+    queryKey: ['budgets', filters],
+    queryFn: async () => {
+      let query = supabase
+        .from('budgets')
+        .select(`
+          *,
+          client:clients(id, name)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (filters.status) {
+        query = query.eq('status', filters.status);
+      }
+      if (filters.clientId) {
+        query = query.eq('client_id', filters.clientId);
+      }
+      if (filters.searchTerm) {
+        query = query.or(`title.ilike.%${filters.searchTerm}%`);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const { data: clients } = useQuery({
+    queryKey: ['clients'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, name')
+        .eq('status', 'active')
+        .order('name');
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const duplicateMutation = useMutation({
+    mutationFn: async (budget: any) => {
+      // Duplicar presupuesto
+      const { data: newBudget, error: budgetError } = await supabase
+        .from('budgets')
+        .insert({
+          title: `${budget.title} (Copia)`,
+          client_id: budget.client_id,
+          description: budget.description,
+          valid_until: budget.valid_until,
+          total_amount: budget.total_amount,
+          status: 'pending',
+          created_by: user?.id,
+        })
+        .select()
+        .single();
+
+      if (budgetError) throw budgetError;
+
+      // Copiar items
+      const { data: items, error: itemsError } = await supabase
+        .from('budget_items')
+        .select('*')
+        .eq('budget_id', budget.id);
+
+      if (itemsError) throw itemsError;
+
+      if (items && items.length > 0) {
+        const itemsToInsert = items.map((item) => ({
+          budget_id: newBudget.id,
+          service_id: item.service_id,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total: item.total,
+          notes: item.notes,
+        }));
+
+        const { error: insertError } = await supabase
+          .from('budget_items')
+          .insert(itemsToInsert);
+
+        if (insertError) throw insertError;
+      }
+
+      return newBudget;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      toast.success('Presupuesto duplicado correctamente');
+    },
+    onError: (error: any) => {
+      toast.error('Error al duplicar presupuesto: ' + error.message);
+    },
+  });
+
+  const convertToContractMutation = useMutation({
+    mutationFn: async (budget: any) => {
+      // Crear contrato desde presupuesto
+      const { data: newContract, error: contractError } = await supabase
+        .from('contracts')
+        .insert({
+          title: budget.title,
+          client_id: budget.client_id,
+          description: budget.description,
+          total_amount: budget.total_amount,
+          status: 'draft',
+          created_by: user?.id,
+        })
+        .select()
+        .single();
+
+      if (contractError) throw contractError;
+
+      // Copiar items como servicios del contrato
+      const { data: items, error: itemsError } = await supabase
+        .from('budget_items')
+        .select('*')
+        .eq('budget_id', budget.id);
+
+      if (itemsError) throw itemsError;
+
+      if (items && items.length > 0) {
+        const servicesToInsert = items.map((item) => ({
+          contract_id: newContract.id,
+          service_id: item.service_id,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          billing_mode: 'monthly',
+        }));
+
+        const { error: insertError } = await supabase
+          .from('contract_services')
+          .insert(servicesToInsert);
+
+        if (insertError) throw insertError;
+      }
+
+      return newContract;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
+      toast.success('Contrato creado desde presupuesto');
+    },
+    onError: (error: any) => {
+      toast.error('Error al crear contrato: ' + error.message);
+    },
+  });
+
+  const handleCreate = () => {
+    setSelectedBudget(null);
+    setModalMode('create');
+    setModalOpen(true);
+  };
+
+  const handleView = (budget: any) => {
+    setSelectedBudget(budget);
+    setModalMode('view');
+    setModalOpen(true);
+  };
+
+  const handleEdit = (budget: any) => {
+    setSelectedBudget(budget);
+    setModalMode('edit');
+    setModalOpen(true);
+  };
+
+  const handleDuplicate = (budget: any) => {
+    duplicateMutation.mutate(budget);
+  };
+
+  const handleConvertToContract = async (budget: any) => {
+    if (budget.status !== 'approved') {
+      toast.error('Solo se pueden convertir presupuestos aprobados a contratos');
+      return;
+    }
+    convertToContractMutation.mutate(budget);
+  };
+
+  const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId;
+
   return (
     <AppLayout title="Presupuestos" description="Gestión de presupuestos">
-      <p className="text-muted-foreground">Página en construcción</p>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold">Presupuestos</h2>
+          <Button onClick={handleCreate}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Presupuesto
+          </Button>
+        </div>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="relative">
+                  <Input
+                    placeholder="Buscar por título..."
+                    value={filters.searchTerm}
+                    onChange={(e) => updateFilter('searchTerm', e.target.value)}
+                    className="pr-8"
+                  />
+                  {filters.searchTerm && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                      onClick={() => updateFilter('searchTerm', '')}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+
+                <Select
+                  value={filters.status || 'all'}
+                  onValueChange={(value) => updateFilter('status', value === 'all' ? null : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos los estados" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los estados</SelectItem>
+                    <SelectItem value="pending">Pendiente</SelectItem>
+                    <SelectItem value="sent">Enviado</SelectItem>
+                    <SelectItem value="approved">Aprobado</SelectItem>
+                    <SelectItem value="rejected">Rechazado</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={filters.clientId || 'all'}
+                  onValueChange={(value) => updateFilter('clientId', value === 'all' ? null : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos los clientes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los clientes</SelectItem>
+                    {clients?.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {hasActiveFilters && (
+                    <Button variant="outline" size="sm" onClick={resetFilters}>
+                      <X className="h-4 w-4 mr-2" />
+                      Limpiar filtros
+                    </Button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={viewMode === 'cards' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('cards')}
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={viewMode === 'table' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('table')}
+                  >
+                    <TableIcon className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {isLoading ? (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[...Array(6)].map((_, i) => (
+              <Skeleton key={i} className="h-64" />
+            ))}
+          </div>
+        ) : budgets && budgets.length > 0 ? (
+          viewMode === 'cards' ? (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {budgets.map((budget) => (
+                <BudgetCard
+                  key={budget.id}
+                  budget={budget}
+                  onView={handleView}
+                  onEdit={handleEdit}
+                  onDuplicate={handleDuplicate}
+                />
+              ))}
+            </div>
+          ) : (
+            <BudgetTableView
+              budgets={budgets}
+              onView={handleView}
+              onEdit={handleEdit}
+              onDuplicate={handleDuplicate}
+            />
+          )
+        ) : (
+          <Card>
+            <CardContent className="flex items-center justify-center h-32">
+              <p className="text-muted-foreground">No se encontraron presupuestos</p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      <BudgetFormModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        budget={selectedBudget}
+        mode={modalMode}
+      />
     </AppLayout>
   );
 }

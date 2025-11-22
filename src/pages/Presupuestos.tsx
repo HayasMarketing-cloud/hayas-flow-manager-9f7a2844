@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { LayoutGrid, Table as TableIcon, Plus, X, Copy } from 'lucide-react';
+import { LayoutGrid, Table as TableIcon, Plus, X, Copy, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBudgetFilters } from '@/hooks/useBudgetFilters';
@@ -14,12 +14,16 @@ import { BudgetTableView } from '@/components/budgets/BudgetTableView';
 import { BudgetFormModal } from '@/components/budgets/BudgetFormModal';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 export default function Presupuestos() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<any>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [budgetToDelete, setBudgetToDelete] = useState<any>(null);
 
   const { user } = useAuth();
   const { filters, updateFilter, resetFilters } = useBudgetFilters();
@@ -69,7 +73,6 @@ export default function Presupuestos() {
 
   const duplicateMutation = useMutation({
     mutationFn: async (budget: any) => {
-      // Duplicar presupuesto
       const { data: newBudget, error: budgetError } = await supabase
         .from('budgets')
         .insert({
@@ -86,7 +89,6 @@ export default function Presupuestos() {
 
       if (budgetError) throw budgetError;
 
-      // Copiar items
       const { data: items, error: itemsError } = await supabase
         .from('budget_items')
         .select('*')
@@ -125,7 +127,6 @@ export default function Presupuestos() {
 
   const convertToContractMutation = useMutation({
     mutationFn: async (budget: any) => {
-      // Crear contrato desde presupuesto
       const { data: newContract, error: contractError } = await supabase
         .from('contracts')
         .insert({
@@ -141,7 +142,6 @@ export default function Presupuestos() {
 
       if (contractError) throw contractError;
 
-      // Copiar items como servicios del contrato
       const { data: items, error: itemsError } = await supabase
         .from('budget_items')
         .select('*')
@@ -195,6 +195,32 @@ export default function Presupuestos() {
     setModalOpen(true);
   };
 
+  const handleDelete = (budget: any) => {
+    setBudgetToDelete(budget);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!budgetToDelete) return;
+
+    try {
+      const { error } = await supabase
+        .from('budgets')
+        .delete()
+        .eq('id', budgetToDelete.id);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      toast.success('Presupuesto eliminado correctamente');
+    } catch (error: any) {
+      toast.error('Error al eliminar presupuesto: ' + error.message);
+    } finally {
+      setDeleteDialogOpen(false);
+      setBudgetToDelete(null);
+    }
+  };
+
   const handleDuplicate = (budget: any) => {
     duplicateMutation.mutate(budget);
   };
@@ -212,7 +238,7 @@ export default function Presupuestos() {
   return (
     <AppLayout title="Presupuestos" description="Gestión de presupuestos">
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h2 className="text-2xl font-bold">Presupuestos</h2>
           <Button onClick={handleCreate}>
             <Plus className="h-4 w-4 mr-2" />
@@ -277,7 +303,7 @@ export default function Presupuestos() {
                 </Select>
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
                   {hasActiveFilters && (
                     <Button variant="outline" size="sm" onClick={resetFilters}>
@@ -314,41 +340,73 @@ export default function Presupuestos() {
               <Skeleton key={i} className="h-64" />
             ))}
           </div>
-        ) : budgets && budgets.length > 0 ? (
-          viewMode === 'cards' ? (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {budgets.map((budget) => (
-                <BudgetCard
-                  key={budget.id}
-                  budget={budget}
-                  onView={handleView}
-                  onEdit={handleEdit}
-                  onDuplicate={handleDuplicate}
-                />
-              ))}
-            </div>
-          ) : (
-            <BudgetTableView
-              budgets={budgets}
-              onView={handleView}
-              onEdit={handleEdit}
-              onDuplicate={handleDuplicate}
-            />
-          )
+        ) : !budgets || budgets.length === 0 ? (
+          <EmptyState
+            icon={FileText}
+            title={hasActiveFilters ? 'No se encontraron presupuestos' : '¡Crea tu primer presupuesto!'}
+            description={
+              hasActiveFilters
+                ? 'No hay presupuestos que coincidan con los filtros aplicados. Intenta ajustar tus criterios de búsqueda.'
+                : 'Los presupuestos te permiten cotizar servicios a tus clientes. Una vez aprobados, puedes convertirlos en contratos.'
+            }
+            action={
+              !hasActiveFilters
+                ? {
+                    label: 'Crear Presupuesto',
+                    onClick: handleCreate,
+                    icon: Plus,
+                  }
+                : undefined
+            }
+          >
+            {hasActiveFilters && (
+              <Button variant="outline" onClick={resetFilters} className="mt-4">
+                Limpiar Filtros
+              </Button>
+            )}
+          </EmptyState>
+        ) : viewMode === 'cards' ? (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {budgets.map((budget) => (
+              <BudgetCard
+                key={budget.id}
+                budget={budget}
+                onView={handleView}
+                onEdit={handleEdit}
+                onDuplicate={handleDuplicate}
+                onConvertToContract={handleConvertToContract}
+              />
+            ))}
+          </div>
         ) : (
-          <Card>
-            <CardContent className="flex items-center justify-center h-32">
-              <p className="text-muted-foreground">No se encontraron presupuestos</p>
-            </CardContent>
-          </Card>
+          <BudgetTableView
+            budgets={budgets}
+            onView={handleView}
+            onEdit={handleEdit}
+            onDuplicate={handleDuplicate}
+          />
         )}
       </div>
 
       <BudgetFormModal
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          setModalOpen(false);
+          setSelectedBudget(null);
+        }}
         budget={selectedBudget}
         mode={modalMode}
+      />
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Eliminar Presupuesto"
+        description={`¿Estás seguro de que deseas eliminar el presupuesto "${budgetToDelete?.title}"? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        onConfirm={confirmDelete}
+        variant="destructive"
       />
     </AppLayout>
   );

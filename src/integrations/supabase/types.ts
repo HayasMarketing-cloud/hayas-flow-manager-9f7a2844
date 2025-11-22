@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      budget_items: {
+        Row: {
+          budget_id: string
+          created_at: string
+          description: string
+          id: string
+          notes: string | null
+          quantity: number
+          service_id: string | null
+          total: number
+          unit_price: number
+          updated_at: string
+        }
+        Insert: {
+          budget_id: string
+          created_at?: string
+          description: string
+          id?: string
+          notes?: string | null
+          quantity?: number
+          service_id?: string | null
+          total: number
+          unit_price: number
+          updated_at?: string
+        }
+        Update: {
+          budget_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          notes?: string | null
+          quantity?: number
+          service_id?: string | null
+          total?: number
+          unit_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_items_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_items_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budgets: {
         Row: {
           client_id: string
@@ -111,6 +165,70 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      contract_services: {
+        Row: {
+          billing_mode: string | null
+          contract_id: string
+          created_at: string
+          description: string
+          id: string
+          notes: string | null
+          quantity: number
+          service_id: string | null
+          specialist_id: string | null
+          unit_price: number
+          updated_at: string
+        }
+        Insert: {
+          billing_mode?: string | null
+          contract_id: string
+          created_at?: string
+          description: string
+          id?: string
+          notes?: string | null
+          quantity?: number
+          service_id?: string | null
+          specialist_id?: string | null
+          unit_price: number
+          updated_at?: string
+        }
+        Update: {
+          billing_mode?: string | null
+          contract_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          notes?: string | null
+          quantity?: number
+          service_id?: string | null
+          specialist_id?: string | null
+          unit_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_services_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_services_specialist_id_fkey"
+            columns: ["specialist_id"]
+            isOneToOne: false
+            referencedRelation: "specialists"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       contracts: {
         Row: {

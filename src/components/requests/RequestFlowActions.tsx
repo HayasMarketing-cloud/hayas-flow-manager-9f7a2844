@@ -9,10 +9,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 interface RequestFlowActionsProps {
   request: any;
@@ -23,9 +25,30 @@ interface RequestFlowActionsProps {
 export const RequestFlowActions = ({ request, variant = 'outline', size = 'sm' }: RequestFlowActionsProps) => {
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
   const [liquidationDialogOpen, setLiquidationDialogOpen] = useState(false);
+  const [selectedLiquidation, setSelectedLiquidation] = useState<string>('');
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const flowStatus = getRequestFlowStatus(request);
+
+  // Query para obtener liquidaciones draft del especialista
+  const { data: availableLiquidations } = useQuery({
+    queryKey: ['draft-liquidations', request.specialist_id],
+    queryFn: async () => {
+      if (!request.specialist_id) return [];
+      
+      const { data, error } = await supabase
+        .from('liquidations')
+        .select('id, code, period_year, period_month')
+        .eq('specialist_id', request.specialist_id)
+        .eq('status', 'draft')
+        .order('period_year', { ascending: false })
+        .order('period_month', { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: liquidationDialogOpen && !!request.specialist_id,
+  });
 
   const createInvoiceMutation = useMutation({
     mutationFn: async () => {
@@ -153,6 +176,14 @@ export const RequestFlowActions = ({ request, variant = 'outline', size = 'sm' }
     createInvoiceMutation.mutate();
   };
 
+  const handleAddToLiquidation = () => {
+    if (!selectedLiquidation) {
+      toast.error('Selecciona una liquidación');
+      return;
+    }
+    addToLiquidationMutation.mutate(selectedLiquidation);
+  };
+
   if (!flowStatus.canGenerateInvoice && !flowStatus.canAddToLiquidation) {
     return null;
   }
@@ -264,14 +295,36 @@ export const RequestFlowActions = ({ request, variant = 'outline', size = 'sm' }
               </div>
             </div>
 
-            <p className="text-sm text-muted-foreground">
-              Esta funcionalidad se completará próximamente. Por ahora, dirígete a la sección de 
-              Liquidaciones para gestionar manualmente.
-            </p>
+            <div className="space-y-2">
+              <Label>Seleccionar Liquidación</Label>
+              <Select value={selectedLiquidation} onValueChange={setSelectedLiquidation}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Elegir liquidación en borrador..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableLiquidations?.map((liq) => (
+                    <SelectItem key={liq.id} value={liq.id}>
+                      {liq.code} - {new Date(liq.period_year, liq.period_month - 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {availableLiquidations?.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No hay liquidaciones en borrador. Crea una nueva en la sección de Liquidaciones.
+                </p>
+              )}
+            </div>
 
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setLiquidationDialogOpen(false)}>
-                Cerrar
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleAddToLiquidation}
+                disabled={!selectedLiquidation || addToLiquidationMutation.isPending}
+              >
+                {addToLiquidationMutation.isPending ? 'Agregando...' : 'Agregar a Liquidación'}
               </Button>
             </div>
           </div>

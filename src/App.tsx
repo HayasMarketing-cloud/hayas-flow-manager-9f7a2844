@@ -25,6 +25,8 @@ import Reportes from "./pages/Reportes";
 import Usuarios from "./pages/Usuarios";
 import Perfil from "./pages/Perfil";
 import NotFound from "./pages/NotFound";
+import OperationalProjects from "./pages/operations/OperationalProjects";
+import MyTasks from "./pages/operations/MyTasks";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +57,8 @@ const App = () => (
             <Route path="/reportes" element={<ProtectedRoute><Reportes /></ProtectedRoute>} />
             <Route path="/usuarios" element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
             <Route path="/perfil" element={<ProtectedRoute><Perfil /></ProtectedRoute>} />
+            <Route path="/proyectos-operativos" element={<ProtectedRoute><OperationalProjects /></ProtectedRoute>} />
+            <Route path="/mis-tareas" element={<ProtectedRoute><MyTasks /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

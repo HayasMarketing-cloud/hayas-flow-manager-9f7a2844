@@ -32,10 +32,10 @@ const Solicitudes = () => {
   const canManage = canAccessFinance() || canAccessOperations();
 
   const { data: requests, isLoading, error } = useQuery({
-    queryKey: ['requests', filters],
+    queryKey: ['financial_requests', filters],
     queryFn: async () => {
       let query = supabase
-        .from('requests')
+        .from('financial_requests')
         .select(
           `
           *,
@@ -88,7 +88,7 @@ const Solicitudes = () => {
   };
 
   const handleSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ['requests'] });
+    queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
   };
 
   if (error) {
@@ -171,12 +171,9 @@ const Solicitudes = () => {
               <SelectContent>
                 <SelectItem value="all">Todos los estados</SelectItem>
                 <SelectItem value="draft">Borrador</SelectItem>
-                <SelectItem value="pending_approval">Pendiente</SelectItem>
-                <SelectItem value="approved">Aprobado</SelectItem>
-                <SelectItem value="in_progress">En Progreso</SelectItem>
-                <SelectItem value="completed">Completado</SelectItem>
-                <SelectItem value="billed">Facturado</SelectItem>
-                <SelectItem value="cancelled">Cancelado</SelectItem>
+                <SelectItem value="active">Activo</SelectItem>
+                <SelectItem value="invoiced">Facturado</SelectItem>
+                <SelectItem value="liquidated">Liquidado</SelectItem>
               </SelectContent>
             </Select>
 

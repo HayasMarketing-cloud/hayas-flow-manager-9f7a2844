@@ -39,10 +39,10 @@ export default function DashboardEspecialista() {
 
       // Active requests
       const { data: requests } = await supabase
-        .from('requests')
-        .select('id, total, cost')
+        .from('financial_requests')
+        .select('id, cost_to_agency')
         .eq('specialist_id', specialist.id)
-        .not('status', 'in', '(completed,cancelled,billed)');
+        .eq('status', 'active');
 
       // Pending liquidations
       const { data: liquidations } = await supabase

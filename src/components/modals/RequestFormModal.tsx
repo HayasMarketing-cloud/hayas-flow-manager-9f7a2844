@@ -127,27 +127,22 @@ export const RequestFormModal = ({
 
   const mutation = useMutation({
     mutationFn: async (data: RequestFormData) => {
-      const total = calculateTotal(data.quantity, data.unit_price);
-      const margin = data.cost ? total - data.cost : null;
-
       const requestData = {
         ...data,
-        total,
-        margin,
         deadline: data.deadline || null,
         description: data.description || null,
         specialist_id: data.specialist_id || null,
-        cost: data.cost || null,
+        cost_to_agency: data.cost_to_agency || null,
       };
 
       if (initialData) {
         const { error } = await supabase
-          .from('requests')
+          .from('financial_requests')
           .update(requestData)
           .eq('id', initialData.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('requests').insert([requestData as any]);
+        const { error } = await supabase.from('financial_requests').insert([requestData as any]);
         if (error) throw error;
       }
     },
@@ -398,30 +393,10 @@ export const RequestFormModal = ({
 
               <FormField
                 control={form.control}
-                name="unit_price"
+                name="cost_to_agency"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Precio Unitario *</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        {...field}
-                        disabled={isViewMode}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="cost"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Costo</FormLabel>
+                    <FormLabel>Coste Agencia</FormLabel>
                     <FormControl>
                       <Input
                         type="number"

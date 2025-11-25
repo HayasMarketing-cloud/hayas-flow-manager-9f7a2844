@@ -172,22 +172,26 @@ export default function RequestFlowTracker() {
                           <TableCell className="max-w-[200px] truncate">{request.title}</TableCell>
                           <TableCell>{request.client?.name}</TableCell>
                           <TableCell>{request.specialist?.name || '-'}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(request.total)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(request.cost_to_agency || 0)}</TableCell>
                           <TableCell>
-                            {flowStatus.hasInvoice ? (
+                            {flowStatus.hasInvoice && request.billed_invoice ? (
                               <div className="flex items-center gap-2">
                                 <FileText className="h-4 w-4 text-blue-500" />
-                                <span className="text-sm">{request.billed_invoice?.code}</span>
+                                <span className="text-sm">
+                                  {(request.billed_invoice as any)?.code || '-'}
+                                </span>
                               </div>
                             ) : (
                               <span className="text-muted-foreground text-sm">-</span>
                             )}
                           </TableCell>
                           <TableCell>
-                            {flowStatus.hasLiquidation ? (
+                            {flowStatus.hasLiquidation && request.liquidation ? (
                               <div className="flex items-center gap-2">
                                 <Wallet className="h-4 w-4 text-purple-500" />
-                                <span className="text-sm">{request.liquidation?.code}</span>
+                                <span className="text-sm">
+                                  {(request.liquidation as any)?.code || '-'}
+                                </span>
                               </div>
                             ) : (
                               <span className="text-muted-foreground text-sm">-</span>

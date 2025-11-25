@@ -41,17 +41,13 @@ const requestSchema = z.object({
   title: z.string().min(3, 'Mínimo 3 caracteres').max(255, 'Máximo 255 caracteres'),
   description: z.string().optional().nullable(),
   quantity: z.coerce.number().min(1, 'Mínimo 1'),
-  unit_price: z.coerce.number().min(0, 'Debe ser positivo'),
-  cost: z.coerce.number().min(0).optional().nullable(),
+  cost_to_agency: z.coerce.number().min(0).optional().nullable(),
   deadline: z.string().optional().nullable(),
   status: z.enum([
     'draft',
-    'pending_approval',
-    'approved',
-    'in_progress',
-    'completed',
-    'billed',
-    'cancelled',
+    'active',
+    'invoiced',
+    'liquidated',
   ]),
 });
 
@@ -85,8 +81,7 @@ export const RequestFormModal = ({
       title: '',
       description: null,
       quantity: 1,
-      unit_price: 0,
-      cost: null,
+      cost_to_agency: null,
       deadline: null,
       status: 'draft',
     },
@@ -178,8 +173,7 @@ export const RequestFormModal = ({
         title: initialData.title,
         description: initialData.description || null,
         quantity: initialData.quantity,
-        unit_price: initialData.unit_price,
-        cost: initialData.cost || null,
+        cost_to_agency: initialData.cost_to_agency || null,
         deadline: initialData.deadline || null,
         status: initialData.status,
       });
@@ -207,14 +201,14 @@ export const RequestFormModal = ({
       if (activeContracts && activeContracts.length > 0) {
         const { data: contractService } = await supabase
           .from('contract_services')
-          .select('unit_price')
+          .select('price_value')
           .eq('contract_id', activeContracts[0].id)
           .eq('service_id', serviceId)
           .maybeSingle();
 
-        if (contractService?.unit_price) {
-          console.log(`✅ Pre-populated price from contract: €${contractService.unit_price}`);
-          form.setValue('unit_price', contractService.unit_price);
+        if (contractService?.price_value) {
+          console.log(`✅ Pre-populated price from contract: €${contractService.price_value}`);
+          form.setValue('cost_to_agency', contractService.price_value);
           toast.success('Precio cargado desde contrato activo');
           return;
         }
@@ -224,40 +218,23 @@ export const RequestFormModal = ({
       const service = services?.find((s) => s.id === serviceId);
       if (service?.price) {
         console.log(`✅ Pre-populated price from service: €${service.price}`);
-        form.setValue('unit_price', service.price);
+        form.setValue('cost_to_agency', service.price);
       }
     } catch (error) {
       console.error('Error loading price:', error);
       // Fallback to service price on error
       const service = services?.find((s) => s.id === serviceId);
       if (service?.price) {
-        form.setValue('unit_price', service.price);
+        form.setValue('cost_to_agency', service.price);
       }
     }
   };
 
-  // Auto-calculate total and margin, show warning if margin is negative
+  // Auto-calculate margin warning removed as financial_requests don't have unit_price/total
   useEffect(() => {
     const subscription = form.watch((value) => {
-      const { quantity, unit_price, cost } = value;
-
-      if (quantity && unit_price && cost) {
-        const total = quantity * unit_price;
-        const margin = total - (cost * quantity);
-
-        if (margin < 0) {
-          setMarginWarning(true);
-          console.warn(`⚠️ Negative margin: €${margin.toFixed(2)}`);
-        } else {
-          setMarginWarning(false);
-        }
-
-        console.log(
-          `💰 Total: €${total.toFixed(2)} | Cost: €${(cost * quantity).toFixed(2)} | Margin: €${margin.toFixed(2)}`
-        );
-      } else {
-        setMarginWarning(false);
-      }
+      // Financial requests only track cost_to_agency
+      // Pricing calculations happen at invoice level
     });
 
     return () => subscription.unsubscribe();

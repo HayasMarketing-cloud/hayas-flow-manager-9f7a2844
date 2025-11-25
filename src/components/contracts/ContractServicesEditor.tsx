@@ -13,8 +13,10 @@ interface ContractService {
   specialist_id?: string;
   description: string;
   quantity: number;
-  unit_price: number;
-  billing_mode: string;
+  price_value?: number;
+  unit_price?: number; // Legacy support
+  billing_frequency?: string;
+  billing_mode?: string; // Legacy support
   notes?: string;
 }
 
@@ -63,8 +65,8 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
     const newService: ContractService = {
       description: '',
       quantity: 1,
-      unit_price: 0,
-      billing_mode: 'monthly',
+      price_value: 0,
+      billing_frequency: 'monthly',
     };
     const updatedServices = [...localServices, newService];
     setLocalServices(updatedServices);
@@ -92,12 +94,12 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
     if (service) {
       handleServiceChange(index, 'service_id', serviceId);
       handleServiceChange(index, 'description', service.name);
-      handleServiceChange(index, 'unit_price', service.price || 0);
+      handleServiceChange(index, 'price_value', service.price || 0);
     }
   };
 
   const totalAmount = localServices.reduce(
-    (sum, service) => sum + calculateServiceTotal(service.quantity, service.unit_price),
+    (sum, service) => sum + calculateServiceTotal(service.quantity, service.price_value || service.unit_price || 0),
     0
   );
 
@@ -180,9 +182,9 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
                 min="0"
                 step="0.01"
                 placeholder="Precio"
-                value={service.unit_price}
+                value={service.price_value || service.unit_price || 0}
                 onChange={(e) =>
-                  handleServiceChange(index, 'unit_price', parseFloat(e.target.value) || 0)
+                  handleServiceChange(index, 'price_value', parseFloat(e.target.value) || 0)
                 }
                 disabled={disabled}
               />
@@ -190,8 +192,8 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
 
             <div className="col-span-2">
               <Select
-                value={service.billing_mode}
-                onValueChange={(value) => handleServiceChange(index, 'billing_mode', value)}
+                value={service.billing_frequency || service.billing_mode || 'monthly'}
+                onValueChange={(value) => handleServiceChange(index, 'billing_frequency', value)}
                 disabled={disabled}
               >
                 <SelectTrigger>
@@ -199,14 +201,13 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="monthly">Mensual</SelectItem>
-                  <SelectItem value="per_service">Por Servicio</SelectItem>
                   <SelectItem value="one_time">Único</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="col-span-1 flex items-center justify-end font-semibold">
-              {formatCurrency(calculateServiceTotal(service.quantity, service.unit_price))}
+              {formatCurrency(calculateServiceTotal(service.quantity, service.price_value || service.unit_price || 0))}
             </div>
 
             <div className="col-span-1 flex items-center justify-end">

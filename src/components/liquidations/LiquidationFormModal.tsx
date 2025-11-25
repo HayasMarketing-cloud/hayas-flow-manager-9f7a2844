@@ -196,7 +196,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
 
       // Obtener los requests seleccionados con sus datos
       const { data: requests, error: fetchError } = await supabase
-        .from('requests')
+        .from('financial_requests')
         .select('*, service:services(name)')
         .in('id', requestIds);
 
@@ -206,11 +206,11 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       // Crear liquidation_items
       const items = requests.map((req) => ({
         liquidation_id: liquidation.id,
-        request_id: req.id,
+        financial_request_id: req.id,
         description: req.service?.name || req.title,
-        quantity: req.quantity,
-        unit_price: req.cost || 0,
-        total: (req.cost || 0) * req.quantity,
+        quantity: 1,
+        unit_price: req.cost_to_agency || 0,
+        total: req.cost_to_agency || 0,
       }));
 
       const { error: insertError } = await supabase
@@ -221,7 +221,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
 
       // Actualizar los requests para marcarlos como liquidados
       const { error: updateError } = await supabase
-        .from('requests')
+        .from('financial_requests')
         .update({ liquidation_id: liquidation.id })
         .in('id', requestIds);
 
@@ -533,10 +533,10 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
                         htmlFor={request.id}
                         className="flex-1 cursor-pointer space-y-1"
                       >
-                        <div className="flex items-center justify-between gap-2">
+                         <div className="flex items-center justify-between gap-2">
                           <span className="font-medium text-sm">{request.code}</span>
                           <span className="text-sm font-semibold text-primary">
-                            {((request.cost || 0) * request.quantity).toFixed(2)} €
+                            {(request.cost_to_agency || 0).toFixed(2)} €
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground">

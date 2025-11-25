@@ -120,8 +120,8 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
             specialist_id: service.specialist_id,
             description: service.description,
             quantity: service.quantity,
-            unit_price: service.unit_price,
-            billing_mode: service.billing_mode,
+            price_value: service.price_value || service.unit_price || 0,
+            billing_frequency: service.billing_frequency || 'monthly',
             notes: service.notes,
           }));
 
@@ -152,8 +152,8 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
             specialist_id: service.specialist_id,
             description: service.description,
             quantity: service.quantity,
-            unit_price: service.unit_price,
-            billing_mode: service.billing_mode,
+            price_value: service.price_value || service.unit_price || 0,
+            billing_frequency: service.billing_frequency || 'monthly',
             notes: service.notes,
           }));
 
@@ -221,7 +221,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
       return await response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-requests'] });
       toast.success(`${data.count} solicitudes generadas correctamente`);
       onClose();
     },

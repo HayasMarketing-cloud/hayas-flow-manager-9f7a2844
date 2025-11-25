@@ -179,15 +179,15 @@ export const useDashboardKPIs = (filters: DashboardFilters, previousPeriod: { ye
       // Active requests
       const [currentRequests, previousRequests] = await Promise.all([
         supabase
-          .from('requests')
+          .from('financial_requests')
           .select('id')
-          .not('status', 'in', '(completed,cancelled,billed)')
+          .eq('status', 'active')
           .gte('created_at', currentRange.start)
           .lte('created_at', currentRange.end),
         supabase
-          .from('requests')
+          .from('financial_requests')
           .select('id')
-          .not('status', 'in', '(completed,cancelled,billed)')
+          .eq('status', 'active')
           .gte('created_at', previousRange.start)
           .lte('created_at', previousRange.end),
       ]);

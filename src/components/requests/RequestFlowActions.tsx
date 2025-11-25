@@ -85,12 +85,12 @@ export const RequestFlowActions = ({ request, variant = 'outline', size = 'sm' }
 
       if (itemError) throw itemError;
 
-      // 3. Actualizar el request con el invoice_id
+      // 2. Actualizar el request con el invoice_id
       const { error: updateError } = await supabase
-        .from('requests')
+        .from('financial_requests')
         .update({ 
           billed_invoice_id: invoice.id,
-          status: 'billed'
+          status: 'invoiced'
         })
         .eq('id', request.id);
 
@@ -99,8 +99,8 @@ export const RequestFlowActions = ({ request, variant = 'outline', size = 'sm' }
       return invoice;
     },
     onSuccess: (invoice) => {
-      queryClient.invalidateQueries({ queryKey: ['requests'] });
-      queryClient.invalidateQueries({ queryKey: ['requests-with-flow'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-requests-with-flow'] });
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       toast.success(`Factura ${invoice.code} creada exitosamente`);
       setInvoiceDialogOpen(false);
@@ -129,7 +129,7 @@ export const RequestFlowActions = ({ request, variant = 'outline', size = 'sm' }
 
       // 2. Actualizar el request con el liquidation_id
       const { error: updateError } = await supabase
-        .from('requests')
+        .from('financial_requests')
         .update({ liquidation_id: liquidationId })
         .eq('id', request.id);
 
@@ -161,8 +161,8 @@ export const RequestFlowActions = ({ request, variant = 'outline', size = 'sm' }
       return liquidationId;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['requests'] });
-      queryClient.invalidateQueries({ queryKey: ['requests-with-flow'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-requests-with-flow'] });
       queryClient.invalidateQueries({ queryKey: ['liquidations'] });
       toast.success('Request agregado a liquidación exitosamente');
       setLiquidationDialogOpen(false);

@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action: string
+          changes: Json | null
+          created_at: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          changes?: Json | null
+          created_at?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          changes?: Json | null
+          created_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_items: {
         Row: {
           budget_id: string
@@ -118,15 +156,20 @@ export type Database = {
       clients: {
         Row: {
           address: string | null
+          billing_emails: string[] | null
           city: string | null
           code: string | null
           country: string | null
           created_at: string
           created_by: string
           email: string | null
+          expected_payment_day: number | null
+          hub_client_url: string | null
           id: string
+          invoice_day: number | null
           name: string
           notes: string | null
+          payment_method: Database["public"]["Enums"]["payment_method"] | null
           phone: string | null
           status: string | null
           tax_id: string | null
@@ -134,15 +177,20 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          billing_emails?: string[] | null
           city?: string | null
           code?: string | null
           country?: string | null
           created_at?: string
           created_by: string
           email?: string | null
+          expected_payment_day?: number | null
+          hub_client_url?: string | null
           id?: string
+          invoice_day?: number | null
           name: string
           notes?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
           phone?: string | null
           status?: string | null
           tax_id?: string | null
@@ -150,15 +198,20 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          billing_emails?: string[] | null
           city?: string | null
           code?: string | null
           country?: string | null
           created_at?: string
           created_by?: string
           email?: string | null
+          expected_payment_day?: number | null
+          hub_client_url?: string | null
           id?: string
+          invoice_day?: number | null
           name?: string
           notes?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
           phone?: string | null
           status?: string | null
           tax_id?: string | null
@@ -168,42 +221,58 @@ export type Database = {
       }
       contract_services: {
         Row: {
-          billing_mode: string | null
+          billing_frequency:
+            | Database["public"]["Enums"]["billing_frequency"]
+            | null
           contract_id: string
           created_at: string
           description: string
           id: string
           notes: string | null
+          price_rule_type: Database["public"]["Enums"]["price_rule_type"] | null
+          price_value: number
+          project_type: string | null
           quantity: number
           service_id: string | null
           specialist_id: string | null
-          unit_price: number
           updated_at: string
         }
         Insert: {
-          billing_mode?: string | null
+          billing_frequency?:
+            | Database["public"]["Enums"]["billing_frequency"]
+            | null
           contract_id: string
           created_at?: string
           description: string
           id?: string
           notes?: string | null
+          price_rule_type?:
+            | Database["public"]["Enums"]["price_rule_type"]
+            | null
+          price_value: number
+          project_type?: string | null
           quantity?: number
           service_id?: string | null
           specialist_id?: string | null
-          unit_price: number
           updated_at?: string
         }
         Update: {
-          billing_mode?: string | null
+          billing_frequency?:
+            | Database["public"]["Enums"]["billing_frequency"]
+            | null
           contract_id?: string
           created_at?: string
           description?: string
           id?: string
           notes?: string | null
+          price_rule_type?:
+            | Database["public"]["Enums"]["price_rule_type"]
+            | null
+          price_value?: number
+          project_type?: string | null
           quantity?: number
           service_id?: string | null
           specialist_id?: string | null
-          unit_price?: number
           updated_at?: string
         }
         Relationships: [
@@ -232,12 +301,20 @@ export type Database = {
       }
       contracts: {
         Row: {
+          am_user_id: string | null
+          attached_contract_url: string | null
           client_id: string
+          client_po_number: string | null
+          contract_type: Database["public"]["Enums"]["contract_type"] | null
           created_at: string
           created_by: string
           description: string | null
           end_date: string | null
+          hub_project_url: string | null
           id: string
+          pm_user_id: string | null
+          seller_id: string | null
+          specialists_default: string[] | null
           start_date: string | null
           status: string
           title: string
@@ -245,12 +322,20 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          am_user_id?: string | null
+          attached_contract_url?: string | null
           client_id: string
+          client_po_number?: string | null
+          contract_type?: Database["public"]["Enums"]["contract_type"] | null
           created_at?: string
           created_by: string
           description?: string | null
           end_date?: string | null
+          hub_project_url?: string | null
           id?: string
+          pm_user_id?: string | null
+          seller_id?: string | null
+          specialists_default?: string[] | null
           start_date?: string | null
           status?: string
           title: string
@@ -258,12 +343,20 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          am_user_id?: string | null
+          attached_contract_url?: string | null
           client_id?: string
+          client_po_number?: string | null
+          contract_type?: Database["public"]["Enums"]["contract_type"] | null
           created_at?: string
           created_by?: string
           description?: string | null
           end_date?: string | null
+          hub_project_url?: string | null
           id?: string
+          pm_user_id?: string | null
+          seller_id?: string | null
+          specialists_default?: string[] | null
           start_date?: string | null
           status?: string
           title?: string
@@ -272,10 +365,159 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "contracts_am_user_id_fkey"
+            columns: ["am_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "contracts_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contracts_pm_user_id_fkey"
+            columns: ["pm_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contracts_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_requests: {
+        Row: {
+          billed_invoice_id: string | null
+          budget_id: string | null
+          client_id: string
+          code: string
+          completed_at: string | null
+          contract_id: string | null
+          cost_rate: number | null
+          cost_to_agency: number | null
+          cost_type: Database["public"]["Enums"]["cost_type"] | null
+          created_at: string
+          deadline: string | null
+          description: string | null
+          fixed_cost: number | null
+          hours: number | null
+          id: string
+          liquidation_id: string | null
+          quantity: number
+          service_id: string
+          specialist_acceptance: boolean | null
+          specialist_id: string | null
+          status: Database["public"]["Enums"]["financial_request_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          billed_invoice_id?: string | null
+          budget_id?: string | null
+          client_id: string
+          code: string
+          completed_at?: string | null
+          contract_id?: string | null
+          cost_rate?: number | null
+          cost_to_agency?: number | null
+          cost_type?: Database["public"]["Enums"]["cost_type"] | null
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          fixed_cost?: number | null
+          hours?: number | null
+          id?: string
+          liquidation_id?: string | null
+          quantity?: number
+          service_id: string
+          specialist_acceptance?: boolean | null
+          specialist_id?: string | null
+          status?: Database["public"]["Enums"]["financial_request_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          billed_invoice_id?: string | null
+          budget_id?: string | null
+          client_id?: string
+          code?: string
+          completed_at?: string | null
+          contract_id?: string | null
+          cost_rate?: number | null
+          cost_to_agency?: number | null
+          cost_type?: Database["public"]["Enums"]["cost_type"] | null
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          fixed_cost?: number | null
+          hours?: number | null
+          id?: string
+          liquidation_id?: string | null
+          quantity?: number
+          service_id?: string
+          specialist_acceptance?: boolean | null
+          specialist_id?: string | null
+          status?: Database["public"]["Enums"]["financial_request_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_requests_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_billed_invoice_id_fkey"
+            columns: ["billed_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "liquidations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_specialist_id_fkey"
+            columns: ["specialist_id"]
+            isOneToOne: false
+            referencedRelation: "specialists"
             referencedColumns: ["id"]
           },
         ]
@@ -284,10 +526,10 @@ export type Database = {
         Row: {
           created_at: string
           description: string
+          financial_request_id: string | null
           id: string
           invoice_id: string
           quantity: number
-          request_id: string | null
           total: number
           unit_price: number
           updated_at: string
@@ -295,10 +537,10 @@ export type Database = {
         Insert: {
           created_at?: string
           description: string
+          financial_request_id?: string | null
           id?: string
           invoice_id: string
           quantity?: number
-          request_id?: string | null
           total: number
           unit_price: number
           updated_at?: string
@@ -306,10 +548,10 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string
+          financial_request_id?: string | null
           id?: string
           invoice_id?: string
           quantity?: number
-          request_id?: string | null
           total?: number
           unit_price?: number
           updated_at?: string
@@ -324,9 +566,9 @@ export type Database = {
           },
           {
             foreignKeyName: "invoice_items_request_id_fkey"
-            columns: ["request_id"]
+            columns: ["financial_request_id"]
             isOneToOne: false
-            referencedRelation: "requests"
+            referencedRelation: "financial_requests"
             referencedColumns: ["id"]
           },
         ]
@@ -400,10 +642,10 @@ export type Database = {
         Row: {
           created_at: string
           description: string
+          financial_request_id: string | null
           id: string
           liquidation_id: string
           quantity: number
-          request_id: string | null
           total: number
           unit_price: number
           updated_at: string
@@ -411,10 +653,10 @@ export type Database = {
         Insert: {
           created_at?: string
           description: string
+          financial_request_id?: string | null
           id?: string
           liquidation_id: string
           quantity?: number
-          request_id?: string | null
           total: number
           unit_price: number
           updated_at?: string
@@ -422,10 +664,10 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string
+          financial_request_id?: string | null
           id?: string
           liquidation_id?: string
           quantity?: number
-          request_id?: string | null
           total?: number
           unit_price?: number
           updated_at?: string
@@ -440,9 +682,9 @@ export type Database = {
           },
           {
             foreignKeyName: "liquidation_items_request_id_fkey"
-            columns: ["request_id"]
+            columns: ["financial_request_id"]
             isOneToOne: false
-            referencedRelation: "requests"
+            referencedRelation: "financial_requests"
             referencedColumns: ["id"]
           },
         ]
@@ -512,6 +754,263 @@ export type Database = {
           },
         ]
       }
+      milestones: {
+        Row: {
+          assignee_specialist_id: string | null
+          assignee_user_id: string | null
+          context_url: string | null
+          created_at: string | null
+          deadline: string | null
+          description: string | null
+          id: string
+          name: string
+          notes: string | null
+          operational_request_id: string
+          order_index: number | null
+          reviewer_type: Database["public"]["Enums"]["reviewer_type"] | null
+          status: Database["public"]["Enums"]["operational_status"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          assignee_specialist_id?: string | null
+          assignee_user_id?: string | null
+          context_url?: string | null
+          created_at?: string | null
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          operational_request_id: string
+          order_index?: number | null
+          reviewer_type?: Database["public"]["Enums"]["reviewer_type"] | null
+          status?: Database["public"]["Enums"]["operational_status"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          assignee_specialist_id?: string | null
+          assignee_user_id?: string | null
+          context_url?: string | null
+          created_at?: string | null
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          operational_request_id?: string
+          order_index?: number | null
+          reviewer_type?: Database["public"]["Enums"]["reviewer_type"] | null
+          status?: Database["public"]["Enums"]["operational_status"] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "milestones_assignee_specialist_id_fkey"
+            columns: ["assignee_specialist_id"]
+            isOneToOne: false
+            referencedRelation: "specialists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "milestones_assignee_user_id_fkey"
+            columns: ["assignee_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "milestones_operational_request_id_fkey"
+            columns: ["operational_request_id"]
+            isOneToOne: false
+            referencedRelation: "operational_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      operational_projects: {
+        Row: {
+          budget_id: string | null
+          client_id: string
+          contract_id: string | null
+          created_at: string | null
+          created_by: string
+          deadline: string | null
+          description: string | null
+          hub_client_url: string | null
+          hub_project_url: string | null
+          id: string
+          name: string
+          owner_user_id: string | null
+          status: Database["public"]["Enums"]["operational_status"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          budget_id?: string | null
+          client_id: string
+          contract_id?: string | null
+          created_at?: string | null
+          created_by: string
+          deadline?: string | null
+          description?: string | null
+          hub_client_url?: string | null
+          hub_project_url?: string | null
+          id?: string
+          name: string
+          owner_user_id?: string | null
+          status?: Database["public"]["Enums"]["operational_status"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          budget_id?: string | null
+          client_id?: string
+          contract_id?: string | null
+          created_at?: string | null
+          created_by?: string
+          deadline?: string | null
+          description?: string | null
+          hub_client_url?: string | null
+          hub_project_url?: string | null
+          id?: string
+          name?: string
+          owner_user_id?: string | null
+          status?: Database["public"]["Enums"]["operational_status"] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operational_projects_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operational_projects_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operational_projects_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operational_projects_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operational_projects_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      operational_requests: {
+        Row: {
+          assignee_specialist_id: string | null
+          assignee_user_id: string | null
+          client_id: string
+          context_url: string | null
+          created_at: string | null
+          created_by: string
+          deadline: string | null
+          description: string | null
+          financial_request_id: string | null
+          id: string
+          name: string
+          operational_project_id: string
+          reviewer_type: Database["public"]["Enums"]["reviewer_type"] | null
+          status: Database["public"]["Enums"]["operational_status"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          assignee_specialist_id?: string | null
+          assignee_user_id?: string | null
+          client_id: string
+          context_url?: string | null
+          created_at?: string | null
+          created_by: string
+          deadline?: string | null
+          description?: string | null
+          financial_request_id?: string | null
+          id?: string
+          name: string
+          operational_project_id: string
+          reviewer_type?: Database["public"]["Enums"]["reviewer_type"] | null
+          status?: Database["public"]["Enums"]["operational_status"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          assignee_specialist_id?: string | null
+          assignee_user_id?: string | null
+          client_id?: string
+          context_url?: string | null
+          created_at?: string | null
+          created_by?: string
+          deadline?: string | null
+          description?: string | null
+          financial_request_id?: string | null
+          id?: string
+          name?: string
+          operational_project_id?: string
+          reviewer_type?: Database["public"]["Enums"]["reviewer_type"] | null
+          status?: Database["public"]["Enums"]["operational_status"] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operational_requests_assignee_specialist_id_fkey"
+            columns: ["assignee_specialist_id"]
+            isOneToOne: false
+            referencedRelation: "specialists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operational_requests_assignee_user_id_fkey"
+            columns: ["assignee_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operational_requests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operational_requests_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operational_requests_financial_request_id_fkey"
+            columns: ["financial_request_id"]
+            isOneToOne: false
+            referencedRelation: "financial_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operational_requests_operational_project_id_fkey"
+            columns: ["operational_project_id"]
+            isOneToOne: false
+            referencedRelation: "operational_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -538,118 +1037,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
-      }
-      requests: {
-        Row: {
-          billed_invoice_id: string | null
-          budget_id: string | null
-          client_id: string
-          code: string
-          completed_at: string | null
-          cost: number | null
-          created_at: string
-          deadline: string | null
-          description: string | null
-          id: string
-          liquidation_id: string | null
-          margin: number | null
-          quantity: number
-          service_id: string
-          specialist_id: string | null
-          status: Database["public"]["Enums"]["request_status"]
-          title: string
-          total: number
-          unit_price: number
-          updated_at: string
-        }
-        Insert: {
-          billed_invoice_id?: string | null
-          budget_id?: string | null
-          client_id: string
-          code: string
-          completed_at?: string | null
-          cost?: number | null
-          created_at?: string
-          deadline?: string | null
-          description?: string | null
-          id?: string
-          liquidation_id?: string | null
-          margin?: number | null
-          quantity?: number
-          service_id: string
-          specialist_id?: string | null
-          status?: Database["public"]["Enums"]["request_status"]
-          title: string
-          total: number
-          unit_price: number
-          updated_at?: string
-        }
-        Update: {
-          billed_invoice_id?: string | null
-          budget_id?: string | null
-          client_id?: string
-          code?: string
-          completed_at?: string | null
-          cost?: number | null
-          created_at?: string
-          deadline?: string | null
-          description?: string | null
-          id?: string
-          liquidation_id?: string | null
-          margin?: number | null
-          quantity?: number
-          service_id?: string
-          specialist_id?: string | null
-          status?: Database["public"]["Enums"]["request_status"]
-          title?: string
-          total?: number
-          unit_price?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "requests_billed_invoice_id_fkey"
-            columns: ["billed_invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "requests_budget_id_fkey"
-            columns: ["budget_id"]
-            isOneToOne: false
-            referencedRelation: "budgets"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "requests_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "requests_liquidation_id_fkey"
-            columns: ["liquidation_id"]
-            isOneToOne: false
-            referencedRelation: "liquidations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "requests_service_id_fkey"
-            columns: ["service_id"]
-            isOneToOne: false
-            referencedRelation: "services"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "requests_specialist_id_fkey"
-            columns: ["specialist_id"]
-            isOneToOne: false
-            referencedRelation: "specialists"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       sequences: {
         Row: {
@@ -723,10 +1110,13 @@ export type Database = {
       specialists: {
         Row: {
           active: boolean
+          cost_type: Database["public"]["Enums"]["cost_type"] | null
           created_at: string
           created_by: string
+          default_rate: number | null
           email: string | null
           id: string
+          liquidation_terms: string | null
           name: string
           notes: string | null
           phone: string | null
@@ -736,10 +1126,13 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          cost_type?: Database["public"]["Enums"]["cost_type"] | null
           created_at?: string
           created_by: string
+          default_rate?: number | null
           email?: string | null
           id?: string
+          liquidation_terms?: string | null
           name: string
           notes?: string | null
           phone?: string | null
@@ -749,10 +1142,13 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          cost_type?: Database["public"]["Enums"]["cost_type"] | null
           created_at?: string
           created_by?: string
+          default_rate?: number | null
           email?: string | null
           id?: string
+          liquidation_terms?: string | null
           name?: string
           notes?: string | null
           phone?: string | null
@@ -761,6 +1157,76 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      tasks: {
+        Row: {
+          assignee_specialist_id: string | null
+          assignee_user_id: string | null
+          context_url: string | null
+          created_at: string | null
+          deadline: string | null
+          description: string | null
+          id: string
+          milestone_id: string
+          name: string
+          notes: string | null
+          order_index: number | null
+          status: Database["public"]["Enums"]["operational_status"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          assignee_specialist_id?: string | null
+          assignee_user_id?: string | null
+          context_url?: string | null
+          created_at?: string | null
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          milestone_id: string
+          name: string
+          notes?: string | null
+          order_index?: number | null
+          status?: Database["public"]["Enums"]["operational_status"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          assignee_specialist_id?: string | null
+          assignee_user_id?: string | null
+          context_url?: string | null
+          created_at?: string | null
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          milestone_id?: string
+          name?: string
+          notes?: string | null
+          order_index?: number | null
+          status?: Database["public"]["Enums"]["operational_status"] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_assignee_specialist_id_fkey"
+            columns: ["assignee_specialist_id"]
+            isOneToOne: false
+            referencedRelation: "specialists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_assignee_user_id_fkey"
+            columns: ["assignee_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "milestones"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -807,8 +1273,15 @@ export type Database = {
         | "especialista"
         | "account_manager"
         | "seller"
+      billing_frequency: "monthly" | "one_time"
+      contract_type: "retainer" | "project" | "one_time"
+      cost_type: "hourly" | "fixed"
+      financial_request_status: "draft" | "active" | "invoiced" | "liquidated"
       invoice_status: "draft" | "sent" | "paid" | "overdue" | "cancelled"
       liquidation_status: "draft" | "sent" | "paid" | "disputed"
+      operational_status: "pending" | "in_progress" | "in_review" | "completed"
+      payment_method: "stripe" | "credit_card" | "sdd" | "bank_transfer"
+      price_rule_type: "hourly" | "fixed"
       request_status:
         | "draft"
         | "pending_approval"
@@ -817,6 +1290,7 @@ export type Database = {
         | "completed"
         | "billed"
         | "cancelled"
+      reviewer_type: "am" | "client"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -954,8 +1428,15 @@ export const Constants = {
         "account_manager",
         "seller",
       ],
+      billing_frequency: ["monthly", "one_time"],
+      contract_type: ["retainer", "project", "one_time"],
+      cost_type: ["hourly", "fixed"],
+      financial_request_status: ["draft", "active", "invoiced", "liquidated"],
       invoice_status: ["draft", "sent", "paid", "overdue", "cancelled"],
       liquidation_status: ["draft", "sent", "paid", "disputed"],
+      operational_status: ["pending", "in_progress", "in_review", "completed"],
+      payment_method: ["stripe", "credit_card", "sdd", "bank_transfer"],
+      price_rule_type: ["hourly", "fixed"],
       request_status: [
         "draft",
         "pending_approval",
@@ -965,6 +1446,7 @@ export const Constants = {
         "billed",
         "cancelled",
       ],
+      reviewer_type: ["am", "client"],
     },
   },
 } as const

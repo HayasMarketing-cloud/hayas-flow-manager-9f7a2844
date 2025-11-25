@@ -68,9 +68,9 @@ export const useDashboardAlerts = () => {
 
         // Unbilled completed requests (INFO)
         const { data: unbilledRequests } = await supabase
-          .from('requests')
+          .from('financial_requests')
           .select('id')
-          .eq('status', 'completed')
+          .eq('status', 'active')
           .is('billed_invoice_id', null);
 
         if (unbilledRequests && unbilledRequests.length > 0) {
@@ -78,7 +78,7 @@ export const useDashboardAlerts = () => {
             id: 'unbilled-requests',
             type: 'info',
             title: `${unbilledRequests.length} solicitud${unbilledRequests.length > 1 ? 'es' : ''} sin facturar`,
-            description: 'Completadas pero no facturadas',
+            description: 'Activas pero no facturadas',
             action: {
               label: 'Ver solicitudes',
               path: '/flujo-requests',

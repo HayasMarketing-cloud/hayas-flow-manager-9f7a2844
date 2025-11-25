@@ -48,11 +48,11 @@ export default function Reportes() {
 
         case 'margin_by_client': {
           const { data: requests } = await supabase
-            .from('requests')
-            .select('client_id, client:clients(name), total, cost, margin')
+            .from('financial_requests')
+            .select('client_id, client:clients(name), cost_to_agency')
             .gte('created_at', startDate)
             .lte('created_at', endDate)
-            .in('status', ['completed', 'billed']);
+            .in('status', ['active', 'invoiced', 'liquidated']);
 
           return { requests };
         }
@@ -68,8 +68,8 @@ export default function Reportes() {
 
         case 'requests_summary': {
           const { data: requests } = await supabase
-            .from('requests')
-            .select('status, total, cost, margin, specialist:specialists(name)')
+            .from('financial_requests')
+            .select('status, cost_to_agency, specialist:specialists(name)')
             .gte('created_at', startDate)
             .lte('created_at', endDate);
 
@@ -144,25 +144,22 @@ export default function Reportes() {
           ['Cliente', 'Ingresos', 'Costes', 'Margen €', 'Margen %'],
         ];
 
-        const clientMap = new Map<string, { name: string; total: number; cost: number }>();
+        const clientMap = new Map<string, { name: string; cost: number }>();
         
         requests?.forEach((req: any) => {
           const clientId = req.client_id;
-          const existing = clientMap.get(clientId) || { name: req.client.name, total: 0, cost: 0 };
-          existing.total += req.total || 0;
-          existing.cost += req.cost || 0;
+          const existing = clientMap.get(clientId) || { name: req.client.name, cost: 0 };
+          existing.cost += req.cost_to_agency || 0;
           clientMap.set(clientId, existing);
         });
 
         clientMap.forEach((value) => {
-          const margin = value.total - value.cost;
-          const marginPct = value.total > 0 ? (margin / value.total) * 100 : 0;
           data.push([
             value.name,
-            formatCurrency(value.total),
             formatCurrency(value.cost),
-            formatCurrency(margin),
-            `${marginPct.toFixed(2)}%`,
+            '',
+            '',
+            '',
           ]);
         });
 
@@ -206,25 +203,23 @@ export default function Reportes() {
           ['Estado', 'Cantidad', 'Ingresos', 'Costes', 'Margen'],
         ];
 
-        const statusMap = new Map<string, { count: number; total: number; cost: number }>();
+        const statusMap = new Map<string, { count: number; cost: number }>();
         
         requests?.forEach((req: any) => {
           const status = req.status;
-          const existing = statusMap.get(status) || { count: 0, total: 0, cost: 0 };
+          const existing = statusMap.get(status) || { count: 0, cost: 0 };
           existing.count++;
-          existing.total += req.total || 0;
-          existing.cost += req.cost || 0;
+          existing.cost += req.cost_to_agency || 0;
           statusMap.set(status, existing);
         });
 
         statusMap.forEach((value, status) => {
-          const margin = value.total - value.cost;
           data.push([
             status,
             value.count.toString(),
-            formatCurrency(value.total),
+            '',
             formatCurrency(value.cost),
-            formatCurrency(margin),
+            '',
           ]);
         });
 

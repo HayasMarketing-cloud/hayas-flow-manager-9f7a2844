@@ -155,8 +155,8 @@ export default function Presupuestos() {
           service_id: item.service_id,
           description: item.description,
           quantity: item.quantity,
-          unit_price: item.unit_price,
-          billing_mode: 'monthly',
+          price_value: item.unit_price,
+          billing_frequency: 'monthly' as const,
         }));
 
         const { error: insertError } = await supabase

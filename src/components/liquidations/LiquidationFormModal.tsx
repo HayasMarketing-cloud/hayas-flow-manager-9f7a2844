@@ -543,7 +543,11 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
                           {request.service?.name || request.title}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Cliente: {request.client?.name} • Factura: {request.billed_invoice?.code}
+                          Cliente: {request.client?.name} • Factura: {
+                            Array.isArray(request.billed_invoice) 
+                              ? request.billed_invoice[0]?.code 
+                              : (request.billed_invoice as any)?.code
+                          }
                         </div>
                       </label>
                     </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,15 +12,24 @@ import { toast } from 'sonner';
 import { BudgetItemsEditor } from './BudgetItemsEditor';
 import { calculateBudgetTotal } from '@/lib/budget-utils';
 import { Loader2, FileText, Send, CheckCircle, XCircle } from 'lucide-react';
+import { useApproveBudget } from '@/hooks/useApproveBudget';
+import { ProjectCreationModal } from './ProjectCreationModal';
 
 interface BudgetFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   budget?: any;
   mode?: 'create' | 'edit' | 'view';
+  onProjectCreationRequest?: (budget: any) => void;
 }
 
-export const BudgetFormModal = ({ isOpen, onClose, budget, mode = 'create' }: BudgetFormModalProps) => {
+export const BudgetFormModal = ({ 
+  isOpen, 
+  onClose, 
+  budget, 
+  mode = 'create',
+  onProjectCreationRequest 
+}: BudgetFormModalProps) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
@@ -31,6 +40,10 @@ export const BudgetFormModal = ({ isOpen, onClose, budget, mode = 'create' }: Bu
     status: 'pending',
   });
   const [items, setItems] = useState<any[]>([]);
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [approvedBudgetData, setApprovedBudgetData] = useState<any>(null);
+
+  const approveBudgetMutation = useApproveBudget();
 
   const { data: clients } = useQuery({
     queryKey: ['clients'],
@@ -209,8 +222,37 @@ export const BudgetFormModal = ({ isOpen, onClose, budget, mode = 'create' }: Bu
     changeStatusMutation.mutate('sent');
   };
 
-  const handleApprove = () => {
-    changeStatusMutation.mutate('approved');
+  const handleApprove = async () => {
+    if (!budget?.id) return;
+
+    // Primero obtener los datos completos del presupuesto
+    const { data: fullBudget } = await supabase
+      .from('budgets')
+      .select(`
+        *,
+        client:clients(id, name),
+        budget_items(*)
+      `)
+      .eq('id', budget.id)
+      .single();
+
+    approveBudgetMutation.mutate(
+      { 
+        budgetId: budget.id,
+        onSuccess: () => {
+          setApprovedBudgetData(fullBudget);
+          setShowProjectModal(true);
+          onClose();
+        }
+      }
+    );
+  };
+
+  const handleCreateProject = () => {
+    setShowProjectModal(false);
+    if (onProjectCreationRequest && approvedBudgetData) {
+      onProjectCreationRequest(approvedBudgetData);
+    }
   };
 
   const handleReject = () => {
@@ -222,7 +264,8 @@ export const BudgetFormModal = ({ isOpen, onClose, budget, mode = 'create' }: Bu
   const canEdit = !isViewMode && formData.status === 'pending';
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
@@ -329,7 +372,11 @@ export const BudgetFormModal = ({ isOpen, onClose, budget, mode = 'create' }: Bu
                 <XCircle className="h-4 w-4 mr-2" />
                 Rechazar
               </Button>
-              <Button onClick={handleApprove} disabled={changeStatusMutation.isPending}>
+              <Button 
+                onClick={handleApprove} 
+                disabled={approveBudgetMutation.isPending}
+              >
+                {approveBudgetMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Aprobar
               </Button>
@@ -338,5 +385,13 @@ export const BudgetFormModal = ({ isOpen, onClose, budget, mode = 'create' }: Bu
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <ProjectCreationModal
+      isOpen={showProjectModal}
+      onClose={() => setShowProjectModal(false)}
+      budget={approvedBudgetData}
+      onCreateProject={handleCreateProject}
+    />
+  </>
   );
 };

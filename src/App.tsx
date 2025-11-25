@@ -23,6 +23,7 @@ import MisLiquidaciones from "./pages/MisLiquidaciones";
 import RequestFlowTracker from "./pages/RequestFlowTracker";
 import Reportes from "./pages/Reportes";
 import Usuarios from "./pages/Usuarios";
+import Perfil from "./pages/Perfil";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,6 +54,7 @@ const App = () => (
             <Route path="/flujo-requests" element={<ProtectedRoute><RequestFlowTracker /></ProtectedRoute>} />
             <Route path="/reportes" element={<ProtectedRoute><Reportes /></ProtectedRoute>} />
             <Route path="/usuarios" element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
+            <Route path="/perfil" element={<ProtectedRoute><Perfil /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

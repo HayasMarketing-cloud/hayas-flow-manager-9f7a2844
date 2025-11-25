@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Badge } from '@/components/ui/badge';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { OperationalProjectFormModal } from '@/components/operations/OperationalProjectFormModal';
 
 const statusColors = {
   pending: 'bg-yellow-500',
@@ -30,6 +31,9 @@ export default function OperationalProjects() {
   const [searchTerm, setSearchTerm] = useState('');
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<any>(null);
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
 
   const { data: projects, isLoading } = useOperationalProjects({
     clientId: clientFilter === 'all' ? undefined : clientFilter,
@@ -52,6 +56,18 @@ export default function OperationalProjects() {
 
   const hasActiveFilters = searchTerm || clientFilter !== 'all' || statusFilter !== 'all';
 
+  const handleCreate = () => {
+    setSelectedProject(null);
+    setModalMode('create');
+    setModalOpen(true);
+  };
+
+  const handleEdit = (project: any) => {
+    setSelectedProject(project);
+    setModalMode('edit');
+    setModalOpen(true);
+  };
+
   return (
     <AppLayout 
       title="Proyectos Operativos" 
@@ -61,7 +77,7 @@ export default function OperationalProjects() {
         {/* Header */}
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">Proyectos Operativos</h2>
-          <Button>
+          <Button onClick={handleCreate}>
             <Plus className="h-4 w-4 mr-2" />
             Nuevo Proyecto
           </Button>
@@ -131,7 +147,7 @@ export default function OperationalProjects() {
               !hasActiveFilters
                 ? {
                     label: 'Crear Proyecto',
-                    onClick: () => {},
+                    onClick: handleCreate,
                     icon: Plus,
                   }
                 : undefined
@@ -140,7 +156,11 @@ export default function OperationalProjects() {
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {projects.map((project) => (
-              <Card key={project.id} className="hover:shadow-lg transition-shadow">
+              <Card 
+                key={project.id} 
+                className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => handleEdit(project)}
+              >
                 <CardContent className="pt-6">
                   <div className="space-y-4">
                     <div className="flex items-start justify-between">
@@ -173,7 +193,13 @@ export default function OperationalProjects() {
                     </div>
 
                     {project.hub_project_url && (
-                      <Button variant="outline" size="sm" className="w-full" asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full" 
+                        asChild
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <a href={project.hub_project_url} target="_blank" rel="noopener noreferrer">
                           Ver en HUB
                         </a>
@@ -186,6 +212,13 @@ export default function OperationalProjects() {
           </div>
         )}
       </div>
+
+      <OperationalProjectFormModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        initialData={selectedProject}
+        mode={modalMode}
+      />
     </AppLayout>
   );
 }

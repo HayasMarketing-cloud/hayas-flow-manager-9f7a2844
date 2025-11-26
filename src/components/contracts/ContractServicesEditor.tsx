@@ -34,7 +34,7 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
     queryFn: async () => {
       const { data, error } = await supabase
         .from('services')
-        .select('id, name, price')
+        .select('id, name')
         .eq('active', true)
         .order('name');
       
@@ -94,7 +94,7 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
     if (service) {
       handleServiceChange(index, 'service_id', serviceId);
       handleServiceChange(index, 'description', service.name);
-      handleServiceChange(index, 'price_value', service.price || 0);
+      // price_value debe ser ingresado manualmente por el usuario
     }
   };
 
@@ -202,6 +202,8 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
                 <SelectContent>
                   <SelectItem value="monthly">Mensual</SelectItem>
                   <SelectItem value="one_time">Único</SelectItem>
+                  <SelectItem value="per_project">Por Proyecto</SelectItem>
+                  <SelectItem value="on_demand">Por Demanda</SelectItem>
                 </SelectContent>
               </Select>
             </div>

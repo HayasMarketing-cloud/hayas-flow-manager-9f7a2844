@@ -31,7 +31,7 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
     queryFn: async () => {
       const { data, error } = await supabase
         .from('services')
-        .select('id, name, price')
+        .select('id, name')
         .eq('active', true)
         .order('name');
       
@@ -86,7 +86,7 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
     if (service) {
       handleItemChange(index, 'service_id', serviceId);
       handleItemChange(index, 'description', service.name);
-      handleItemChange(index, 'unit_price', service.price || 0);
+      // unit_price debe ser ingresado manualmente por el usuario
     }
   };
 

@@ -1078,7 +1078,6 @@ export type Database = {
           duration_minutes: number | null
           id: string
           name: string
-          price: number | null
           updated_at: string
         }
         Insert: {
@@ -1090,7 +1089,6 @@ export type Database = {
           duration_minutes?: number | null
           id?: string
           name: string
-          price?: number | null
           updated_at?: string
         }
         Update: {
@@ -1102,7 +1100,6 @@ export type Database = {
           duration_minutes?: number | null
           id?: string
           name?: string
-          price?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -1273,7 +1270,7 @@ export type Database = {
         | "especialista"
         | "account_manager"
         | "seller"
-      billing_frequency: "monthly" | "one_time"
+      billing_frequency: "monthly" | "one_time" | "per_project" | "on_demand"
       contract_type: "retainer" | "project" | "one_time"
       cost_type: "hourly" | "fixed"
       financial_request_status: "draft" | "active" | "invoiced" | "liquidated"
@@ -1428,7 +1425,7 @@ export const Constants = {
         "account_manager",
         "seller",
       ],
-      billing_frequency: ["monthly", "one_time"],
+      billing_frequency: ["monthly", "one_time", "per_project", "on_demand"],
       contract_type: ["retainer", "project", "one_time"],
       cost_type: ["hourly", "fixed"],
       financial_request_status: ["draft", "active", "invoiced", "liquidated"],

@@ -41,9 +41,6 @@ export const useApproveBudget = () => {
           service_id: item.service_id,
           budget_id: budgetId,
           quantity: item.quantity,
-          cost_type: 'fixed' as const,
-          fixed_cost: item.unit_price,
-          cost_to_agency: item.total,
           status: 'active' as const,
           code: '', // El trigger generate_request_code lo generará automáticamente
         }));

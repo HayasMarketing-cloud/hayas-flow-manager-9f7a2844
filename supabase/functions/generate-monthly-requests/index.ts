@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     // 1. Obtener contrato con sus servicios
     const { data: contract, error: contractError } = await supabase
       .from('contracts')
-      .select('*, client_id, contract_services(*)')
+      .select('*, contract_services(*)')
       .eq('id', contract_id)
       .single();
 
@@ -47,40 +47,27 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Obtener código de secuencia para requests
-    const { data: codeData } = await supabase.rpc('generate_code', {
-      sequence_name: 'requests',
-    });
-
-    // 3. Crear requests según billing_mode
+    // 2. Crear requests según billing_frequency
     const now = new Date();
     const monthName = now.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
     const requests = [];
 
     for (const service of contract.contract_services) {
-      if (service.billing_mode === 'monthly') {
-        // Crear request mensual
-        const total = service.quantity * service.unit_price;
-        
+      if (service.billing_frequency === 'monthly') {
+        // Crear request mensual sin precios (se resuelven en facturación)
         requests.push({
           client_id: contract.client_id,
           service_id: service.service_id,
           specialist_id: service.specialist_id,
+          contract_id: contract_id,
           title: `${service.description} - ${monthName}`,
           description: `Generado automáticamente desde contrato. ${service.notes || ''}`,
           quantity: service.quantity,
-          unit_price: service.unit_price,
-          total: total,
-          cost: null, // Se establecerá después
-          margin: null,
-          status: 'approved', // Los contratos crean requests pre-aprobados
+          status: 'active', // Los contratos crean requests activos
+          code: '', // El trigger generate_request_code lo generará
         });
-      } else if (service.billing_mode === 'per_service') {
-        // Para servicios por demanda, crear solo si se ha solicitado manualmente
-        // En este caso no los creamos automáticamente
-        continue;
       }
-      // billing_mode === 'one_time' no genera requests automáticamente
+      // billing_frequency === 'one_time', 'per_project', 'on_demand' no generan requests automáticamente
     }
 
     if (requests.length === 0) {

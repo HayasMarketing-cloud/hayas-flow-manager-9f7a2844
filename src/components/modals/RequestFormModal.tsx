@@ -30,9 +30,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Loader2, AlertTriangle } from 'lucide-react';
-import { calculateTotal } from '@/lib/request-utils';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2 } from 'lucide-react';
 
 const requestSchema = z.object({
   client_id: z.string().uuid('Selecciona un cliente'),
@@ -41,7 +39,6 @@ const requestSchema = z.object({
   title: z.string().min(3, 'Mínimo 3 caracteres').max(255, 'Máximo 255 caracteres'),
   description: z.string().optional().nullable(),
   quantity: z.coerce.number().min(1, 'Mínimo 1'),
-  cost_to_agency: z.coerce.number().min(0).optional().nullable(),
   deadline: z.string().optional().nullable(),
   status: z.enum([
     'draft',
@@ -81,7 +78,6 @@ export const RequestFormModal = ({
       title: '',
       description: null,
       quantity: 1,
-      cost_to_agency: null,
       deadline: null,
       status: 'draft',
     },
@@ -99,7 +95,7 @@ export const RequestFormModal = ({
           .order('name'),
         supabase
           .from('services')
-          .select('id, name, price')
+          .select('id, name')
           .eq('active', true)
           .order('name'),
         supabase
@@ -132,7 +128,6 @@ export const RequestFormModal = ({
         deadline: data.deadline || null,
         description: data.description || null,
         specialist_id: data.specialist_id || null,
-        cost_to_agency: data.cost_to_agency || null,
       };
 
       if (initialData) {
@@ -168,7 +163,6 @@ export const RequestFormModal = ({
         title: initialData.title,
         description: initialData.description || null,
         quantity: initialData.quantity,
-        cost_to_agency: initialData.cost_to_agency || null,
         deadline: initialData.deadline || null,
         status: initialData.status,
       });
@@ -177,63 +171,7 @@ export const RequestFormModal = ({
     }
   }, [initialData, form]);
 
-  // Improved: Pre-populate prices from contract_services first, then services
-  const onServiceChange = async (serviceId: string) => {
-    const clientId = form.getValues('client_id');
-    
-    if (!clientId || !serviceId) return;
-
-    try {
-      // Priority 1: Load price from active contract_services
-      const { data: activeContracts } = await supabase
-        .from('contracts')
-        .select('id')
-        .eq('client_id', clientId)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (activeContracts && activeContracts.length > 0) {
-        const { data: contractService } = await supabase
-          .from('contract_services')
-          .select('price_value')
-          .eq('contract_id', activeContracts[0].id)
-          .eq('service_id', serviceId)
-          .maybeSingle();
-
-        if (contractService?.price_value) {
-          console.log(`✅ Pre-populated price from contract: €${contractService.price_value}`);
-          form.setValue('cost_to_agency', contractService.price_value);
-          toast.success('Precio cargado desde contrato activo');
-          return;
-        }
-      }
-
-      // Priority 2: Fallback to base service price
-      const service = services?.find((s) => s.id === serviceId);
-      if (service?.price) {
-        console.log(`✅ Pre-populated price from service: €${service.price}`);
-        form.setValue('cost_to_agency', service.price);
-      }
-    } catch (error) {
-      console.error('Error loading price:', error);
-      // Fallback to service price on error
-      const service = services?.find((s) => s.id === serviceId);
-      if (service?.price) {
-        form.setValue('cost_to_agency', service.price);
-      }
-    }
-  };
-
-  // Auto-calculate margin warning removed as financial_requests don't have unit_price/total
-  useEffect(() => {
-    const subscription = form.watch((value) => {
-      // Financial requests only track cost_to_agency
-      // Pricing calculations happen at invoice level
-    });
-
-    return () => subscription.unsubscribe();
-  }, [form]);
+  // Financial requests simplificadas: solo datos de trabajo, sin precios
 
   const onSubmit = (data: RequestFormData) => {
     mutation.mutate(data);
@@ -261,14 +199,6 @@ export const RequestFormModal = ({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {marginWarning && !isViewMode && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  ⚠️ <strong>Margen negativo:</strong> El costo es mayor que el precio de venta. Estás perdiendo dinero en esta solicitud.
-                </AlertDescription>
-              </Alert>
-            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
@@ -307,10 +237,7 @@ export const RequestFormModal = ({
                   <FormItem>
                     <FormLabel>Servicio *</FormLabel>
                     <Select
-                      onValueChange={(value) => {
-                        field.onChange(value);
-                        onServiceChange(value);
-                      }}
+                      onValueChange={field.onChange}
                       defaultValue={field.value}
                       disabled={isViewMode}
                     >
@@ -371,47 +298,24 @@ export const RequestFormModal = ({
               )}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FormField
-                control={form.control}
-                name="quantity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Cantidad *</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="1"
-                        {...field}
-                        disabled={isViewMode}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="cost_to_agency"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Coste Agencia</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        {...field}
-                        value={field.value || ''}
-                        disabled={isViewMode}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            <FormField
+              control={form.control}
+              name="quantity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Cantidad *</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min="1"
+                      {...field}
+                      disabled={isViewMode}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField

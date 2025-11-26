@@ -18,6 +18,7 @@ import { FileDown, Plus } from 'lucide-react';
 import { useInvoicedRequestsForLiquidation } from '@/hooks/useRequestFlow';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useSuggestedCost } from '@/hooks/useSuggestedCost';
 
 type LiquidationStatus = Database['public']['Enums']['liquidation_status'];
 
@@ -44,7 +45,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
   const queryClient = useQueryClient();
   const isViewMode = mode === 'view';
   const isEditable = mode === 'create' || (mode === 'edit' && liquidation?.status === 'draft');
-  const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
+  const [selectedRequests, setSelectedRequests] = useState<Array<{ id: string; cost: number }>>([]);
 
   const { register, handleSubmit, formState: { errors }, watch, setValue, reset } = useForm<LiquidationFormData>({
     resolver: zodResolver(liquidationSchema),
@@ -191,27 +192,30 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
   });
 
   const addRequestsMutation = useMutation({
-    mutationFn: async (requestIds: string[]) => {
+    mutationFn: async (requests: Array<{ id: string; cost: number }>) => {
       if (!liquidation?.id) throw new Error('Liquidación no encontrada');
 
       // Obtener los requests seleccionados con sus datos
-      const { data: requests, error: fetchError } = await supabase
+      const { data: requestsData, error: fetchError } = await supabase
         .from('financial_requests')
         .select('*, service:services(name)')
-        .in('id', requestIds);
+        .in('id', requests.map(r => r.id));
 
       if (fetchError) throw fetchError;
-      if (!requests) throw new Error('No se encontraron los requests');
+      if (!requestsData) throw new Error('No se encontraron las solicitudes');
 
-      // Crear liquidation_items
-      const items = requests.map((req) => ({
-        liquidation_id: liquidation.id,
-        financial_request_id: req.id,
-        description: req.service?.name || req.title,
-        quantity: 1,
-        unit_price: req.cost_to_agency || 0,
-        total: req.cost_to_agency || 0,
-      }));
+      // Crear liquidation_items con costes editados
+      const items = requestsData.map((req) => {
+        const editedCost = requests.find(r => r.id === req.id)?.cost || 0;
+        return {
+          liquidation_id: liquidation.id,
+          financial_request_id: req.id,
+          description: req.service?.name || req.title,
+          quantity: req.quantity || 1,
+          unit_price: editedCost,
+          total: editedCost * (req.quantity || 1),
+        };
+      });
 
       const { error: insertError } = await supabase
         .from('liquidation_items')
@@ -222,8 +226,8 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       // Actualizar los requests para marcarlos como liquidados
       const { error: updateError } = await supabase
         .from('financial_requests')
-        .update({ liquidation_id: liquidation.id })
-        .in('id', requestIds);
+        .update({ liquidation_id: liquidation.id, status: 'liquidated' })
+        .in('id', requests.map(r => r.id));
 
       if (updateError) throw updateError;
 
@@ -263,11 +267,19 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     },
   });
 
-  const handleToggleRequest = (requestId: string) => {
+  const handleToggleRequest = async (requestId: string, isChecked: boolean) => {
+    if (isChecked) {
+      // Obtener coste sugerido
+      const suggestedCost = await useSuggestedCost(requestId);
+      setSelectedRequests((prev) => [...prev, { id: requestId, cost: suggestedCost }]);
+    } else {
+      setSelectedRequests((prev) => prev.filter((r) => r.id !== requestId));
+    }
+  };
+
+  const handleCostChange = (requestId: string, newCost: number) => {
     setSelectedRequests((prev) =>
-      prev.includes(requestId)
-        ? prev.filter((id) => id !== requestId)
-        : [...prev, requestId]
+      prev.map((r) => (r.id === requestId ? { ...r, cost: newCost } : r))
     );
   };
 
@@ -526,30 +538,37 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
                     >
                       <Checkbox
                         id={request.id}
-                        checked={selectedRequests.includes(request.id)}
-                        onCheckedChange={() => handleToggleRequest(request.id)}
+                        checked={selectedRequests.some(r => r.id === request.id)}
+                        onCheckedChange={(checked) => handleToggleRequest(request.id, checked as boolean)}
                       />
-                      <label
-                        htmlFor={request.id}
-                        className="flex-1 cursor-pointer space-y-1"
-                      >
-                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium text-sm">{request.code}</span>
-                          <span className="text-sm font-semibold text-primary">
-                            {(request.cost_to_agency || 0).toFixed(2)} €
-                          </span>
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-sm">{request.code}</span>
+                            <span className="text-xs text-muted-foreground">{request.service?.name || request.title}</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Cliente: {request.client?.name} • Factura: {
+                              Array.isArray(request.billed_invoice) 
+                                ? request.billed_invoice[0]?.code 
+                                : (request.billed_invoice as any)?.code
+                            }
+                          </div>
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {request.service?.name || request.title}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Cliente: {request.client?.name} • Factura: {
-                            Array.isArray(request.billed_invoice) 
-                              ? request.billed_invoice[0]?.code 
-                              : (request.billed_invoice as any)?.code
-                          }
-                        </div>
-                      </label>
+                        {selectedRequests.some(r => r.id === request.id) && (
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs">Coste (€):</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={selectedRequests.find(r => r.id === request.id)?.cost || 0}
+                              onChange={(e) => handleCostChange(request.id, parseFloat(e.target.value) || 0)}
+                              className="w-32 h-8"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

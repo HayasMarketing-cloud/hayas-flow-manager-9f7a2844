@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { calculateTaxAmount, calculateTotalAmount, calculateDueDate } from '@/lib/invoice-utils';
 import { generateInvoicePDF } from '@/utils/pdf/invoicePDFGenerator';
-import { FileDown } from 'lucide-react';
+import { FileDown, Plus } from 'lucide-react';
+import { useCompletedRequestsForInvoice, useSuggestedPrice } from '@/hooks/useCompletedRequestsForInvoice';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const invoiceSchema = z.object({
   client_id: z.string().uuid('Selecciona un cliente'),
@@ -40,6 +43,8 @@ export const InvoiceFormModal = ({ isOpen, onClose, invoice, mode }: InvoiceForm
   const queryClient = useQueryClient();
   const isViewMode = mode === 'view';
   const isEditMode = mode === 'edit';
+  const isEditable = mode === 'create' || (mode === 'edit' && invoice?.status === 'draft');
+  const [selectedRequests, setSelectedRequests] = useState<Array<{ id: string; price: number }>>([]);
 
   const { data: clients } = useQuery({
     queryKey: ['clients'],
@@ -72,6 +77,12 @@ export const InvoiceFormModal = ({ isOpen, onClose, invoice, mode }: InvoiceForm
   const subtotal = useWatch({ control: form.control, name: 'subtotal' });
   const taxRate = useWatch({ control: form.control, name: 'tax_rate' });
   const invoiceDate = useWatch({ control: form.control, name: 'invoice_date' });
+  const selectedClientId = useWatch({ control: form.control, name: 'client_id' });
+
+  // Cargar requests completadas sin facturar del cliente
+  const { data: availableRequests, refetch: refetchRequests } = useCompletedRequestsForInvoice(
+    isEditable && selectedClientId ? selectedClientId : undefined
+  );
 
   useEffect(() => {
     if (subtotal !== undefined && taxRate !== undefined) {
@@ -154,6 +165,106 @@ export const InvoiceFormModal = ({ isOpen, onClose, invoice, mode }: InvoiceForm
       toast.error(`Error al actualizar factura: ${error.message}`);
     },
   });
+
+  const addRequestsMutation = useMutation({
+    mutationFn: async (requests: Array<{ id: string; price: number }>) => {
+      if (!invoice?.id) throw new Error('Factura no encontrada');
+
+      // Obtener datos completos de las requests
+      const { data: requestsData, error: fetchError } = await supabase
+        .from('financial_requests')
+        .select('*, service:services(name)')
+        .in('id', requests.map(r => r.id));
+
+      if (fetchError) throw fetchError;
+      if (!requestsData) throw new Error('No se encontraron las solicitudes');
+
+      // Crear invoice_items con precios editados
+      const items = requestsData.map((req) => {
+        const editedPrice = requests.find(r => r.id === req.id)?.price || 0;
+        return {
+          invoice_id: invoice.id,
+          financial_request_id: req.id,
+          description: req.service?.name || req.title,
+          quantity: req.quantity || 1,
+          unit_price: editedPrice,
+          total: editedPrice * (req.quantity || 1),
+        };
+      });
+
+      const { error: insertError } = await supabase
+        .from('invoice_items')
+        .insert(items);
+
+      if (insertError) throw insertError;
+
+      // Marcar requests como facturadas
+      const { error: updateError } = await supabase
+        .from('financial_requests')
+        .update({ billed_invoice_id: invoice.id, status: 'invoiced' })
+        .in('id', requests.map(r => r.id));
+
+      if (updateError) throw updateError;
+
+      // Recalcular totales de la factura
+      const { data: allItems, error: itemsError } = await supabase
+        .from('invoice_items')
+        .select('total')
+        .eq('invoice_id', invoice.id);
+
+      if (itemsError) throw itemsError;
+
+      const newSubtotal = allItems?.reduce((sum, item) => sum + Number(item.total), 0) || 0;
+      const newTaxAmount = calculateTaxAmount(newSubtotal, invoice.tax_rate);
+      const newTotalAmount = calculateTotalAmount(newSubtotal, newTaxAmount);
+
+      const { error: updateInvoiceError } = await supabase
+        .from('invoices')
+        .update({
+          subtotal: newSubtotal,
+          tax_amount: newTaxAmount,
+          total_amount: newTotalAmount,
+        })
+        .eq('id', invoice.id);
+
+      if (updateInvoiceError) throw updateInvoiceError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-items'] });
+      queryClient.invalidateQueries({ queryKey: ['completed-requests-for-invoice'] });
+      toast.success('Solicitudes agregadas a la factura');
+      setSelectedRequests([]);
+      refetchRequests();
+    },
+    onError: (error) => {
+      toast.error('Error al agregar solicitudes: ' + error.message);
+    },
+  });
+
+  const handleToggleRequest = async (requestId: string, isChecked: boolean) => {
+    if (isChecked) {
+      // Obtener precio sugerido
+      const suggestedPrice = await useSuggestedPrice(requestId);
+      setSelectedRequests((prev) => [...prev, { id: requestId, price: suggestedPrice }]);
+    } else {
+      setSelectedRequests((prev) => prev.filter((r) => r.id !== requestId));
+    }
+  };
+
+  const handlePriceChange = (requestId: string, newPrice: number) => {
+    setSelectedRequests((prev) =>
+      prev.map((r) => (r.id === requestId ? { ...r, price: newPrice } : r))
+    );
+  };
+
+  const handleAddSelectedRequests = () => {
+    if (selectedRequests.length === 0) {
+      toast.error('Selecciona al menos una solicitud');
+      return;
+    }
+    addRequestsMutation.mutate(selectedRequests);
+  };
 
   // Query para cargar items de la factura (para PDF)
   const { data: invoiceItems } = useQuery({
@@ -355,6 +466,66 @@ export const InvoiceFormModal = ({ isOpen, onClose, invoice, mode }: InvoiceForm
               disabled={isViewMode || (isEditMode && isNonDraftInvoice)}
             />
           </div>
+
+          {/* Widget de solicitudes pendientes - solo en modo edición con draft */}
+          {isEditMode && invoice?.status === 'draft' && availableRequests && availableRequests.length > 0 && (
+            <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-semibold">
+                  Solicitudes Disponibles ({availableRequests.length})
+                </Label>
+              </div>
+              <ScrollArea className="h-[200px] pr-4">
+                <div className="space-y-2">
+                  {availableRequests.map((request: any) => {
+                    const isSelected = selectedRequests.some(r => r.id === request.id);
+                    const selectedRequest = selectedRequests.find(r => r.id === request.id);
+                    return (
+                      <div key={request.id} className="flex items-start gap-3 p-3 bg-background rounded border">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => handleToggleRequest(request.id, checked as boolean)}
+                          className="mt-1"
+                        />
+                        <div className="flex-1 space-y-2">
+                          <div>
+                            <p className="font-medium text-sm">{request.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {request.service?.name} • Cant: {request.quantity || 1}
+                              {request.specialist && ` • ${request.specialist.name}`}
+                            </p>
+                          </div>
+                          {isSelected && (
+                            <div className="flex items-center gap-2">
+                              <Label className="text-xs">Precio (€):</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={selectedRequest?.price || 0}
+                                onChange={(e) => handlePriceChange(request.id, parseFloat(e.target.value) || 0)}
+                                className="w-32 h-8"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+              {selectedRequests.length > 0 && (
+                <Button
+                  type="button"
+                  onClick={handleAddSelectedRequests}
+                  disabled={addRequestsMutation.isPending}
+                  className="w-full"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Agregar {selectedRequests.length} solicitud{selectedRequests.length > 1 ? 'es' : ''}
+                </Button>
+              )}
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>

@@ -23,7 +23,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Separator } from '@/components/ui/separator';
 
 const contactSchema = z.object({
@@ -80,9 +80,9 @@ export const ContactFormModal = ({
     },
   });
 
-  // Reset form when modal opens with new data
-  const handleOpenChange = (isOpen: boolean) => {
-    if (isOpen) {
+  // Reset form when initialData changes (fixes race condition when editing different contacts)
+  useEffect(() => {
+    if (open) {
       form.reset({
         name: initialData?.name || '',
         email: initialData?.email || '',
@@ -99,8 +99,7 @@ export const ContactFormModal = ({
         active: initialData?.active ?? true,
       });
     }
-    onOpenChange(isOpen);
-  };
+  }, [open, initialData, form]);
 
   const onSubmit = async (values: ContactFormValues) => {
     setIsSubmitting(true);
@@ -162,7 +161,7 @@ export const ContactFormModal = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>

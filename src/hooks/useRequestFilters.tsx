@@ -4,6 +4,7 @@ export interface RequestFilters {
   searchTerm: string;
   status: string | null;
   clientId: string | null;
+  specialistId: string | null;
 }
 
 export const useRequestFilters = () => {
@@ -11,6 +12,7 @@ export const useRequestFilters = () => {
     searchTerm: '',
     status: null,
     clientId: null,
+    specialistId: null,
   });
 
   const updateFilter = <K extends keyof RequestFilters>(
@@ -25,6 +27,7 @@ export const useRequestFilters = () => {
       searchTerm: '',
       status: null,
       clientId: null,
+      specialistId: null,
     });
   };
 

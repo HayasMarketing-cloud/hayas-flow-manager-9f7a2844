@@ -1,7 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RequestStatusBadge } from './RequestStatusBadge';
-import { Edit, Building2, Briefcase, Calendar, Euro } from 'lucide-react';
+import { Edit, Building2, Briefcase, Calendar, Euro, User } from 'lucide-react';
 import { formatCurrency } from '@/lib/request-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -41,6 +41,12 @@ export const RequestCard = ({ request, onEdit, canManage }: RequestCardProps) =>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Briefcase className="h-4 w-4 flex-shrink-0" />
             <span className="truncate">{request.service.name}</span>
+          </div>
+        )}
+        {request.specialist && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <User className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">{request.specialist.name}</span>
           </div>
         )}
         <div className="flex items-center gap-2 text-sm">

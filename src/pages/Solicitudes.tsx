@@ -52,6 +52,9 @@ const Solicitudes = () => {
       if (filters.clientId) {
         query = query.eq('client_id', filters.clientId);
       }
+      if (filters.specialistId) {
+        query = query.eq('specialist_id', filters.specialistId);
+      }
       if (filters.searchTerm) {
         query = query.or(
           `title.ilike.%${filters.searchTerm}%,code.ilike.%${filters.searchTerm}%`
@@ -71,6 +74,19 @@ const Solicitudes = () => {
         .from('clients')
         .select('id, name, code')
         .eq('status', 'active')
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: specialists } = useQuery({
+    queryKey: ['specialists-filter'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('specialists')
+        .select('id, name')
+        .eq('active', true)
         .order('name');
       if (error) throw error;
       return data;
@@ -196,7 +212,26 @@ const Solicitudes = () => {
               </SelectContent>
             </Select>
 
-            {(filters.status || filters.clientId || filters.searchTerm) && (
+            <Select
+              value={filters.specialistId || 'all'}
+              onValueChange={(value) =>
+                updateFilter('specialistId', value === 'all' ? null : value)
+              }
+            >
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Todos los especialistas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los especialistas</SelectItem>
+                {specialists?.map((specialist) => (
+                  <SelectItem key={specialist.id} value={specialist.id}>
+                    {specialist.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {(filters.status || filters.clientId || filters.specialistId || filters.searchTerm) && (
               <Button variant="outline" onClick={resetFilters}>
                 Limpiar filtros
               </Button>
@@ -241,12 +276,12 @@ const Solicitudes = () => {
           <Card>
             <CardContent className="flex flex-col items-center justify-center h-64 text-center">
               <p className="text-muted-foreground text-lg mb-2">
-                {filters.searchTerm || filters.status || filters.clientId
+                {filters.searchTerm || filters.status || filters.clientId || filters.specialistId
                   ? 'No se encontraron solicitudes'
                   : 'No hay solicitudes registradas'}
               </p>
               <p className="text-sm text-muted-foreground mb-4">
-                {filters.searchTerm || filters.status || filters.clientId
+                {filters.searchTerm || filters.status || filters.clientId || filters.specialistId
                   ? 'Intenta con otros filtros'
                   : 'Crea tu primera solicitud para comenzar'}
               </p>
@@ -254,7 +289,8 @@ const Solicitudes = () => {
                 canManage &&
                 !filters.searchTerm &&
                 !filters.status &&
-                !filters.clientId && (
+                !filters.clientId &&
+                !filters.specialistId && (
                   <Button onClick={handleNewRequest}>
                     <Plus className="h-4 w-4 mr-2" />
                     Crear Solicitud

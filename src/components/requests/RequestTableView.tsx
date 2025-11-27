@@ -33,6 +33,7 @@ export const RequestTableView = ({
             <TableHead>Título</TableHead>
             <TableHead>Cliente</TableHead>
             <TableHead>Servicio</TableHead>
+            <TableHead>Especialista</TableHead>
             <TableHead>Estado</TableHead>
             <TableHead className="text-right">Coste (€)</TableHead>
             <TableHead>Fecha</TableHead>
@@ -42,7 +43,7 @@ export const RequestTableView = ({
         <TableBody>
           {requests.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={8} className="text-center text-muted-foreground">
+              <TableCell colSpan={9} className="text-center text-muted-foreground">
                 No se encontraron solicitudes
               </TableCell>
             </TableRow>
@@ -60,6 +61,7 @@ export const RequestTableView = ({
                   <TableCell className="font-medium">{request.title}</TableCell>
                   <TableCell>{request.client?.name || '-'}</TableCell>
                   <TableCell>{request.service?.name || '-'}</TableCell>
+                  <TableCell>{request.specialist?.name || '-'}</TableCell>
                   <TableCell>
                     <RequestStatusBadge status={request.status} />
                   </TableCell>

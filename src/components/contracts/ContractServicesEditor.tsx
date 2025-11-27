@@ -94,8 +94,14 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
   const handleServiceSelect = (index: number, serviceId: string) => {
     const service = availableServices?.find((s) => s.id === serviceId);
     if (service) {
-      handleServiceChange(index, 'service_id', serviceId);
-      handleServiceChange(index, 'description', service.name);
+      const updatedServices = [...localServices];
+      updatedServices[index] = {
+        ...updatedServices[index],
+        service_id: serviceId,
+        description: service.name,
+      };
+      setLocalServices(updatedServices);
+      onChange(updatedServices);
     }
   };
 
@@ -155,9 +161,10 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
           <div className="col-span-2">Especialista</div>
           <div className="col-span-2">Tipo Precio</div>
           <div className="col-span-1">Cant.</div>
-          <div className="col-span-2">Precio</div>
+          <div className="col-span-1">Precio</div>
           <div className="col-span-2">Frecuencia</div>
           <div className="col-span-1 text-right">Total</div>
+          <div className="col-span-1"></div>
         </div>
       )}
 
@@ -244,12 +251,12 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
                 )}
               </div>
 
-              <div className="col-span-2">
+              <div className="col-span-1">
                 <Input
                   type="number"
                   min="0"
                   step="0.01"
-                  placeholder={isHourly ? 'Tarifa/h' : 'Precio/Ud.'}
+                  placeholder={isHourly ? '€/h' : '€/Ud.'}
                   value={service.price_value || service.unit_price || 0}
                   onChange={(e) =>
                     handleServiceChange(index, 'price_value', parseFloat(e.target.value) || 0)
@@ -286,11 +293,11 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
                 )}
               </div>
 
-              <div className="flex items-center justify-end">
+              <div className="col-span-1 flex items-center justify-center">
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
+                  size="icon"
                   onClick={() => handleRemoveService(index)}
                   disabled={disabled}
                 >

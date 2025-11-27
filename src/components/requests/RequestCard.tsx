@@ -1,7 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RequestStatusBadge } from './RequestStatusBadge';
-import { Edit, Building2, Briefcase, Calendar, DollarSign } from 'lucide-react';
+import { Edit, Building2, Briefcase, Calendar, Euro } from 'lucide-react';
 import { formatCurrency } from '@/lib/request-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -13,13 +13,19 @@ interface RequestCardProps {
 }
 
 export const RequestCard = ({ request, onEdit, canManage }: RequestCardProps) => {
+  // Calculate total: cost_to_agency or calculate from hours/fixed
+  const totalAmount = request.cost_to_agency || 
+    (request.cost_type === 'hourly' 
+      ? (request.hours || 0) * (request.cost_rate || 0) 
+      : (request.fixed_cost || 0));
+
   return (
     <Card className="hover:shadow-lg transition-shadow">
-      <CardHeader>
+      <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <CardTitle className="text-lg">{request.title}</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">{request.code}</p>
+            <p className="text-xs text-muted-foreground font-mono">{request.code}</p>
+            <CardTitle className="text-lg mt-1">{request.title}</CardTitle>
           </div>
           <RequestStatusBadge status={request.status} />
         </div>
@@ -37,10 +43,10 @@ export const RequestCard = ({ request, onEdit, canManage }: RequestCardProps) =>
             <span className="truncate">{request.service.name}</span>
           </div>
         )}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <DollarSign className="h-4 w-4 flex-shrink-0" />
+        <div className="flex items-center gap-2 text-sm">
+          <Euro className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
           <span className="font-semibold text-foreground">
-            {formatCurrency(request.total)}
+            {formatCurrency(totalAmount)}
           </span>
         </div>
         {request.deadline && (

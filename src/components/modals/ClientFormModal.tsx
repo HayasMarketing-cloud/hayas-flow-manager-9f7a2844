@@ -37,12 +37,14 @@ export const ClientFormModal = ({
             {initialData ? 'Editar Cliente' : 'Nuevo Cliente'}
           </DialogTitle>
         </DialogHeader>
-        <ScrollArea className="max-h-[calc(90vh-8rem)] px-4">
-          <SimplifiedClientForm
-            initialData={initialData}
-            onSuccess={handleSuccess}
-            onCancel={handleCancel}
-          />
+        <ScrollArea className="max-h-[calc(90vh-8rem)]">
+          <div className="px-1 py-1">
+            <SimplifiedClientForm
+              initialData={initialData}
+              onSuccess={handleSuccess}
+              onCancel={handleCancel}
+            />
+          </div>
         </ScrollArea>
       </DialogContent>
     </Dialog>

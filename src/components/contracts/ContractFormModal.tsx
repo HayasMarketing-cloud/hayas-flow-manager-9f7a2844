@@ -10,7 +10,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { ContractServicesEditor } from './ContractServicesEditor';
-import { calculateContractTotal } from '@/lib/contract-utils';
 import { Loader2, FileText, Play, Pause, RotateCw } from 'lucide-react';
 
 interface ContractFormModalProps {
@@ -96,16 +95,27 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const totalAmount = calculateContractTotal(services);
+      // Calculate total only from fixed services
+      const fixedServicesTotal = services
+        .filter((s) => (s.price_rule_type || 'fixed') === 'fixed')
+        .reduce((sum, s) => sum + (s.quantity * (s.price_value || s.unit_price || 0)), 0);
+
+      // Convert empty dates to null to avoid database errors
+      const contractData = {
+        title: formData.title,
+        client_id: formData.client_id,
+        description: formData.description || null,
+        start_date: formData.start_date || null,
+        end_date: formData.end_date || null,
+        status: formData.status,
+        total_amount: fixedServicesTotal,
+      };
 
       if (contract?.id) {
         // Actualizar contrato
         const { error: contractError } = await supabase
           .from('contracts')
-          .update({
-            ...formData,
-            total_amount: totalAmount,
-          })
+          .update(contractData)
           .eq('id', contract.id);
 
         if (contractError) throw contractError;
@@ -119,8 +129,9 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
             service_id: service.service_id,
             specialist_id: service.specialist_id,
             description: service.description,
-            quantity: service.quantity,
+            quantity: service.price_rule_type === 'hourly' ? 1 : service.quantity,
             price_value: service.price_value || service.unit_price || 0,
+            price_rule_type: service.price_rule_type || 'fixed',
             billing_frequency: service.billing_frequency || 'monthly',
             notes: service.notes,
           }));
@@ -136,8 +147,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         const { data: newContract, error: contractError } = await supabase
           .from('contracts')
           .insert({
-            ...formData,
-            total_amount: totalAmount,
+            ...contractData,
             created_by: user?.id,
           })
           .select()
@@ -151,8 +161,9 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
             service_id: service.service_id,
             specialist_id: service.specialist_id,
             description: service.description,
-            quantity: service.quantity,
+            quantity: service.price_rule_type === 'hourly' ? 1 : service.quantity,
             price_value: service.price_value || service.unit_price || 0,
+            price_rule_type: service.price_rule_type || 'fixed',
             billing_frequency: service.billing_frequency || 'monthly',
             notes: service.notes,
           }));

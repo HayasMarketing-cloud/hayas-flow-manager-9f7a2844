@@ -84,7 +84,7 @@ export const ContractCard = ({
           <Eye className="h-4 w-4 mr-2" />
           Ver
         </Button>
-        {onEdit && contract.status === 'draft' && (
+        {onEdit && (
           <Button variant="outline" size="sm" onClick={() => onEdit(contract)}>
             <Edit className="h-4 w-4" />
           </Button>

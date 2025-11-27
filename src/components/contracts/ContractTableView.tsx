@@ -80,7 +80,7 @@ export const ContractTableView = ({
                     <Button variant="ghost" size="sm" onClick={() => onView(contract)}>
                       <Eye className="h-4 w-4" />
                     </Button>
-                    {onEdit && contract.status === 'draft' && (
+                    {onEdit && (
                       <Button variant="ghost" size="sm" onClick={() => onEdit(contract)}>
                         <Edit className="h-4 w-4" />
                       </Button>

@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, LayoutGrid, Table as TableIcon, Download } from 'lucide-react';
+import { Plus, Search, LayoutGrid, Table as TableIcon, Download, Trash2 } from 'lucide-react';
 import { exportRequestsToExcel } from '@/utils/excel/requestsExporter';
 import { toast } from 'sonner';
 import { useState } from 'react';
@@ -21,11 +21,16 @@ import { RequestCard } from '@/components/requests/RequestCard';
 import { RequestTableView } from '@/components/requests/RequestTableView';
 import { useRequestFilters } from '@/hooks/useRequestFilters';
 import { useUserRole } from '@/hooks/useUserRole';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 const Solicitudes = () => {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [requestToDelete, setRequestToDelete] = useState<any>(null);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const queryClient = useQueryClient();
   const { filters, updateFilter, resetFilters } = useRequestFilters();
   const { canAccessFinance, canAccessOperations, loading: rolesLoading } = useUserRole();
@@ -105,6 +110,74 @@ const Solicitudes = () => {
 
   const handleSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
+  };
+
+  const handleDeleteRequest = async (requestId: string) => {
+    const { error } = await supabase
+      .from('financial_requests')
+      .delete()
+      .eq('id', requestId);
+
+    if (error) {
+      toast.error('Error al eliminar la solicitud');
+    } else {
+      toast.success('Solicitud eliminada correctamente');
+      queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
+    }
+    setDeleteConfirmOpen(false);
+    setRequestToDelete(null);
+  };
+
+  const handleCloneRequest = async (request: any) => {
+    const { id, code, created_at, updated_at, client, service, specialist, ...cloneData } = request;
+
+    const { error } = await supabase
+      .from('financial_requests')
+      .insert({ ...cloneData, status: 'draft', code: '' });
+
+    if (error) {
+      toast.error('Error al clonar la solicitud');
+    } else {
+      toast.success('Solicitud clonada correctamente');
+      queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const { error } = await supabase
+      .from('financial_requests')
+      .delete()
+      .in('id', selectedIds);
+
+    if (error) {
+      toast.error('Error al eliminar las solicitudes');
+    } else {
+      toast.success(`${selectedIds.length} solicitudes eliminadas`);
+      setSelectedIds([]);
+      queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
+    }
+    setBulkDeleteConfirmOpen(false);
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked && requests) {
+      setSelectedIds(requests.map((r) => r.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds([...selectedIds, id]);
+    } else {
+      setSelectedIds(selectedIds.filter((i) => i !== id));
+    }
+  };
+
+  const confirmDelete = (request: any) => {
+    setRequestToDelete(request);
+    setDeleteConfirmOpen(true);
   };
 
   if (error) {
@@ -239,6 +312,21 @@ const Solicitudes = () => {
           </div>
         </div>
 
+        {/* Barra de acciones en grupo */}
+        {selectedIds.length > 0 && viewMode === 'table' && (
+          <div className="flex items-center gap-4 p-3 bg-muted rounded-md">
+            <span className="text-sm font-medium">{selectedIds.length} seleccionados</span>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setBulkDeleteConfirmOpen(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Eliminar seleccionados
+            </Button>
+          </div>
+        )}
+
         {/* Contenido principal */}
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -261,6 +349,8 @@ const Solicitudes = () => {
                   key={request.id}
                   request={request}
                   onEdit={handleEditRequest}
+                  onDelete={confirmDelete}
+                  onClone={handleCloneRequest}
                   canManage={canManage}
                 />
               ))}
@@ -269,7 +359,12 @@ const Solicitudes = () => {
             <RequestTableView
               requests={requests}
               onEdit={handleEditRequest}
+              onDelete={confirmDelete}
+              onClone={handleCloneRequest}
               canManage={canManage}
+              selectedIds={selectedIds}
+              onSelectAll={handleSelectAll}
+              onSelectOne={handleSelectOne}
             />
           )
         ) : (
@@ -307,6 +402,26 @@ const Solicitudes = () => {
         initialData={selectedRequest}
         onSuccess={handleSuccess}
         mode={selectedRequest ? 'edit' : 'create'}
+      />
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title="Eliminar solicitud"
+        description={`¿Estás seguro de eliminar la solicitud "${requestToDelete?.title}"? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        onConfirm={() => requestToDelete && handleDeleteRequest(requestToDelete.id)}
+        variant="destructive"
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteConfirmOpen}
+        onOpenChange={setBulkDeleteConfirmOpen}
+        title="Eliminar solicitudes"
+        description={`¿Estás seguro de eliminar ${selectedIds.length} solicitudes? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar todas"
+        onConfirm={handleBulkDelete}
+        variant="destructive"
       />
     </AppLayout>
   );

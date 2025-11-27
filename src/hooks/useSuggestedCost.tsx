@@ -30,23 +30,7 @@ export const useSuggestedCost = async (requestId: string) => {
     }
   }
 
-  // Si no hay en contrato, buscar default_rate del especialista
-  if (request.specialist_id) {
-    const { data: specialist } = await supabase
-      .from('specialists')
-      .select('default_rate, cost_type')
-      .eq('id', request.specialist_id)
-      .maybeSingle();
-    
-    if (specialist?.default_rate) {
-      // Si es hourly y tenemos horas, multiplicar
-      if (specialist.cost_type === 'hourly' && request.hours) {
-        return specialist.default_rate * request.hours;
-      }
-      // Si es fixed, devolver el valor directamente
-      return specialist.default_rate;
-    }
-  }
-
+  // Los costes se obtienen únicamente desde contract_services
+  // Si no hay configuración en el contrato, devolver 0
   return 0;
 };

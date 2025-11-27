@@ -1107,49 +1107,37 @@ export type Database = {
       specialists: {
         Row: {
           active: boolean
-          cost_type: Database["public"]["Enums"]["cost_type"] | null
           created_at: string
           created_by: string
-          default_rate: number | null
           email: string | null
           id: string
-          liquidation_terms: string | null
           name: string
           notes: string | null
-          phone: string | null
-          specialties: string[] | null
+          type: Database["public"]["Enums"]["specialist_type"] | null
           updated_at: string
           user_id: string | null
         }
         Insert: {
           active?: boolean
-          cost_type?: Database["public"]["Enums"]["cost_type"] | null
           created_at?: string
           created_by: string
-          default_rate?: number | null
           email?: string | null
           id?: string
-          liquidation_terms?: string | null
           name: string
           notes?: string | null
-          phone?: string | null
-          specialties?: string[] | null
+          type?: Database["public"]["Enums"]["specialist_type"] | null
           updated_at?: string
           user_id?: string | null
         }
         Update: {
           active?: boolean
-          cost_type?: Database["public"]["Enums"]["cost_type"] | null
           created_at?: string
           created_by?: string
-          default_rate?: number | null
           email?: string | null
           id?: string
-          liquidation_terms?: string | null
           name?: string
           notes?: string | null
-          phone?: string | null
-          specialties?: string[] | null
+          type?: Database["public"]["Enums"]["specialist_type"] | null
           updated_at?: string
           user_id?: string | null
         }
@@ -1288,6 +1276,7 @@ export type Database = {
         | "billed"
         | "cancelled"
       reviewer_type: "am" | "client"
+      specialist_type: "interno" | "freelance" | "partner"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1444,6 +1433,7 @@ export const Constants = {
         "cancelled",
       ],
       reviewer_type: ["am", "client"],
+      specialist_type: ["interno", "freelance", "partner"],
     },
   },
 } as const

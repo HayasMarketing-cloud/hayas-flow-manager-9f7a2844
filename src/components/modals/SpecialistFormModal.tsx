@@ -1,0 +1,296 @@
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/components/ui/sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const specialistTypes = [
+  { value: "interno", label: "Interno" },
+  { value: "freelance", label: "Freelance" },
+  { value: "partner", label: "Partner" },
+] as const;
+
+const formSchema = z.object({
+  name: z.string().min(1, "El nombre es obligatorio"),
+  email: z.string().email("Email inválido").optional().or(z.literal("")),
+  type: z.enum(["interno", "freelance", "partner"], {
+    required_error: "El tipo es obligatorio",
+  }),
+  active: z.boolean(),
+  notes: z.string().optional(),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
+interface Specialist {
+  id: string;
+  name: string;
+  email: string | null;
+  type: "interno" | "freelance" | "partner" | null;
+  active: boolean;
+  notes: string | null;
+}
+
+interface SpecialistFormModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  specialist?: Specialist | null;
+}
+
+export function SpecialistFormModal({
+  open,
+  onOpenChange,
+  specialist,
+}: SpecialistFormModalProps) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const isEditing = !!specialist;
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      type: "freelance",
+      active: true,
+      notes: "",
+    },
+  });
+
+  useEffect(() => {
+    if (specialist) {
+      form.reset({
+        name: specialist.name,
+        email: specialist.email || "",
+        type: specialist.type || "freelance",
+        active: specialist.active,
+        notes: specialist.notes || "",
+      });
+    } else {
+      form.reset({
+        name: "",
+        email: "",
+        type: "freelance",
+        active: true,
+        notes: "",
+      });
+    }
+  }, [specialist, form]);
+
+  const createMutation = useMutation({
+    mutationFn: async (values: FormValues) => {
+      const { error } = await supabase.from("specialists").insert({
+        name: values.name,
+        email: values.email || null,
+        type: values.type,
+        active: values.active,
+        notes: values.notes || null,
+        created_by: user!.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["specialists"] });
+      toast.success("Especialista creado correctamente");
+      onOpenChange(false);
+    },
+    onError: (error) => {
+      console.error("Error creating specialist:", error);
+      toast.error("Error al crear el especialista");
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (values: FormValues) => {
+      const { error } = await supabase
+        .from("specialists")
+        .update({
+          name: values.name,
+          email: values.email || null,
+          type: values.type,
+          active: values.active,
+          notes: values.notes || null,
+        })
+        .eq("id", specialist!.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["specialists"] });
+      toast.success("Especialista actualizado correctamente");
+      onOpenChange(false);
+    },
+    onError: (error) => {
+      console.error("Error updating specialist:", error);
+      toast.error("Error al actualizar el especialista");
+    },
+  });
+
+  const onSubmit = (values: FormValues) => {
+    if (isEditing) {
+      updateMutation.mutate(values);
+    } else {
+      createMutation.mutate(values);
+    }
+  };
+
+  const isLoading = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>
+            {isEditing ? "Editar Especialista" : "Nuevo Especialista"}
+          </DialogTitle>
+        </DialogHeader>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nombre *</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Nombre del especialista" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="email"
+                      placeholder="email@ejemplo.com"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo *</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    value={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un tipo" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {specialistTypes.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="active"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel>Activo</FormLabel>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notas</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Notas adicionales..."
+                      className="resize-none"
+                      rows={3}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="flex justify-end gap-3 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading
+                  ? "Guardando..."
+                  : isEditing
+                  ? "Guardar cambios"
+                  : "Crear especialista"}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}

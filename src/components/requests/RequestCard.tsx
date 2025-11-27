@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RequestStatusBadge } from './RequestStatusBadge';
-import { Edit, Building2, Briefcase, Calendar, Euro, User } from 'lucide-react';
+import { Edit, Building2, Briefcase, Calendar, Euro, User, Copy, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/request-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -9,10 +9,12 @@ import { es } from 'date-fns/locale';
 interface RequestCardProps {
   request: any;
   onEdit: (request: any) => void;
+  onDelete: (request: any) => void;
+  onClone: (request: any) => void;
   canManage: boolean;
 }
 
-export const RequestCard = ({ request, onEdit, canManage }: RequestCardProps) => {
+export const RequestCard = ({ request, onEdit, onDelete, onClone, canManage }: RequestCardProps) => {
   // Calculate total: cost_to_agency or calculate from hours/fixed
   const totalAmount = request.cost_to_agency || 
     (request.cost_type === 'hourly' 
@@ -64,15 +66,31 @@ export const RequestCard = ({ request, onEdit, canManage }: RequestCardProps) =>
           </div>
         )}
         {canManage && (
-          <div className="pt-2">
+          <div className="pt-2 flex gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => onEdit(request)}
-              className="w-full"
+              className="flex-1"
             >
               <Edit className="h-4 w-4 mr-2" />
               Editar
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onClone(request)}
+              title="Clonar"
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onDelete(request)}
+              title="Eliminar"
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
           </div>
         )}

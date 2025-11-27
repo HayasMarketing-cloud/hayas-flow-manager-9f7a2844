@@ -119,6 +119,18 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
         </Button>
       </div>
 
+      {localServices.length > 0 && (
+        <div className="grid grid-cols-12 gap-2 px-3 text-xs font-medium text-muted-foreground">
+          <div className="col-span-3">Servicio</div>
+          <div className="col-span-2">Especialista</div>
+          <div className="col-span-1">Cantidad</div>
+          <div className="col-span-2">Precio/Ud.</div>
+          <div className="col-span-2">Frecuencia</div>
+          <div className="col-span-1 text-right">Total</div>
+          <div className="col-span-1"></div>
+        </div>
+      )}
+
       <div className="space-y-3">
         {localServices.map((service, index) => (
           <div

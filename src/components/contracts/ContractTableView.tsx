@@ -1,10 +1,10 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Eye, Edit, Play, Pause, RotateCw } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Eye, Edit, Play, Pause, RotateCw, RefreshCw } from 'lucide-react';
 import { ContractStatusBadge } from './ContractStatusBadge';
 import { formatCurrency } from '@/lib/contract-utils';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 
 interface ContractTableViewProps {
   contracts: any[];
@@ -30,6 +30,7 @@ export const ContractTableView = ({
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>Código</TableHead>
             <TableHead>Título</TableHead>
             <TableHead>Cliente</TableHead>
             <TableHead>Monto Total</TableHead>
@@ -41,13 +42,25 @@ export const ContractTableView = ({
         <TableBody>
           {contracts.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground">
+              <TableCell colSpan={7} className="text-center text-muted-foreground">
                 No se encontraron contratos
               </TableCell>
             </TableRow>
           ) : (
             contracts.map((contract) => (
               <TableRow key={contract.id}>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                      {contract.code || '-'}
+                    </code>
+                    {contract.enable_auto_requests && (
+                      <Badge variant="secondary" className="text-xs px-1">
+                        <RefreshCw className="h-3 w-3" />
+                      </Badge>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell className="font-medium">{contract.title}</TableCell>
                 <TableCell>{contract.client?.name || 'Sin cliente'}</TableCell>
                 <TableCell>{formatCurrency(contract.total_amount || 0)}</TableCell>
@@ -87,7 +100,7 @@ export const ContractTableView = ({
                         <Play className="h-4 w-4" />
                       </Button>
                     )}
-                    {onGenerateRequests && contract.status === 'active' && (
+                    {onGenerateRequests && contract.status === 'active' && contract.enable_auto_requests && (
                       <Button variant="ghost" size="sm" onClick={() => onGenerateRequests(contract)}>
                         <RotateCw className="h-4 w-4" />
                       </Button>

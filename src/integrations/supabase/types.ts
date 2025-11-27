@@ -376,10 +376,12 @@ export type Database = {
           attached_contract_url: string | null
           client_id: string
           client_po_number: string | null
+          code: string
           contract_type: Database["public"]["Enums"]["contract_type"] | null
           created_at: string
           created_by: string
           description: string | null
+          enable_auto_requests: boolean | null
           end_date: string | null
           hub_project_url: string | null
           id: string
@@ -397,10 +399,12 @@ export type Database = {
           attached_contract_url?: string | null
           client_id: string
           client_po_number?: string | null
+          code?: string
           contract_type?: Database["public"]["Enums"]["contract_type"] | null
           created_at?: string
           created_by: string
           description?: string | null
+          enable_auto_requests?: boolean | null
           end_date?: string | null
           hub_project_url?: string | null
           id?: string
@@ -418,10 +422,12 @@ export type Database = {
           attached_contract_url?: string | null
           client_id?: string
           client_po_number?: string | null
+          code?: string
           contract_type?: Database["public"]["Enums"]["contract_type"] | null
           created_at?: string
           created_by?: string
           description?: string | null
+          enable_auto_requests?: boolean | null
           end_date?: string | null
           hub_project_url?: string | null
           id?: string

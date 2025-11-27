@@ -278,7 +278,8 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
   };
 
   const isViewMode = mode === 'view';
-  const canEdit = !isViewMode && formData.status === 'draft';
+  const canEdit = !isViewMode;
+  const canEditBasicInfo = canEdit && formData.status === 'draft';
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -304,7 +305,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                 id="title"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                disabled={!canEdit}
+                disabled={!canEditBasicInfo}
                 placeholder="Ej: Contrato Servicios Mensual"
               />
             </div>
@@ -316,7 +317,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
               <Select
                 value={formData.client_id}
                 onValueChange={(value) => setFormData({ ...formData, client_id: value })}
-                disabled={!canEdit}
+                disabled={!canEditBasicInfo}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar cliente" />
@@ -338,7 +339,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                 type="date"
                 value={formData.start_date}
                 onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                disabled={!canEdit}
+                disabled={!canEditBasicInfo}
               />
             </div>
 
@@ -349,7 +350,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                 type="date"
                 value={formData.end_date}
                 onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                disabled={!canEdit}
+                disabled={!canEditBasicInfo}
               />
             </div>
           </div>
@@ -360,10 +361,10 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
               id="description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              disabled={!canEdit}
+              disabled={!canEditBasicInfo}
               rows={3}
-            placeholder="Describe el contrato..."
-          />
+              placeholder="Describe el contrato..."
+            />
         </div>
 
           <div className="flex items-center justify-between rounded-lg border p-4">
@@ -379,7 +380,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
               onCheckedChange={(checked) =>
                 setFormData({ ...formData, enable_auto_requests: checked })
               }
-              disabled={!canEdit}
+              disabled={!canEditBasicInfo}
             />
           </div>
 

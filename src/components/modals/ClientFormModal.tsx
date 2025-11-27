@@ -37,7 +37,7 @@ export const ClientFormModal = ({
             {initialData ? 'Editar Cliente' : 'Nuevo Cliente'}
           </DialogTitle>
         </DialogHeader>
-        <ScrollArea className="max-h-[calc(90vh-8rem)] px-1">
+        <ScrollArea className="max-h-[calc(90vh-8rem)] px-4">
           <SimplifiedClientForm
             initialData={initialData}
             onSuccess={handleSuccess}

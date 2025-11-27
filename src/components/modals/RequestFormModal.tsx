@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
@@ -12,6 +12,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -30,22 +31,24 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Clock, Euro } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
 
 const requestSchema = z.object({
   client_id: z.string().uuid('Selecciona un cliente'),
   service_id: z.string().uuid('Selecciona un servicio'),
   specialist_id: z.string().uuid().optional().nullable(),
+  contract_id: z.string().uuid().optional().nullable(),
   title: z.string().min(3, 'Mínimo 3 caracteres').max(255, 'Máximo 255 caracteres'),
   description: z.string().optional().nullable(),
   quantity: z.coerce.number().min(1, 'Mínimo 1'),
   deadline: z.string().optional().nullable(),
-  status: z.enum([
-    'draft',
-    'active',
-    'invoiced',
-    'liquidated',
-  ]),
+  status: z.enum(['draft', 'active', 'invoiced', 'liquidated']),
+  // Cost fields
+  cost_type: z.enum(['hourly', 'fixed']).default('fixed'),
+  hours: z.coerce.number().min(0).optional().nullable(),
+  cost_rate: z.coerce.number().min(0).optional().nullable(),
+  fixed_cost: z.coerce.number().min(0).optional().nullable(),
 });
 
 type RequestFormData = z.infer<typeof requestSchema>;
@@ -67,23 +70,38 @@ export const RequestFormModal = ({
 }: RequestFormModalProps) => {
   const isViewMode = mode === 'view';
 
-  const [marginWarning, setMarginWarning] = useState(false);
-
   const form = useForm<RequestFormData>({
     resolver: zodResolver(requestSchema),
     defaultValues: {
       client_id: '',
       service_id: '',
       specialist_id: null,
+      contract_id: null,
       title: '',
       description: null,
       quantity: 1,
       deadline: null,
       status: 'draft',
+      cost_type: 'fixed',
+      hours: null,
+      cost_rate: null,
+      fixed_cost: null,
     },
   });
 
-  // Optimized: Load all data in parallel with Promise.all
+  // Watch cost_type to conditionally show fields
+  const costType = useWatch({ control: form.control, name: 'cost_type' });
+  const hours = useWatch({ control: form.control, name: 'hours' });
+  const costRate = useWatch({ control: form.control, name: 'cost_rate' });
+  const fixedCost = useWatch({ control: form.control, name: 'fixed_cost' });
+  const selectedClientId = useWatch({ control: form.control, name: 'client_id' });
+
+  // Calculate cost to agency
+  const calculatedCost = costType === 'hourly' 
+    ? (hours || 0) * (costRate || 0)
+    : (fixedCost || 0);
+
+  // Load form data
   const { data: formData } = useQuery({
     queryKey: ['request-form-data'],
     queryFn: async () => {
@@ -117,17 +135,49 @@ export const RequestFormModal = ({
     },
   });
 
+  // Load contracts for selected client
+  const { data: contracts } = useQuery({
+    queryKey: ['contracts-for-client', selectedClientId],
+    queryFn: async () => {
+      if (!selectedClientId) return [];
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('id, title')
+        .eq('client_id', selectedClientId)
+        .eq('status', 'active')
+        .order('title');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedClientId,
+  });
+
   const clients = formData?.clients;
   const services = formData?.services;
   const specialists = formData?.specialists;
 
   const mutation = useMutation({
     mutationFn: async (data: RequestFormData) => {
+      // Calculate cost_to_agency based on cost_type
+      const cost_to_agency = data.cost_type === 'hourly'
+        ? (data.hours || 0) * (data.cost_rate || 0)
+        : (data.fixed_cost || 0);
+
       const requestData = {
-        ...data,
-        deadline: data.deadline || null,
-        description: data.description || null,
+        client_id: data.client_id,
+        service_id: data.service_id,
         specialist_id: data.specialist_id || null,
+        contract_id: data.contract_id || null,
+        title: data.title,
+        description: data.description || null,
+        quantity: data.quantity,
+        deadline: data.deadline || null,
+        status: data.status,
+        cost_type: data.cost_type,
+        hours: data.cost_type === 'hourly' ? data.hours : null,
+        cost_rate: data.cost_type === 'hourly' ? data.cost_rate : null,
+        fixed_cost: data.cost_type === 'fixed' ? data.fixed_cost : null,
+        cost_to_agency,
       };
 
       if (initialData) {
@@ -155,23 +205,53 @@ export const RequestFormModal = ({
   });
 
   useEffect(() => {
-    if (initialData) {
-      form.reset({
-        client_id: initialData.client_id,
-        service_id: initialData.service_id,
-        specialist_id: initialData.specialist_id || null,
-        title: initialData.title,
-        description: initialData.description || null,
-        quantity: initialData.quantity,
-        deadline: initialData.deadline || null,
-        status: initialData.status,
-      });
-    } else {
-      form.reset();
+    if (open) {
+      if (initialData) {
+        form.reset({
+          client_id: initialData.client_id,
+          service_id: initialData.service_id,
+          specialist_id: initialData.specialist_id || null,
+          contract_id: initialData.contract_id || null,
+          title: initialData.title,
+          description: initialData.description || null,
+          quantity: initialData.quantity,
+          deadline: initialData.deadline || null,
+          status: initialData.status,
+          cost_type: initialData.cost_type || 'fixed',
+          hours: initialData.hours || null,
+          cost_rate: initialData.cost_rate || null,
+          fixed_cost: initialData.fixed_cost || null,
+        });
+      } else {
+        form.reset({
+          client_id: '',
+          service_id: '',
+          specialist_id: null,
+          contract_id: null,
+          title: '',
+          description: null,
+          quantity: 1,
+          deadline: null,
+          status: 'draft',
+          cost_type: 'fixed',
+          hours: null,
+          cost_rate: null,
+          fixed_cost: null,
+        });
+      }
     }
-  }, [initialData, form]);
+  }, [open, initialData, form]);
 
-  // Financial requests simplificadas: solo datos de trabajo, sin precios
+  // Clear contract when client changes
+  useEffect(() => {
+    if (selectedClientId && form.getValues('contract_id')) {
+      // Check if current contract belongs to selected client
+      const currentContractId = form.getValues('contract_id');
+      if (contracts && !contracts.find(c => c.id === currentContractId)) {
+        form.setValue('contract_id', null);
+      }
+    }
+  }, [selectedClientId, contracts, form]);
 
   const onSubmit = (data: RequestFormData) => {
     mutation.mutate(data);
@@ -199,7 +279,7 @@ export const RequestFormModal = ({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-
+            {/* Client & Service */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -209,7 +289,7 @@ export const RequestFormModal = ({
                     <FormLabel>Cliente *</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      value={field.value}
                       disabled={isViewMode}
                     >
                       <FormControl>
@@ -232,13 +312,48 @@ export const RequestFormModal = ({
 
               <FormField
                 control={form.control}
+                name="contract_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Contrato</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value || ''}
+                      disabled={isViewMode || !selectedClientId}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sin contrato" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">Sin contrato</SelectItem>
+                        {contracts?.map((contract) => (
+                          <SelectItem key={contract.id} value={contract.id}>
+                            {contract.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Vincular a un contrato para precios predefinidos
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
                 name="service_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Servicio *</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      value={field.value}
                       disabled={isViewMode}
                     >
                       <FormControl>
@@ -250,6 +365,36 @@ export const RequestFormModal = ({
                         {services?.map((service) => (
                           <SelectItem key={service.id} value={service.id}>
                             {service.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="specialist_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Especialista</FormLabel>
+                    <Select
+                      onValueChange={(value) => field.onChange(value === 'none' ? null : value)}
+                      value={field.value || 'none'}
+                      disabled={isViewMode}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sin asignar" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">Sin asignar</SelectItem>
+                        {specialists?.map((specialist) => (
+                          <SelectItem key={specialist.id} value={specialist.id}>
+                            {specialist.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -298,51 +443,24 @@ export const RequestFormModal = ({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="quantity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Cantidad *</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min="1"
-                      {...field}
-                      disabled={isViewMode}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="specialist_id"
+                name="quantity"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Especialista</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value || ''}
-                      disabled={isViewMode}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sin asignar" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="null">Sin asignar</SelectItem>
-                        {specialists?.map((specialist) => (
-                          <SelectItem key={specialist.id} value={specialist.id}>
-                            {specialist.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Cantidad (unidades) *</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="1"
+                        {...field}
+                        disabled={isViewMode}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Unidades de servicio (ej: 3 posts, 2 sesiones)
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -368,6 +486,126 @@ export const RequestFormModal = ({
               />
             </div>
 
+            <Separator />
+
+            {/* Cost Section */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium flex items-center gap-2">
+                <Euro className="h-4 w-4" />
+                Coste para la Agencia
+              </h3>
+
+              <FormField
+                control={form.control}
+                name="cost_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de Coste *</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={isViewMode}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="fixed">Coste Fijo</SelectItem>
+                        <SelectItem value="hourly">Por Horas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {costType === 'hourly' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+                  <FormField
+                    control={form.control}
+                    name="hours"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          Horas *
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            placeholder="0"
+                            {...field}
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                            disabled={isViewMode}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="cost_rate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tarifa/Hora (€) *</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            {...field}
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                            disabled={isViewMode}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="md:col-span-2 text-sm text-muted-foreground">
+                    Coste calculado: <span className="font-semibold text-foreground">{calculatedCost.toFixed(2)} €</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-muted/50 rounded-lg">
+                  <FormField
+                    control={form.control}
+                    name="fixed_cost"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Coste Fijo (€)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            {...field}
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                            disabled={isViewMode}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
             <FormField
               control={form.control}
               name="status"
@@ -376,7 +614,7 @@ export const RequestFormModal = ({
                   <FormLabel>Estado *</FormLabel>
                   <Select
                     onValueChange={field.onChange}
-                    defaultValue={field.value}
+                    value={field.value}
                     disabled={isViewMode}
                   >
                     <FormControl>
@@ -386,11 +624,9 @@ export const RequestFormModal = ({
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="draft">Borrador</SelectItem>
-                      <SelectItem value="pending_approval">Pendiente Aprobación</SelectItem>
-                      <SelectItem value="approved">Aprobado</SelectItem>
-                      <SelectItem value="in_progress">En Progreso</SelectItem>
-                      <SelectItem value="completed">Completado</SelectItem>
-                      <SelectItem value="cancelled">Cancelado</SelectItem>
+                      <SelectItem value="active">Activo</SelectItem>
+                      <SelectItem value="invoiced">Facturado</SelectItem>
+                      <SelectItem value="liquidated">Liquidado</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

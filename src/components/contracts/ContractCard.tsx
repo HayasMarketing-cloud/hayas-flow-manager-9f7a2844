@@ -1,10 +1,10 @@
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Eye, Edit, Play, Pause, RotateCw } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Eye, Edit, Play, Pause, RotateCw, RefreshCw } from 'lucide-react';
 import { ContractStatusBadge } from './ContractStatusBadge';
 import { formatCurrency } from '@/lib/contract-utils';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 
 interface ContractCardProps {
   contract: any;
@@ -28,14 +28,27 @@ export const ContractCard = ({
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader className="space-y-2">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <h3 className="font-semibold text-lg">{contract.title}</h3>
+        <div className="flex items-start justify-between gap-2">
+          <div className="space-y-1 min-w-0 flex-1">
+            {contract.code && (
+              <Badge variant="outline" className="font-mono text-xs mb-1">
+                {contract.code}
+              </Badge>
+            )}
+            <h3 className="font-semibold text-lg truncate">{contract.title}</h3>
             <p className="text-sm text-muted-foreground">
               {contract.client?.name || 'Sin cliente'}
             </p>
           </div>
-          <ContractStatusBadge status={contract.status} />
+          <div className="flex flex-col items-end gap-1">
+            <ContractStatusBadge status={contract.status} />
+            {contract.enable_auto_requests && (
+              <Badge variant="secondary" className="text-xs">
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Auto
+              </Badge>
+            )}
+          </div>
         </div>
       </CardHeader>
 
@@ -91,7 +104,7 @@ export const ContractCard = ({
             <Play className="h-4 w-4" />
           </Button>
         )}
-        {onGenerateRequests && contract.status === 'active' && (
+        {onGenerateRequests && contract.status === 'active' && contract.enable_auto_requests && (
           <Button variant="default" size="sm" onClick={() => onGenerateRequests(contract)}>
             <RotateCw className="h-4 w-4 mr-2" />
             Generar Requests

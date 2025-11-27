@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,6 +31,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
     start_date: '',
     end_date: '',
     status: 'draft',
+    enable_auto_requests: false,
   });
   const [services, setServices] = useState<any[]>([]);
 
@@ -55,6 +58,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         start_date: contract.start_date || '',
         end_date: contract.end_date || '',
         status: contract.status || 'draft',
+        enable_auto_requests: contract.enable_auto_requests || false,
       });
     } else {
       setFormData({
@@ -64,6 +68,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         start_date: '',
         end_date: '',
         status: 'draft',
+        enable_auto_requests: false,
       });
       setServices([]);
     }
@@ -109,6 +114,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         end_date: formData.end_date || null,
         status: formData.status,
         total_amount: fixedServicesTotal,
+        enable_auto_requests: formData.enable_auto_requests,
       };
 
       if (contract?.id) {
@@ -278,7 +284,12 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {contract?.code && (
+              <Badge variant="outline" className="font-mono">
+                {contract.code}
+              </Badge>
+            )}
             {isViewMode ? 'Ver Contrato' : contract ? 'Editar Contrato' : 'Nuevo Contrato'}
           </DialogTitle>
         </DialogHeader>
@@ -351,7 +362,24 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               disabled={!canEdit}
               rows={3}
-              placeholder="Describe el contrato..."
+            placeholder="Describe el contrato..."
+          />
+        </div>
+
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="enable_auto_requests">Requests Recurrentes</Label>
+              <p className="text-sm text-muted-foreground">
+                Activar generación automática de requests mensuales
+              </p>
+            </div>
+            <Switch
+              id="enable_auto_requests"
+              checked={formData.enable_auto_requests}
+              onCheckedChange={(checked) =>
+                setFormData({ ...formData, enable_auto_requests: checked })
+              }
+              disabled={!canEdit}
             />
           </div>
 
@@ -388,13 +416,15 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                 <Pause className="h-4 w-4 mr-2" />
                 Suspender
               </Button>
-              <Button onClick={handleGenerateRequests} disabled={generateRequestsMutation.isPending}>
-                {generateRequestsMutation.isPending && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                )}
-                <RotateCw className="h-4 w-4 mr-2" />
-                Generar Requests
-              </Button>
+              {contract?.enable_auto_requests && (
+                <Button onClick={handleGenerateRequests} disabled={generateRequestsMutation.isPending}>
+                  {generateRequestsMutation.isPending && (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  )}
+                  <RotateCw className="h-4 w-4 mr-2" />
+                  Generar Requests
+                </Button>
+              )}
             </>
           )}
 

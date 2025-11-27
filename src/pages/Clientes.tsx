@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Plus, Search, Mail, Phone, MapPin, Edit } from 'lucide-react';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ClientFormModal } from '@/components/modals/ClientFormModal';
@@ -15,6 +16,7 @@ const Clientes = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<any>(null);
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canManageClients, loading: rolesLoading } = useUserRole();
   const canManage = canManageClients();
@@ -44,9 +46,14 @@ const Clientes = () => {
     setModalOpen(true);
   };
 
-  const handleEditClient = (client: any) => {
+  const handleEditClient = (e: React.MouseEvent, client: any) => {
+    e.stopPropagation();
     setSelectedClient(client);
     setModalOpen(true);
+  };
+
+  const handleClientClick = (clientId: string) => {
+    navigate(`/clientes/${clientId}`);
   };
 
   const handleSuccess = () => {
@@ -106,7 +113,11 @@ const Clientes = () => {
         ) : filteredClients && filteredClients.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredClients.map((client) => (
-              <Card key={client.id} className="hover:shadow-lg transition-shadow">
+              <Card 
+                key={client.id} 
+                className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => handleClientClick(client.id)}
+              >
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -153,7 +164,7 @@ const Clientes = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleEditClient(client)}
+                        onClick={(e) => handleEditClient(e, client)}
                         className="w-full"
                       >
                         <Edit className="h-4 w-4 mr-2" />

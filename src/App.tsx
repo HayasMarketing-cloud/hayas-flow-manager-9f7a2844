@@ -18,6 +18,7 @@ import Servicios from "./pages/Servicios";
 import Especialistas from "./pages/Especialistas";
 import Contratos from "./pages/Contratos";
 import Clientes from "./pages/Clientes";
+import ClienteDetalle from "./pages/ClienteDetalle";
 import Liquidaciones from "./pages/Liquidaciones";
 import MisLiquidaciones from "./pages/MisLiquidaciones";
 import RequestFlowTracker from "./pages/RequestFlowTracker";
@@ -45,6 +46,7 @@ const App = () => (
             <Route path="/dashboard-finanzas" element={<ProtectedRoute><DashboardFinanzas /></ProtectedRoute>} />
             <Route path="/dashboard-especialista" element={<ProtectedRoute><DashboardEspecialista /></ProtectedRoute>} />
             <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
+            <Route path="/clientes/:id" element={<ProtectedRoute><ClienteDetalle /></ProtectedRoute>} />
             <Route path="/servicios" element={<ProtectedRoute><Servicios /></ProtectedRoute>} />
             <Route path="/especialistas" element={<ProtectedRoute><Especialistas /></ProtectedRoute>} />
             <Route path="/contratos" element={<ProtectedRoute><Contratos /></ProtectedRoute>} />

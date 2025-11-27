@@ -153,6 +153,77 @@ export type Database = {
           },
         ]
       }
+      client_contacts: {
+        Row: {
+          active: boolean | null
+          address_line_1: string | null
+          address_line_2: string | null
+          city: string | null
+          client_id: string
+          country: string | null
+          created_at: string | null
+          created_by: string
+          email: string
+          id: string
+          is_primary: boolean | null
+          name: string
+          notes: string | null
+          phone: string | null
+          postal_code: string | null
+          role: string | null
+          state: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          address_line_1?: string | null
+          address_line_2?: string | null
+          city?: string | null
+          client_id: string
+          country?: string | null
+          created_at?: string | null
+          created_by: string
+          email: string
+          id?: string
+          is_primary?: boolean | null
+          name: string
+          notes?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          role?: string | null
+          state?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          address_line_1?: string | null
+          address_line_2?: string | null
+          city?: string | null
+          client_id?: string
+          country?: string | null
+          created_at?: string | null
+          created_by?: string
+          email?: string
+          id?: string
+          is_primary?: boolean | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          role?: string | null
+          state?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_contacts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           address: string | null

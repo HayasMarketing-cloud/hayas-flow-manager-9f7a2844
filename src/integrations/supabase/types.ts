@@ -611,6 +611,7 @@ export type Database = {
       }
       invoice_items: {
         Row: {
+          aggregated_request_ids: string[] | null
           created_at: string
           description: string
           financial_request_id: string | null
@@ -622,6 +623,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          aggregated_request_ids?: string[] | null
           created_at?: string
           description: string
           financial_request_id?: string | null
@@ -633,6 +635,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          aggregated_request_ids?: string[] | null
           created_at?: string
           description?: string
           financial_request_id?: string | null

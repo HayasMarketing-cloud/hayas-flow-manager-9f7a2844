@@ -73,17 +73,18 @@ export const generateInvoicePDF = async (data: InvoiceData) => {
     doc.text(`${data.client.city}${data.client.country ? ', ' + data.client.country : ''}`, 15, 88);
   }
 
-  // Tabla de items
+  // Tabla de items con columna de IVA
   const tableData = data.items.map((item) => [
     item.description,
-    item.quantity.toString(),
+    item.quantity.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
     formatCurrency(item.unit_price),
     formatCurrency(item.total),
+    `${data.invoice.tax_rate}%`,
   ]);
 
   autoTable(doc, {
     startY: 100,
-    head: [['Descripción', 'Cantidad', 'Precio Unitario', 'Total']],
+    head: [['Descripción', 'Cantidad', 'Precio Unitario', 'Total', 'IVA']],
     body: tableData,
     theme: 'striped',
     headStyles: {
@@ -97,10 +98,11 @@ export const generateInvoicePDF = async (data: InvoiceData) => {
       cellPadding: 5,
     },
     columnStyles: {
-      0: { cellWidth: 90 },
-      1: { cellWidth: 25, halign: 'center' },
-      2: { cellWidth: 35, halign: 'right' },
-      3: { cellWidth: 35, halign: 'right' },
+      0: { cellWidth: 75 },
+      1: { cellWidth: 20, halign: 'center' },
+      2: { cellWidth: 30, halign: 'right' },
+      3: { cellWidth: 30, halign: 'right' },
+      4: { cellWidth: 20, halign: 'center' },
     },
   });
 

@@ -120,14 +120,14 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
             key={index}
             className="grid grid-cols-12 gap-2 p-3 border rounded-lg bg-card"
           >
-            <div className="col-span-4">
+          <div className="col-span-4">
               <Select
                 value={item.service_id || ''}
                 onValueChange={(value) => handleServiceSelect(index, value)}
                 disabled={disabled}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Servicio" />
+                <SelectTrigger className={!item.service_id ? 'border-destructive ring-1 ring-destructive/30' : ''}>
+                  <SelectValue placeholder="Selecciona un servicio" />
                 </SelectTrigger>
                 <SelectContent>
                   {services?.map((service) => (

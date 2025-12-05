@@ -84,9 +84,15 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
   const handleServiceSelect = (index: number, serviceId: string) => {
     const service = services?.find((s) => s.id === serviceId);
     if (service) {
-      handleItemChange(index, 'service_id', serviceId);
-      handleItemChange(index, 'description', service.name);
-      // unit_price debe ser ingresado manualmente por el usuario
+      // Actualizar ambos campos a la vez para evitar problemas de estado
+      const updatedItems = [...localItems];
+      updatedItems[index] = {
+        ...updatedItems[index],
+        service_id: serviceId,
+        description: service.name,
+      };
+      setLocalItems(updatedItems);
+      onChange(updatedItems);
     }
   };
 

@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, ListPlus } from 'lucide-react';
 import { useBudgetDetail } from '@/hooks/useBudgetDetail';
 import { BudgetStatusBadge } from '@/components/budgets/BudgetStatusBadge';
 import { BudgetItemsEditor } from '@/components/budgets/BudgetItemsEditor';
@@ -44,6 +44,64 @@ export default function PresupuestoDetalle() {
   
   // Hook de aprobación
   const approveMutation = useApproveBudget();
+
+  // Query para verificar si el presupuesto tiene financial_requests
+  const { data: existingRequests } = useQuery({
+    queryKey: ['budget-requests', id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('financial_requests')
+        .select('id')
+        .eq('budget_id', id);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id
+  });
+
+  const hasFinancialRequests = existingRequests && existingRequests.length > 0;
+
+  // Mutación para generar solicitudes sin cambiar estado (para presupuestos ya aprobados)
+  const generateRequestsMutation = useMutation({
+    mutationFn: async () => {
+      if (!data?.budget || !data?.items || data.items.length === 0) {
+        throw new Error('No hay items en el presupuesto');
+      }
+
+      const itemsWithoutService = data.items.filter((item: any) => !item.service_id);
+      if (itemsWithoutService.length > 0) {
+        throw new Error('Hay líneas sin servicio asignado');
+      }
+
+      const requestsToInsert = data.items.map((item: any) => ({
+        title: item.description,
+        description: `Generado desde presupuesto: ${data.budget.title}`,
+        client_id: data.budget.client_id,
+        service_id: item.service_id,
+        budget_id: data.budget.id,
+        quantity: item.quantity,
+        status: 'active' as const,
+        code: '',
+      }));
+
+      const { error } = await supabase
+        .from('financial_requests')
+        .insert(requestsToInsert);
+
+      if (error) throw error;
+      return requestsToInsert.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ['budget-requests', id] });
+      queryClient.invalidateQueries({ queryKey: ['budget-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
+      toast.success(`${count} solicitud(es) financiera(s) creada(s)`);
+      setShowProjectModal(true);
+    },
+    onError: (error: any) => {
+      toast.error('Error: ' + error.message);
+    }
+  });
 
   // Estados para edición inline de Resumen
   const [isEditingResumen, setIsEditingResumen] = useState(false);
@@ -432,6 +490,17 @@ export default function PresupuestoDetalle() {
                 {approveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Aprobar y Generar Solicitudes
+              </Button>
+            )}
+            {budget.status === 'approved' && !hasFinancialRequests && (
+              <Button 
+                onClick={() => generateRequestsMutation.mutate()}
+                disabled={generateRequestsMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {generateRequestsMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                <ListPlus className="h-4 w-4 mr-2" />
+                Generar Solicitudes y Proyecto
               </Button>
             )}
             <Button

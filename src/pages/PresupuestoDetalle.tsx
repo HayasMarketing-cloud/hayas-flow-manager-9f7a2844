@@ -3,24 +3,28 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Edit, Copy, FileText } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2 } from 'lucide-react';
 import { useBudgetDetail } from '@/hooks/useBudgetDetail';
 import { BudgetStatusBadge } from '@/components/budgets/BudgetStatusBadge';
-import { formatCurrency } from '@/lib/budget-utils';
+import { BudgetItemsEditor } from '@/components/budgets/BudgetItemsEditor';
+import { formatCurrency, getBudgetStatusLabel, calculateBudgetTotal } from '@/lib/budget-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BudgetFormModal } from '@/components/budgets/BudgetFormModal';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
 export default function PresupuestoDetalle() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -30,6 +34,55 @@ export default function PresupuestoDetalle() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [isEditingDocUrl, setIsEditingDocUrl] = useState(false);
   const [docUrlInput, setDocUrlInput] = useState('');
+
+  // Estados para edición inline de Resumen
+  const [isEditingResumen, setIsEditingResumen] = useState(false);
+  const [resumenFormData, setResumenFormData] = useState({
+    title: '',
+    client_id: '',
+    description: '',
+    valid_until: '',
+  });
+  const [isSavingResumen, setIsSavingResumen] = useState(false);
+
+  // Estados para edición inline de Detalle Económico
+  const [isEditingEconomico, setIsEditingEconomico] = useState(false);
+  const [economicItems, setEconomicItems] = useState<any[]>([]);
+  const [isSavingEconomico, setIsSavingEconomico] = useState(false);
+
+  // Cargar clientes para el select
+  const { data: clients } = useQuery({
+    queryKey: ['clients'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, name')
+        .eq('status', 'active')
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Inicializar datos de resumen cuando cambian los datos
+  useEffect(() => {
+    if (data?.budget) {
+      setResumenFormData({
+        title: data.budget.title || '',
+        client_id: data.budget.client_id || '',
+        description: data.budget.description || '',
+        valid_until: data.budget.valid_until || '',
+      });
+    }
+  }, [data?.budget]);
+
+  // Inicializar items económicos cuando cambian los datos
+  useEffect(() => {
+    if (data?.items) {
+      setEconomicItems(data.items);
+    }
+  }, [data?.items]);
+
   const duplicateMutation = useMutation({
     mutationFn: async (budget: any) => {
       const { data: newBudget, error: budgetError } = await supabase
@@ -85,6 +138,173 @@ export default function PresupuestoDetalle() {
     },
   });
 
+  // Función para cambio manual de estado
+  const handleStatusChange = async (newStatus: string) => {
+    if (!data?.budget) return;
+    const previousStatus = data.budget.status;
+
+    try {
+      const { error } = await supabase
+        .from('budgets')
+        .update({ status: newStatus })
+        .eq('id', data.budget.id);
+
+      if (error) throw error;
+
+      // Registrar en activity_log
+      await supabase.from('activity_log').insert({
+        entity_type: 'budget',
+        entity_id: data.budget.id,
+        action: 'status_change',
+        changes: { previous: previousStatus, new: newStatus },
+        user_id: user?.id,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['budget-detail', data.budget.id] });
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      toast.success(`Estado cambiado a: ${getBudgetStatusLabel(newStatus)}`);
+    } catch (error: any) {
+      toast.error('Error al cambiar estado: ' + error.message);
+    }
+  };
+
+  // Función para guardar cambios de Resumen
+  const handleSaveResumen = async () => {
+    if (!data?.budget) return;
+    setIsSavingResumen(true);
+
+    const previousData = {
+      title: data.budget.title,
+      client_id: data.budget.client_id,
+      description: data.budget.description,
+      valid_until: data.budget.valid_until,
+    };
+
+    try {
+      const { error } = await supabase
+        .from('budgets')
+        .update({
+          title: resumenFormData.title,
+          client_id: resumenFormData.client_id,
+          description: resumenFormData.description || null,
+          valid_until: resumenFormData.valid_until || null,
+        })
+        .eq('id', data.budget.id);
+
+      if (error) throw error;
+
+      // Registrar en activity_log
+      await supabase.from('activity_log').insert({
+        entity_type: 'budget',
+        entity_id: data.budget.id,
+        action: 'update_resumen',
+        changes: { previous: previousData, new: resumenFormData },
+        user_id: user?.id,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['budget-detail', data.budget.id] });
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      toast.success('Resumen actualizado correctamente');
+      setIsEditingResumen(false);
+    } catch (error: any) {
+      toast.error('Error al actualizar: ' + error.message);
+    } finally {
+      setIsSavingResumen(false);
+    }
+  };
+
+  // Función para guardar cambios de Detalle Económico
+  const handleSaveEconomico = async () => {
+    if (!data?.budget) return;
+    
+    if (economicItems.length === 0) {
+      toast.error('Debes tener al menos una línea en el presupuesto');
+      return;
+    }
+
+    if (economicItems.some((item) => !item.service_id)) {
+      toast.error('Todas las líneas deben tener un servicio seleccionado');
+      return;
+    }
+
+    setIsSavingEconomico(true);
+    const previousItemsCount = data.items.length;
+    const previousTotal = data.budget.total_amount;
+    const newTotal = calculateBudgetTotal(economicItems);
+
+    try {
+      // Eliminar items antiguos
+      await supabase.from('budget_items').delete().eq('budget_id', data.budget.id);
+
+      // Insertar nuevos items
+      const itemsToInsert = economicItems.map((item) => ({
+        budget_id: data.budget.id,
+        service_id: item.service_id,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total: item.total,
+        notes: item.notes || null,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('budget_items')
+        .insert(itemsToInsert);
+
+      if (itemsError) throw itemsError;
+
+      // Actualizar total_amount en budget
+      const { error: budgetError } = await supabase
+        .from('budgets')
+        .update({ total_amount: newTotal })
+        .eq('id', data.budget.id);
+
+      if (budgetError) throw budgetError;
+
+      // Registrar en activity_log
+      await supabase.from('activity_log').insert({
+        entity_type: 'budget',
+        entity_id: data.budget.id,
+        action: 'update_economico',
+        changes: {
+          previous_items_count: previousItemsCount,
+          new_items_count: economicItems.length,
+          previous_total: previousTotal,
+          new_total: newTotal,
+        },
+        user_id: user?.id,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['budget-detail', data.budget.id] });
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      toast.success('Detalle económico actualizado correctamente');
+      setIsEditingEconomico(false);
+    } catch (error: any) {
+      toast.error('Error al actualizar: ' + error.message);
+    } finally {
+      setIsSavingEconomico(false);
+    }
+  };
+
+  const handleCancelResumen = () => {
+    if (data?.budget) {
+      setResumenFormData({
+        title: data.budget.title || '',
+        client_id: data.budget.client_id || '',
+        description: data.budget.description || '',
+        valid_until: data.budget.valid_until || '',
+      });
+    }
+    setIsEditingResumen(false);
+  };
+
+  const handleCancelEconomico = () => {
+    if (data?.items) {
+      setEconomicItems(data.items);
+    }
+    setIsEditingEconomico(false);
+  };
+
   if (isLoading) {
     return (
       <AppLayout title="Cargando..." description="">
@@ -129,7 +349,6 @@ export default function PresupuestoDetalle() {
     return sum;
   }, 0);
   const pendienteFacturar = totalPresupuestado - totalFacturado;
-  const canEditDocUrl = ['pending', 'sent', 'approved'].includes(budget.status);
 
   const handleEditDocUrl = () => {
     setDocUrlInput(budget.accepted_document_url || '');
@@ -138,12 +357,22 @@ export default function PresupuestoDetalle() {
 
   const handleSaveDocUrl = async () => {
     try {
+      const previousUrl = budget.accepted_document_url;
       const { error } = await supabase
         .from('budgets')
         .update({ accepted_document_url: docUrlInput || null })
         .eq('id', budget.id);
 
       if (error) throw error;
+
+      // Registrar en activity_log
+      await supabase.from('activity_log').insert({
+        entity_type: 'budget',
+        entity_id: budget.id,
+        action: 'update_doc_url',
+        changes: { previous: previousUrl, new: docUrlInput || null },
+        user_id: user?.id,
+      });
 
       queryClient.invalidateQueries({ queryKey: ['budget-detail', budget.id] });
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
@@ -154,6 +383,9 @@ export default function PresupuestoDetalle() {
       toast.error('Error al actualizar el enlace: ' + error.message);
     }
   };
+
+  const selectedClientName = clients?.find((c) => c.id === resumenFormData.client_id)?.name || budget.client?.name;
+
   return (
     <AppLayout 
       title={budget.title} 
@@ -178,12 +410,10 @@ export default function PresupuestoDetalle() {
               <Copy className="h-4 w-4 mr-2" />
               Usar como Plantilla
             </Button>
-            {budget.status === 'pending' && (
-              <Button onClick={() => setEditModalOpen(true)}>
-                <Edit className="h-4 w-4 mr-2" />
-                Editar
-              </Button>
-            )}
+            <Button onClick={() => setEditModalOpen(true)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Editar Completo
+            </Button>
           </div>
         </div>
 
@@ -196,151 +426,276 @@ export default function PresupuestoDetalle() {
 
           <TabsContent value="resumen" className="space-y-6">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                 <CardTitle>Información General</CardTitle>
+                {!isEditingResumen && (
+                  <Button variant="outline" size="sm" onClick={() => setIsEditingResumen(true)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Editar Resumen
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Título</p>
-                    <p className="text-lg font-semibold">{budget.title}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Cliente</p>
-                    <p className="text-lg font-semibold">{budget.client?.name}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Estado</p>
-                    <BudgetStatusBadge status={budget.status} />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Válido hasta</p>
-                    <p className="text-lg">
-                      {budget.valid_until
-                        ? format(new Date(budget.valid_until), 'dd MMMM yyyy', { locale: es })
-                        : 'No especificado'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Fecha de creación</p>
-                    <p className="text-lg">
-                      {format(new Date(budget.created_at), 'dd MMMM yyyy', { locale: es })}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Monto Total</p>
-                    <p className="text-2xl font-bold text-primary">
-                      {formatCurrency(totalPresupuestado)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t space-y-4">
-                  {budget.description && (
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        Objetivo de campaña / Resumen
-                      </p>
-                      <p className="text-base whitespace-pre-wrap">{budget.description}</p>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">Documento aceptado por el cliente</p>
-                    {budget.accepted_document_url ? (
-                      <div className="flex flex-wrap items-center gap-3">
-                        <Button
-                          asChild
-                          variant="outline"
-                          size="sm"
-                          className="gap-2"
+                {isEditingResumen ? (
+                  // Modo edición
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="title">Título</Label>
+                        <Input
+                          id="title"
+                          value={resumenFormData.title}
+                          onChange={(e) => setResumenFormData({ ...resumenFormData, title: e.target.value })}
+                          placeholder="Título del presupuesto"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="client">Cliente</Label>
+                        <Select
+                          value={resumenFormData.client_id}
+                          onValueChange={(value) => setResumenFormData({ ...resumenFormData, client_id: value })}
                         >
-                          <a
-                            href={budget.accepted_document_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <FileText className="h-4 w-4" />
-                            Ver documento
-                          </a>
-                        </Button>
-                        {canEditDocUrl && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleEditDocUrl}
-                          >
-                            Editar enlace
-                          </Button>
-                        )}
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar cliente" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {clients?.map((client) => (
+                              <SelectItem key={client.id} value={client.id}>
+                                {client.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <p className="text-sm text-muted-foreground">Sin documento aún</p>
-                        {canEditDocUrl && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleEditDocUrl}
-                          >
-                            Añadir enlace
-                          </Button>
-                        )}
+                      <div className="space-y-2">
+                        <Label htmlFor="valid_until">Válido hasta</Label>
+                        <Input
+                          id="valid_until"
+                          type="date"
+                          value={resumenFormData.valid_until}
+                          onChange={(e) => setResumenFormData({ ...resumenFormData, valid_until: e.target.value })}
+                        />
                       </div>
-                    )}
+                      <div className="space-y-2">
+                        <Label>Estado</Label>
+                        <Select value={budget.status} onValueChange={handleStatusChange}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">Pendiente</SelectItem>
+                            <SelectItem value="sent">Enviado</SelectItem>
+                            <SelectItem value="approved">Aprobado</SelectItem>
+                            <SelectItem value="rejected">Rechazado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="description">Objetivo de campaña / Resumen</Label>
+                      <Textarea
+                        id="description"
+                        value={resumenFormData.description}
+                        onChange={(e) => setResumenFormData({ ...resumenFormData, description: e.target.value })}
+                        rows={3}
+                        placeholder="Describe brevemente el objetivo de la campaña..."
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-4 border-t">
+                      <Button variant="outline" onClick={handleCancelResumen} disabled={isSavingResumen}>
+                        <X className="h-4 w-4 mr-2" />
+                        Cancelar
+                      </Button>
+                      <Button onClick={handleSaveResumen} disabled={isSavingResumen}>
+                        {isSavingResumen && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        <Save className="h-4 w-4 mr-2" />
+                        Guardar Resumen
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  // Modo visualización
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Título</p>
+                        <p className="text-lg font-semibold">{budget.title}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Cliente</p>
+                        <p className="text-lg font-semibold">{budget.client?.name}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Estado</p>
+                        <div className="flex items-center gap-3">
+                          <Select value={budget.status} onValueChange={handleStatusChange}>
+                            <SelectTrigger className="w-40">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pending">Pendiente</SelectItem>
+                              <SelectItem value="sent">Enviado</SelectItem>
+                              <SelectItem value="approved">Aprobado</SelectItem>
+                              <SelectItem value="rejected">Rechazado</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Válido hasta</p>
+                        <p className="text-lg">
+                          {budget.valid_until
+                            ? format(new Date(budget.valid_until), 'dd MMMM yyyy', { locale: es })
+                            : 'No especificado'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Fecha de creación</p>
+                        <p className="text-lg">
+                          {format(new Date(budget.created_at), 'dd MMMM yyyy', { locale: es })}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Monto Total</p>
+                        <p className="text-2xl font-bold text-primary">
+                          {formatCurrency(totalPresupuestado)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t space-y-4">
+                      {budget.description && (
+                        <div>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            Objetivo de campaña / Resumen
+                          </p>
+                          <p className="text-base whitespace-pre-wrap">{budget.description}</p>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">Documento aceptado por el cliente</p>
+                        {budget.accepted_document_url ? (
+                          <div className="flex flex-wrap items-center gap-3">
+                            <Button
+                              asChild
+                              variant="outline"
+                              size="sm"
+                              className="gap-2"
+                            >
+                              <a
+                                href={budget.accepted_document_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <FileText className="h-4 w-4" />
+                                Ver documento
+                              </a>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleEditDocUrl}
+                            >
+                              Editar enlace
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            <p className="text-sm text-muted-foreground">Sin documento aún</p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleEditDocUrl}
+                            >
+                              Añadir enlace
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="economico" className="space-y-6">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                 <CardTitle>Líneas del Presupuesto</CardTitle>
+                {!isEditingEconomico && (
+                  <Button variant="outline" size="sm" onClick={() => setIsEditingEconomico(true)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Editar Líneas
+                  </Button>
+                )}
               </CardHeader>
               <CardContent>
-                {Object.entries(itemsByCategory).map(([category, categoryItems]: [string, any]) => {
-                  const subtotal = categoryItems.reduce((sum: number, item: any) => sum + item.total, 0);
-                  return (
-                    <div key={category} className="mb-6 last:mb-0">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-semibold text-lg">{category}</h4>
-                        <span className="text-sm font-medium text-muted-foreground">
-                          Subtotal: {formatCurrency(subtotal)}
-                        </span>
-                      </div>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Servicio</TableHead>
-                            <TableHead>Descripción</TableHead>
-                            <TableHead className="text-center">Cantidad</TableHead>
-                            <TableHead className="text-right">Precio Unit.</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {categoryItems.map((item: any) => (
-                            <TableRow key={item.id}>
-                              <TableCell className="font-medium">
-                                {item.service?.name || 'Sin servicio'}
-                              </TableCell>
-                              <TableCell>{item.description}</TableCell>
-                              <TableCell className="text-center">{item.quantity}</TableCell>
-                              <TableCell className="text-right">
-                                {formatCurrency(item.unit_price)}
-                              </TableCell>
-                              <TableCell className="text-right font-semibold">
-                                {formatCurrency(item.total)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                {isEditingEconomico ? (
+                  // Modo edición con BudgetItemsEditor
+                  <div className="space-y-4">
+                    <BudgetItemsEditor
+                      items={economicItems}
+                      onChange={setEconomicItems}
+                      disabled={false}
+                    />
+                    <div className="flex justify-end gap-2 pt-4 border-t">
+                      <Button variant="outline" onClick={handleCancelEconomico} disabled={isSavingEconomico}>
+                        <X className="h-4 w-4 mr-2" />
+                        Cancelar
+                      </Button>
+                      <Button onClick={handleSaveEconomico} disabled={isSavingEconomico}>
+                        {isSavingEconomico && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        <Save className="h-4 w-4 mr-2" />
+                        Guardar Cambios
+                      </Button>
                     </div>
-                  );
-                })}
+                  </div>
+                ) : (
+                  // Modo visualización
+                  Object.entries(itemsByCategory).map(([category, categoryItems]: [string, any]) => {
+                    const subtotal = categoryItems.reduce((sum: number, item: any) => sum + item.total, 0);
+                    return (
+                      <div key={category} className="mb-6 last:mb-0">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold text-lg">{category}</h4>
+                          <span className="text-sm font-medium text-muted-foreground">
+                            Subtotal: {formatCurrency(subtotal)}
+                          </span>
+                        </div>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Servicio</TableHead>
+                              <TableHead>Descripción</TableHead>
+                              <TableHead className="text-center">Cantidad</TableHead>
+                              <TableHead className="text-right">Precio Unit.</TableHead>
+                              <TableHead className="text-right">Total</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {categoryItems.map((item: any) => (
+                              <TableRow key={item.id}>
+                                <TableCell className="font-medium">
+                                  {item.service?.name || 'Sin servicio'}
+                                </TableCell>
+                                <TableCell>{item.description}</TableCell>
+                                <TableCell className="text-center">{item.quantity}</TableCell>
+                                <TableCell className="text-right">
+                                  {formatCurrency(item.unit_price)}
+                                </TableCell>
+                                <TableCell className="text-right font-semibold">
+                                  {formatCurrency(item.total)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    );
+                  })
+                )}
               </CardContent>
             </Card>
 

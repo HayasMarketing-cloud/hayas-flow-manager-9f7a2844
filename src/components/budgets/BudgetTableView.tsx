@@ -73,7 +73,7 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate }: Budget
                     <Button variant="ghost" size="sm" onClick={() => navigate(`/presupuestos/${budget.id}`)}>
                       <Eye className="h-4 w-4" />
                     </Button>
-                    {onEdit && budget.status === 'pending' && (
+                    {onEdit && (
                       <Button variant="ghost" size="sm" onClick={() => onEdit(budget)}>
                         <Edit className="h-4 w-4" />
                       </Button>

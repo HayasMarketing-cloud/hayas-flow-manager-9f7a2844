@@ -467,7 +467,7 @@ export default function PresupuestoDetalle() {
 
   return (
     <AppLayout 
-      title={budget.title} 
+      title={budget.code ? `${budget.code} - ${budget.title}` : budget.title} 
       description={`Presupuesto ${budget.client?.name || ''}`}
     >
       <div className="space-y-6">

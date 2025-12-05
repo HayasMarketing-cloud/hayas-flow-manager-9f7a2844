@@ -24,6 +24,9 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
       <CardHeader className="space-y-2">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
+            {budget.code && (
+              <span className="text-xs font-mono text-muted-foreground">{budget.code}</span>
+            )}
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-lg">{budget.title}</h3>
               {budget.accepted_document_url && (

@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, ListPlus } from 'lucide-react';
+import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, ListPlus, Trash2 } from 'lucide-react';
 import { useBudgetDetail } from '@/hooks/useBudgetDetail';
 import { BudgetStatusBadge } from '@/components/budgets/BudgetStatusBadge';
 import { BudgetItemsEditor } from '@/components/budgets/BudgetItemsEditor';
@@ -27,6 +27,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { useApproveBudget } from '@/hooks/useApproveBudget';
 import { ProjectCreationModal } from '@/components/budgets/ProjectCreationModal';
 import { useCreateProjectWithActivities } from '@/hooks/useCreateProjectWithActivities';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 export default function PresupuestoDetalle() {
   const { id } = useParams<{ id: string }>();
@@ -40,6 +41,16 @@ export default function PresupuestoDetalle() {
   
   // Estados para flujo de aprobación
   const [showProjectModal, setShowProjectModal] = useState(false);
+  
+  // Estados para eliminación
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [associatedData, setAssociatedData] = useState<{
+    requests: number;
+    projects: number;
+    activities: number;
+  } | null>(null);
+  const [isLoadingAssociatedData, setIsLoadingAssociatedData] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Hooks de aprobación y creación de proyecto con actividades
   const approveMutation = useApproveBudget();
@@ -75,7 +86,104 @@ export default function PresupuestoDetalle() {
 
   const hasFinancialRequests = existingRequests && existingRequests.length > 0;
   const hasOperationalProjects = existingProjects && existingProjects.length > 0;
-  const hasAssociatedData = hasFinancialRequests || hasOperationalProjects;
+  const hasAssociatedDataForStatusChange = hasFinancialRequests || hasOperationalProjects;
+
+  // Función para preparar eliminación
+  const handleDeleteClick = async () => {
+    if (!id) return;
+    setIsLoadingAssociatedData(true);
+    setDeleteDialogOpen(true);
+
+    try {
+      const [requestsRes, projectsRes] = await Promise.all([
+        supabase.from('financial_requests').select('id').eq('budget_id', id),
+        supabase.from('operational_projects').select('id').eq('budget_id', id),
+      ]);
+
+      const requests = requestsRes.data || [];
+      const projects = projectsRes.data || [];
+
+      let activities: any[] = [];
+      if (projects.length > 0) {
+        const projectIds = projects.map(p => p.id);
+        const { data: activitiesData } = await supabase
+          .from('operational_requests')
+          .select('id')
+          .in('operational_project_id', projectIds);
+        activities = activitiesData || [];
+      }
+
+      setAssociatedData({
+        requests: requests.length,
+        projects: projects.length,
+        activities: activities.length,
+      });
+    } catch (error) {
+      console.error('Error fetching associated data:', error);
+      setAssociatedData({ requests: 0, projects: 0, activities: 0 });
+    } finally {
+      setIsLoadingAssociatedData(false);
+    }
+  };
+
+  // Función para confirmar eliminación en cascada
+  const confirmDelete = async () => {
+    if (!id) return;
+    setIsDeleting(true);
+
+    try {
+      // 1. Obtener proyectos asociados
+      const { data: projects } = await supabase
+        .from('operational_projects')
+        .select('id')
+        .eq('budget_id', id);
+
+      // 2. Eliminar operational_requests de esos proyectos
+      if (projects && projects.length > 0) {
+        const projectIds = projects.map(p => p.id);
+        await supabase
+          .from('operational_requests')
+          .delete()
+          .in('operational_project_id', projectIds);
+      }
+
+      // 3. Eliminar operational_projects
+      await supabase
+        .from('operational_projects')
+        .delete()
+        .eq('budget_id', id);
+
+      // 4. Eliminar financial_requests
+      await supabase
+        .from('financial_requests')
+        .delete()
+        .eq('budget_id', id);
+
+      // 5. Eliminar budget_items
+      await supabase
+        .from('budget_items')
+        .delete()
+        .eq('budget_id', id);
+
+      // 6. Eliminar presupuesto
+      const { error } = await supabase
+        .from('budgets')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      toast.success('Presupuesto y datos asociados eliminados correctamente');
+      navigate('/presupuestos');
+    } catch (error: any) {
+      toast.error('Error al eliminar: ' + error.message);
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setAssociatedData(null);
+    }
+  };
 
   // Mutación para generar solicitudes sin cambiar estado (para presupuestos ya aprobados)
   const generateRequestsMutation = useMutation({
@@ -228,7 +336,7 @@ export default function PresupuestoDetalle() {
     const previousStatus = data.budget.status;
 
     // Bloquear cambio de estado desde "approved" si hay datos asociados
-    if (previousStatus === 'approved' && newStatus !== 'approved' && hasAssociatedData) {
+    if (previousStatus === 'approved' && newStatus !== 'approved' && hasAssociatedDataForStatusChange) {
       const details: string[] = [];
       if (hasFinancialRequests) {
         details.push(`${existingRequests?.length} solicitud(es) financiera(s)`);
@@ -546,6 +654,10 @@ export default function PresupuestoDetalle() {
             <Button onClick={() => setEditModalOpen(true)}>
               <Edit className="h-4 w-4 mr-2" />
               Editar Completo
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteClick}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Eliminar
             </Button>
           </div>
         </div>
@@ -1028,6 +1140,29 @@ export default function PresupuestoDetalle() {
             });
           }
         }}
+      />
+
+      {/* Modal de confirmación de eliminación */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteDialogOpen(false);
+            setAssociatedData(null);
+          }
+        }}
+        title="Eliminar Presupuesto"
+        description={
+          isLoadingAssociatedData
+            ? 'Cargando información...'
+            : associatedData && (associatedData.requests > 0 || associatedData.projects > 0)
+            ? `¿Estás seguro de eliminar "${budget.title}"?\n\nSe eliminarán también:\n• ${associatedData.requests} solicitud(es) financiera(s)\n• ${associatedData.projects} proyecto(s) operacional(es)\n• ${associatedData.activities} actividad(es) del proyecto\n\nEsta acción no se puede deshacer.`
+            : `¿Estás seguro de eliminar "${budget.title}"? Esta acción no se puede deshacer.`
+        }
+        confirmText={isDeleting ? 'Eliminando...' : 'Eliminar Todo'}
+        cancelText="Cancelar"
+        onConfirm={confirmDelete}
+        variant="destructive"
       />
     </AppLayout>
   );

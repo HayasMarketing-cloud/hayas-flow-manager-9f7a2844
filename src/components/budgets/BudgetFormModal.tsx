@@ -215,6 +215,11 @@ export const BudgetFormModal = ({
       return;
     }
 
+    if (items.some((item) => !item.service_id)) {
+      toast.error('Todas las líneas del presupuesto deben tener un servicio seleccionado.');
+      return;
+    }
+
     saveMutation.mutate();
   };
 

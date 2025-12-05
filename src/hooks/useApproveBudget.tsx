@@ -34,6 +34,14 @@ export const useApproveBudget = () => {
 
       // 3. Generar financial_requests automáticamente desde budget_items
       if (budget.budget_items && budget.budget_items.length > 0) {
+        const itemsWithoutService = budget.budget_items.filter((item: any) => !item.service_id);
+
+        if (itemsWithoutService.length > 0) {
+          throw new Error(
+            'Hay líneas del presupuesto sin servicio asignado. Edita el presupuesto y selecciona un servicio en todas las líneas antes de aprobarlo.'
+          );
+        }
+
         const requestsToInsert = budget.budget_items.map((item: any) => ({
           title: item.description,
           description: `Generado automáticamente desde presupuesto: ${budget.title}`,

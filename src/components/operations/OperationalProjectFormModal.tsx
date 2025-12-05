@@ -42,7 +42,6 @@ const projectSchema = z.object({
   deadline: z.string().optional().nullable(),
   status: z.enum(['pending', 'in_progress', 'in_review', 'completed']),
   description: z.string().optional().nullable(),
-  hub_client_url: z.string().url('URL inválida').optional().nullable().or(z.literal('')),
   hub_project_url: z.string().url('URL inválida').optional().nullable().or(z.literal('')),
 });
 
@@ -77,7 +76,6 @@ export const OperationalProjectFormModal = ({
       deadline: null,
       status: 'pending',
       description: null,
-      hub_client_url: null,
       hub_project_url: null,
     },
   });
@@ -144,7 +142,6 @@ export const OperationalProjectFormModal = ({
         deadline: initialData.deadline || null,
         status: initialData.status,
         description: initialData.description || null,
-        hub_client_url: initialData.hub_client_url || null,
         hub_project_url: initialData.hub_project_url || null,
       });
     } else {
@@ -157,7 +154,6 @@ export const OperationalProjectFormModal = ({
         deadline: null,
         status: 'pending',
         description: null,
-        hub_client_url: null,
         hub_project_url: null,
       });
     }
@@ -181,7 +177,6 @@ export const OperationalProjectFormModal = ({
       owner_user_id: data.owner_user_id || null,
       deadline: data.deadline || null,
       description: data.description || null,
-      hub_client_url: data.hub_client_url || null,
       hub_project_url: data.hub_project_url || null,
       created_by: user?.id,
     };
@@ -427,47 +422,25 @@ export const OperationalProjectFormModal = ({
               )}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="hub_client_url"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>URL HUB Cliente</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="url"
-                        placeholder="https://drive.google.com/..."
-                        {...field}
-                        value={field.value || ''}
-                        disabled={isViewMode}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="hub_project_url"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>URL HUB Proyecto</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="url"
-                        placeholder="https://drive.google.com/..."
-                        {...field}
-                        value={field.value || ''}
-                        disabled={isViewMode}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            <FormField
+              control={form.control}
+              name="hub_project_url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>URL HUB Proyecto</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="url"
+                      placeholder="https://drive.google.com/..."
+                      {...field}
+                      value={field.value || ''}
+                      disabled={isViewMode}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {!isViewMode && (
               <div className="flex justify-end gap-2 pt-4">

@@ -333,14 +333,14 @@ export const BudgetFormModal = ({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Descripción</Label>
+            <Label htmlFor="description">Objetivo de campaña / Resumen</Label>
             <Textarea
               id="description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               disabled={!canEdit}
               rows={3}
-              placeholder="Describe el presupuesto..."
+              placeholder="Describe brevemente el objetivo de la campaña, componentes incluidos, mercados, etc."
             />
           </div>
 

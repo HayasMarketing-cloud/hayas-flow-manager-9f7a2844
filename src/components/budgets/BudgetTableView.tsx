@@ -1,6 +1,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Eye, Edit, Copy } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { BudgetStatusBadge } from './BudgetStatusBadge';
 import { formatCurrency } from '@/lib/budget-utils';
 import { format } from 'date-fns';
@@ -14,6 +15,8 @@ interface BudgetTableViewProps {
 }
 
 export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate }: BudgetTableViewProps) => {
+  const navigate = useNavigate();
+  
   return (
     <div className="rounded-md border overflow-x-auto">
       <Table>
@@ -50,7 +53,7 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate }: Budget
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => onView(budget)}>
+                    <Button variant="ghost" size="sm" onClick={() => navigate(`/presupuestos/${budget.id}`)}>
                       <Eye className="h-4 w-4" />
                     </Button>
                     {onEdit && budget.status === 'pending' && (

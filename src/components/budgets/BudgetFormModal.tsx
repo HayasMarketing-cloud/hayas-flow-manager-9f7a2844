@@ -38,6 +38,7 @@ export const BudgetFormModal = ({
     description: '',
     valid_until: '',
     status: 'pending',
+    accepted_document_url: '',
   });
   const [items, setItems] = useState<any[]>([]);
   const [showProjectModal, setShowProjectModal] = useState(false);
@@ -67,6 +68,7 @@ export const BudgetFormModal = ({
         description: budget.description || '',
         valid_until: budget.valid_until || '',
         status: budget.status || 'pending',
+        accepted_document_url: budget.accepted_document_url || '',
       });
     } else {
       setFormData({
@@ -75,6 +77,7 @@ export const BudgetFormModal = ({
         description: '',
         valid_until: '',
         status: 'pending',
+        accepted_document_url: '',
       });
       setItems([]);
     }
@@ -144,11 +147,11 @@ export const BudgetFormModal = ({
         // Crear nuevo presupuesto
         const { data: newBudget, error: budgetError } = await supabase
           .from('budgets')
-          .insert({
-            ...formData,
-            total_amount: totalAmount,
-            created_by: user?.id,
-          })
+           .insert({
+             ...formData,
+             total_amount: totalAmount,
+             created_by: user?.id,
+           })
           .select()
           .single();
 
@@ -342,6 +345,23 @@ export const BudgetFormModal = ({
               rows={3}
               placeholder="Describe brevemente el objetivo de la campaña, componentes incluidos, mercados, etc."
             />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="accepted_document_url">Enlace al documento aceptado</Label>
+              <Input
+                id="accepted_document_url"
+                type="url"
+                placeholder="https://..."
+                value={formData.accepted_document_url}
+                onChange={(e) => setFormData({ ...formData, accepted_document_url: e.target.value })}
+                disabled={!canEdit}
+              />
+              <p className="text-xs text-muted-foreground">
+                Enlace al PDF o documento de presupuesto firmado/aceptado por el cliente.
+              </p>
+            </div>
           </div>
 
           <BudgetItemsEditor items={items} onChange={setItems} disabled={!canEdit} />

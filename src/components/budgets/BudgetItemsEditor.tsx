@@ -120,7 +120,7 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
             key={index}
             className="grid grid-cols-12 gap-2 p-3 border rounded-lg bg-card items-center"
           >
-            <div className="col-span-4">
+            <div className="col-span-6">
               <Select
                 value={item.service_id || ''}
                 onValueChange={(value) => handleServiceSelect(index, value)}
@@ -138,15 +138,6 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="col-span-3">
-              <Input
-                placeholder="Descripción"
-                value={item.description}
-                onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                disabled={disabled}
-              />
             </div>
 
             <div className="col-span-1">
@@ -174,7 +165,7 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
               />
             </div>
 
-            <div className="col-span-1 flex items-center justify-end font-semibold">
+            <div className="col-span-2 flex items-center justify-end font-semibold">
               {formatCurrency(item.total)}
             </div>
 

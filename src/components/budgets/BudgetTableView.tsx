@@ -1,6 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Eye, Edit, Copy, FileText } from 'lucide-react';
+import { Eye, Edit, Copy, FileText, Trash2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useNavigate } from 'react-router-dom';
 import { BudgetStatusBadge } from './BudgetStatusBadge';
@@ -13,9 +13,10 @@ interface BudgetTableViewProps {
   onView: (budget: any) => void;
   onEdit?: (budget: any) => void;
   onDuplicate?: (budget: any) => void;
+  onDelete?: (budget: any) => void;
 }
 
-export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate }: BudgetTableViewProps) => {
+export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete }: BudgetTableViewProps) => {
   const navigate = useNavigate();
   
   return (
@@ -85,6 +86,11 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate }: Budget
                     {onDuplicate && (
                       <Button variant="ghost" size="sm" onClick={() => onDuplicate(budget)}>
                         <Copy className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {onDelete && (
+                      <Button variant="ghost" size="sm" onClick={() => onDelete(budget)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     )}
                   </div>

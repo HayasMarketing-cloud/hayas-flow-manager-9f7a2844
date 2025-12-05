@@ -26,6 +26,12 @@ export default function Presupuestos() {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [budgetToDelete, setBudgetToDelete] = useState<any>(null);
+  const [associatedData, setAssociatedData] = useState<{
+    requests: number;
+    projects: number;
+    activities: number;
+  } | null>(null);
+  const [isLoadingAssociatedData, setIsLoadingAssociatedData] = useState(false);
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [projectBudgetData, setProjectBudgetData] = useState<any>(null);
 
@@ -198,15 +204,83 @@ export default function Presupuestos() {
     setModalOpen(true);
   };
 
-  const handleDelete = (budget: any) => {
+  const handleDelete = async (budget: any) => {
     setBudgetToDelete(budget);
+    setIsLoadingAssociatedData(true);
     setDeleteDialogOpen(true);
+
+    try {
+      // Obtener datos asociados
+      const [requestsRes, projectsRes] = await Promise.all([
+        supabase.from('financial_requests').select('id').eq('budget_id', budget.id),
+        supabase.from('operational_projects').select('id').eq('budget_id', budget.id),
+      ]);
+
+      const requests = requestsRes.data || [];
+      const projects = projectsRes.data || [];
+
+      // Obtener actividades de los proyectos
+      let activities: any[] = [];
+      if (projects.length > 0) {
+        const projectIds = projects.map(p => p.id);
+        const { data: activitiesData } = await supabase
+          .from('operational_requests')
+          .select('id')
+          .in('operational_project_id', projectIds);
+        activities = activitiesData || [];
+      }
+
+      setAssociatedData({
+        requests: requests.length,
+        projects: projects.length,
+        activities: activities.length,
+      });
+    } catch (error) {
+      console.error('Error fetching associated data:', error);
+      setAssociatedData({ requests: 0, projects: 0, activities: 0 });
+    } finally {
+      setIsLoadingAssociatedData(false);
+    }
   };
 
   const confirmDelete = async () => {
     if (!budgetToDelete) return;
 
     try {
+      // 1. Obtener proyectos asociados
+      const { data: projects } = await supabase
+        .from('operational_projects')
+        .select('id')
+        .eq('budget_id', budgetToDelete.id);
+
+      // 2. Eliminar operational_requests de esos proyectos
+      if (projects && projects.length > 0) {
+        const projectIds = projects.map(p => p.id);
+        await supabase
+          .from('operational_requests')
+          .delete()
+          .in('operational_project_id', projectIds);
+      }
+
+      // 3. Eliminar operational_projects
+      await supabase
+        .from('operational_projects')
+        .delete()
+        .eq('budget_id', budgetToDelete.id);
+
+      // 4. Eliminar financial_requests
+      await supabase
+        .from('financial_requests')
+        .delete()
+        .eq('budget_id', budgetToDelete.id);
+
+      // 5. Eliminar budget_items
+      await supabase
+        .from('budget_items')
+        .delete()
+        .eq('budget_id', budgetToDelete.id);
+
+      // 6. Eliminar presupuesto
       const { error } = await supabase
         .from('budgets')
         .delete()
@@ -215,12 +289,15 @@ export default function Presupuestos() {
       if (error) throw error;
 
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
-      toast.success('Presupuesto eliminado correctamente');
+      queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
+      queryClient.invalidateQueries({ queryKey: ['operational-projects'] });
+      toast.success('Presupuesto y datos asociados eliminados correctamente');
     } catch (error: any) {
       toast.error('Error al eliminar presupuesto: ' + error.message);
     } finally {
       setDeleteDialogOpen(false);
       setBudgetToDelete(null);
+      setAssociatedData(null);
     }
   };
 
@@ -383,6 +460,7 @@ export default function Presupuestos() {
                 onEdit={handleEdit}
                 onDuplicate={handleDuplicate}
                 onConvertToContract={handleConvertToContract}
+                onDelete={handleDelete}
               />
             ))}
           </div>
@@ -392,6 +470,7 @@ export default function Presupuestos() {
             onView={handleView}
             onEdit={handleEdit}
             onDuplicate={handleDuplicate}
+            onDelete={handleDelete}
           />
         )}
       </div>
@@ -426,10 +505,22 @@ export default function Presupuestos() {
 
       <ConfirmDialog
         open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteDialogOpen(false);
+            setBudgetToDelete(null);
+            setAssociatedData(null);
+          }
+        }}
         title="Eliminar Presupuesto"
-        description={`¿Estás seguro de que deseas eliminar el presupuesto "${budgetToDelete?.title}"? Esta acción no se puede deshacer.`}
-        confirmText="Eliminar"
+        description={
+          isLoadingAssociatedData
+            ? 'Cargando información...'
+            : associatedData && (associatedData.requests > 0 || associatedData.projects > 0)
+            ? `¿Estás seguro de eliminar "${budgetToDelete?.title}"?\n\nSe eliminarán también:\n• ${associatedData.requests} solicitud(es) financiera(s)\n• ${associatedData.projects} proyecto(s) operacional(es)\n• ${associatedData.activities} actividad(es) del proyecto\n\nEsta acción no se puede deshacer.`
+            : `¿Estás seguro de eliminar "${budgetToDelete?.title}"? Esta acción no se puede deshacer.`
+        }
+        confirmText="Eliminar Todo"
         cancelText="Cancelar"
         onConfirm={confirmDelete}
         variant="destructive"

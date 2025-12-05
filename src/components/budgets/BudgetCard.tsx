@@ -1,6 +1,6 @@
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Eye, Edit, Copy, FileText } from 'lucide-react';
+import { Eye, Edit, Copy, FileText, Trash2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useNavigate } from 'react-router-dom';
 import { BudgetStatusBadge } from './BudgetStatusBadge';
@@ -14,9 +14,10 @@ interface BudgetCardProps {
   onEdit?: (budget: any) => void;
   onDuplicate?: (budget: any) => void;
   onConvertToContract?: (budget: any) => void;
+  onDelete?: (budget: any) => void;
 }
 
-export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToContract }: BudgetCardProps) => {
+export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToContract, onDelete }: BudgetCardProps) => {
   const navigate = useNavigate();
   
   return (
@@ -87,6 +88,11 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
         {onDuplicate && (
           <Button variant="outline" size="sm" onClick={() => onDuplicate(budget)}>
             <Copy className="h-4 w-4" />
+          </Button>
+        )}
+        {onDelete && (
+          <Button variant="outline" size="sm" onClick={() => onDelete(budget)}>
+            <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         )}
       </CardFooter>

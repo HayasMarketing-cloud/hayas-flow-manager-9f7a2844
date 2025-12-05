@@ -204,6 +204,8 @@ export default function PresupuestoDetalle() {
         service_id: item.service_id,
         budget_id: data.budget.id,
         quantity: item.quantity,
+        unit_price: item.unit_price || 0,
+        sale_amount: item.total || 0,
         status: 'active' as const,
         code: '',
       }));
@@ -559,11 +561,11 @@ export default function PresupuestoDetalle() {
 
   const totalPresupuestado = budget.total_amount || 0;
   const totalConSolicitudes = requests.reduce((sum: number, req: any) => {
-    return sum + (req.cost_to_agency || 0) * req.quantity;
+    return sum + (req.sale_amount || 0);
   }, 0);
   const totalFacturado = requests.reduce((sum: number, req: any) => {
     if (req.billed_invoice) {
-      return sum + (req.cost_to_agency || 0) * req.quantity;
+      return sum + (req.sale_amount || 0);
     }
     return sum;
   }, 0);
@@ -1006,7 +1008,7 @@ export default function PresupuestoDetalle() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            {formatCurrency((request.cost_to_agency || 0) * request.quantity)}
+                            {formatCurrency(request.sale_amount || 0)}
                           </TableCell>
                         </TableRow>
                       ))}

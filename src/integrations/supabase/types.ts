@@ -497,11 +497,13 @@ export type Database = {
           id: string
           liquidation_id: string | null
           quantity: number
+          sale_amount: number | null
           service_id: string
           specialist_acceptance: boolean | null
           specialist_id: string | null
           status: Database["public"]["Enums"]["financial_request_status"]
           title: string
+          unit_price: number | null
           updated_at: string
         }
         Insert: {
@@ -523,11 +525,13 @@ export type Database = {
           id?: string
           liquidation_id?: string | null
           quantity?: number
+          sale_amount?: number | null
           service_id: string
           specialist_acceptance?: boolean | null
           specialist_id?: string | null
           status?: Database["public"]["Enums"]["financial_request_status"]
           title: string
+          unit_price?: number | null
           updated_at?: string
         }
         Update: {
@@ -549,11 +553,13 @@ export type Database = {
           id?: string
           liquidation_id?: string | null
           quantity?: number
+          sale_amount?: number | null
           service_id?: string
           specialist_acceptance?: boolean | null
           specialist_id?: string | null
           status?: Database["public"]["Enums"]["financial_request_status"]
           title?: string
+          unit_price?: number | null
           updated_at?: string
         }
         Relationships: [

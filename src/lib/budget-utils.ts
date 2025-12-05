@@ -38,7 +38,7 @@ export const formatCurrency = (amount: number): string => {
 };
 
 export const isBudgetEditable = (status: BudgetStatus): boolean => {
-  return status === 'pending';
+  return true; // Permitir edición en cualquier estado
 };
 
 export const canConvertToContract = (status: BudgetStatus): boolean => {

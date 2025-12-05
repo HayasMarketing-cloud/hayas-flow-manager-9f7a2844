@@ -76,7 +76,7 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
           <Eye className="h-4 w-4 mr-2" />
           Ver Detalle
         </Button>
-        {onEdit && budget.status === 'pending' && (
+        {onEdit && (
           <Button variant="outline" size="sm" onClick={() => onEdit(budget)}>
             <Edit className="h-4 w-4" />
           </Button>

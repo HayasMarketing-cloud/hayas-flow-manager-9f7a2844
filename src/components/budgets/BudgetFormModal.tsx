@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { BudgetItemsEditor } from './BudgetItemsEditor';
 import { calculateBudgetTotal } from '@/lib/budget-utils';
-import { Loader2, FileText, Send, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, FileText } from 'lucide-react';
 import { useApproveBudget } from '@/hooks/useApproveBudget';
 import { ProjectCreationModal } from './ProjectCreationModal';
 
@@ -143,6 +143,15 @@ export const BudgetFormModal = ({
 
           if (itemsError) throw itemsError;
         }
+
+        // Registrar en activity_log
+        await supabase.from('activity_log').insert({
+          entity_type: 'budget',
+          entity_id: budget.id,
+          action: 'update_modal',
+          changes: { updated_fields: Object.keys(formData), items_count: items.length },
+          user_id: user?.id,
+        });
       } else {
         // Crear nuevo presupuesto
         const { data: newBudget, error: budgetError } = await supabase
@@ -178,32 +187,12 @@ export const BudgetFormModal = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      queryClient.invalidateQueries({ queryKey: ['budget-detail'] });
       toast.success(budget ? 'Presupuesto actualizado' : 'Presupuesto creado correctamente');
       onClose();
     },
     onError: (error: any) => {
       toast.error('Error al guardar el presupuesto: ' + error.message);
-    },
-  });
-
-  const changeStatusMutation = useMutation({
-    mutationFn: async (newStatus: string) => {
-      if (!budget?.id) return;
-
-      const { error } = await supabase
-        .from('budgets')
-        .update({ status: newStatus })
-        .eq('id', budget.id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['budgets'] });
-      toast.success('Estado actualizado correctamente');
-      onClose();
-    },
-    onError: (error: any) => {
-      toast.error('Error al cambiar el estado: ' + error.message);
     },
   });
 
@@ -226,36 +215,6 @@ export const BudgetFormModal = ({
     saveMutation.mutate();
   };
 
-  const handleSend = () => {
-    changeStatusMutation.mutate('sent');
-  };
-
-  const handleApprove = async () => {
-    if (!budget?.id) return;
-
-    // Primero obtener los datos completos del presupuesto
-    const { data: fullBudget } = await supabase
-      .from('budgets')
-      .select(`
-        *,
-        client:clients(id, name),
-        budget_items(*)
-      `)
-      .eq('id', budget.id)
-      .single();
-
-    approveBudgetMutation.mutate(
-      { 
-        budgetId: budget.id,
-        onSuccess: () => {
-          setApprovedBudgetData(fullBudget);
-          setShowProjectModal(true);
-          onClose();
-        }
-      }
-    );
-  };
-
   const handleCreateProject = () => {
     setShowProjectModal(false);
     if (onProjectCreationRequest && approvedBudgetData) {
@@ -263,13 +222,8 @@ export const BudgetFormModal = ({
     }
   };
 
-  const handleReject = () => {
-    changeStatusMutation.mutate('rejected');
-  };
-
   const isViewMode = mode === 'view';
-  const isEditMode = mode === 'edit';
-  const canEdit = !isViewMode && formData.status === 'pending';
+  const canEdit = !isViewMode; // Permitir edición en cualquier estado
 
   return (
     <>
@@ -331,7 +285,21 @@ export const BudgetFormModal = ({
 
             <div className="space-y-2">
               <Label>Estado</Label>
-              <Input value={formData.status} disabled className="capitalize" />
+              <Select
+                value={formData.status}
+                onValueChange={(value) => setFormData({ ...formData, status: value })}
+                disabled={!canEdit}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pendiente</SelectItem>
+                  <SelectItem value="sent">Enviado</SelectItem>
+                  <SelectItem value="approved">Aprobado</SelectItem>
+                  <SelectItem value="rejected">Rechazado</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -378,34 +346,6 @@ export const BudgetFormModal = ({
               <FileText className="h-4 w-4 mr-2" />
               Guardar
             </Button>
-          )}
-
-          {isViewMode && budget?.status === 'pending' && (
-            <Button onClick={handleSend} disabled={changeStatusMutation.isPending}>
-              <Send className="h-4 w-4 mr-2" />
-              Enviar
-            </Button>
-          )}
-
-          {isViewMode && budget?.status === 'sent' && (
-            <>
-              <Button
-                variant="outline"
-                onClick={handleReject}
-                disabled={changeStatusMutation.isPending}
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                Rechazar
-              </Button>
-              <Button 
-                onClick={handleApprove} 
-                disabled={approveBudgetMutation.isPending}
-              >
-                {approveBudgetMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Aprobar
-              </Button>
-            </>
           )}
         </DialogFooter>
       </DialogContent>

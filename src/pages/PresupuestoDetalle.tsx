@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle } from 'lucide-react';
 import { useBudgetDetail } from '@/hooks/useBudgetDetail';
 import { BudgetStatusBadge } from '@/components/budgets/BudgetStatusBadge';
 import { BudgetItemsEditor } from '@/components/budgets/BudgetItemsEditor';
@@ -24,6 +24,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useApproveBudget } from '@/hooks/useApproveBudget';
+import { ProjectCreationModal } from '@/components/budgets/ProjectCreationModal';
+import { OperationalProjectFormModal } from '@/components/operations/OperationalProjectFormModal';
 
 export default function PresupuestoDetalle() {
   const { id } = useParams<{ id: string }>();
@@ -34,6 +37,13 @@ export default function PresupuestoDetalle() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [isEditingDocUrl, setIsEditingDocUrl] = useState(false);
   const [docUrlInput, setDocUrlInput] = useState('');
+  
+  // Estados para flujo de aprobación
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [projectModalOpen, setProjectModalOpen] = useState(false);
+  
+  // Hook de aprobación
+  const approveMutation = useApproveBudget();
 
   // Estados para edición inline de Resumen
   const [isEditingResumen, setIsEditingResumen] = useState(false);
@@ -166,6 +176,17 @@ export default function PresupuestoDetalle() {
     } catch (error: any) {
       toast.error('Error al cambiar estado: ' + error.message);
     }
+  };
+
+  // Función para aprobar presupuesto y generar solicitudes
+  const handleApproveBudget = () => {
+    if (!data?.budget) return;
+    approveMutation.mutate({
+      budgetId: data.budget.id,
+      onSuccess: () => {
+        setShowProjectModal(true);
+      }
+    });
   };
 
   // Función para guardar cambios de Resumen
@@ -402,6 +423,17 @@ export default function PresupuestoDetalle() {
             Volver a Presupuestos
           </Button>
           <div className="flex gap-2">
+            {budget.status !== 'approved' && budget.status !== 'rejected' && (
+              <Button 
+                onClick={handleApproveBudget} 
+                disabled={approveMutation.isPending}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {approveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Aprobar y Generar Solicitudes
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => duplicateMutation.mutate(budget)}
@@ -872,6 +904,30 @@ export default function PresupuestoDetalle() {
         onClose={() => setEditModalOpen(false)}
         budget={budget}
         mode="edit"
+      />
+
+      {/* Modal de confirmación post-aprobación */}
+      <ProjectCreationModal
+        isOpen={showProjectModal}
+        onClose={() => setShowProjectModal(false)}
+        budget={{ ...budget, budget_items: items }}
+        onCreateProject={() => {
+          setShowProjectModal(false);
+          setProjectModalOpen(true);
+        }}
+      />
+
+      {/* Modal de creación de proyecto operativo */}
+      <OperationalProjectFormModal
+        open={projectModalOpen}
+        onOpenChange={setProjectModalOpen}
+        mode="create"
+        initialData={{
+          name: budget.title,
+          client_id: budget.client_id,
+          budget_id: budget.id,
+          description: budget.description,
+        }}
       />
     </AppLayout>
   );

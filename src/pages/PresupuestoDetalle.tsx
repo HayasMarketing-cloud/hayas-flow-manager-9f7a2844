@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -18,7 +20,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 export default function PresupuestoDetalle() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -26,7 +28,8 @@ export default function PresupuestoDetalle() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useBudgetDetail(id);
   const [editModalOpen, setEditModalOpen] = useState(false);
-
+  const [isEditingDocUrl, setIsEditingDocUrl] = useState(false);
+  const [docUrlInput, setDocUrlInput] = useState('');
   const duplicateMutation = useMutation({
     mutationFn: async (budget: any) => {
       const { data: newBudget, error: budgetError } = await supabase
@@ -108,7 +111,6 @@ export default function PresupuestoDetalle() {
 
   const { budget, items, requests, projects } = data;
 
-  // Agrupar items por categoría
   const itemsByCategory = items.reduce((acc: any, item: any) => {
     const category = item.service?.category || 'Sin categoría';
     if (!acc[category]) acc[category] = [];
@@ -116,7 +118,6 @@ export default function PresupuestoDetalle() {
     return acc;
   }, {});
 
-  // Calcular métricas
   const totalPresupuestado = budget.total_amount || 0;
   const totalConSolicitudes = requests.reduce((sum: number, req: any) => {
     return sum + (req.cost_to_agency || 0) * req.quantity;
@@ -128,7 +129,31 @@ export default function PresupuestoDetalle() {
     return sum;
   }, 0);
   const pendienteFacturar = totalPresupuestado - totalFacturado;
+  const canEditDocUrl = ['pending', 'sent', 'approved'].includes(budget.status);
 
+  const handleEditDocUrl = () => {
+    setDocUrlInput(budget.accepted_document_url || '');
+    setIsEditingDocUrl(true);
+  };
+
+  const handleSaveDocUrl = async () => {
+    try {
+      const { error } = await supabase
+        .from('budgets')
+        .update({ accepted_document_url: docUrlInput || null })
+        .eq('id', budget.id);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ['budget-detail', budget.id] });
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+
+      toast.success('Enlace del documento aceptado actualizado correctamente');
+      setIsEditingDocUrl(false);
+    } catch (error: any) {
+      toast.error('Error al actualizar el enlace: ' + error.message);
+    }
+  };
   return (
     <AppLayout 
       title={budget.title} 
@@ -210,11 +235,61 @@ export default function PresupuestoDetalle() {
                   </div>
                 </div>
 
-                {budget.description && (
-                  <div className="pt-4 border-t space-y-3">
+                <div className="pt-4 border-t space-y-4">
+                  {budget.description && (
                     <div>
                       <p className="text-sm text-muted-foreground mb-2">
                         Objetivo de campaña / Resumen
+                      </p>
+                      <p className="text-base whitespace-pre-wrap">{budget.description}</p>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Documento aceptado por el cliente</p>
+                    {budget.accepted_document_url ? (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                        >
+                          <a
+                            href={budget.accepted_document_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <FileText className="h-4 w-4" />
+                            Ver documento
+                          </a>
+                        </Button>
+                        {canEditDocUrl && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleEditDocUrl}
+                          >
+                            Editar enlace
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <p className="text-sm text-muted-foreground">Sin documento aún</p>
+                        {canEditDocUrl && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleEditDocUrl}
+                          >
+                            Añadir enlace
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
                       </p>
                       <p className="text-base whitespace-pre-wrap">{budget.description}</p>
                     </div>
@@ -427,6 +502,41 @@ export default function PresupuestoDetalle() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={isEditingDocUrl} onOpenChange={setIsEditingDocUrl}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {budget.accepted_document_url
+                ? 'Editar enlace del documento aceptado'
+                : 'Añadir enlace del documento aceptado'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Pega el enlace al PDF o documento firmado que ha aceptado el cliente.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="acceptedDocUrl">URL del documento aceptado</Label>
+              <Input
+                id="acceptedDocUrl"
+                type="url"
+                placeholder="https://..."
+                value={docUrlInput}
+                onChange={(e) => setDocUrlInput(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setIsEditingDocUrl(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveDocUrl}>
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <BudgetFormModal
         isOpen={editModalOpen}

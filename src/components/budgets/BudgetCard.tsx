@@ -1,6 +1,7 @@
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Eye, Edit, Copy } from 'lucide-react';
+import { Eye, Edit, Copy, FileText } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useNavigate } from 'react-router-dom';
 import { BudgetStatusBadge } from './BudgetStatusBadge';
 import { formatCurrency } from '@/lib/budget-utils';
@@ -23,7 +24,21 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
       <CardHeader className="space-y-2">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
-            <h3 className="font-semibold text-lg">{budget.title}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-lg">{budget.title}</h3>
+              {budget.accepted_document_url && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <FileText className="h-4 w-4 text-green-600" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Documento aceptado enlazado</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">
               {budget.client?.name || 'Sin cliente'}
             </p>

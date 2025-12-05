@@ -1,6 +1,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Eye, Edit, Copy } from 'lucide-react';
+import { Eye, Edit, Copy, FileText } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useNavigate } from 'react-router-dom';
 import { BudgetStatusBadge } from './BudgetStatusBadge';
 import { formatCurrency } from '@/lib/budget-utils';
@@ -40,7 +41,23 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate }: Budget
           ) : (
             budgets.map((budget) => (
               <TableRow key={budget.id}>
-                <TableCell className="font-medium">{budget.title}</TableCell>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-2">
+                    {budget.title}
+                    {budget.accepted_document_url && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <FileText className="h-4 w-4 text-green-600" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Documento aceptado enlazado</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell>{budget.client?.name || 'Sin cliente'}</TableCell>
                 <TableCell>{formatCurrency(budget.total_amount || 0)}</TableCell>
                 <TableCell>

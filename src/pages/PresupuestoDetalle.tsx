@@ -978,12 +978,14 @@ export default function PresupuestoDetalle() {
               </CardContent>
             </Card>
 
-            {requests.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Solicitudes Financieras Generadas</CardTitle>
-                </CardHeader>
-                <CardContent>
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  {requests.length > 0 ? 'Solicitudes Financieras Generadas' : 'Items del Presupuesto (Sin solicitudes generadas)'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {requests.length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1014,9 +1016,36 @@ export default function PresupuestoDetalle() {
                       ))}
                     </TableBody>
                   </Table>
-                </CardContent>
-              </Card>
-            )}
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Descripción</TableHead>
+                        <TableHead>Servicio</TableHead>
+                        <TableHead className="text-center">Cantidad</TableHead>
+                        <TableHead className="text-right">Precio Unit.</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {items.map((item: any) => (
+                        <TableRow key={item.id}>
+                          <TableCell>{item.description}</TableCell>
+                          <TableCell>{item.service?.name || 'Sin servicio'}</TableCell>
+                          <TableCell className="text-center">{item.quantity}</TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(item.unit_price)}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {formatCurrency(item.total)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="operacion" className="space-y-6">

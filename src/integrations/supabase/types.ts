@@ -110,6 +110,7 @@ export type Database = {
         Row: {
           accepted_document_url: string | null
           client_id: string
+          code: string
           created_at: string
           created_by: string
           description: string | null
@@ -123,6 +124,7 @@ export type Database = {
         Insert: {
           accepted_document_url?: string | null
           client_id: string
+          code?: string
           created_at?: string
           created_by: string
           description?: string | null
@@ -136,6 +138,7 @@ export type Database = {
         Update: {
           accepted_document_url?: string | null
           client_id?: string
+          code?: string
           created_at?: string
           created_by?: string
           description?: string | null

@@ -23,6 +23,7 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate }: Budget
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="min-w-[100px]">Código</TableHead>
             <TableHead className="min-w-[200px]">Título</TableHead>
             <TableHead className="min-w-[150px]">Cliente</TableHead>
             <TableHead className="min-w-[120px]">Monto Total</TableHead>
@@ -34,13 +35,16 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate }: Budget
         <TableBody>
           {budgets.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground">
+              <TableCell colSpan={7} className="text-center text-muted-foreground">
                 No se encontraron presupuestos
               </TableCell>
             </TableRow>
           ) : (
             budgets.map((budget) => (
               <TableRow key={budget.id}>
+                <TableCell className="font-mono text-sm text-muted-foreground">
+                  {budget.code || '-'}
+                </TableCell>
                 <TableCell className="font-medium">
                   <div className="flex items-center gap-2">
                     {budget.title}

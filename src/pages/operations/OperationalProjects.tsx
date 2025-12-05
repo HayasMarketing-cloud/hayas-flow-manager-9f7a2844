@@ -192,19 +192,34 @@ export default function OperationalProjects() {
                       )}
                     </div>
 
-                    {project.hub_project_url && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="w-full" 
-                        asChild
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <a href={project.hub_project_url} target="_blank" rel="noopener noreferrer">
-                          Ver en HUB
-                        </a>
-                      </Button>
-                    )}
+                    <div className="flex gap-2">
+                      {project.client?.hub_client_url && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="flex-1" 
+                          asChild
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <a href={project.client.hub_client_url} target="_blank" rel="noopener noreferrer">
+                            HUB Cliente
+                          </a>
+                        </Button>
+                      )}
+                      {project.hub_project_url && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="flex-1" 
+                          asChild
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <a href={project.hub_project_url} target="_blank" rel="noopener noreferrer">
+                            HUB Proyecto
+                          </a>
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>

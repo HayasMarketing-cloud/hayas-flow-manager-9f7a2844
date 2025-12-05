@@ -14,7 +14,7 @@ export const useOperationalProjects = (filters?: {
         .from('operational_projects')
         .select(`
           *,
-          client:clients(id, name, code),
+          client:clients(id, name, code, hub_client_url),
           contract:contracts(id, title),
           budget:budgets(id, title),
           owner:profiles!operational_projects_owner_user_id_fkey(id, full_name)
@@ -48,7 +48,7 @@ export const useOperationalProject = (projectId: string | null) => {
         .from('operational_projects')
         .select(`
           *,
-          client:clients(id, name, code),
+          client:clients(id, name, code, hub_client_url),
           contract:contracts(id, title),
           budget:budgets(id, title),
           owner:profiles!operational_projects_owner_user_id_fkey(id, full_name)

@@ -59,7 +59,23 @@ export default function PresupuestoDetalle() {
     enabled: !!id
   });
 
+  // Query para verificar si el presupuesto tiene operational_projects
+  const { data: existingProjects } = useQuery({
+    queryKey: ['budget-projects', id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('operational_projects')
+        .select('id')
+        .eq('budget_id', id);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id
+  });
+
   const hasFinancialRequests = existingRequests && existingRequests.length > 0;
+  const hasOperationalProjects = existingProjects && existingProjects.length > 0;
+  const hasAssociatedData = hasFinancialRequests || hasOperationalProjects;
 
   // Mutación para generar solicitudes sin cambiar estado (para presupuestos ya aprobados)
   const generateRequestsMutation = useMutation({
@@ -210,6 +226,22 @@ export default function PresupuestoDetalle() {
   const handleStatusChange = async (newStatus: string) => {
     if (!data?.budget) return;
     const previousStatus = data.budget.status;
+
+    // Bloquear cambio de estado desde "approved" si hay datos asociados
+    if (previousStatus === 'approved' && newStatus !== 'approved' && hasAssociatedData) {
+      const details: string[] = [];
+      if (hasFinancialRequests) {
+        details.push(`${existingRequests?.length} solicitud(es) financiera(s)`);
+      }
+      if (hasOperationalProjects) {
+        details.push(`${existingProjects?.length} proyecto(s) operacional(es)`);
+      }
+      toast.error(
+        `No se puede cambiar el estado de un presupuesto aprobado que tiene ${details.join(' y ')} asociados. Elimina primero los datos relacionados.`,
+        { duration: 6000 }
+      );
+      return;
+    }
 
     try {
       const { error } = await supabase

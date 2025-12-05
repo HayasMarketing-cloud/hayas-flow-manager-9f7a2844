@@ -26,7 +26,7 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useApproveBudget } from '@/hooks/useApproveBudget';
 import { ProjectCreationModal } from '@/components/budgets/ProjectCreationModal';
-import { OperationalProjectFormModal } from '@/components/operations/OperationalProjectFormModal';
+import { useCreateProjectWithActivities } from '@/hooks/useCreateProjectWithActivities';
 
 export default function PresupuestoDetalle() {
   const { id } = useParams<{ id: string }>();
@@ -40,10 +40,10 @@ export default function PresupuestoDetalle() {
   
   // Estados para flujo de aprobación
   const [showProjectModal, setShowProjectModal] = useState(false);
-  const [projectModalOpen, setProjectModalOpen] = useState(false);
   
-  // Hook de aprobación
+  // Hooks de aprobación y creación de proyecto con actividades
   const approveMutation = useApproveBudget();
+  const createProjectWithActivities = useCreateProjectWithActivities();
 
   // Query para verificar si el presupuesto tiene financial_requests
   const { data: existingRequests } = useQuery({
@@ -982,20 +982,19 @@ export default function PresupuestoDetalle() {
         budget={{ ...budget, budget_items: items }}
         onCreateProject={() => {
           setShowProjectModal(false);
-          setProjectModalOpen(true);
-        }}
-      />
-
-      {/* Modal de creación de proyecto operativo */}
-      <OperationalProjectFormModal
-        open={projectModalOpen}
-        onOpenChange={setProjectModalOpen}
-        mode="create"
-        initialData={{
-          name: budget.title,
-          client_id: budget.client_id,
-          budget_id: budget.id,
-          description: budget.description,
+          // Crear proyecto con actividades automáticamente
+          if (user?.id && budget.id && budget.client_id) {
+            createProjectWithActivities.mutate({
+              projectData: {
+                name: budget.title,
+                client_id: budget.client_id,
+                budget_id: budget.id,
+                description: budget.description || null,
+                status: 'pending',
+                created_by: user.id,
+              }
+            });
+          }
         }}
       />
     </AppLayout>

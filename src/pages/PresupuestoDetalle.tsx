@@ -290,32 +290,6 @@ export default function PresupuestoDetalle() {
                     )}
                   </div>
                 </div>
-                      </p>
-                      <p className="text-base whitespace-pre-wrap">{budget.description}</p>
-                    </div>
-
-                    {budget.accepted_document_url && (
-                      <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground">Documento aceptado por el cliente</p>
-                        <Button
-                          asChild
-                          variant="outline"
-                          size="sm"
-                          className="gap-2"
-                        >
-                          <a
-                            href={budget.accepted_document_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <FileText className="h-4 w-4" />
-                            Ver documento
-                          </a>
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
               </CardContent>
             </Card>
           </TabsContent>

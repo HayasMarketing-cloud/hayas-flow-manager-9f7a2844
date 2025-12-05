@@ -1,6 +1,7 @@
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Eye, Edit, Copy } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { BudgetStatusBadge } from './BudgetStatusBadge';
 import { formatCurrency } from '@/lib/budget-utils';
 import { format } from 'date-fns';
@@ -15,6 +16,8 @@ interface BudgetCardProps {
 }
 
 export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToContract }: BudgetCardProps) => {
+  const navigate = useNavigate();
+  
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader className="space-y-2">
@@ -54,9 +57,9 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
       </CardContent>
 
       <CardFooter className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={() => onView(budget)} className="flex-1">
+        <Button variant="outline" size="sm" onClick={() => navigate(`/presupuestos/${budget.id}`)} className="flex-1">
           <Eye className="h-4 w-4 mr-2" />
-          Ver
+          Ver Detalle
         </Button>
         {onEdit && budget.status === 'pending' && (
           <Button variant="outline" size="sm" onClick={() => onEdit(budget)}>

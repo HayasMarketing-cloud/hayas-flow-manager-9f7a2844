@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,6 +30,7 @@ export default function Presupuestos() {
   const [projectBudgetData, setProjectBudgetData] = useState<any>(null);
 
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { filters, updateFilter, resetFilters } = useBudgetFilters();
   const queryClient = useQueryClient();
 
@@ -187,9 +189,7 @@ export default function Presupuestos() {
   };
 
   const handleView = (budget: any) => {
-    setSelectedBudget(budget);
-    setModalMode('view');
-    setModalOpen(true);
+    navigate(`/presupuestos/${budget.id}`);
   };
 
   const handleEdit = (budget: any) => {

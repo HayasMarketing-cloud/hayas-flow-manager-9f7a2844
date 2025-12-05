@@ -31,7 +31,7 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
     queryFn: async () => {
       const { data, error } = await supabase
         .from('services')
-        .select('id, name')
+        .select('id, name, category')
         .eq('active', true)
         .order('name');
       
@@ -127,6 +127,7 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
                   {services?.map((service) => (
                     <SelectItem key={service.id} value={service.id}>
                       {service.name}
+                      {service.category ? ` · ${service.category}` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>

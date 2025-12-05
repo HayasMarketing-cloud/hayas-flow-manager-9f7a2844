@@ -14,6 +14,7 @@ import DashboardEspecialista from "./pages/DashboardEspecialista";
 import Solicitudes from "./pages/Solicitudes";
 import Facturas from "./pages/Facturas";
 import Presupuestos from "./pages/Presupuestos";
+import PresupuestoDetalle from "./pages/PresupuestoDetalle";
 import Servicios from "./pages/Servicios";
 import Especialistas from "./pages/Especialistas";
 import Contratos from "./pages/Contratos";
@@ -51,6 +52,7 @@ const App = () => (
             <Route path="/especialistas" element={<ProtectedRoute><Especialistas /></ProtectedRoute>} />
             <Route path="/contratos" element={<ProtectedRoute><Contratos /></ProtectedRoute>} />
             <Route path="/presupuestos" element={<ProtectedRoute><Presupuestos /></ProtectedRoute>} />
+            <Route path="/presupuestos/:id" element={<ProtectedRoute><PresupuestoDetalle /></ProtectedRoute>} />
             <Route path="/solicitudes" element={<ProtectedRoute><Solicitudes /></ProtectedRoute>} />
             <Route path="/facturas" element={<ProtectedRoute><Facturas /></ProtectedRoute>} />
             <Route path="/liquidaciones" element={<ProtectedRoute><Liquidaciones /></ProtectedRoute>} />

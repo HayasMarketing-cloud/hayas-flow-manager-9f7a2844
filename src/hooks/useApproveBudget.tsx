@@ -49,6 +49,8 @@ export const useApproveBudget = () => {
           service_id: item.service_id,
           budget_id: budgetId,
           quantity: item.quantity,
+          unit_price: item.unit_price || 0,
+          sale_amount: item.total || 0,
           status: 'active' as const,
           code: '', // El trigger generate_request_code lo generará automáticamente
         }));

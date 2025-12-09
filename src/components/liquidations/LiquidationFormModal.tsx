@@ -10,15 +10,14 @@ import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { calculateTaxAmount, calculateTotalAmount, formatPeriod } from '@/lib/liquidation-utils';
 import { Database } from '@/integrations/supabase/types';
 import { generateLiquidationPDF } from '@/utils/pdf/liquidationPDFGenerator';
 import { FileDown, Plus } from 'lucide-react';
-import { useInvoicedRequestsForLiquidation } from '@/hooks/useRequestFlow';
+import { useUnliquidatedRequests } from '@/hooks/useUnliquidatedRequests';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useSuggestedCost } from '@/hooks/useSuggestedCost';
 
 type LiquidationStatus = Database['public']['Enums']['liquidation_status'];
 
@@ -27,7 +26,6 @@ const liquidationSchema = z.object({
   period_year: z.number().min(2020).max(2100),
   period_month: z.number().min(1).max(12),
   status: z.enum(['draft', 'sent', 'paid', 'disputed']),
-  subtotal: z.number().min(0, 'Subtotal debe ser mayor o igual a 0'),
   tax_rate: z.number().min(0).max(100),
   notes: z.string().optional(),
 });
@@ -54,7 +52,6 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       period_year: new Date().getFullYear(),
       period_month: new Date().getMonth() + 1,
       status: 'draft',
-      subtotal: 0,
       tax_rate: 21,
       notes: '',
     },
@@ -73,19 +70,23 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     },
   });
 
-  const subtotal = watch('subtotal');
   const taxRate = watch('tax_rate');
   const selectedSpecialistId = watch('specialist_id');
   const selectedYear = watch('period_year');
   const selectedMonth = watch('period_month');
 
   // Obtener requests pendientes de liquidación para el especialista seleccionado
-  const { data: pendingRequests, refetch: refetchPendingRequests } = useInvoicedRequestsForLiquidation(
+  const { data: pendingRequests, refetch: refetchPendingRequests } = useUnliquidatedRequests(
     isEditable && selectedSpecialistId ? selectedSpecialistId : undefined
   );
 
-  const taxAmount = calculateTaxAmount(subtotal, taxRate);
-  const totalAmount = calculateTotalAmount(subtotal, taxAmount);
+  // Calcular subtotal automáticamente desde los requests seleccionados
+  const calculatedSubtotal = useMemo(() => {
+    return selectedRequests.reduce((sum, req) => sum + req.cost, 0);
+  }, [selectedRequests]);
+
+  const taxAmount = calculateTaxAmount(calculatedSubtotal, taxRate);
+  const totalAmount = calculateTotalAmount(calculatedSubtotal, taxAmount);
 
   // Verificar si ya existe una liquidación para el mismo especialista y período
   const { data: existingLiquidation } = useQuery({
@@ -112,6 +113,14 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     enabled: isOpen && !!selectedSpecialistId && !!selectedYear && !!selectedMonth,
   });
 
+  // Función para obtener coste sugerido de un request
+  const getSuggestedCost = (request: any): number => {
+    if (request.cost_type === 'hourly' && request.hours && request.cost_rate) {
+      return request.hours * request.cost_rate;
+    }
+    return request.fixed_cost || request.cost_to_agency || 0;
+  };
+
   useEffect(() => {
     if (liquidation && isOpen) {
       reset({
@@ -119,7 +128,6 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
         period_year: liquidation.period_year,
         period_month: liquidation.period_month,
         status: liquidation.status,
-        subtotal: liquidation.subtotal,
         tax_rate: liquidation.tax_rate,
         notes: liquidation.notes || '',
       });
@@ -129,7 +137,6 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
         period_year: new Date().getFullYear(),
         period_month: new Date().getMonth() + 1,
         status: 'draft',
-        subtotal: 0,
         tax_rate: 21,
         notes: '',
       });
@@ -139,22 +146,68 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
 
   const createMutation = useMutation({
     mutationFn: async (data: LiquidationFormData) => {
-      const { error } = await supabase.from('liquidations').insert({
-        code: '', // Se genera automáticamente por el trigger
-        specialist_id: data.specialist_id,
-        period_year: data.period_year,
-        period_month: data.period_month,
-        status: data.status,
-        subtotal: data.subtotal,
-        tax_rate: data.tax_rate,
-        tax_amount: taxAmount,
-        total_amount: totalAmount,
-        notes: data.notes,
-      });
-      if (error) throw error;
+      // Crear la liquidación
+      const { data: newLiquidation, error: createError } = await supabase
+        .from('liquidations')
+        .insert({
+          code: '', // Se genera automáticamente por el trigger
+          specialist_id: data.specialist_id,
+          period_year: data.period_year,
+          period_month: data.period_month,
+          status: data.status,
+          subtotal: calculatedSubtotal,
+          tax_rate: data.tax_rate,
+          tax_amount: taxAmount,
+          total_amount: totalAmount,
+          notes: data.notes,
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      // Si hay requests seleccionados, crear los items y actualizar los requests
+      if (selectedRequests.length > 0) {
+        // Obtener los requests seleccionados con sus datos
+        const { data: requestsData, error: fetchError } = await supabase
+          .from('financial_requests')
+          .select('*, service:services(name)')
+          .in('id', selectedRequests.map(r => r.id));
+
+        if (fetchError) throw fetchError;
+        if (!requestsData) throw new Error('No se encontraron las solicitudes');
+
+        // Crear liquidation_items
+        const items = requestsData.map((req) => {
+          const editedCost = selectedRequests.find(r => r.id === req.id)?.cost || 0;
+          return {
+            liquidation_id: newLiquidation.id,
+            financial_request_id: req.id,
+            description: req.service?.name || req.title,
+            quantity: req.quantity || 1,
+            unit_price: editedCost,
+            total: editedCost * (req.quantity || 1),
+          };
+        });
+
+        const { error: insertError } = await supabase
+          .from('liquidation_items')
+          .insert(items);
+
+        if (insertError) throw insertError;
+
+        // Actualizar los requests para marcarlos como liquidados
+        const { error: updateError } = await supabase
+          .from('financial_requests')
+          .update({ liquidation_id: newLiquidation.id, status: 'liquidated' })
+          .in('id', selectedRequests.map(r => r.id));
+
+        if (updateError) throw updateError;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      queryClient.invalidateQueries({ queryKey: ['unliquidated-requests'] });
       toast.success('Liquidación creada exitosamente');
       onClose();
     },
@@ -172,10 +225,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
           period_year: data.period_year,
           period_month: data.period_month,
           status: data.status,
-          subtotal: data.subtotal,
           tax_rate: data.tax_rate,
-          tax_amount: taxAmount,
-          total_amount: totalAmount,
           notes: data.notes,
         })
         .eq('id', liquidation.id);
@@ -257,7 +307,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['liquidations'] });
       queryClient.invalidateQueries({ queryKey: ['liquidation-items'] });
-      queryClient.invalidateQueries({ queryKey: ['invoiced-requests-for-liquidation'] });
+      queryClient.invalidateQueries({ queryKey: ['unliquidated-requests'] });
       toast.success('Solicitudes agregadas a la liquidación');
       setSelectedRequests([]);
       refetchPendingRequests();
@@ -267,10 +317,10 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     },
   });
 
-  const handleToggleRequest = async (requestId: string, isChecked: boolean) => {
+  const handleToggleRequest = (requestId: string, isChecked: boolean) => {
     if (isChecked) {
-      // Obtener coste sugerido
-      const suggestedCost = await useSuggestedCost(requestId);
+      const request = pendingRequests?.find(r => r.id === requestId);
+      const suggestedCost = request ? getSuggestedCost(request) : 0;
       setSelectedRequests((prev) => [...prev, { id: requestId, cost: suggestedCost }]);
     } else {
       setSelectedRequests((prev) => prev.filter((r) => r.id !== requestId));
@@ -291,7 +341,19 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     addRequestsMutation.mutate(selectedRequests);
   };
 
-  // Query para cargar items de la liquidación (para PDF)
+  const handleSelectAll = (checked: boolean) => {
+    if (checked && pendingRequests) {
+      const allRequests = pendingRequests.map(req => ({
+        id: req.id,
+        cost: getSuggestedCost(req),
+      }));
+      setSelectedRequests(allRequests);
+    } else {
+      setSelectedRequests([]);
+    }
+  };
+
+  // Query para cargar items de la liquidación (para PDF y para modo edición)
   const { data: liquidationItems } = useQuery({
     queryKey: ['liquidation-items', liquidation?.id],
     queryFn: async () => {
@@ -306,8 +368,21 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       if (error) throw error;
       return data;
     },
-    enabled: isViewMode && !!liquidation?.id,
+    enabled: (isViewMode || mode === 'edit') && !!liquidation?.id,
   });
+
+  // Calcular subtotal existente en modo edit
+  const existingSubtotal = useMemo(() => {
+    if (mode === 'edit' && liquidationItems) {
+      return liquidationItems.reduce((sum, item) => sum + Number(item.total), 0);
+    }
+    return 0;
+  }, [liquidationItems, mode]);
+
+  // Subtotal total = existente + nuevos seleccionados
+  const displaySubtotal = mode === 'edit' ? existingSubtotal + calculatedSubtotal : calculatedSubtotal;
+  const displayTaxAmount = calculateTaxAmount(displaySubtotal, taxRate);
+  const displayTotalAmount = calculateTotalAmount(displaySubtotal, displayTaxAmount);
 
   const handleDownloadPDF = async () => {
     if (!liquidation || !liquidationItems) {
@@ -352,6 +427,9 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     return 'Nueva Liquidación';
   };
 
+  const allSelected = pendingRequests && pendingRequests.length > 0 && 
+    selectedRequests.length === pendingRequests.length;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -370,7 +448,10 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
             <Label htmlFor="specialist_id">Especialista *</Label>
             <Select
               value={watch('specialist_id')}
-              onValueChange={(value) => setValue('specialist_id', value)}
+              onValueChange={(value) => {
+                setValue('specialist_id', value);
+                setSelectedRequests([]); // Reset selected when specialist changes
+              }}
               disabled={isViewMode || !isEditable}
             >
               <SelectTrigger>
@@ -443,39 +524,26 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
             </div>
           )}
 
-          <div>
-            <Label htmlFor="status">Estado *</Label>
-            <Select
-              value={watch('status')}
-              onValueChange={(value) => setValue('status', value as LiquidationStatus)}
-              disabled={isViewMode || !isEditable}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="draft">Borrador</SelectItem>
-                <SelectItem value="sent">Enviada</SelectItem>
-                <SelectItem value="paid">Pagada</SelectItem>
-                <SelectItem value="disputed">En Disputa</SelectItem>
-              </SelectContent>
-            </Select>
-            {errors.status && (
-              <p className="text-sm text-destructive mt-1">{errors.status.message}</p>
-            )}
-          </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="subtotal">Subtotal (€) *</Label>
-              <Input
-                type="number"
-                step="0.01"
-                {...register('subtotal', { valueAsNumber: true })}
+              <Label htmlFor="status">Estado *</Label>
+              <Select
+                value={watch('status')}
+                onValueChange={(value) => setValue('status', value as LiquidationStatus)}
                 disabled={isViewMode || !isEditable}
-              />
-              {errors.subtotal && (
-                <p className="text-sm text-destructive mt-1">{errors.subtotal.message}</p>
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Borrador</SelectItem>
+                  <SelectItem value="sent">Enviada</SelectItem>
+                  <SelectItem value="paid">Pagada</SelectItem>
+                  <SelectItem value="disputed">En Disputa</SelectItem>
+                </SelectContent>
+              </Select>
+              {errors.status && (
+                <p className="text-sm text-destructive mt-1">{errors.status.message}</p>
               )}
             </div>
 
@@ -493,14 +561,115 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
             </div>
           </div>
 
+          {/* Widget de Requests Pendientes - Visible en CREATE y EDIT (borrador) */}
+          {isEditable && selectedSpecialistId && (
+            <div className="border rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-semibold">
+                  Solicitudes disponibles del especialista
+                  {pendingRequests && ` (${pendingRequests.length})`}
+                </Label>
+                {mode === 'edit' && selectedRequests.length > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleAddSelectedRequests}
+                    disabled={addRequestsMutation.isPending}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Agregar ({selectedRequests.length})
+                  </Button>
+                )}
+              </div>
+
+              {pendingRequests && pendingRequests.length > 0 ? (
+                <>
+                  <div className="flex items-center gap-2 pb-2 border-b">
+                    <Checkbox
+                      id="select-all"
+                      checked={allSelected}
+                      onCheckedChange={handleSelectAll}
+                    />
+                    <Label htmlFor="select-all" className="text-sm cursor-pointer">
+                      Seleccionar todas
+                    </Label>
+                  </div>
+              
+                  <ScrollArea className="h-[200px] rounded-md border p-3">
+                    <div className="space-y-2">
+                      {pendingRequests.map((request) => (
+                        <div
+                          key={request.id}
+                          className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors"
+                        >
+                          <Checkbox
+                            id={request.id}
+                            checked={selectedRequests.some(r => r.id === request.id)}
+                            onCheckedChange={(checked) => handleToggleRequest(request.id, checked as boolean)}
+                          />
+                          <div className="flex-1 space-y-2">
+                            <div>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-medium text-sm">{request.code}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {request.service?.name || request.title}
+                                </span>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Cliente: {request.client?.name}
+                                {request.billed_invoice && (
+                                  <> • Factura: {
+                                    Array.isArray(request.billed_invoice) 
+                                      ? request.billed_invoice[0]?.code 
+                                      : (request.billed_invoice as any)?.code
+                                  }</>
+                                )}
+                              </div>
+                            </div>
+                            {selectedRequests.some(r => r.id === request.id) && (
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs">Coste (€):</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={selectedRequests.find(r => r.id === request.id)?.cost || 0}
+                                  onChange={(e) => handleCostChange(request.id, parseFloat(e.target.value) || 0)}
+                                  className="w-32 h-8"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  No hay solicitudes pendientes de liquidación para este especialista
+                </p>
+              )}
+              
+              <p className="text-xs text-muted-foreground">
+                Solicitudes activas o facturadas que aún no han sido liquidadas.
+              </p>
+            </div>
+          )}
+
+          {/* Totales calculados automáticamente */}
           <div className="bg-muted p-4 rounded-md space-y-2">
             <div className="flex justify-between text-sm">
-              <span>IVA:</span>
-              <span className="font-medium">{taxAmount.toFixed(2)} €</span>
+              <span>Subtotal:</span>
+              <span className="font-medium">{displaySubtotal.toFixed(2)} €</span>
             </div>
-            <div className="flex justify-between text-base font-bold">
+            <div className="flex justify-between text-sm">
+              <span>IVA ({taxRate}%):</span>
+              <span className="font-medium">{displayTaxAmount.toFixed(2)} €</span>
+            </div>
+            <div className="flex justify-between text-base font-bold border-t pt-2">
               <span>Total:</span>
-              <span>{totalAmount.toFixed(2)} €</span>
+              <span>{displayTotalAmount.toFixed(2)} €</span>
             </div>
           </div>
 
@@ -512,74 +681,6 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
               disabled={isViewMode || !isEditable}
             />
           </div>
-
-          {/* Widget de Requests Pendientes */}
-          {mode === 'edit' && liquidation?.status === 'draft' && pendingRequests && pendingRequests.length > 0 && (
-            <div className="border rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-base font-semibold">Solicitudes Pendientes de Liquidación</Label>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleAddSelectedRequests}
-                  disabled={selectedRequests.length === 0 || addRequestsMutation.isPending}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Agregar Seleccionadas ({selectedRequests.length})
-                </Button>
-              </div>
-              
-              <ScrollArea className="h-[200px] rounded-md border p-3">
-                <div className="space-y-2">
-                  {pendingRequests.map((request) => (
-                    <div
-                      key={request.id}
-                      className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors"
-                    >
-                      <Checkbox
-                        id={request.id}
-                        checked={selectedRequests.some(r => r.id === request.id)}
-                        onCheckedChange={(checked) => handleToggleRequest(request.id, checked as boolean)}
-                      />
-                      <div className="flex-1 space-y-2">
-                        <div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-medium text-sm">{request.code}</span>
-                            <span className="text-xs text-muted-foreground">{request.service?.name || request.title}</span>
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Cliente: {request.client?.name} • Factura: {
-                              Array.isArray(request.billed_invoice) 
-                                ? request.billed_invoice[0]?.code 
-                                : (request.billed_invoice as any)?.code
-                            }
-                          </div>
-                        </div>
-                        {selectedRequests.some(r => r.id === request.id) && (
-                          <div className="flex items-center gap-2">
-                            <Label className="text-xs">Coste (€):</Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={selectedRequests.find(r => r.id === request.id)?.cost || 0}
-                              onChange={(e) => handleCostChange(request.id, parseFloat(e.target.value) || 0)}
-                              className="w-32 h-8"
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-              
-              <p className="text-xs text-muted-foreground">
-                Estas solicitudes están facturadas pero aún no han sido liquidadas.
-                Selecciona las que deseas agregar a esta liquidación.
-              </p>
-            </div>
-          )}
 
           <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>

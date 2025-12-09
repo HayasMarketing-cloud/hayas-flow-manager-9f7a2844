@@ -137,7 +137,10 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
   }, [liquidation, isOpen, reset]);
 
   const createMutation = useMutation({
-    mutationFn: async (data: LiquidationFormData) => {
+    mutationFn: async ({ data, requests }: { data: LiquidationFormData; requests: Array<{ id: string; cost: number }> }) => {
+      // Calcular subtotal desde los requests pasados como parámetro
+      const subtotal = requests.reduce((sum, req) => sum + req.cost, 0);
+      
       // Crear la liquidación
       const { data: newLiquidation, error: createError } = await supabase
         .from('liquidations')
@@ -147,10 +150,10 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
           period_year: data.period_year,
           period_month: data.period_month,
           status: data.status,
-          subtotal: calculatedSubtotal,
+          subtotal: subtotal,
           tax_rate: 0,
           tax_amount: 0,
-          total_amount: calculatedSubtotal,
+          total_amount: subtotal,
           notes: data.notes,
         })
         .select()
@@ -159,19 +162,19 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       if (createError) throw createError;
 
       // Si hay requests seleccionados, crear los items y actualizar los requests
-      if (selectedRequests.length > 0) {
+      if (requests.length > 0) {
         // Obtener los requests seleccionados con sus datos
         const { data: requestsData, error: fetchError } = await supabase
           .from('financial_requests')
           .select('*, service:services(name)')
-          .in('id', selectedRequests.map(r => r.id));
+          .in('id', requests.map(r => r.id));
 
         if (fetchError) throw fetchError;
         if (!requestsData) throw new Error('No se encontraron las solicitudes');
 
         // Crear liquidation_items
         const items = requestsData.map((req) => {
-          const editedCost = selectedRequests.find(r => r.id === req.id)?.cost || 0;
+          const editedCost = requests.find(r => r.id === req.id)?.cost || 0;
           return {
             liquidation_id: newLiquidation.id,
             financial_request_id: req.id,
@@ -192,7 +195,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
         const { error: updateError } = await supabase
           .from('financial_requests')
           .update({ liquidation_id: newLiquidation.id, status: 'liquidated' })
-          .in('id', selectedRequests.map(r => r.id));
+          .in('id', requests.map(r => r.id));
 
         if (updateError) throw updateError;
       }
@@ -402,7 +405,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     }
 
     if (mode === 'create') {
-      createMutation.mutate(data);
+      createMutation.mutate({ data, requests: selectedRequests });
     } else if (mode === 'edit') {
       updateMutation.mutate(data);
     }

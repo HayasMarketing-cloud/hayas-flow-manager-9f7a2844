@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, LayoutGrid, Table as TableIcon, Download, Trash2 } from 'lucide-react';
+import { Plus, Search, LayoutGrid, Table as TableIcon, Download, Trash2, Receipt } from 'lucide-react';
 import { exportRequestsToExcel } from '@/utils/excel/requestsExporter';
 import { toast } from 'sonner';
 import { useState } from 'react';
@@ -22,6 +22,7 @@ import { RequestTableView } from '@/components/requests/RequestTableView';
 import { useRequestFilters } from '@/hooks/useRequestFilters';
 import { useUserRole } from '@/hooks/useUserRole';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { AddToLiquidationModal } from '@/components/liquidations/AddToLiquidationModal';
 
 const Solicitudes = () => {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -31,6 +32,7 @@ const Solicitudes = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [requestToDelete, setRequestToDelete] = useState<any>(null);
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+  const [addToLiquidationOpen, setAddToLiquidationOpen] = useState(false);
   const queryClient = useQueryClient();
   const { filters, updateFilter, resetFilters } = useRequestFilters();
   const { canAccessFinance, canAccessOperations, loading: rolesLoading } = useUserRole();
@@ -317,6 +319,14 @@ const Solicitudes = () => {
           <div className="flex items-center gap-4 p-3 bg-muted rounded-md">
             <span className="text-sm font-medium">{selectedIds.length} seleccionados</span>
             <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddToLiquidationOpen(true)}
+            >
+              <Receipt className="h-4 w-4 mr-2" />
+              Añadir a Liquidación
+            </Button>
+            <Button
               variant="destructive"
               size="sm"
               onClick={() => setBulkDeleteConfirmOpen(true)}
@@ -422,6 +432,16 @@ const Solicitudes = () => {
         confirmText="Eliminar todas"
         onConfirm={handleBulkDelete}
         variant="destructive"
+      />
+
+      <AddToLiquidationModal
+        open={addToLiquidationOpen}
+        onOpenChange={setAddToLiquidationOpen}
+        requestIds={selectedIds}
+        onSuccess={() => {
+          setSelectedIds([]);
+          queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
+        }}
       />
     </AppLayout>
   );

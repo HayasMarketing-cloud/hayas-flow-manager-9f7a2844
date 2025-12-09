@@ -34,8 +34,6 @@ export const LiquidationTableView = ({ liquidations, onView, onEdit, onDelete, c
                 <TableHead>Código</TableHead>
                 <TableHead>Especialista</TableHead>
                 <TableHead>Período</TableHead>
-                <TableHead className="text-right">Subtotal</TableHead>
-                <TableHead className="text-right">IVA</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
@@ -50,8 +48,6 @@ export const LiquidationTableView = ({ liquidations, onView, onEdit, onDelete, c
                     <TableCell className="font-medium">{liquidation.code}</TableCell>
                     <TableCell>{liquidation.specialist?.name || 'N/A'}</TableCell>
                     <TableCell>{formatPeriod(liquidation.period_year, liquidation.period_month, 'short')}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(liquidation.subtotal)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(liquidation.tax_amount)}</TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(liquidation.total_amount)}</TableCell>
                     <TableCell>
                       <LiquidationStatusBadge status={liquidation.status} />

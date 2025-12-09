@@ -101,24 +101,16 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     },
   });
 
-  // Totales
+  // Total
   const finalY = (doc as any).lastAutoTable.finalY + 10;
 
   const totalsX = pageWidth - 75;
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-
-  doc.text('Subtotal:', totalsX, finalY);
-  doc.text(formatCurrency(data.liquidation.subtotal), pageWidth - 15, finalY, { align: 'right' });
-
-  doc.text(`IVA (${data.liquidation.tax_rate}%):`, totalsX, finalY + 7);
-  doc.text(formatCurrency(data.liquidation.tax_amount), pageWidth - 15, finalY + 7, { align: 'right' });
-
+  
   // Total en negrita
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
-  doc.text('TOTAL A PAGAR:', totalsX, finalY + 17);
-  doc.text(formatCurrency(data.liquidation.total_amount), pageWidth - 15, finalY + 17, { align: 'right' });
+  doc.text('TOTAL A PAGAR:', totalsX, finalY);
+  doc.text(formatCurrency(data.liquidation.subtotal), pageWidth - 15, finalY, { align: 'right' });
 
   // Notas
   if (data.liquidation.notes) {

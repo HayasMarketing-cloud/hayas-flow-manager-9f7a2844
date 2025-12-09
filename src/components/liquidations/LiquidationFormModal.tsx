@@ -354,7 +354,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       
       const { data, error } = await supabase
         .from('liquidation_items')
-        .select('*')
+        .select('*, financial_request:financial_requests(code, title, client:clients(name))')
         .eq('liquidation_id', liquidation.id)
         .order('created_at');
       
@@ -364,6 +364,28 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     enabled: (isViewMode || mode === 'edit') && !!liquidation?.id,
   });
 
+  // Agrupar items por cliente
+  const itemsGroupedByClient = useMemo(() => {
+    if (!liquidationItems) return [];
+    
+    const grouped: { [clientName: string]: { items: typeof liquidationItems; subtotal: number } } = {};
+    
+    liquidationItems.forEach((item) => {
+      const clientName = item.financial_request?.client?.name || 'Sin cliente';
+      if (!grouped[clientName]) {
+        grouped[clientName] = { items: [], subtotal: 0 };
+      }
+      grouped[clientName].items.push(item);
+      grouped[clientName].subtotal += Number(item.total);
+    });
+    
+    return Object.entries(grouped).map(([clientName, data]) => ({
+      clientName,
+      items: data.items,
+      subtotal: data.subtotal,
+    }));
+  }, [liquidationItems]);
+
   // Calcular subtotal existente en modo edit
   const existingSubtotal = useMemo(() => {
     if (mode === 'edit' && liquidationItems) {
@@ -372,8 +394,10 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     return 0;
   }, [liquidationItems, mode]);
 
-  // Subtotal total = existente + nuevos seleccionados
-  const displaySubtotal = mode === 'edit' ? existingSubtotal + calculatedSubtotal : calculatedSubtotal;
+  // Subtotal total - en modo view usa el valor de la BD, en edit suma existente + nuevos
+  const displaySubtotal = mode === 'view' 
+    ? (liquidation?.subtotal || 0) 
+    : (mode === 'edit' ? existingSubtotal + calculatedSubtotal : calculatedSubtotal);
 
   const handleDownloadPDF = async () => {
     if (!liquidation || !liquidationItems) {
@@ -536,6 +560,44 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
               <p className="text-sm text-destructive mt-1">{errors.status.message}</p>
             )}
           </div>
+
+          {/* Items existentes de la liquidación - Visible en VIEW y EDIT */}
+          {(isViewMode || mode === 'edit') && itemsGroupedByClient.length > 0 && (
+            <div className="border rounded-lg p-4 space-y-3">
+              <Label className="text-base font-semibold">
+                Solicitudes incluidas ({liquidationItems?.length || 0})
+              </Label>
+              
+              <ScrollArea className="max-h-[300px]">
+                <div className="space-y-4">
+                  {itemsGroupedByClient.map((group) => (
+                    <div key={group.clientName} className="border rounded-md overflow-hidden">
+                      {/* Encabezado del cliente */}
+                      <div className="bg-muted px-3 py-2 flex justify-between items-center">
+                        <span className="font-medium text-sm">{group.clientName}</span>
+                        <span className="font-semibold text-sm">{group.subtotal.toFixed(2)} €</span>
+                      </div>
+                      
+                      {/* Items del cliente */}
+                      <div className="divide-y">
+                        {group.items.map((item) => (
+                          <div key={item.id} className="px-3 py-2 flex justify-between items-center text-sm">
+                            <div className="flex-1">
+                              <span className="text-muted-foreground mr-2">
+                                {item.financial_request?.code || '-'}
+                              </span>
+                              <span>{item.description}</span>
+                            </div>
+                            <span className="text-muted-foreground">{Number(item.total).toFixed(2)} €</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
 
           {/* Widget de Requests Pendientes - Visible en CREATE y EDIT (borrador) */}
           {isEditable && selectedSpecialistId && (

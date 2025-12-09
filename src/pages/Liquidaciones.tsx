@@ -1,13 +1,12 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, LayoutGrid, Table as TableIcon, X, Download, FileDown } from 'lucide-react';
+import { Plus, LayoutGrid, Table as TableIcon, X, Download } from 'lucide-react';
 import { exportLiquidationsToExcel } from '@/utils/excel/liquidationsExporter';
-import { generateLiquidationPDF } from '@/utils/pdf/liquidationPDFGenerator';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -16,15 +15,18 @@ import { LiquidationCard } from '@/components/liquidations/LiquidationCard';
 import { LiquidationTableView } from '@/components/liquidations/LiquidationTableView';
 import { LiquidationFormModal } from '@/components/liquidations/LiquidationFormModal';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 export default function Liquidaciones() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedLiquidation, setSelectedLiquidation] = useState<any>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
-  
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [liquidationToDelete, setLiquidationToDelete] = useState<any>(null);
   const { filters, updateFilter, resetFilters } = useLiquidationFilters();
   const { canAccessFinance, loading: rolesLoading } = useUserRole();
+  const queryClient = useQueryClient();
 
   const { data: liquidations, isLoading } = useQuery({
     queryKey: ['liquidations', filters],
@@ -102,6 +104,55 @@ export default function Liquidaciones() {
     setSelectedLiquidation(liquidation);
     setModalMode('view');
     setModalOpen(true);
+  };
+
+  const deleteMutation = useMutation({
+    mutationFn: async (liquidationId: string) => {
+      // First, update all related financial_requests to remove liquidation_id and reset status
+      const { error: requestsError } = await supabase
+        .from('financial_requests')
+        .update({ liquidation_id: null, status: 'active' })
+        .eq('liquidation_id', liquidationId);
+      
+      if (requestsError) throw requestsError;
+
+      // Delete liquidation_items
+      const { error: itemsError } = await supabase
+        .from('liquidation_items')
+        .delete()
+        .eq('liquidation_id', liquidationId);
+      
+      if (itemsError) throw itemsError;
+
+      // Delete the liquidation
+      const { error } = await supabase
+        .from('liquidations')
+        .delete()
+        .eq('id', liquidationId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      queryClient.invalidateQueries({ queryKey: ['unliquidated-requests'] });
+      toast.success('Liquidación eliminada correctamente');
+      setDeleteDialogOpen(false);
+      setLiquidationToDelete(null);
+    },
+    onError: (error) => {
+      toast.error('Error al eliminar: ' + error.message);
+    },
+  });
+
+  const handleDelete = (liquidation: any) => {
+    setLiquidationToDelete(liquidation);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (liquidationToDelete) {
+      deleteMutation.mutate(liquidationToDelete.id);
+    }
   };
 
   const hasActiveFilters = filters.searchTerm || filters.status || filters.specialistId || filters.periodType !== 'current_month';
@@ -303,6 +354,7 @@ export default function Liquidaciones() {
               liquidations={liquidations}
               onView={handleView}
               onEdit={handleEdit}
+              onDelete={handleDelete}
               canManage={canAccessFinance()}
             />
           )
@@ -320,6 +372,17 @@ export default function Liquidaciones() {
         onClose={() => setModalOpen(false)}
         liquidation={selectedLiquidation}
         mode={modalMode}
+      />
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Eliminar Liquidación"
+        description={`¿Estás seguro de que deseas eliminar la liquidación ${liquidationToDelete?.code}? Las solicitudes asociadas volverán a estar disponibles para liquidación.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="destructive"
+        onConfirm={confirmDelete}
       />
     </AppLayout>
   );

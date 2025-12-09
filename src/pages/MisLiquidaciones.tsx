@@ -271,6 +271,7 @@ export default function MisLiquidaciones() {
               liquidations={liquidations}
               onView={handleView}
               onEdit={() => {}}
+              onDelete={() => {}}
               canManage={false}
             />
           )

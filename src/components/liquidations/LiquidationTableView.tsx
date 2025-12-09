@@ -1,6 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Eye, Pencil } from 'lucide-react';
+import { Eye, Pencil, Trash2 } from 'lucide-react';
 import { LiquidationStatusBadge } from './LiquidationStatusBadge';
 import { formatPeriod, formatCurrency } from '@/lib/liquidation-utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,10 +9,11 @@ interface LiquidationTableViewProps {
   liquidations: any[];
   onView: (liquidation: any) => void;
   onEdit: (liquidation: any) => void;
+  onDelete: (liquidation: any) => void;
   canManage: boolean;
 }
 
-export const LiquidationTableView = ({ liquidations, onView, onEdit, canManage }: LiquidationTableViewProps) => {
+export const LiquidationTableView = ({ liquidations, onView, onEdit, onDelete, canManage }: LiquidationTableViewProps) => {
   if (!liquidations || liquidations.length === 0) {
     return (
       <Card>
@@ -71,6 +72,16 @@ export const LiquidationTableView = ({ liquidations, onView, onEdit, canManage }
                             onClick={() => onEdit(liquidation)}
                           >
                             <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canManage && isEditable && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onDelete(liquidation)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         )}
                       </div>

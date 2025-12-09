@@ -70,17 +70,33 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     doc.text(`Tel: ${data.specialist.phone}`, 15, 81);
   }
 
-  // Tabla de servicios/items
-  const tableData = data.items.map((item) => [
-    item.description,
-    item.quantity.toString(),
-    formatCurrency(item.unit_price),
-    formatCurrency(item.total),
-  ]);
+  // Agrupar items por cliente
+  const groupedItems = groupItemsByClient(data.items);
+
+  // Preparar datos de la tabla con agrupación por cliente
+  const tableData: any[][] = [];
+  
+  groupedItems.forEach((group) => {
+    // Fila de encabezado del cliente
+    tableData.push([
+      { content: group.clientName, colSpan: 3, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+      { content: formatCurrency(group.subtotal), styles: { fontStyle: 'bold', fillColor: [240, 240, 240], halign: 'right' } },
+    ]);
+    
+    // Filas de items del cliente
+    group.items.forEach((item) => {
+      tableData.push([
+        `  ${item.description}`,
+        item.quantity.toString(),
+        formatCurrency(item.unit_price),
+        formatCurrency(item.total),
+      ]);
+    });
+  });
 
   autoTable(doc, {
     startY: 95,
-    head: [['Servicio', 'Cantidad', 'Precio Unitario', 'Total']],
+    head: [['Servicio / Cliente', 'Cantidad', 'Precio Unitario', 'Total']],
     body: tableData,
     theme: 'striped',
     headStyles: {
@@ -134,6 +150,31 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
 
   // Descargar
   doc.save(`liquidacion_${data.liquidation.code}.pdf`);
+};
+
+interface GroupedClient {
+  clientName: string;
+  items: any[];
+  subtotal: number;
+}
+
+const groupItemsByClient = (items: any[]): GroupedClient[] => {
+  const grouped: { [clientName: string]: { items: any[]; subtotal: number } } = {};
+  
+  items.forEach((item) => {
+    const clientName = item.financial_request?.client?.name || 'Sin cliente';
+    if (!grouped[clientName]) {
+      grouped[clientName] = { items: [], subtotal: 0 };
+    }
+    grouped[clientName].items.push(item);
+    grouped[clientName].subtotal += Number(item.total);
+  });
+  
+  return Object.entries(grouped).map(([clientName, data]) => ({
+    clientName,
+    items: data.items,
+    subtotal: data.subtotal,
+  }));
 };
 
 const formatCurrency = (amount: number): string => {

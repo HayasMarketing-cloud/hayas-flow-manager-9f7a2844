@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useEffect, useState, useMemo } from 'react';
-import { calculateTaxAmount, calculateTotalAmount, formatPeriod } from '@/lib/liquidation-utils';
+import { formatPeriod } from '@/lib/liquidation-utils';
 import { Database } from '@/integrations/supabase/types';
 import { generateLiquidationPDF } from '@/utils/pdf/liquidationPDFGenerator';
 import { FileDown, Plus } from 'lucide-react';
@@ -26,7 +26,6 @@ const liquidationSchema = z.object({
   period_year: z.number().min(2020).max(2100),
   period_month: z.number().min(1).max(12),
   status: z.enum(['draft', 'sent', 'paid', 'disputed']),
-  tax_rate: z.number().min(0).max(100),
   notes: z.string().optional(),
 });
 
@@ -52,7 +51,6 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       period_year: new Date().getFullYear(),
       period_month: new Date().getMonth() + 1,
       status: 'draft',
-      tax_rate: 21,
       notes: '',
     },
   });
@@ -70,7 +68,6 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     },
   });
 
-  const taxRate = watch('tax_rate');
   const selectedSpecialistId = watch('specialist_id');
   const selectedYear = watch('period_year');
   const selectedMonth = watch('period_month');
@@ -84,9 +81,6 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
   const calculatedSubtotal = useMemo(() => {
     return selectedRequests.reduce((sum, req) => sum + req.cost, 0);
   }, [selectedRequests]);
-
-  const taxAmount = calculateTaxAmount(calculatedSubtotal, taxRate);
-  const totalAmount = calculateTotalAmount(calculatedSubtotal, taxAmount);
 
   // Verificar si ya existe una liquidación para el mismo especialista y período
   const { data: existingLiquidation } = useQuery({
@@ -128,7 +122,6 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
         period_year: liquidation.period_year,
         period_month: liquidation.period_month,
         status: liquidation.status,
-        tax_rate: liquidation.tax_rate,
         notes: liquidation.notes || '',
       });
     } else if (!liquidation && isOpen) {
@@ -137,7 +130,6 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
         period_year: new Date().getFullYear(),
         period_month: new Date().getMonth() + 1,
         status: 'draft',
-        tax_rate: 21,
         notes: '',
       });
     }
@@ -156,9 +148,9 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
           period_month: data.period_month,
           status: data.status,
           subtotal: calculatedSubtotal,
-          tax_rate: data.tax_rate,
-          tax_amount: taxAmount,
-          total_amount: totalAmount,
+          tax_rate: 0,
+          tax_amount: 0,
+          total_amount: calculatedSubtotal,
           notes: data.notes,
         })
         .select()
@@ -225,7 +217,6 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
           period_year: data.period_year,
           period_month: data.period_month,
           status: data.status,
-          tax_rate: data.tax_rate,
           notes: data.notes,
         })
         .eq('id', liquidation.id);
@@ -290,15 +281,13 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       if (itemsError) throw itemsError;
 
       const newSubtotal = allItems?.reduce((sum, item) => sum + Number(item.total), 0) || 0;
-      const newTaxAmount = calculateTaxAmount(newSubtotal, liquidation.tax_rate);
-      const newTotalAmount = calculateTotalAmount(newSubtotal, newTaxAmount);
 
       const { error: updateLiquidationError } = await supabase
         .from('liquidations')
         .update({
           subtotal: newSubtotal,
-          tax_amount: newTaxAmount,
-          total_amount: newTotalAmount,
+          tax_amount: 0,
+          total_amount: newSubtotal,
         })
         .eq('id', liquidation.id);
 
@@ -381,8 +370,6 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
 
   // Subtotal total = existente + nuevos seleccionados
   const displaySubtotal = mode === 'edit' ? existingSubtotal + calculatedSubtotal : calculatedSubtotal;
-  const displayTaxAmount = calculateTaxAmount(displaySubtotal, taxRate);
-  const displayTotalAmount = calculateTotalAmount(displaySubtotal, displayTaxAmount);
 
   const handleDownloadPDF = async () => {
     if (!liquidation || !liquidationItems) {
@@ -524,41 +511,26 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="status">Estado *</Label>
-              <Select
-                value={watch('status')}
-                onValueChange={(value) => setValue('status', value as LiquidationStatus)}
-                disabled={isViewMode || !isEditable}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Borrador</SelectItem>
-                  <SelectItem value="sent">Enviada</SelectItem>
-                  <SelectItem value="paid">Pagada</SelectItem>
-                  <SelectItem value="disputed">En Disputa</SelectItem>
-                </SelectContent>
-              </Select>
-              {errors.status && (
-                <p className="text-sm text-destructive mt-1">{errors.status.message}</p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="tax_rate">IVA (%) *</Label>
-              <Input
-                type="number"
-                step="0.01"
-                {...register('tax_rate', { valueAsNumber: true })}
-                disabled={isViewMode || !isEditable}
-              />
-              {errors.tax_rate && (
-                <p className="text-sm text-destructive mt-1">{errors.tax_rate.message}</p>
-              )}
-            </div>
+          <div>
+            <Label htmlFor="status">Estado *</Label>
+            <Select
+              value={watch('status')}
+              onValueChange={(value) => setValue('status', value as LiquidationStatus)}
+              disabled={isViewMode || !isEditable}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">Borrador</SelectItem>
+                <SelectItem value="sent">Enviada</SelectItem>
+                <SelectItem value="paid">Pagada</SelectItem>
+                <SelectItem value="disputed">En Disputa</SelectItem>
+              </SelectContent>
+            </Select>
+            {errors.status && (
+              <p className="text-sm text-destructive mt-1">{errors.status.message}</p>
+            )}
           </div>
 
           {/* Widget de Requests Pendientes - Visible en CREATE y EDIT (borrador) */}
@@ -658,18 +630,10 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
           )}
 
           {/* Totales calculados automáticamente */}
-          <div className="bg-muted p-4 rounded-md space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Subtotal:</span>
-              <span className="font-medium">{displaySubtotal.toFixed(2)} €</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>IVA ({taxRate}%):</span>
-              <span className="font-medium">{displayTaxAmount.toFixed(2)} €</span>
-            </div>
-            <div className="flex justify-between text-base font-bold border-t pt-2">
+          <div className="bg-muted p-4 rounded-md">
+            <div className="flex justify-between text-base font-bold">
               <span>Total:</span>
-              <span>{displayTotalAmount.toFixed(2)} €</span>
+              <span>{displaySubtotal.toFixed(2)} €</span>
             </div>
           </div>
 

@@ -175,13 +175,14 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
         // Crear liquidation_items
         const items = requestsData.map((req) => {
           const editedCost = requests.find(r => r.id === req.id)?.cost || 0;
+          const quantity = Math.max(1, Math.round(req.quantity || 1));
           return {
             liquidation_id: newLiquidation.id,
             financial_request_id: req.id,
             description: req.service?.name || req.title,
-            quantity: req.quantity || 1,
+            quantity: quantity,
             unit_price: editedCost,
-            total: editedCost * (req.quantity || 1),
+            total: editedCost * quantity,
           };
         });
 

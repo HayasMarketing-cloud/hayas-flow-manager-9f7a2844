@@ -85,11 +85,12 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     
     // Filas de items del cliente
     group.items.forEach((item) => {
+      const costToAgency = Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0;
       tableData.push([
         `  ${item.description}`,
         item.quantity.toString(),
-        formatCurrency(item.unit_price),
-        formatCurrency(item.total),
+        formatCurrency(costToAgency),
+        formatCurrency(costToAgency),
       ]);
     });
   });
@@ -167,7 +168,9 @@ const groupItemsByClient = (items: any[]): GroupedClient[] => {
       grouped[clientName] = { items: [], subtotal: 0 };
     }
     grouped[clientName].items.push(item);
-    grouped[clientName].subtotal += Number(item.total);
+    // Usar cost_to_agency del financial_request para el subtotal
+    const costToAgency = Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0;
+    grouped[clientName].subtotal += costToAgency;
   });
   
   return Object.entries(grouped).map(([clientName, data]) => ({

@@ -7,8 +7,8 @@ interface LiquidationData {
   specialist: any;
   companyInfo?: {
     name: string;
+    tradeName?: string;
     address: string;
-    taxId: string;
     phone: string;
     email: string;
   };
@@ -18,39 +18,57 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // Información de la empresa
+  // Información de la empresa (APPS 4 BUSINESS SL - HAYAS MARKETING)
   const company = data.companyInfo || {
-    name: 'Mi Empresa S.L.',
-    address: 'Calle Principal, 123 - 28001 Madrid',
-    taxId: 'B-12345678',
-    phone: '+34 912 345 678',
-    email: 'info@miempresa.com',
+    name: 'APPS 4 BUSINESS SL',
+    tradeName: 'HAYAS MARKETING',
+    address: 'C/Manzanares 4 - 28005 Madrid',
+    phone: '672 288 182',
+    email: 'administracion@hayas.es',
   };
 
-  // Header
-  doc.setFontSize(20);
+  // Cargar logo
+  try {
+    const logoImg = new Image();
+    logoImg.crossOrigin = 'anonymous';
+    await new Promise<void>((resolve, reject) => {
+      logoImg.onload = () => resolve();
+      logoImg.onerror = reject;
+      logoImg.src = '/images/hayas-logo.png';
+    });
+    doc.addImage(logoImg, 'PNG', 15, 10, 35, 35);
+  } catch (e) {
+    console.warn('Could not load logo for PDF');
+  }
+
+  // Header - Datos de empresa (al lado del logo)
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text(company.name, 15, 20);
+  doc.text(company.name, 55, 18);
+  doc.text(company.tradeName || '', 55, 24);
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(company.address, 15, 27);
-  doc.text(`CIF: ${company.taxId}`, 15, 32);
-  doc.text(`Tel: ${company.phone}`, 15, 37);
-  doc.text(`Email: ${company.email}`, 15, 42);
+  doc.text(company.address, 55, 31);
+  doc.text(`Tel: ${company.phone}`, 55, 37);
+  doc.text(company.email, 55, 43);
 
-  // Título
-  doc.setFontSize(18);
+  // Título - Derecha (LIQUIDACIÓN + Especialista + Mes + Código)
+  doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text('LIQUIDACIÓN', pageWidth - 15, 20, { align: 'right' });
+  doc.text('LIQUIDACIÓN', pageWidth - 15, 18, { align: 'right' });
 
   doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
-  doc.text(data.liquidation.code, pageWidth - 15, 27, { align: 'right' });
+  doc.text(data.specialist.name, pageWidth - 15, 26, { align: 'right' });
 
   const monthName = new Date(data.liquidation.period_year, data.liquidation.period_month - 1)
     .toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-  doc.text(`Período: ${monthName}`, pageWidth - 15, 34, { align: 'right' });
+  const capitalizedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+  doc.text(capitalizedMonth, pageWidth - 15, 33, { align: 'right' });
+
+  doc.setFontSize(10);
+  doc.text(data.liquidation.code, pageWidth - 15, 40, { align: 'right' });
 
   // Línea divisoria
   doc.setLineWidth(0.5);

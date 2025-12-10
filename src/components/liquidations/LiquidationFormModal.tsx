@@ -369,12 +369,17 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       // Recalcular totales
       const { data: allItems, error: itemsError } = await supabase
         .from('liquidation_items')
-        .select('total')
+        .select('unit_price, financial_request_id, financial_request:financial_requests(cost_to_agency)')
         .eq('liquidation_id', liquidation.id);
 
       if (itemsError) throw itemsError;
 
-      const newSubtotal = allItems?.reduce((sum, i) => sum + Number(i.total), 0) || 0;
+      const newSubtotal = allItems?.reduce((sum, i: any) => {
+        const cost = i.financial_request_id 
+          ? (Number(i.financial_request?.cost_to_agency) || Number(i.unit_price) || 0)
+          : Number(i.unit_price) || 0;
+        return sum + cost;
+      }, 0) || 0;
 
       const { error: updateError } = await supabase
         .from('liquidations')
@@ -392,6 +397,137 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     },
     onError: (error) => {
       toast.error('Error al agregar item: ' + error.message);
+    },
+  });
+
+  // Mutation para eliminar un item de la liquidación
+  const deleteItemMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      if (!liquidation?.id) throw new Error('Liquidación no encontrada');
+
+      // Obtener el item para verificar si tiene un financial_request vinculado
+      const { data: item, error: fetchError } = await supabase
+        .from('liquidation_items')
+        .select('financial_request_id')
+        .eq('id', itemId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Eliminar el item
+      const { error: deleteError } = await supabase
+        .from('liquidation_items')
+        .delete()
+        .eq('id', itemId);
+
+      if (deleteError) throw deleteError;
+
+      // Si tenía un financial_request, actualizar su estado
+      if (item?.financial_request_id) {
+        const { error: updateRequestError } = await supabase
+          .from('financial_requests')
+          .update({ liquidation_id: null, status: 'active' })
+          .eq('id', item.financial_request_id);
+
+        if (updateRequestError) throw updateRequestError;
+      }
+
+      // Recalcular totales
+      const { data: allItems, error: itemsError } = await supabase
+        .from('liquidation_items')
+        .select('unit_price, financial_request_id, financial_request:financial_requests(cost_to_agency)')
+        .eq('liquidation_id', liquidation.id);
+
+      if (itemsError) throw itemsError;
+
+      const newSubtotal = allItems?.reduce((sum, i: any) => {
+        const cost = i.financial_request_id 
+          ? (Number(i.financial_request?.cost_to_agency) || Number(i.unit_price) || 0)
+          : Number(i.unit_price) || 0;
+        return sum + cost;
+      }, 0) || 0;
+
+      const { error: updateError } = await supabase
+        .from('liquidations')
+        .update({ subtotal: newSubtotal, total_amount: newSubtotal })
+        .eq('id', liquidation.id);
+
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      queryClient.invalidateQueries({ queryKey: ['liquidation-items'] });
+      queryClient.invalidateQueries({ queryKey: ['unliquidated-requests'] });
+      toast.success('Item eliminado');
+    },
+    onError: (error) => {
+      toast.error('Error al eliminar item: ' + error.message);
+    },
+  });
+
+  // Mutation para actualizar el coste de un item
+  const updateItemCostMutation = useMutation({
+    mutationFn: async ({ itemId, newCost, isManual }: { itemId: string; newCost: number; isManual: boolean }) => {
+      if (!liquidation?.id) throw new Error('Liquidación no encontrada');
+
+      // Actualizar el item
+      const { error: updateItemError } = await supabase
+        .from('liquidation_items')
+        .update({ 
+          unit_price: newCost, 
+          total: newCost 
+        })
+        .eq('id', itemId);
+
+      if (updateItemError) throw updateItemError;
+
+      // Si no es manual, también actualizar el cost_to_agency del financial_request
+      if (!isManual) {
+        const { data: item } = await supabase
+          .from('liquidation_items')
+          .select('financial_request_id')
+          .eq('id', itemId)
+          .single();
+
+        if (item?.financial_request_id) {
+          const { error: updateRequestError } = await supabase
+            .from('financial_requests')
+            .update({ cost_to_agency: newCost })
+            .eq('id', item.financial_request_id);
+
+          if (updateRequestError) throw updateRequestError;
+        }
+      }
+
+      // Recalcular totales
+      const { data: allItems, error: itemsError } = await supabase
+        .from('liquidation_items')
+        .select('unit_price, financial_request_id, financial_request:financial_requests(cost_to_agency)')
+        .eq('liquidation_id', liquidation.id);
+
+      if (itemsError) throw itemsError;
+
+      const newSubtotal = allItems?.reduce((sum, i: any) => {
+        const cost = i.financial_request_id 
+          ? (Number(i.financial_request?.cost_to_agency) || Number(i.unit_price) || 0)
+          : Number(i.unit_price) || 0;
+        return sum + cost;
+      }, 0) || 0;
+
+      const { error: updateError } = await supabase
+        .from('liquidations')
+        .update({ subtotal: newSubtotal, total_amount: newSubtotal })
+        .eq('id', liquidation.id);
+
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      queryClient.invalidateQueries({ queryKey: ['liquidation-items'] });
+      toast.success('Coste actualizado');
+    },
+    onError: (error) => {
+      toast.error('Error al actualizar coste: ' + error.message);
     },
   });
 
@@ -715,24 +851,68 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
                       
                       {/* Items del cliente */}
                       <div className="divide-y">
-                        {group.items.map((item) => (
-                          <div key={item.id} className="px-3 py-2 flex justify-between items-start text-sm">
-                            <div className="flex-1">
-                              <div className="flex items-center">
-                                <span className="text-muted-foreground mr-2">
-                                  {item.financial_request?.code || '-'}
-                                </span>
-                                <span>{item.description}</span>
-                              </div>
-                              {item.financial_request?.title && (
-                                <div className="text-xs text-muted-foreground ml-12 mt-0.5">
-                                  {item.financial_request.title}
+                        {group.items.map((item) => {
+                          const isManual = !item.financial_request_id;
+                          const currentCost = Number((item.financial_request as any)?.cost_to_agency || item.unit_price) || 0;
+                          
+                          return (
+                            <div key={item.id} className="px-3 py-2 flex justify-between items-center text-sm gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center">
+                                  <span className="text-muted-foreground mr-2">
+                                    {item.financial_request?.code || '-'}
+                                  </span>
+                                  <span className="truncate">{item.description}</span>
                                 </div>
+                                {item.financial_request?.title && (
+                                  <div className="text-xs text-muted-foreground ml-12 mt-0.5 truncate">
+                                    {item.financial_request.title}
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {isEditable ? (
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    defaultValue={currentCost}
+                                    className="w-24 h-8 text-right"
+                                    onBlur={(e) => {
+                                      const newCost = parseFloat(e.target.value) || 0;
+                                      if (newCost !== currentCost) {
+                                        updateItemCostMutation.mutate({ 
+                                          itemId: item.id, 
+                                          newCost, 
+                                          isManual 
+                                        });
+                                      }
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        (e.target as HTMLInputElement).blur();
+                                      }
+                                    }}
+                                  />
+                                  <span className="text-muted-foreground">€</span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => deleteItemMutation.mutate(item.id)}
+                                    disabled={deleteItemMutation.isPending}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground shrink-0">{currentCost.toFixed(2)} €</span>
                               )}
                             </div>
-                            <span className="text-muted-foreground">{Number((item.financial_request as any)?.cost_to_agency || item.unit_price).toFixed(2)} €</span>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   ))}

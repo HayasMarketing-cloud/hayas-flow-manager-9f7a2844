@@ -123,7 +123,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     body: tableData,
     theme: 'striped',
     headStyles: {
-      fillColor: [66, 70, 229],
+      fillColor: [0, 70, 126], // Corporate blue #00467E
       textColor: 255,
       fontSize: 10,
       fontStyle: 'bold',

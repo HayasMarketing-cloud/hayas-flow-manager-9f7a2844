@@ -14,7 +14,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { formatPeriod } from '@/lib/liquidation-utils';
 import { Database } from '@/integrations/supabase/types';
 import { generateLiquidationPDF } from '@/utils/pdf/liquidationPDFGenerator';
-import { FileDown, Plus } from 'lucide-react';
+import { FileDown, Plus, Trash2 } from 'lucide-react';
 import { useUnliquidatedRequests } from '@/hooks/useUnliquidatedRequests';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -38,11 +38,20 @@ interface LiquidationFormModalProps {
   mode: 'create' | 'edit' | 'view';
 }
 
+interface ManualItem {
+  id: string;
+  description: string;
+  amount: number;
+}
+
 export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: LiquidationFormModalProps) => {
   const queryClient = useQueryClient();
   const isViewMode = mode === 'view';
   const isEditable = mode === 'create' || (mode === 'edit' && liquidation?.status === 'draft');
   const [selectedRequests, setSelectedRequests] = useState<Array<{ id: string; cost: number }>>([]);
+  const [manualItems, setManualItems] = useState<ManualItem[]>([]);
+  const [newManualDescription, setNewManualDescription] = useState('');
+  const [newManualAmount, setNewManualAmount] = useState<number | ''>('');
 
   const { register, handleSubmit, formState: { errors }, watch, setValue, reset } = useForm<LiquidationFormData>({
     resolver: zodResolver(liquidationSchema),
@@ -77,10 +86,12 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     isEditable && selectedSpecialistId ? selectedSpecialistId : undefined
   );
 
-  // Calcular subtotal automáticamente desde los requests seleccionados
+  // Calcular subtotal automáticamente desde los requests seleccionados + items manuales
   const calculatedSubtotal = useMemo(() => {
-    return selectedRequests.reduce((sum, req) => sum + req.cost, 0);
-  }, [selectedRequests]);
+    const requestsTotal = selectedRequests.reduce((sum, req) => sum + req.cost, 0);
+    const manualTotal = manualItems.reduce((sum, item) => sum + item.amount, 0);
+    return requestsTotal + manualTotal;
+  }, [selectedRequests, manualItems]);
 
   // Verificar si ya existe una liquidación para el mismo especialista y período
   const { data: existingLiquidation } = useQuery({
@@ -134,12 +145,21 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       });
     }
     setSelectedRequests([]);
+    setManualItems([]);
+    setNewManualDescription('');
+    setNewManualAmount('');
   }, [liquidation, isOpen, reset]);
 
   const createMutation = useMutation({
-    mutationFn: async ({ data, requests }: { data: LiquidationFormData; requests: Array<{ id: string; cost: number }> }) => {
-      // Calcular subtotal desde los requests pasados como parámetro
-      const subtotal = requests.reduce((sum, req) => sum + req.cost, 0);
+    mutationFn: async ({ data, requests, manualItemsToSave }: { 
+      data: LiquidationFormData; 
+      requests: Array<{ id: string; cost: number }>;
+      manualItemsToSave: ManualItem[];
+    }) => {
+      // Calcular subtotal desde los requests y items manuales
+      const requestsSubtotal = requests.reduce((sum, req) => sum + req.cost, 0);
+      const manualSubtotal = manualItemsToSave.reduce((sum, item) => sum + item.amount, 0);
+      const subtotal = requestsSubtotal + manualSubtotal;
       
       // Crear la liquidación
       const { data: newLiquidation, error: createError } = await supabase
@@ -199,6 +219,24 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
           .in('id', requests.map(r => r.id));
 
         if (updateError) throw updateError;
+      }
+
+      // Crear items manuales
+      if (manualItemsToSave.length > 0) {
+        const manualItemsData = manualItemsToSave.map((item) => ({
+          liquidation_id: newLiquidation.id,
+          financial_request_id: null,
+          description: item.description,
+          quantity: 1,
+          unit_price: item.amount,
+          total: item.amount,
+        }));
+
+        const { error: insertManualError } = await supabase
+          .from('liquidation_items')
+          .insert(manualItemsData);
+
+        if (insertManualError) throw insertManualError;
       }
     },
     onSuccess: () => {
@@ -310,6 +348,53 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     },
   });
 
+  // Mutation para agregar item manual en modo edit
+  const addManualItemMutation = useMutation({
+    mutationFn: async (item: { description: string; amount: number }) => {
+      if (!liquidation?.id) throw new Error('Liquidación no encontrada');
+
+      const { error: insertError } = await supabase
+        .from('liquidation_items')
+        .insert({
+          liquidation_id: liquidation.id,
+          financial_request_id: null,
+          description: item.description,
+          quantity: 1,
+          unit_price: item.amount,
+          total: item.amount,
+        });
+
+      if (insertError) throw insertError;
+
+      // Recalcular totales
+      const { data: allItems, error: itemsError } = await supabase
+        .from('liquidation_items')
+        .select('total')
+        .eq('liquidation_id', liquidation.id);
+
+      if (itemsError) throw itemsError;
+
+      const newSubtotal = allItems?.reduce((sum, i) => sum + Number(i.total), 0) || 0;
+
+      const { error: updateError } = await supabase
+        .from('liquidations')
+        .update({ subtotal: newSubtotal, total_amount: newSubtotal })
+        .eq('id', liquidation.id);
+
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      queryClient.invalidateQueries({ queryKey: ['liquidation-items'] });
+      toast.success('Item agregado');
+      setNewManualDescription('');
+      setNewManualAmount('');
+    },
+    onError: (error) => {
+      toast.error('Error al agregar item: ' + error.message);
+    },
+  });
+
   const handleToggleRequest = (requestId: string, isChecked: boolean) => {
     if (isChecked) {
       const request = pendingRequests?.find(r => r.id === requestId);
@@ -346,6 +431,35 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     }
   };
 
+  // Handlers para items manuales
+  const handleAddManualItem = () => {
+    if (!newManualDescription.trim()) {
+      toast.error('Ingresa un concepto');
+      return;
+    }
+    if (!newManualAmount || newManualAmount <= 0) {
+      toast.error('Ingresa un importe válido');
+      return;
+    }
+
+    if (mode === 'edit') {
+      addManualItemMutation.mutate({ description: newManualDescription, amount: newManualAmount });
+    } else {
+      // En modo create, solo agregamos al estado local
+      setManualItems(prev => [...prev, {
+        id: crypto.randomUUID(),
+        description: newManualDescription,
+        amount: newManualAmount,
+      }]);
+      setNewManualDescription('');
+      setNewManualAmount('');
+    }
+  };
+
+  const handleRemoveManualItem = (itemId: string) => {
+    setManualItems(prev => prev.filter(item => item.id !== itemId));
+  };
+
   // Query para cargar items de la liquidación (para PDF y para modo edición)
   const { data: liquidationItems } = useQuery({
     queryKey: ['liquidation-items', liquidation?.id],
@@ -364,20 +478,25 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     enabled: (isViewMode || mode === 'edit') && !!liquidation?.id,
   });
 
-  // Agrupar items por cliente
+  // Agrupar items por cliente (items manuales van a "Otros conceptos")
   const itemsGroupedByClient = useMemo(() => {
     if (!liquidationItems) return [];
     
     const grouped: { [clientName: string]: { items: typeof liquidationItems; subtotal: number } } = {};
     
     liquidationItems.forEach((item) => {
-      const clientName = item.financial_request?.client?.name || 'Sin cliente';
+      // Items sin financial_request son manuales
+      const clientName = item.financial_request_id 
+        ? (item.financial_request?.client?.name || 'Sin cliente')
+        : 'Otros conceptos';
       if (!grouped[clientName]) {
         grouped[clientName] = { items: [], subtotal: 0 };
       }
       grouped[clientName].items.push(item);
-      // Usar cost_to_agency del financial_request para el subtotal
-      const costToAgency = Number((item.financial_request as any)?.cost_to_agency) || Number(item.unit_price) || 0;
+      // Usar cost_to_agency del financial_request para el subtotal, o unit_price para items manuales
+      const costToAgency = item.financial_request_id 
+        ? (Number((item.financial_request as any)?.cost_to_agency) || Number(item.unit_price) || 0)
+        : Number(item.unit_price) || 0;
       grouped[clientName].subtotal += costToAgency;
     });
     
@@ -432,7 +551,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     }
 
     if (mode === 'create') {
-      createMutation.mutate({ data, requests: selectedRequests });
+      createMutation.mutate({ data, requests: selectedRequests, manualItemsToSave: manualItems });
     } else if (mode === 'edit') {
       updateMutation.mutate(data);
     }
@@ -700,6 +819,74 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
               
               <p className="text-xs text-muted-foreground">
                 Solicitudes activas o facturadas que aún no han sido liquidadas.
+              </p>
+            </div>
+          )}
+
+          {/* Sección de Items Manuales - Visible en CREATE y EDIT (borrador) */}
+          {isEditable && (
+            <div className="border rounded-lg p-4 space-y-3">
+              <Label className="text-base font-semibold">
+                Añadir conceptos manuales
+              </Label>
+              
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <Label htmlFor="manual-description" className="text-xs">Concepto</Label>
+                  <Input
+                    id="manual-description"
+                    placeholder="Descripción del concepto"
+                    value={newManualDescription}
+                    onChange={(e) => setNewManualDescription(e.target.value)}
+                  />
+                </div>
+                <div className="w-32">
+                  <Label htmlFor="manual-amount" className="text-xs">Importe (€)</Label>
+                  <Input
+                    id="manual-amount"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={newManualAmount}
+                    onChange={(e) => setNewManualAmount(e.target.value ? parseFloat(e.target.value) : '')}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleAddManualItem}
+                  disabled={addManualItemMutation.isPending}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Items manuales pendientes de guardar (solo en modo create) */}
+              {mode === 'create' && manualItems.length > 0 && (
+                <div className="space-y-2 border-t pt-3">
+                  <Label className="text-sm text-muted-foreground">Conceptos añadidos:</Label>
+                  {manualItems.map((item) => (
+                    <div key={item.id} className="flex justify-between items-center p-2 bg-muted/50 rounded-md">
+                      <span className="text-sm">{item.description}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{item.amount.toFixed(2)} €</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveManualItem(item.id)}
+                          className="h-6 w-6 p-0"
+                        >
+                          <Trash2 className="h-3 w-3 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <p className="text-xs text-muted-foreground">
+                Añade conceptos adicionales que no estén vinculados a solicitudes.
               </p>
             </div>
           )}

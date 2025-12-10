@@ -354,7 +354,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       
       const { data, error } = await supabase
         .from('liquidation_items')
-        .select('*, financial_request:financial_requests(code, title, client:clients(name))')
+        .select('*, financial_request:financial_requests(code, title, cost_to_agency, client:clients(name))')
         .eq('liquidation_id', liquidation.id)
         .order('created_at');
       
@@ -376,7 +376,9 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
         grouped[clientName] = { items: [], subtotal: 0 };
       }
       grouped[clientName].items.push(item);
-      grouped[clientName].subtotal += Number(item.total);
+      // Usar cost_to_agency del financial_request para el subtotal
+      const costToAgency = Number((item.financial_request as any)?.cost_to_agency) || Number(item.unit_price) || 0;
+      grouped[clientName].subtotal += costToAgency;
     });
     
     return Object.entries(grouped).map(([clientName, data]) => ({
@@ -588,7 +590,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
                               </span>
                               <span>{item.description}</span>
                             </div>
-                            <span className="text-muted-foreground">{Number(item.total).toFixed(2)} €</span>
+                            <span className="text-muted-foreground">{Number((item.financial_request as any)?.cost_to_agency || item.unit_price).toFixed(2)} €</span>
                           </div>
                         ))}
                       </div>

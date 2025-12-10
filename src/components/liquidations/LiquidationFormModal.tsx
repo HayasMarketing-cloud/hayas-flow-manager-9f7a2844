@@ -507,18 +507,32 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     }));
   }, [liquidationItems]);
 
-  // Calcular subtotal existente en modo edit
+  // Calcular subtotal existente en modo edit (usando cost_to_agency para items vinculados, unit_price para manuales)
   const existingSubtotal = useMemo(() => {
     if (mode === 'edit' && liquidationItems) {
-      return liquidationItems.reduce((sum, item) => sum + Number(item.total), 0);
+      return liquidationItems.reduce((sum, item) => {
+        const cost = item.financial_request_id 
+          ? (Number((item.financial_request as any)?.cost_to_agency) || Number(item.unit_price) || 0)
+          : Number(item.unit_price) || 0;
+        return sum + cost;
+      }, 0);
     }
     return 0;
   }, [liquidationItems, mode]);
 
-  // Subtotal total - en modo view usa el valor de la BD, en edit suma existente + nuevos
-  const displaySubtotal = mode === 'view' 
-    ? (liquidation?.subtotal || 0) 
-    : (mode === 'edit' ? existingSubtotal + calculatedSubtotal : calculatedSubtotal);
+  // Subtotal total - calculado siempre desde los items para consistencia
+  const displaySubtotal = useMemo(() => {
+    if ((isViewMode || mode === 'edit') && liquidationItems && liquidationItems.length > 0) {
+      // Calcular desde los items para que sea consistente con lo mostrado
+      return liquidationItems.reduce((sum, item) => {
+        const cost = item.financial_request_id 
+          ? (Number((item.financial_request as any)?.cost_to_agency) || Number(item.unit_price) || 0)
+          : Number(item.unit_price) || 0;
+        return sum + cost;
+      }, 0) + calculatedSubtotal;
+    }
+    return calculatedSubtotal;
+  }, [liquidationItems, calculatedSubtotal, isViewMode, mode]);
 
   const handleDownloadPDF = async () => {
     if (!liquidation || !liquidationItems) {

@@ -86,8 +86,12 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     // Filas de items del cliente
     group.items.forEach((item) => {
       const costToAgency = Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0;
+      const requestTitle = item.financial_request?.title;
+      const description = requestTitle 
+        ? `  ${item.description}\n     ${requestTitle}` 
+        : `  ${item.description}`;
       tableData.push([
-        `  ${item.description}`,
+        description,
         item.quantity.toString(),
         formatCurrency(costToAgency),
         formatCurrency(costToAgency),

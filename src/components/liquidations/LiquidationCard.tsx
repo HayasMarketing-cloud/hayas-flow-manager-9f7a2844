@@ -41,7 +41,7 @@ export const LiquidationCard = ({ liquidation, onView, onEdit, canManage }: Liqu
 
         <div className="flex items-center justify-between pt-2 border-t">
           <span className="text-sm text-muted-foreground">Total:</span>
-          <span className="text-lg font-bold">{formatCurrency(liquidation.total_amount)}</span>
+          <span className="text-lg font-bold">{formatCurrency(liquidation.calculated_total ?? liquidation.total_amount)}</span>
         </div>
 
         <div className="flex gap-2">

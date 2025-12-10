@@ -35,7 +35,13 @@ export default function Liquidaciones() {
         .from('liquidations')
         .select(`
           *,
-          specialist:specialists(id, name)
+          specialist:specialists(id, name),
+          liquidation_items(
+            id,
+            unit_price,
+            financial_request_id,
+            financial_request:financial_requests(cost_to_agency)
+          )
         `)
         .order('period_year', { ascending: false })
         .order('period_month', { ascending: false });
@@ -59,7 +65,21 @@ export default function Liquidaciones() {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+      
+      // Calcular el total correcto usando cost_to_agency
+      return data?.map(liquidation => {
+        const calculatedTotal = liquidation.liquidation_items?.reduce((sum: number, item: any) => {
+          const cost = item.financial_request_id 
+            ? (Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0)
+            : Number(item.unit_price) || 0;
+          return sum + cost;
+        }, 0) || 0;
+        
+        return {
+          ...liquidation,
+          calculated_total: calculatedTotal
+        };
+      });
     },
   });
 

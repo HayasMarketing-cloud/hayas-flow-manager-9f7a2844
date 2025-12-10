@@ -185,13 +185,18 @@ const groupItemsByClient = (items: any[]): GroupedClient[] => {
   const grouped: { [clientName: string]: { items: any[]; subtotal: number } } = {};
   
   items.forEach((item) => {
-    const clientName = item.financial_request?.client?.name || 'Sin cliente';
+    // Items sin financial_request son manuales
+    const clientName = item.financial_request_id 
+      ? (item.financial_request?.client?.name || 'Sin cliente')
+      : 'Otros conceptos';
     if (!grouped[clientName]) {
       grouped[clientName] = { items: [], subtotal: 0 };
     }
     grouped[clientName].items.push(item);
-    // Usar cost_to_agency del financial_request para el subtotal
-    const costToAgency = Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0;
+    // Usar cost_to_agency del financial_request para el subtotal, o unit_price para items manuales
+    const costToAgency = item.financial_request_id 
+      ? (Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0)
+      : Number(item.unit_price) || 0;
     grouped[clientName].subtotal += costToAgency;
   });
   

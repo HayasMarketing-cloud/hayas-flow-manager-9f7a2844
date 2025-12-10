@@ -48,7 +48,7 @@ export const LiquidationTableView = ({ liquidations, onView, onEdit, onDelete, c
                     <TableCell className="font-medium">{liquidation.code}</TableCell>
                     <TableCell>{liquidation.specialist?.name || 'N/A'}</TableCell>
                     <TableCell>{formatPeriod(liquidation.period_year, liquidation.period_month, 'short')}</TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(liquidation.total_amount)}</TableCell>
+                    <TableCell className="text-right font-semibold">{formatCurrency(liquidation.calculated_total ?? liquidation.total_amount)}</TableCell>
                     <TableCell>
                       <LiquidationStatusBadge status={liquidation.status} />
                     </TableCell>

@@ -839,8 +839,8 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
                 Solicitudes incluidas ({liquidationItems?.length || 0})
               </Label>
               
-              <ScrollArea className="max-h-[400px]">
-                <div className="space-y-4">
+              <ScrollArea className="h-[400px] pr-4">
+                <div className="space-y-4 pb-2">
                   {itemsGroupedByClient.map((group) => (
                     <div key={group.clientName} className="border rounded-md overflow-hidden">
                       {/* Encabezado del cliente */}

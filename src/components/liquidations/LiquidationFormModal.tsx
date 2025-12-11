@@ -825,7 +825,8 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
                       <div className="divide-y">
                         {group.items.map((item) => {
                           const isManual = !item.financial_request_id;
-                          const currentCost = Number((item.financial_request as any)?.cost_to_agency || item.unit_price) || 0;
+                          // Usar item.total para consistencia con el subtotal del grupo
+                          const currentCost = Number(item.total) || 0;
                           
                           return (
                             <div key={item.id} className="px-3 py-2 flex justify-between items-center text-sm gap-2">

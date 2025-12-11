@@ -46,6 +46,7 @@ export const useApproveBudget = () => {
           title: item.description,
           description: `Generado automáticamente desde presupuesto: ${budget.title}`,
           client_id: budget.client_id,
+          client_contact_id: budget.client_contact_id || null,
           service_id: item.service_id,
           budget_id: budgetId,
           quantity: item.quantity,

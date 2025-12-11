@@ -48,7 +48,8 @@ const Solicitudes = () => {
           *,
           client:clients(id, name, code),
           service:services(id, name),
-          specialist:specialists(id, name)
+          specialist:specialists(id, name),
+          budget:budgets(id, title, code, client_contact_id)
         `
         )
         .order('created_at', { ascending: false });

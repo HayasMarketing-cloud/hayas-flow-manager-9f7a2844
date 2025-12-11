@@ -718,7 +718,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{getTitle()}</DialogTitle>
         </DialogHeader>
@@ -839,7 +839,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
                 Solicitudes incluidas ({liquidationItems?.length || 0})
               </Label>
               
-              <ScrollArea className="max-h-[300px]">
+              <ScrollArea className="max-h-[400px]">
                 <div className="space-y-4">
                   {itemsGroupedByClient.map((group) => (
                     <div key={group.clientName} className="border rounded-md overflow-hidden">

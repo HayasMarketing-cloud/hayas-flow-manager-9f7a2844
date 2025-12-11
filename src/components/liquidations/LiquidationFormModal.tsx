@@ -192,17 +192,17 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
         if (fetchError) throw fetchError;
         if (!requestsData) throw new Error('No se encontraron las solicitudes');
 
-        // Crear liquidation_items
+        // Crear liquidation_items - quantity siempre 1 (representa 1 solicitud)
+        // El coste ya viene calculado (horas × tarifa o coste fijo)
         const items = requestsData.map((req) => {
           const editedCost = requests.find(r => r.id === req.id)?.cost || 0;
-          const quantity = Math.max(1, Math.round(req.quantity || 1));
           return {
             liquidation_id: newLiquidation.id,
             financial_request_id: req.id,
             description: req.service?.name || req.title,
-            quantity: quantity,
+            quantity: 1,
             unit_price: editedCost,
-            total: editedCost * quantity,
+            total: editedCost,
           };
         });
 
@@ -287,16 +287,17 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       if (fetchError) throw fetchError;
       if (!requestsData) throw new Error('No se encontraron las solicitudes');
 
-      // Crear liquidation_items con costes editados
+      // Crear liquidation_items - quantity siempre 1 (representa 1 solicitud)
+      // El coste ya viene calculado (horas × tarifa o coste fijo)
       const items = requestsData.map((req) => {
         const editedCost = requests.find(r => r.id === req.id)?.cost || 0;
         return {
           liquidation_id: liquidation.id,
           financial_request_id: req.id,
           description: req.service?.name || req.title,
-          quantity: req.quantity || 1,
+          quantity: 1,
           unit_price: editedCost,
-          total: editedCost * (req.quantity || 1),
+          total: editedCost,
         };
       });
 

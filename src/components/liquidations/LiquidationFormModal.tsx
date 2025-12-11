@@ -971,9 +971,16 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
                             <div>
                               <div className="flex items-center justify-between gap-2">
                                 <span className="font-medium text-sm">{request.code}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {request.service?.name || request.title}
-                                </span>
+                                <div className="text-right">
+                                  <span className="text-xs text-muted-foreground">
+                                    {request.service?.name}
+                                  </span>
+                                  {request.title && (
+                                    <div className="text-xs text-muted-foreground/70">
+                                      {request.title}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                               <div className="text-xs text-muted-foreground">
                                 Cliente: {request.client?.name}

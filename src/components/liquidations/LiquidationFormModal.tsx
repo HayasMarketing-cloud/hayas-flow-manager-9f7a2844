@@ -369,17 +369,12 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       // Recalcular totales
       const { data: allItems, error: itemsError } = await supabase
         .from('liquidation_items')
-        .select('unit_price, financial_request_id, financial_request:financial_requests(cost_to_agency)')
+        .select('total')
         .eq('liquidation_id', liquidation.id);
 
       if (itemsError) throw itemsError;
 
-      const newSubtotal = allItems?.reduce((sum, i: any) => {
-        const cost = i.financial_request_id 
-          ? (Number(i.financial_request?.cost_to_agency) || Number(i.unit_price) || 0)
-          : Number(i.unit_price) || 0;
-        return sum + cost;
-      }, 0) || 0;
+      const newSubtotal = allItems?.reduce((sum, i: any) => sum + (Number(i.total) || 0), 0) || 0;
 
       const { error: updateError } = await supabase
         .from('liquidations')
@@ -435,17 +430,12 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       // Recalcular totales
       const { data: allItems, error: itemsError } = await supabase
         .from('liquidation_items')
-        .select('unit_price, financial_request_id, financial_request:financial_requests(cost_to_agency)')
+        .select('total')
         .eq('liquidation_id', liquidation.id);
 
       if (itemsError) throw itemsError;
 
-      const newSubtotal = allItems?.reduce((sum, i: any) => {
-        const cost = i.financial_request_id 
-          ? (Number(i.financial_request?.cost_to_agency) || Number(i.unit_price) || 0)
-          : Number(i.unit_price) || 0;
-        return sum + cost;
-      }, 0) || 0;
+      const newSubtotal = allItems?.reduce((sum, i: any) => sum + (Number(i.total) || 0), 0) || 0;
 
       const { error: updateError } = await supabase
         .from('liquidations')
@@ -502,17 +492,12 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       // Recalcular totales
       const { data: allItems, error: itemsError } = await supabase
         .from('liquidation_items')
-        .select('unit_price, financial_request_id, financial_request:financial_requests(cost_to_agency)')
+        .select('total')
         .eq('liquidation_id', liquidation.id);
 
       if (itemsError) throw itemsError;
 
-      const newSubtotal = allItems?.reduce((sum, i: any) => {
-        const cost = i.financial_request_id 
-          ? (Number(i.financial_request?.cost_to_agency) || Number(i.unit_price) || 0)
-          : Number(i.unit_price) || 0;
-        return sum + cost;
-      }, 0) || 0;
+      const newSubtotal = allItems?.reduce((sum, i: any) => sum + (Number(i.total) || 0), 0) || 0;
 
       const { error: updateError } = await supabase
         .from('liquidations')

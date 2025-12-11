@@ -508,6 +508,9 @@ export type Database = {
           liquidation_id: string | null
           quantity: number
           sale_amount: number | null
+          sale_hours: number | null
+          sale_rate: number | null
+          sale_type: Database["public"]["Enums"]["price_rule_type"] | null
           service_id: string
           specialist_acceptance: boolean | null
           specialist_id: string | null
@@ -536,6 +539,9 @@ export type Database = {
           liquidation_id?: string | null
           quantity?: number
           sale_amount?: number | null
+          sale_hours?: number | null
+          sale_rate?: number | null
+          sale_type?: Database["public"]["Enums"]["price_rule_type"] | null
           service_id: string
           specialist_acceptance?: boolean | null
           specialist_id?: string | null
@@ -564,6 +570,9 @@ export type Database = {
           liquidation_id?: string | null
           quantity?: number
           sale_amount?: number | null
+          sale_hours?: number | null
+          sale_rate?: number | null
+          sale_type?: Database["public"]["Enums"]["price_rule_type"] | null
           service_id?: string
           specialist_acceptance?: boolean | null
           specialist_id?: string | null

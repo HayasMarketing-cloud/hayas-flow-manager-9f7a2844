@@ -31,7 +31,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Loader2, Clock, Euro, User, FileText } from 'lucide-react';
+import { Loader2, Clock, Euro, User, FileText, ShoppingCart } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 
@@ -46,7 +46,12 @@ const requestSchema = z.object({
   quantity: z.coerce.number().min(0, 'No puede ser negativo'),
   deadline: z.string().optional().nullable(),
   status: z.enum(['draft', 'active', 'invoiced', 'liquidated']),
-  // Cost fields
+  // Sale/Price fields (to client)
+  sale_type: z.enum(['hourly', 'fixed']).default('fixed'),
+  unit_price: z.coerce.number().min(0).optional().nullable(),
+  sale_rate: z.coerce.number().min(0).optional().nullable(),
+  sale_hours: z.coerce.number().min(0).optional().nullable(),
+  // Cost fields (to agency)
   cost_type: z.enum(['hourly', 'fixed']).default('fixed'),
   hours: z.coerce.number().min(0).optional().nullable(),
   cost_rate: z.coerce.number().min(0).optional().nullable(),
@@ -85,6 +90,12 @@ export const RequestFormModal = ({
       quantity: 1,
       deadline: null,
       status: 'draft',
+      // Sale defaults
+      sale_type: 'fixed',
+      unit_price: null,
+      sale_rate: null,
+      sale_hours: null,
+      // Cost defaults
       cost_type: 'fixed',
       hours: null,
       cost_rate: null,
@@ -92,12 +103,24 @@ export const RequestFormModal = ({
     },
   });
 
+  // Watch sale_type for conditional rendering
+  const saleType = useWatch({ control: form.control, name: 'sale_type' });
+  const unitPrice = useWatch({ control: form.control, name: 'unit_price' });
+  const saleRate = useWatch({ control: form.control, name: 'sale_rate' });
+  const saleHours = useWatch({ control: form.control, name: 'sale_hours' });
+  const quantity = useWatch({ control: form.control, name: 'quantity' });
+
   // Watch cost_type to conditionally show fields
   const costType = useWatch({ control: form.control, name: 'cost_type' });
   const hours = useWatch({ control: form.control, name: 'hours' });
   const costRate = useWatch({ control: form.control, name: 'cost_rate' });
   const fixedCost = useWatch({ control: form.control, name: 'fixed_cost' });
   const selectedClientId = useWatch({ control: form.control, name: 'client_id' });
+
+  // Calculate sale amount based on sale_type
+  const calculatedSaleAmount = saleType === 'hourly'
+    ? (saleHours || 0) * (saleRate || 0)
+    : (unitPrice || 0) * (quantity || 1);
 
   // Calculate cost to agency
   const calculatedCost = costType === 'hourly' 
@@ -178,6 +201,11 @@ export const RequestFormModal = ({
 
   const mutation = useMutation({
     mutationFn: async (data: RequestFormData) => {
+      // Calculate sale_amount based on sale_type
+      const sale_amount = data.sale_type === 'hourly'
+        ? (data.sale_hours || 0) * (data.sale_rate || 0)
+        : (data.unit_price || 0) * data.quantity;
+
       // Calculate cost_to_agency based on cost_type
       const cost_to_agency = data.cost_type === 'hourly'
         ? (data.hours || 0) * (data.cost_rate || 0)
@@ -194,6 +222,13 @@ export const RequestFormModal = ({
         quantity: data.quantity,
         deadline: data.deadline || null,
         status: data.status,
+        // Sale fields
+        sale_type: data.sale_type,
+        unit_price: data.sale_type === 'fixed' ? data.unit_price : null,
+        sale_rate: data.sale_type === 'hourly' ? data.sale_rate : null,
+        sale_hours: data.sale_type === 'hourly' ? data.sale_hours : null,
+        sale_amount,
+        // Cost fields
         cost_type: data.cost_type,
         hours: data.cost_type === 'hourly' ? data.hours : null,
         cost_rate: data.cost_type === 'hourly' ? data.cost_rate : null,
@@ -244,6 +279,12 @@ export const RequestFormModal = ({
           quantity: initialData.quantity,
           deadline: initialData.deadline || null,
           status: initialData.status,
+          // Sale fields
+          sale_type: initialData.sale_type || 'fixed',
+          unit_price: initialData.unit_price || null,
+          sale_rate: initialData.sale_rate || null,
+          sale_hours: initialData.sale_hours || null,
+          // Cost fields
           cost_type: initialData.cost_type || 'fixed',
           hours: initialData.hours || null,
           cost_rate: initialData.cost_rate || null,
@@ -261,6 +302,12 @@ export const RequestFormModal = ({
           quantity: 1,
           deadline: null,
           status: 'draft',
+          // Sale defaults
+          sale_type: 'fixed',
+          unit_price: null,
+          sale_rate: null,
+          sale_hours: null,
+          // Cost defaults
           cost_type: 'fixed',
           hours: null,
           cost_rate: null,
@@ -527,6 +574,132 @@ export const RequestFormModal = ({
               )}
             />
 
+            {/* Sale/Price to Client Section */}
+            <Separator />
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium flex items-center gap-2">
+                <ShoppingCart className="h-4 w-4" />
+                Precio al Cliente
+              </h3>
+
+              <FormField
+                control={form.control}
+                name="sale_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de Facturación *</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={isViewMode}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="fixed">Precio Fijo</SelectItem>
+                        <SelectItem value="hourly">Por Horas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {saleType === 'hourly' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-primary/5 rounded-lg border border-primary/10">
+                  <FormField
+                    control={form.control}
+                    name="sale_hours"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          Horas a facturar
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0"
+                            {...field}
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                            disabled={isViewMode}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="sale_rate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tarifa/Hora (€)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            {...field}
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                            disabled={isViewMode}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="md:col-span-2 text-sm text-muted-foreground">
+                    Importe al cliente: <span className="font-semibold text-foreground">{calculatedSaleAmount.toFixed(2)} €</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-primary/5 rounded-lg border border-primary/10">
+                  <FormField
+                    control={form.control}
+                    name="unit_price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Precio Unitario (€)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            {...field}
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                            disabled={isViewMode}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Precio por unidad a facturar al cliente
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {(quantity || 0) > 1 && (
+                    <div className="mt-3 text-sm text-muted-foreground">
+                      Importe total: <span className="font-semibold text-foreground">{calculatedSaleAmount.toFixed(2)} €</span> ({quantity} × {(unitPrice || 0).toFixed(2)} €)
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Quantity and Deadline */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -538,7 +711,7 @@ export const RequestFormModal = ({
                       <Input
                         type="number"
                         step="0.01"
-                        min="0.01"
+                        min="0"
                         {...field}
                         disabled={isViewMode}
                       />

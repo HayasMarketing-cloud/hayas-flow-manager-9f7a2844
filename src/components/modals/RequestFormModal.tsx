@@ -43,7 +43,7 @@ const requestSchema = z.object({
   client_contact_id: z.string().uuid().optional().nullable(),
   title: z.string().min(3, 'Mínimo 3 caracteres').max(255, 'Máximo 255 caracteres'),
   description: z.string().optional().nullable(),
-  quantity: z.coerce.number().min(0.01, 'Mínimo 0.01'),
+  quantity: z.coerce.number().min(0, 'No puede ser negativo'),
   deadline: z.string().optional().nullable(),
   status: z.enum(['draft', 'active', 'invoiced', 'liquidated']),
   // Cost fields

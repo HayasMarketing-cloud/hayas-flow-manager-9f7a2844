@@ -206,7 +206,7 @@ const Solicitudes = () => {
       <AppLayout title="Solicitudes" description="Gestión de solicitudes de servicios">
         <Card>
           <CardContent className="flex items-center justify-center h-64">
-            <p className="text-destructive">Error al cargar solicitudes: {error.message}</p>
+            <p className="text-destructive">Error al cargar solicitudes: {String(error?.message || 'Error desconocido')}</p>
           </CardContent>
         </Card>
       </AppLayout>

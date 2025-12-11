@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
 
     // 4. Insertar requests
     const { data: createdRequests, error: requestsError } = await supabase
-      .from('requests')
+      .from('financial_requests')
       .insert(requests)
       .select();
 

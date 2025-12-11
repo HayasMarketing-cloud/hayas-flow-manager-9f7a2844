@@ -115,6 +115,12 @@ const Solicitudes = () => {
   };
 
   const handleDeleteRequest = async (requestId: string) => {
+    // First, unlink any operational_requests that reference this financial_request
+    await supabase
+      .from('operational_requests')
+      .update({ financial_request_id: null })
+      .eq('financial_request_id', requestId);
+
     const { error } = await supabase
       .from('financial_requests')
       .delete()
@@ -146,6 +152,19 @@ const Solicitudes = () => {
   };
 
   const handleBulkDelete = async () => {
+    // First, unlink any operational_requests that reference these financial_requests
+    const { error: unlinkError } = await supabase
+      .from('operational_requests')
+      .update({ financial_request_id: null })
+      .in('financial_request_id', selectedIds);
+
+    if (unlinkError) {
+      toast.error('Error al desvincular solicitudes operativas');
+      setBulkDeleteConfirmOpen(false);
+      return;
+    }
+
+    // Then delete the financial requests
     const { error } = await supabase
       .from('financial_requests')
       .delete()

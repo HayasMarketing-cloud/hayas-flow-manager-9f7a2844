@@ -38,9 +38,7 @@ export default function Liquidaciones() {
           specialist:specialists(id, name),
           liquidation_items(
             id,
-            unit_price,
-            financial_request_id,
-            financial_request:financial_requests(cost_to_agency)
+            total
           )
         `)
         .order('period_year', { ascending: false })
@@ -66,13 +64,10 @@ export default function Liquidaciones() {
       const { data, error } = await query;
       if (error) throw error;
       
-      // Calcular el total correcto usando cost_to_agency
+      // Calcular el total correcto usando el campo total de liquidation_items
       return data?.map(liquidation => {
         const calculatedTotal = liquidation.liquidation_items?.reduce((sum: number, item: any) => {
-          const cost = item.financial_request_id 
-            ? (Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0)
-            : Number(item.unit_price) || 0;
-          return sum + cost;
+          return sum + (Number(item.total) || 0);
         }, 0) || 0;
         
         return {

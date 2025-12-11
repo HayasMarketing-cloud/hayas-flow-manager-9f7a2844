@@ -31,8 +31,9 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Loader2, Clock, Euro, User } from 'lucide-react';
+import { Loader2, Clock, Euro, User, FileText } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 
 const requestSchema = z.object({
   client_id: z.string().uuid('Selecciona un cliente'),
@@ -227,12 +228,17 @@ export const RequestFormModal = ({
   useEffect(() => {
     if (open) {
       if (initialData) {
+        // Pre-fill contact from budget if no contact is set on the request
+        const contactToUse = initialData.client_contact_id 
+          || initialData.budget?.client_contact_id 
+          || null;
+        
         form.reset({
           client_id: initialData.client_id,
           service_id: initialData.service_id,
           specialist_id: initialData.specialist_id || null,
           contract_id: initialData.contract_id || null,
-          client_contact_id: initialData.client_contact_id || null,
+          client_contact_id: contactToUse,
           title: initialData.title,
           description: initialData.description || null,
           quantity: initialData.quantity,
@@ -370,6 +376,20 @@ export const RequestFormModal = ({
                 )}
               />
             </div>
+
+            {/* Budget Info - Read Only */}
+            {initialData?.budget && (
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Presupuesto vinculado</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{initialData.budget.code}</Badge>
+                  <span className="text-sm">{initialData.budget.title}</span>
+                </div>
+              </div>
+            )}
 
             {/* Contact Selector */}
             <FormField

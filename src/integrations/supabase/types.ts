@@ -109,6 +109,7 @@ export type Database = {
       budgets: {
         Row: {
           accepted_document_url: string | null
+          client_contact_id: string | null
           client_id: string
           code: string
           created_at: string
@@ -123,6 +124,7 @@ export type Database = {
         }
         Insert: {
           accepted_document_url?: string | null
+          client_contact_id?: string | null
           client_id: string
           code?: string
           created_at?: string
@@ -137,6 +139,7 @@ export type Database = {
         }
         Update: {
           accepted_document_url?: string | null
+          client_contact_id?: string | null
           client_id?: string
           code?: string
           created_at?: string
@@ -150,6 +153,13 @@ export type Database = {
           valid_until?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "budgets_client_contact_id_fkey"
+            columns: ["client_contact_id"]
+            isOneToOne: false
+            referencedRelation: "client_contacts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "budgets_client_id_fkey"
             columns: ["client_id"]

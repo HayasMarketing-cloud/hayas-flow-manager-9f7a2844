@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { BudgetItemsEditor } from './BudgetItemsEditor';
 import { calculateBudgetTotal } from '@/lib/budget-utils';
-import { Loader2, FileText } from 'lucide-react';
+import { Loader2, FileText, User } from 'lucide-react';
 import { useApproveBudget } from '@/hooks/useApproveBudget';
 import { ProjectCreationModal } from './ProjectCreationModal';
 
@@ -35,6 +35,7 @@ export const BudgetFormModal = ({
   const [formData, setFormData] = useState({
     title: '',
     client_id: '',
+    client_contact_id: '',
     description: '',
     valid_until: '',
     status: 'pending',
@@ -60,11 +61,29 @@ export const BudgetFormModal = ({
     },
   });
 
+  // Load contacts for selected client
+  const { data: contacts } = useQuery({
+    queryKey: ['contacts-for-budget', formData.client_id],
+    queryFn: async () => {
+      if (!formData.client_id) return [];
+      const { data, error } = await supabase
+        .from('client_contacts')
+        .select('id, name, email, role')
+        .eq('client_id', formData.client_id)
+        .eq('active', true)
+        .order('name');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!formData.client_id,
+  });
+
   useEffect(() => {
     if (budget) {
       setFormData({
         title: budget.title || '',
         client_id: budget.client_id || '',
+        client_contact_id: budget.client_contact_id || '',
         description: budget.description || '',
         valid_until: budget.valid_until || '',
         status: budget.status || 'pending',
@@ -74,6 +93,7 @@ export const BudgetFormModal = ({
       setFormData({
         title: '',
         client_id: '',
+        client_contact_id: '',
         description: '',
         valid_until: '',
         status: 'pending',
@@ -82,6 +102,13 @@ export const BudgetFormModal = ({
       setItems([]);
     }
   }, [budget, isOpen]);
+
+  // Clear contact when client changes
+  useEffect(() => {
+    if (formData.client_id && budget?.client_id && formData.client_id !== budget.client_id) {
+      setFormData(prev => ({ ...prev, client_contact_id: '' }));
+    }
+  }, [formData.client_id, budget?.client_id]);
 
   // Cargar items si está en modo edición/visualización
   const { data: budgetItems } = useQuery({
@@ -300,6 +327,34 @@ export const BudgetFormModal = ({
                   <SelectItem value="rejected">Rechazado</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Contact Selector */}
+            <div className="col-span-2 space-y-2">
+              <Label className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Contacto Solicitante
+              </Label>
+              <Select
+                value={formData.client_contact_id || 'none'}
+                onValueChange={(value) => setFormData({ ...formData, client_contact_id: value === 'none' ? '' : value })}
+                disabled={!canEdit || !formData.client_id}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin especificar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin especificar</SelectItem>
+                  {contacts?.map((contact) => (
+                    <SelectItem key={contact.id} value={contact.id}>
+                      {contact.name} {contact.role ? `(${contact.role})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Persona del cliente que solicita este presupuesto
+              </p>
             </div>
           </div>
 

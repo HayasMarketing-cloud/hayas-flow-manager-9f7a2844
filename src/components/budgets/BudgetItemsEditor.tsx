@@ -84,12 +84,12 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
   const handleServiceSelect = (index: number, serviceId: string) => {
     const service = services?.find((s) => s.id === serviceId);
     if (service) {
-      // Actualizar ambos campos a la vez para evitar problemas de estado
       const updatedItems = [...localItems];
       updatedItems[index] = {
         ...updatedItems[index],
         service_id: serviceId,
-        description: service.name,
+        // Solo pre-rellenar descripción si está vacía
+        description: updatedItems[index].description || service.name,
       };
       setLocalItems(updatedItems);
       onChange(updatedItems);
@@ -114,13 +114,23 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
         </Button>
       </div>
 
+      {/* Header row */}
+      <div className="grid grid-cols-12 gap-2 px-3 py-2 text-sm font-medium text-muted-foreground border-b">
+        <div className="col-span-4">Servicio</div>
+        <div className="col-span-3">Descripción</div>
+        <div className="col-span-1 text-center">Cant.</div>
+        <div className="col-span-2 text-center">Precio Unit.</div>
+        <div className="col-span-1 text-right">Total</div>
+        <div className="col-span-1"></div>
+      </div>
+
       <div className="space-y-3">
         {localItems.map((item, index) => (
           <div
             key={index}
             className="grid grid-cols-12 gap-2 p-3 border rounded-lg bg-card items-center"
           >
-            <div className="col-span-6">
+            <div className="col-span-4">
               <Select
                 value={item.service_id || ''}
                 onValueChange={(value) => handleServiceSelect(index, value)}
@@ -140,13 +150,24 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
               </Select>
             </div>
 
+            <div className="col-span-3">
+              <Input
+                type="text"
+                placeholder="Descripción del servicio..."
+                value={item.description}
+                onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                disabled={disabled || !item.service_id}
+              />
+            </div>
+
             <div className="col-span-1">
               <Input
                 type="number"
-                min="1"
+                min="0"
+                step="0.01"
                 placeholder="Cant."
                 value={item.quantity}
-                onChange={(e) => handleItemChange(index, 'quantity', parseInt(e.target.value) || 1)}
+                onChange={(e) => handleItemChange(index, 'quantity', parseFloat(e.target.value) || 0)}
                 disabled={disabled}
               />
             </div>
@@ -165,7 +186,7 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
               />
             </div>
 
-            <div className="col-span-2 flex items-center justify-end font-semibold">
+            <div className="col-span-1 flex items-center justify-end font-semibold">
               {formatCurrency(item.total)}
             </div>
 

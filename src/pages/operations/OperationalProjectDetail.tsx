@@ -171,7 +171,7 @@ export default function OperationalProjectDetail() {
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 justify-end">
                 {project.client?.hub_client_url && (
                   <Button variant="outline" size="sm" asChild>
                     <a href={project.client.hub_client_url} target="_blank" rel="noopener noreferrer">

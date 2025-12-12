@@ -1,17 +1,34 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Search, Briefcase } from 'lucide-react';
-import { useOperationalProjects } from '@/hooks/useOperationalProjects';
+import { Plus, Search, Briefcase, Edit, Trash2, Eye, MoreVertical } from 'lucide-react';
+import { useOperationalProjects, useDeleteOperationalProject } from '@/hooks/useOperationalProjects';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Badge } from '@/components/ui/badge';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { OperationalProjectFormModal } from '@/components/operations/OperationalProjectFormModal';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const statusColors = {
   pending: 'bg-yellow-500',
@@ -28,18 +45,23 @@ const statusLabels = {
 };
 
 export default function OperationalProjects() {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<any>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<any>(null);
 
   const { data: projects, isLoading } = useOperationalProjects({
     clientId: clientFilter === 'all' ? undefined : clientFilter,
     status: statusFilter === 'all' ? undefined : statusFilter,
     searchTerm: searchTerm || undefined,
   });
+
+  const deleteMutation = useDeleteOperationalProject();
 
   const { data: clients } = useQuery({
     queryKey: ['clients-active'],
@@ -54,6 +76,26 @@ export default function OperationalProjects() {
     },
   });
 
+  // Fetch request counts for all projects
+  const { data: requestCounts } = useQuery({
+    queryKey: ['operational-request-counts', projects?.map(p => p.id)],
+    queryFn: async () => {
+      if (!projects || projects.length === 0) return {};
+      const { data, error } = await supabase
+        .from('operational_requests')
+        .select('id, operational_project_id')
+        .in('operational_project_id', projects.map(p => p.id));
+      if (error) throw error;
+      
+      const counts: Record<string, number> = {};
+      data?.forEach(r => {
+        counts[r.operational_project_id] = (counts[r.operational_project_id] || 0) + 1;
+      });
+      return counts;
+    },
+    enabled: !!projects && projects.length > 0,
+  });
+
   const hasActiveFilters = searchTerm || clientFilter !== 'all' || statusFilter !== 'all';
 
   const handleCreate = () => {
@@ -62,10 +104,29 @@ export default function OperationalProjects() {
     setModalOpen(true);
   };
 
-  const handleEdit = (project: any) => {
+  const handleEdit = (project: any, e: React.MouseEvent) => {
+    e.stopPropagation();
     setSelectedProject(project);
     setModalMode('edit');
     setModalOpen(true);
+  };
+
+  const handleDelete = (project: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setProjectToDelete(project);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (projectToDelete) {
+      await deleteMutation.mutateAsync(projectToDelete.id);
+      setDeleteDialogOpen(false);
+      setProjectToDelete(null);
+    }
+  };
+
+  const handleViewDetail = (projectId: string) => {
+    navigate(`/operaciones/proyectos/${projectId}`);
   };
 
   return (
@@ -155,75 +216,108 @@ export default function OperationalProjects() {
           />
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {projects.map((project) => (
-              <Card 
-                key={project.id} 
-                className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => handleEdit(project)}
-              >
-                <CardContent className="pt-6">
-                  <div className="space-y-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg mb-1">{project.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {project.client?.name}
-                        </p>
+            {projects.map((project) => {
+              const reqCount = requestCounts?.[project.id] || 0;
+              return (
+                <Card 
+                  key={project.id} 
+                  className="hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => handleViewDetail(project.id)}
+                >
+                  <CardContent className="pt-6">
+                    <div className="space-y-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-lg mb-1">{project.name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {project.client?.name}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className={statusColors[project.status as keyof typeof statusColors]}>
+                            {statusLabels[project.status as keyof typeof statusLabels]}
+                          </Badge>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewDetail(project.id); }}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                Ver Detalle
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => handleEdit(project, e)}>
+                                <Edit className="h-4 w-4 mr-2" />
+                                Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={(e) => handleDelete(project, e)}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Eliminar
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
-                      <Badge className={statusColors[project.status as keyof typeof statusColors]}>
-                        {statusLabels[project.status as keyof typeof statusLabels]}
-                      </Badge>
-                    </div>
 
-                    {project.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {project.description}
-                      </p>
-                    )}
+                      {project.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {project.description}
+                        </p>
+                      )}
 
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">
-                        Owner: {project.owner?.full_name || '-'}
-                      </span>
-                      {project.deadline && (
+                      <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">
-                          {new Date(project.deadline).toLocaleDateString('es-ES')}
+                          Owner: {project.owner?.full_name || '-'}
                         </span>
-                      )}
-                    </div>
+                        <Badge variant="outline">
+                          {reqCount} solicitudes
+                        </Badge>
+                      </div>
 
-                    <div className="flex gap-2">
-                      {project.client?.hub_client_url && (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="flex-1" 
-                          asChild
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <a href={project.client.hub_client_url} target="_blank" rel="noopener noreferrer">
-                            HUB Cliente
-                          </a>
-                        </Button>
+                      {project.deadline && (
+                        <div className="text-sm text-muted-foreground">
+                          Deadline: {new Date(project.deadline).toLocaleDateString('es-ES')}
+                        </div>
                       )}
-                      {project.hub_project_url && (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="flex-1" 
-                          asChild
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <a href={project.hub_project_url} target="_blank" rel="noopener noreferrer">
-                            HUB Proyecto
-                          </a>
-                        </Button>
-                      )}
+
+                      <div className="flex gap-2">
+                        {project.client?.hub_client_url && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex-1" 
+                            asChild
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <a href={project.client.hub_client_url} target="_blank" rel="noopener noreferrer">
+                              HUB Cliente
+                            </a>
+                          </Button>
+                        )}
+                        {project.hub_project_url && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex-1" 
+                            asChild
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <a href={project.hub_project_url} target="_blank" rel="noopener noreferrer">
+                              HUB Proyecto
+                            </a>
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
@@ -234,6 +328,27 @@ export default function OperationalProjects() {
         initialData={selectedProject}
         mode={modalMode}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar proyecto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción eliminará el proyecto "{projectToDelete?.name}" y no se puede deshacer.
+              Las solicitudes operativas asociadas también serán eliminadas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

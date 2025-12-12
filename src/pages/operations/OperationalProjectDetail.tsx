@@ -6,11 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, ExternalLink, Edit2, Calendar, User, Briefcase } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { ArrowLeft, ExternalLink, Edit2, Calendar, User, Briefcase, MoreHorizontal, Trash2 } from 'lucide-react';
 import { useOperationalProject } from '@/hooks/useOperationalProjects';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { OperationalProjectFormModal } from '@/components/operations/OperationalProjectFormModal';
+import { OperationalRequestFormModal } from '@/components/operations/OperationalRequestFormModal';
+import { toast } from 'sonner';
 
 const statusColors = {
   pending: 'bg-yellow-500',
@@ -29,9 +36,26 @@ const statusLabels = {
 export default function OperationalProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editRequestId, setEditRequestId] = useState<string | null>(null);
+  const [deleteRequestId, setDeleteRequestId] = useState<string | null>(null);
 
   const { data: project, isLoading } = useOperationalProject(id || null);
+
+  // Fetch specialists list
+  const { data: specialists = [] } = useQuery({
+    queryKey: ['specialists-active-list'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('specialists')
+        .select('id, name')
+        .eq('active', true)
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+  });
 
   // Fetch operational requests for this project
   const { data: operationalRequests, isLoading: loadingRequests } = useQuery({
@@ -78,6 +102,44 @@ export default function OperationalProjectDetail() {
       return counts;
     },
     enabled: !!operationalRequests && operationalRequests.length > 0,
+  });
+
+  // Inline update mutation
+  const updateRequestMutation = useMutation({
+    mutationFn: async ({ requestId, field, value }: { requestId: string; field: string; value: string | null }) => {
+      const { error } = await supabase
+        .from('operational_requests')
+        .update({ [field]: value })
+        .eq('id', requestId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project-operational-requests', id] });
+      toast.success('Solicitud actualizada');
+    },
+    onError: (error: any) => {
+      toast.error(`Error: ${error.message}`);
+    },
+  });
+
+  // Delete mutation
+  const deleteRequestMutation = useMutation({
+    mutationFn: async (requestId: string) => {
+      const { error } = await supabase
+        .from('operational_requests')
+        .delete()
+        .eq('id', requestId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project-operational-requests', id] });
+      queryClient.invalidateQueries({ queryKey: ['operational-projects'] });
+      toast.success('Solicitud eliminada');
+      setDeleteRequestId(null);
+    },
+    onError: (error: any) => {
+      toast.error(`Error: ${error.message}`);
+    },
   });
 
   if (isLoading) {
@@ -223,55 +285,127 @@ export default function OperationalProjectDetail() {
                     No hay solicitudes operativas en este proyecto
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {operationalRequests.map((request) => {
-                      const reqStatus = request.status as keyof typeof statusColors;
-                      const milestoneInfo = milestoneCounts?.[request.id];
-                      return (
-                        <div 
-                          key={request.id}
-                          className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h4 className="font-medium">{request.name}</h4>
-                                <Badge variant="outline" className={statusColors[reqStatus]}>
-                                  {statusLabels[reqStatus]}
-                                </Badge>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[40%]">Información</TableHead>
+                        <TableHead>Especialista</TableHead>
+                        <TableHead>Deadline</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead className="w-12"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {operationalRequests.map((request) => {
+                        const milestoneInfo = milestoneCounts?.[request.id];
+                        return (
+                          <TableRow key={request.id}>
+                            {/* Información */}
+                            <TableCell>
+                              <div className="space-y-1">
+                                <div className="font-medium">{request.name}</div>
+                                {request.description && (
+                                  <p className="text-sm text-muted-foreground line-clamp-2">
+                                    {request.description}
+                                  </p>
+                                )}
+                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                  {request.financial_request?.code && (
+                                    <span>Solicitud: {request.financial_request.code}</span>
+                                  )}
+                                  {milestoneInfo && (
+                                    <span>Milestones: {milestoneInfo.completed}/{milestoneInfo.total}</span>
+                                  )}
+                                </div>
                               </div>
-                              {request.description && (
-                                <p className="text-sm text-muted-foreground mb-2">
-                                  {request.description}
-                                </p>
-                              )}
-                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                {request.financial_request?.code && (
-                                  <span>Solicitud: {request.financial_request.code}</span>
-                                )}
-                                {request.assignee_user?.full_name && (
-                                  <span>Asignado: {request.assignee_user.full_name}</span>
-                                )}
-                                {request.assignee_specialist?.name && (
-                                  <span>Especialista: {request.assignee_specialist.name}</span>
-                                )}
-                                {request.deadline && (
-                                  <span>Deadline: {new Date(request.deadline).toLocaleDateString('es-ES')}</span>
-                                )}
-                              </div>
-                            </div>
-                            {milestoneInfo && (
-                              <div className="text-right">
-                                <span className="text-sm text-muted-foreground">
-                                  Milestones: {milestoneInfo.completed}/{milestoneInfo.total}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                            </TableCell>
+
+                            {/* Especialista - Editable */}
+                            <TableCell>
+                              <Select
+                                value={request.assignee_specialist_id || 'none'}
+                                onValueChange={(value) => updateRequestMutation.mutate({
+                                  requestId: request.id,
+                                  field: 'assignee_specialist_id',
+                                  value: value === 'none' ? null : value
+                                })}
+                              >
+                                <SelectTrigger className="w-[160px]">
+                                  <SelectValue placeholder="Sin asignar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">Sin asignar</SelectItem>
+                                  {specialists.map((s) => (
+                                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+
+                            {/* Deadline - Editable */}
+                            <TableCell>
+                              <Input
+                                type="date"
+                                value={request.deadline || ''}
+                                onChange={(e) => updateRequestMutation.mutate({
+                                  requestId: request.id,
+                                  field: 'deadline',
+                                  value: e.target.value || null
+                                })}
+                                className="w-[140px]"
+                              />
+                            </TableCell>
+
+                            {/* Estado - Editable */}
+                            <TableCell>
+                              <Select
+                                value={request.status || 'pending'}
+                                onValueChange={(value) => updateRequestMutation.mutate({
+                                  requestId: request.id,
+                                  field: 'status',
+                                  value
+                                })}
+                              >
+                                <SelectTrigger className="w-[140px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="pending">Pendiente</SelectItem>
+                                  <SelectItem value="in_progress">En Progreso</SelectItem>
+                                  <SelectItem value="in_review">En Revisión</SelectItem>
+                                  <SelectItem value="completed">Completado</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+
+                            {/* Acciones */}
+                            <TableCell>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => setEditRequestId(request.id)}>
+                                    <Edit2 className="h-4 w-4 mr-2" />
+                                    Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    onClick={() => setDeleteRequestId(request.id)}
+                                    className="text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Eliminar
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
                 )}
               </CardContent>
             </Card>
@@ -279,12 +413,43 @@ export default function OperationalProjectDetail() {
         </Tabs>
       </div>
 
+      {/* Modal edición proyecto */}
       <OperationalProjectFormModal
         open={editModalOpen}
         onOpenChange={setEditModalOpen}
         initialData={project}
         mode="edit"
       />
+
+      {/* Modal edición solicitud */}
+      <OperationalRequestFormModal
+        open={!!editRequestId}
+        onOpenChange={(open) => !open && setEditRequestId(null)}
+        requestId={editRequestId}
+        projectId={id}
+        mode="edit"
+      />
+
+      {/* Confirmación eliminación */}
+      <AlertDialog open={!!deleteRequestId} onOpenChange={(open) => !open && setDeleteRequestId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar solicitud operativa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminarán también los milestones y tareas asociados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => deleteRequestId && deleteRequestMutation.mutate(deleteRequestId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

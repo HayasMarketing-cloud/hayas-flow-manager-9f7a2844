@@ -296,6 +296,67 @@ export default function PresupuestoDetalle() {
     }
   });
 
+  // Mutación para regenerar solicitudes operativas (sincroniza con financial_requests actuales)
+  const regenerateOperationalRequestsMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      if (!data?.budget || !data?.requests || data.requests.length === 0) {
+        throw new Error('No hay solicitudes financieras para sincronizar');
+      }
+
+      // Verificar si las operational_requests tienen milestones asociados
+      const { data: existingOpRequests } = await supabase
+        .from('operational_requests')
+        .select('id')
+        .eq('operational_project_id', projectId);
+
+      if (existingOpRequests && existingOpRequests.length > 0) {
+        const opRequestIds = existingOpRequests.map(r => r.id);
+        const { data: milestonesWithTasks } = await supabase
+          .from('milestones')
+          .select('id')
+          .in('operational_request_id', opRequestIds);
+
+        if (milestonesWithTasks && milestonesWithTasks.length > 0) {
+          throw new Error(`Hay ${milestonesWithTasks.length} milestone(s) asociados. Elimínalos primero para poder regenerar.`);
+        }
+      }
+
+      // Eliminar operational_requests existentes
+      const { error: deleteError } = await supabase
+        .from('operational_requests')
+        .delete()
+        .eq('operational_project_id', projectId);
+
+      if (deleteError) throw deleteError;
+
+      // Crear nuevas operational_requests basadas en financial_requests actuales
+      const opRequestsToInsert = data.requests.map((fr: any) => ({
+        operational_project_id: projectId,
+        client_id: fr.client_id,
+        financial_request_id: fr.id,
+        name: fr.title,
+        description: fr.description || null,
+        status: 'pending' as const,
+        created_by: user?.id,
+      }));
+
+      const { error: insertError } = await supabase
+        .from('operational_requests')
+        .insert(opRequestsToInsert);
+
+      if (insertError) throw insertError;
+      return opRequestsToInsert.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ['budget-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['operational-projects'] });
+      toast.success(`${count} solicitud(es) operativa(s) regenerada(s)`);
+    },
+    onError: (error: any) => {
+      toast.error('Error: ' + error.message);
+    }
+  });
+
   // Estados para edición inline de Resumen
   const [isEditingResumen, setIsEditingResumen] = useState(false);
   const [resumenFormData, setResumenFormData] = useState({
@@ -1334,17 +1395,53 @@ export default function PresupuestoDetalle() {
                 <Card key={project.id}>
                   <CardHeader>
                     <div className="flex items-center justify-between">
-                      <CardTitle>{project.name}</CardTitle>
-                      <Badge>{project.status}</Badge>
+                      <div className="flex items-center gap-3">
+                        <CardTitle>{project.name}</CardTitle>
+                        <Badge>{project.status}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => regenerateOperationalRequestsMutation.mutate(project.id)}
+                          disabled={regenerateOperationalRequestsMutation.isPending || requests.length === 0}
+                        >
+                          {regenerateOperationalRequestsMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                          )}
+                          Regenerar Solicitudes Operativas
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/operaciones/proyectos/${project.id}`)}
+                        >
+                          Ver Proyecto
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
                     {project.description && (
                       <p className="text-sm text-muted-foreground mb-4">{project.description}</p>
                     )}
+                    {requests.length === 0 && (
+                      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800">
+                        <strong>Nota:</strong> No hay solicitudes financieras generadas. Regenera primero las solicitudes financieras en la pestaña "Detalle Económico" antes de sincronizar las operativas.
+                      </div>
+                    )}
                     {project.operational_requests && project.operational_requests.length > 0 && (
                       <div>
-                        <h4 className="font-semibold mb-3">Solicitudes Operativas</h4>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold">Solicitudes Operativas ({project.operational_requests.length})</h4>
+                          {project.operational_requests.length !== requests.length && requests.length > 0 && (
+                            <span className="text-sm text-amber-600">
+                              ⚠️ Desincronizado: {project.operational_requests.length} operativas vs {requests.length} financieras
+                            </span>
+                          )}
+                        </div>
                         <Table>
                           <TableHeader>
                             <TableRow>

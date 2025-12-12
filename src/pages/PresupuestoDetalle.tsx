@@ -202,6 +202,7 @@ export default function PresupuestoDetalle() {
         description: `Generado desde presupuesto: ${data.budget.title}`,
         client_id: data.budget.client_id,
         service_id: item.service_id,
+        specialist_id: item.specialist_id || null,
         budget_id: data.budget.id,
         quantity: item.quantity,
         unit_price: item.unit_price || 0,

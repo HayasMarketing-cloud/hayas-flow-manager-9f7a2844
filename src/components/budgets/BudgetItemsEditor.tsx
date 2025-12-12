@@ -10,6 +10,7 @@ import { calculateItemTotal, formatCurrency } from '@/lib/budget-utils';
 interface BudgetItem {
   id?: string;
   service_id?: string;
+  specialist_id?: string;
   description: string;
   quantity: number;
   unit_price: number;
@@ -32,6 +33,20 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
       const { data, error } = await supabase
         .from('services')
         .select('id, name, category')
+        .eq('active', true)
+        .order('name');
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: specialists } = useQuery({
+    queryKey: ['specialists'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('specialists')
+        .select('id, name, type')
         .eq('active', true)
         .order('name');
       
@@ -205,7 +220,28 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
               />
             )}
 
-            {/* Tercera línea: Notas internas (solo visible cuando hay servicio) */}
+            {/* Tercera línea: Especialista (solo visible cuando hay servicio) */}
+            {item.service_id && (
+              <Select
+                value={item.specialist_id || ''}
+                onValueChange={(value) => handleItemChange(index, 'specialist_id', value)}
+                disabled={disabled}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona un especialista (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {specialists?.map((specialist) => (
+                    <SelectItem key={specialist.id} value={specialist.id}>
+                      {specialist.name}
+                      {specialist.type ? ` · ${specialist.type}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Cuarta línea: Notas internas (solo visible cuando hay servicio) */}
             {item.service_id && (
               <Input
                 type="text"

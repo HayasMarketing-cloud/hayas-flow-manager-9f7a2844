@@ -372,9 +372,9 @@ export const BudgetFormModal = ({
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="accepted_document_url">Enlace al documento aceptado</Label>
+          <div className="space-y-2">
+            <Label htmlFor="accepted_document_url">Enlace a Project HUB</Label>
+            <div className="flex items-center gap-2">
               <Input
                 id="accepted_document_url"
                 type="url"
@@ -382,10 +382,18 @@ export const BudgetFormModal = ({
                 value={formData.accepted_document_url}
                 onChange={(e) => setFormData({ ...formData, accepted_document_url: e.target.value })}
                 disabled={!canEdit}
+                className="flex-1"
               />
-              <p className="text-xs text-muted-foreground">
-                Enlace al PDF o documento de presupuesto firmado/aceptado por el cliente.
-              </p>
+              {formData.accepted_document_url && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(formData.accepted_document_url, '_blank')}
+                >
+                  Abrir HUB
+                </Button>
+              )}
             </div>
           </div>
 

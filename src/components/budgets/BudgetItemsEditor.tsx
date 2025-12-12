@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Copy } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateItemTotal, formatCurrency } from '@/lib/budget-utils';
@@ -73,6 +73,21 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
 
   const handleRemoveItem = (index: number) => {
     const updatedItems = localItems.filter((_, i) => i !== index);
+    setLocalItems(updatedItems);
+    onChange(updatedItems);
+  };
+
+  const handleDuplicateItem = (index: number) => {
+    const itemToDuplicate = localItems[index];
+    const duplicatedItem: BudgetItem = {
+      ...itemToDuplicate,
+      id: undefined, // Remove id so it creates a new record
+    };
+    const updatedItems = [
+      ...localItems.slice(0, index + 1),
+      duplicatedItem,
+      ...localItems.slice(index + 1),
+    ];
     setLocalItems(updatedItems);
     onChange(updatedItems);
   };
@@ -196,13 +211,24 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
                 {formatCurrency(item.total)}
               </div>
 
-              <div className="col-span-1 flex items-center justify-end">
+              <div className="col-span-1 flex items-center justify-end gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDuplicateItem(index)}
+                  disabled={disabled}
+                  title="Duplicar línea"
+                >
+                  <Copy className="h-4 w-4 text-muted-foreground" />
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => handleRemoveItem(index)}
                   disabled={disabled}
+                  title="Eliminar línea"
                 >
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>

@@ -285,11 +285,68 @@ export default function PresupuestoDetalle() {
       if (error) throw error;
       return requestsToInsert.length;
     },
-    onSuccess: (count) => {
+    onSuccess: async (count) => {
       queryClient.invalidateQueries({ queryKey: ['budget-requests', id] });
       queryClient.invalidateQueries({ queryKey: ['budget-detail', id] });
       queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
       toast.success(`${count} solicitud(es) financiera(s) regenerada(s) con vinculación correcta`);
+
+      // Auto-regenerar operational_requests si existe proyecto operativo
+      if (data?.budget) {
+        const { data: opProject } = await supabase
+          .from('operational_projects')
+          .select('id')
+          .eq('budget_id', data.budget.id)
+          .maybeSingle();
+
+        if (opProject) {
+          // Verificar si hay operational_requests con milestones
+          const { data: opRequests } = await supabase
+            .from('operational_requests')
+            .select('id')
+            .eq('operational_project_id', opProject.id);
+
+          if (opRequests && opRequests.length > 0) {
+            const { data: milestones } = await supabase
+              .from('milestones')
+              .select('id')
+              .in('operational_request_id', opRequests.map(r => r.id));
+
+            if (milestones && milestones.length > 0) {
+              toast.warning('Las solicitudes operativas tienen milestones. Usa "Regenerar Solicitudes Operativas" en la pestaña Operación.', { duration: 6000 });
+            } else {
+              // Regenerar automáticamente - necesitamos refetch de financial_requests
+              const { data: newFinancialRequests } = await supabase
+                .from('financial_requests')
+                .select('id, title, description, client_id')
+                .eq('budget_id', data.budget.id);
+
+              if (newFinancialRequests && newFinancialRequests.length > 0) {
+                // Eliminar operational_requests existentes
+                await supabase
+                  .from('operational_requests')
+                  .delete()
+                  .eq('operational_project_id', opProject.id);
+
+                // Crear nuevas operational_requests
+                const opRequestsToInsert = newFinancialRequests.map((fr) => ({
+                  operational_project_id: opProject.id,
+                  client_id: fr.client_id,
+                  financial_request_id: fr.id,
+                  name: fr.title,
+                  description: fr.description || null,
+                  status: 'pending' as const,
+                  created_by: user?.id,
+                }));
+
+                await supabase.from('operational_requests').insert(opRequestsToInsert);
+                queryClient.invalidateQueries({ queryKey: ['operational-projects'] });
+                toast.success(`${opRequestsToInsert.length} solicitud(es) operativa(s) sincronizadas automáticamente`);
+              }
+            }
+          }
+        }
+      }
     },
     onError: (error: any) => {
       toast.error('Error: ' + error.message);
@@ -752,6 +809,34 @@ export default function PresupuestoDetalle() {
         }
         if (syncCount > 0) {
           queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
+        }
+      }
+
+      // Sincronizar operational_requests vinculadas a las financial_requests
+      if (linkedRequests && linkedRequests.length > 0) {
+        const { data: linkedOpRequests } = await supabase
+          .from('operational_requests')
+          .select('id, financial_request_id')
+          .in('financial_request_id', linkedRequests.map(r => r.id));
+
+        if (linkedOpRequests && linkedOpRequests.length > 0) {
+          let opSyncCount = 0;
+          for (const opReq of linkedOpRequests) {
+            const financialReq = linkedRequests.find(r => r.id === opReq.financial_request_id);
+            const budgetItem = financialReq ? itemsToUpdate.find((item) => item.id === financialReq.budget_item_id) : null;
+            if (budgetItem) {
+              await supabase
+                .from('operational_requests')
+                .update({
+                  name: budgetItem.description,
+                })
+                .eq('id', opReq.id);
+              opSyncCount++;
+            }
+          }
+          if (opSyncCount > 0) {
+            queryClient.invalidateQueries({ queryKey: ['operational-projects'] });
+          }
         }
       }
 

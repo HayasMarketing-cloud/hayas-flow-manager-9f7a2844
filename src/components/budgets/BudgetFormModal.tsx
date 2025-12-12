@@ -157,6 +157,7 @@ export const BudgetFormModal = ({
           const itemsToInsert = items.map((item) => ({
             budget_id: budget.id,
             service_id: item.service_id,
+            specialist_id: item.specialist_id || null,
             description: item.description,
             quantity: item.quantity,
             unit_price: item.unit_price,
@@ -197,6 +198,7 @@ export const BudgetFormModal = ({
           const itemsToInsert = items.map((item) => ({
             budget_id: newBudget.id,
             service_id: item.service_id,
+            specialist_id: item.specialist_id || null,
             description: item.description,
             quantity: item.quantity,
             unit_price: item.unit_price,

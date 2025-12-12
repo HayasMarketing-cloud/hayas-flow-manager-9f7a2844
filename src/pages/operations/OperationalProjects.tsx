@@ -29,6 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import GoogleDriveIcon from '@/assets/icons8-google-drive.svg';
 
 const statusColors = {
   pending: 'bg-yellow-500',
@@ -285,12 +286,11 @@ export default function OperationalProjects() {
                         </div>
                       )}
 
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         {project.client?.hub_client_url && (
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            className="flex-1" 
                             asChild
                             onClick={(e) => e.stopPropagation()}
                           >
@@ -303,13 +303,25 @@ export default function OperationalProjects() {
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            className="flex-1" 
                             asChild
                             onClick={(e) => e.stopPropagation()}
                           >
                             <a href={project.hub_project_url} target="_blank" rel="noopener noreferrer">
                               HUB Proyecto
                             </a>
+                          </Button>
+                        )}
+                        {project.drive_folder_url && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(project.drive_folder_url, '_blank');
+                            }}
+                          >
+                            <img src={GoogleDriveIcon} alt="Drive" className="h-4 w-4 mr-2" />
+                            Project DRIVE
                           </Button>
                         )}
                       </div>

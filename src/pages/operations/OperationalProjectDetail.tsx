@@ -18,6 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { OperationalProjectFormModal } from '@/components/operations/OperationalProjectFormModal';
 import { OperationalRequestFormModal } from '@/components/operations/OperationalRequestFormModal';
 import { toast } from 'sonner';
+import GoogleDriveIcon from '@/assets/icons8-google-drive.svg';
 
 const statusColors = {
   pending: 'bg-yellow-500',
@@ -233,7 +234,7 @@ export default function OperationalProjectDetail() {
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2 justify-end">
+              <div className="flex flex-wrap gap-2 justify-end">
                 {project.client?.hub_client_url && (
                   <Button variant="outline" size="sm" asChild>
                     <a href={project.client.hub_client_url} target="_blank" rel="noopener noreferrer">
@@ -248,6 +249,16 @@ export default function OperationalProjectDetail() {
                       <ExternalLink className="h-4 w-4 mr-2" />
                       HUB Proyecto
                     </a>
+                  </Button>
+                )}
+                {project.drive_folder_url && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => window.open(project.drive_folder_url, '_blank')}
+                  >
+                    <img src={GoogleDriveIcon} alt="Drive" className="h-4 w-4 mr-2" />
+                    Project DRIVE
                   </Button>
                 )}
               </div>

@@ -501,6 +501,7 @@ export type Database = {
         Row: {
           billed_invoice_id: string | null
           budget_id: string | null
+          budget_item_id: string | null
           client_contact_id: string | null
           client_id: string
           code: string
@@ -532,6 +533,7 @@ export type Database = {
         Insert: {
           billed_invoice_id?: string | null
           budget_id?: string | null
+          budget_item_id?: string | null
           client_contact_id?: string | null
           client_id: string
           code: string
@@ -563,6 +565,7 @@ export type Database = {
         Update: {
           billed_invoice_id?: string | null
           budget_id?: string | null
+          budget_item_id?: string | null
           client_contact_id?: string | null
           client_id?: string
           code?: string
@@ -592,6 +595,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "financial_requests_budget_item_id_fkey"
+            columns: ["budget_item_id"]
+            isOneToOne: false
+            referencedRelation: "budget_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "financial_requests_client_contact_id_fkey"
             columns: ["client_contact_id"]

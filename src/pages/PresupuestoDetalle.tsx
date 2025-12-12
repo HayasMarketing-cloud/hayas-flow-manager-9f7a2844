@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, ListPlus, Trash2, CloudOff, Cloud } from 'lucide-react';
+import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, ListPlus, Trash2, CloudOff, Cloud, RefreshCw } from 'lucide-react';
 import { useBudgetDetail } from '@/hooks/useBudgetDetail';
 import { BudgetStatusBadge } from '@/components/budgets/BudgetStatusBadge';
 import { BudgetItemsEditor } from '@/components/budgets/BudgetItemsEditor';
@@ -204,6 +204,7 @@ export default function PresupuestoDetalle() {
         service_id: item.service_id,
         specialist_id: item.specialist_id || null,
         budget_id: data.budget.id,
+        budget_item_id: item.id, // Vincular con budget_item
         quantity: item.quantity,
         unit_price: item.unit_price || 0,
         sale_amount: item.total || 0,
@@ -224,6 +225,71 @@ export default function PresupuestoDetalle() {
       queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
       toast.success(`${count} solicitud(es) financiera(s) creada(s)`);
       setShowProjectModal(true);
+    },
+    onError: (error: any) => {
+      toast.error('Error: ' + error.message);
+    }
+  });
+
+  // Mutación para regenerar solicitudes (elimina las existentes y crea nuevas vinculadas)
+  const regenerateRequestsMutation = useMutation({
+    mutationFn: async () => {
+      if (!data?.budget || !data?.items || data.items.length === 0) {
+        throw new Error('No hay items en el presupuesto');
+      }
+
+      const itemsWithoutService = data.items.filter((item: any) => !item.service_id);
+      if (itemsWithoutService.length > 0) {
+        throw new Error('Hay líneas sin servicio asignado');
+      }
+
+      // Verificar que no haya solicitudes con factura o liquidación
+      const { data: requestsWithAssociations } = await supabase
+        .from('financial_requests')
+        .select('id, billed_invoice_id, liquidation_id')
+        .eq('budget_id', data.budget.id)
+        .or('billed_invoice_id.not.is.null,liquidation_id.not.is.null');
+
+      if (requestsWithAssociations && requestsWithAssociations.length > 0) {
+        throw new Error('No se pueden regenerar: hay solicitudes con factura o liquidación asociada');
+      }
+
+      // Eliminar solicitudes existentes
+      const { error: deleteError } = await supabase
+        .from('financial_requests')
+        .delete()
+        .eq('budget_id', data.budget.id);
+
+      if (deleteError) throw deleteError;
+
+      // Crear nuevas solicitudes vinculadas
+      const requestsToInsert = data.items.map((item: any) => ({
+        title: item.description,
+        description: `Generado desde presupuesto: ${data.budget.title}`,
+        client_id: data.budget.client_id,
+        service_id: item.service_id,
+        specialist_id: item.specialist_id || null,
+        budget_id: data.budget.id,
+        budget_item_id: item.id,
+        quantity: item.quantity,
+        unit_price: item.unit_price || 0,
+        sale_amount: item.total || 0,
+        status: 'active' as const,
+        code: '',
+      }));
+
+      const { error } = await supabase
+        .from('financial_requests')
+        .insert(requestsToInsert);
+
+      if (error) throw error;
+      return requestsToInsert.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ['budget-requests', id] });
+      queryClient.invalidateQueries({ queryKey: ['budget-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
+      toast.success(`${count} solicitud(es) financiera(s) regenerada(s) con vinculación correcta`);
     },
     onError: (error: any) => {
       toast.error('Error: ' + error.message);
@@ -534,26 +600,60 @@ export default function PresupuestoDetalle() {
     const newTotal = calculateBudgetTotal(economicItems);
 
     try {
-      // Eliminar items antiguos
-      await supabase.from('budget_items').delete().eq('budget_id', data.budget.id);
+      // Obtener IDs de items existentes para mantener vinculación
+      const existingItemIds = data.items.map((item: any) => item.id);
+      
+      // Separar items existentes (para actualizar) y nuevos (para insertar)
+      const itemsToUpdate = economicItems.filter((item) => item.id && existingItemIds.includes(item.id));
+      const itemsToInsert = economicItems.filter((item) => !item.id || !existingItemIds.includes(item.id));
+      const itemIdsToKeep = itemsToUpdate.map((item) => item.id);
+      
+      // Eliminar items que ya no existen
+      const itemsToDelete = existingItemIds.filter((id: string) => !itemIdsToKeep.includes(id));
+      if (itemsToDelete.length > 0) {
+        // Desvincular solicitudes de items eliminados
+        await supabase
+          .from('financial_requests')
+          .update({ budget_item_id: null })
+          .in('budget_item_id', itemsToDelete);
+          
+        await supabase
+          .from('budget_items')
+          .delete()
+          .in('id', itemsToDelete);
+      }
 
-      // Insertar nuevos items con specialist_id
-      const itemsToInsert = economicItems.map((item) => ({
-        budget_id: data.budget.id,
-        service_id: item.service_id,
-        specialist_id: item.specialist_id || null,
-        description: item.description,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        total: item.total,
-        notes: item.notes || null,
-      }));
+      // Actualizar items existentes
+      for (const item of itemsToUpdate) {
+        await supabase
+          .from('budget_items')
+          .update({
+            service_id: item.service_id,
+            specialist_id: item.specialist_id || null,
+            description: item.description,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total: item.total,
+            notes: item.notes || null,
+          })
+          .eq('id', item.id);
+      }
 
-      const { error: itemsError } = await supabase
-        .from('budget_items')
-        .insert(itemsToInsert);
+      // Insertar nuevos items
+      if (itemsToInsert.length > 0) {
+        const newItems = itemsToInsert.map((item) => ({
+          budget_id: data.budget.id,
+          service_id: item.service_id,
+          specialist_id: item.specialist_id || null,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total: item.total,
+          notes: item.notes || null,
+        }));
 
-      if (itemsError) throw itemsError;
+        await supabase.from('budget_items').insert(newItems);
+      }
 
       // Actualizar total_amount en budget
       const { error: budgetError } = await supabase
@@ -562,6 +662,37 @@ export default function PresupuestoDetalle() {
         .eq('id', data.budget.id);
 
       if (budgetError) throw budgetError;
+
+      // Sincronizar solicitudes financieras vinculadas
+      const { data: linkedRequests } = await supabase
+        .from('financial_requests')
+        .select('id, budget_item_id')
+        .eq('budget_id', data.budget.id)
+        .not('budget_item_id', 'is', null);
+
+      if (linkedRequests && linkedRequests.length > 0) {
+        let syncCount = 0;
+        for (const request of linkedRequests) {
+          const budgetItem = itemsToUpdate.find((item) => item.id === request.budget_item_id);
+          if (budgetItem) {
+            await supabase
+              .from('financial_requests')
+              .update({
+                title: budgetItem.description,
+                service_id: budgetItem.service_id,
+                specialist_id: budgetItem.specialist_id || null,
+                quantity: budgetItem.quantity,
+                unit_price: budgetItem.unit_price,
+                sale_amount: budgetItem.total,
+              })
+              .eq('id', request.id);
+            syncCount++;
+          }
+        }
+        if (syncCount > 0) {
+          queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
+        }
+      }
 
       // Registrar en activity_log
       await supabase.from('activity_log').insert({
@@ -729,6 +860,18 @@ export default function PresupuestoDetalle() {
                 {generateRequestsMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 <ListPlus className="h-4 w-4 mr-2" />
                 Generar Solicitudes y Proyecto
+              </Button>
+            )}
+            {budget.status === 'approved' && hasFinancialRequests && requests.some((r: any) => !r.budget_item_id) && (
+              <Button 
+                onClick={() => regenerateRequestsMutation.mutate()}
+                disabled={regenerateRequestsMutation.isPending}
+                variant="outline"
+                className="border-amber-500 text-amber-600 hover:bg-amber-50"
+              >
+                {regenerateRequestsMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Regenerar Solicitudes
               </Button>
             )}
             <Button

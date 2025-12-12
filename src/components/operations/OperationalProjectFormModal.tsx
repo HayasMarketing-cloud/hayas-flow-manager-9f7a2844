@@ -43,6 +43,7 @@ const projectSchema = z.object({
   status: z.enum(['pending', 'in_progress', 'in_review', 'completed']),
   description: z.string().optional().nullable(),
   hub_project_url: z.string().url('URL inválida').optional().nullable().or(z.literal('')),
+  drive_folder_url: z.string().url('URL inválida').optional().nullable().or(z.literal('')),
 });
 
 type ProjectFormData = z.infer<typeof projectSchema>;
@@ -77,6 +78,7 @@ export const OperationalProjectFormModal = ({
       status: 'pending',
       description: null,
       hub_project_url: null,
+      drive_folder_url: null,
     },
   });
 
@@ -143,6 +145,7 @@ export const OperationalProjectFormModal = ({
         status: initialData.status,
         description: initialData.description || null,
         hub_project_url: initialData.hub_project_url || null,
+        drive_folder_url: initialData.drive_folder_url || null,
       });
     } else {
       form.reset({
@@ -155,6 +158,7 @@ export const OperationalProjectFormModal = ({
         status: 'pending',
         description: null,
         hub_project_url: null,
+        drive_folder_url: null,
       });
     }
   }, [initialData, user?.id, form]);
@@ -178,6 +182,7 @@ export const OperationalProjectFormModal = ({
       deadline: data.deadline || null,
       description: data.description || null,
       hub_project_url: data.hub_project_url || null,
+      drive_folder_url: data.drive_folder_url || null,
       created_by: user?.id,
     };
 
@@ -428,6 +433,26 @@ export const OperationalProjectFormModal = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>URL HUB Proyecto</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="url"
+                      placeholder="https://..."
+                      {...field}
+                      value={field.value || ''}
+                      disabled={isViewMode}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="drive_folder_url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Project DRIVE</FormLabel>
                   <FormControl>
                     <Input
                       type="url"

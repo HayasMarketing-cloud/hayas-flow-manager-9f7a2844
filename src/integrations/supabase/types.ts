@@ -259,6 +259,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string
+          drive_folder_url: string | null
           email: string | null
           expected_payment_day: number | null
           hub_client_url: string | null
@@ -280,6 +281,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           created_by: string
+          drive_folder_url?: string | null
           email?: string | null
           expected_payment_day?: number | null
           hub_client_url?: string | null
@@ -301,6 +303,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           created_by?: string
+          drive_folder_url?: string | null
           email?: string | null
           expected_payment_day?: number | null
           hub_client_url?: string | null
@@ -977,6 +980,7 @@ export type Database = {
           created_by: string
           deadline: string | null
           description: string | null
+          drive_folder_url: string | null
           hub_client_url: string | null
           hub_project_url: string | null
           id: string
@@ -993,6 +997,7 @@ export type Database = {
           created_by: string
           deadline?: string | null
           description?: string | null
+          drive_folder_url?: string | null
           hub_client_url?: string | null
           hub_project_url?: string | null
           id?: string
@@ -1009,6 +1014,7 @@ export type Database = {
           created_by?: string
           deadline?: string | null
           description?: string | null
+          drive_folder_url?: string | null
           hub_client_url?: string | null
           hub_project_url?: string | null
           id?: string

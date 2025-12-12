@@ -26,6 +26,7 @@ const clientSchema = z.object({
   city: z.string().trim().max(100, 'Máximo 100 caracteres').optional(),
   country: z.string().trim().max(100, 'Máximo 100 caracteres').optional(),
   hub_client_url: z.string().trim().url('URL inválida').optional().or(z.literal('')),
+  drive_folder_url: z.string().trim().url('URL inválida').optional().or(z.literal('')),
   notes: z.string().trim().max(1000, 'Máximo 1000 caracteres').optional(),
 });
 
@@ -56,6 +57,7 @@ export const SimplifiedClientForm = ({
       city: initialData?.city || '',
       country: initialData?.country || '',
       hub_client_url: initialData?.hub_client_url || '',
+      drive_folder_url: initialData?.drive_folder_url || '',
       notes: initialData?.notes || '',
     },
   });
@@ -86,6 +88,7 @@ export const SimplifiedClientForm = ({
         country: values.country || null,
         tax_id: values.tax_id || null,
         hub_client_url: values.hub_client_url || null,
+        drive_folder_url: values.drive_folder_url || null,
         notes: values.notes || null,
       };
 
@@ -115,6 +118,7 @@ export const SimplifiedClientForm = ({
           city: dataToSave.city,
           country: dataToSave.country,
           hub_client_url: dataToSave.hub_client_url,
+          drive_folder_url: dataToSave.drive_folder_url,
           notes: dataToSave.notes,
           created_by: user.id,
         } as any);
@@ -265,6 +269,24 @@ export const SimplifiedClientForm = ({
           render={({ field }) => (
             <FormItem>
               <FormLabel>Documento HUB Cliente</FormLabel>
+              <FormControl>
+                <Input 
+                  type="url" 
+                  placeholder="https://..." 
+                  {...field} 
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="drive_folder_url"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Customer DRIVE</FormLabel>
               <FormControl>
                 <Input 
                   type="url" 

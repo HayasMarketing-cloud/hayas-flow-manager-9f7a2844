@@ -11,6 +11,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ClientFormModal } from '@/components/modals/ClientFormModal';
 import { useUserRole } from '@/hooks/useUserRole';
+import GoogleDriveIcon from '@/assets/icons8-google-drive.svg';
 
 const Clientes = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -159,19 +160,32 @@ const Clientes = () => {
                       </span>
                     </div>
                   )}
-                  {!rolesLoading && canManage && (
-                    <div className="pt-3">
+                  <div className="pt-3 flex gap-2">
+                    {client.drive_folder_url && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(client.drive_folder_url, '_blank');
+                        }}
+                      >
+                        <img src={GoogleDriveIcon} alt="Drive" className="h-4 w-4 mr-2" />
+                        Customer DRIVE
+                      </Button>
+                    )}
+                    {!rolesLoading && canManage && (
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={(e) => handleEditClient(e, client)}
-                        className="w-full"
+                        className="flex-1"
                       >
                         <Edit className="h-4 w-4 mr-2" />
                         Editar
                       </Button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))}

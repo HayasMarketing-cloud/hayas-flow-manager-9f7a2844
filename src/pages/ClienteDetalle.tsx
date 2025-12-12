@@ -30,6 +30,7 @@ import {
   Star,
   Trash2,
   Building2,
+  ExternalLink,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -40,6 +41,7 @@ import { ContactFormModal } from '@/components/modals/ContactFormModal';
 import { useUserRole } from '@/hooks/useUserRole';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import GoogleDriveIcon from '@/assets/icons8-google-drive.svg';
 
 const CONTACTS_PER_PAGE = 10;
 
@@ -222,7 +224,7 @@ const ClienteDetalle = () => {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge
                     variant={client.status === 'active' ? 'default' : 'secondary'}
                     className={
@@ -233,6 +235,24 @@ const ClienteDetalle = () => {
                   >
                     {client.status === 'active' ? 'Activo' : 'Inactivo'}
                   </Badge>
+                  {client.hub_client_url && (
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={client.hub_client_url} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        HUB Cliente
+                      </a>
+                    </Button>
+                  )}
+                  {client.drive_folder_url && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => window.open(client.drive_folder_url, '_blank')}
+                    >
+                      <img src={GoogleDriveIcon} alt="Drive" className="h-4 w-4 mr-2" />
+                      Customer DRIVE
+                    </Button>
+                  )}
                   {!rolesLoading && canManage && (
                     <Button
                       variant="outline"

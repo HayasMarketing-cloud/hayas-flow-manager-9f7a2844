@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, ListPlus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, ListPlus, Trash2, CloudOff, Cloud } from 'lucide-react';
 import { useBudgetDetail } from '@/hooks/useBudgetDetail';
 import { BudgetStatusBadge } from '@/components/budgets/BudgetStatusBadge';
 import { BudgetItemsEditor } from '@/components/budgets/BudgetItemsEditor';
@@ -243,6 +243,9 @@ export default function PresupuestoDetalle() {
   const [isEditingEconomico, setIsEditingEconomico] = useState(false);
   const [economicItems, setEconomicItems] = useState<any[]>([]);
   const [isSavingEconomico, setIsSavingEconomico] = useState(false);
+  const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   // Cargar clientes para el select
   const { data: clients } = useQuery({
@@ -274,8 +277,84 @@ export default function PresupuestoDetalle() {
   useEffect(() => {
     if (data?.items) {
       setEconomicItems(data.items);
+      setHasUnsavedChanges(false);
     }
   }, [data?.items]);
+
+  // Función de autoguardado silencioso
+  const performAutoSave = async () => {
+    if (!data?.budget || !isEditingEconomico || !hasUnsavedChanges) return;
+    
+    // No autoguardar si hay validaciones pendientes
+    if (economicItems.length === 0) return;
+    if (economicItems.some((item) => !item.service_id)) return;
+
+    setAutoSaveStatus('saving');
+    const newTotal = calculateBudgetTotal(economicItems);
+
+    try {
+      // Eliminar items antiguos
+      await supabase.from('budget_items').delete().eq('budget_id', data.budget.id);
+
+      // Insertar nuevos items con specialist_id
+      const itemsToInsert = economicItems.map((item) => ({
+        budget_id: data.budget.id,
+        service_id: item.service_id,
+        specialist_id: item.specialist_id || null,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total: item.total,
+        notes: item.notes || null,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('budget_items')
+        .insert(itemsToInsert);
+
+      if (itemsError) throw itemsError;
+
+      // Actualizar total_amount en budget
+      const { error: budgetError } = await supabase
+        .from('budgets')
+        .update({ total_amount: newTotal })
+        .eq('id', data.budget.id);
+
+      if (budgetError) throw budgetError;
+
+      setLastAutoSave(new Date());
+      setHasUnsavedChanges(false);
+      setAutoSaveStatus('saved');
+      
+      // Invalidar queries silenciosamente
+      queryClient.invalidateQueries({ queryKey: ['budget-detail', data.budget.id] });
+      
+      // Resetear estado después de 3 segundos
+      setTimeout(() => setAutoSaveStatus('idle'), 3000);
+    } catch (error: any) {
+      console.error('Error en autoguardado:', error);
+      setAutoSaveStatus('error');
+      setTimeout(() => setAutoSaveStatus('idle'), 5000);
+    }
+  };
+
+  // Autoguardado cada 30 segundos
+  useEffect(() => {
+    if (!isEditingEconomico || !hasUnsavedChanges) return;
+    
+    const autoSaveInterval = setInterval(() => {
+      performAutoSave();
+    }, 30000); // 30 segundos
+
+    return () => clearInterval(autoSaveInterval);
+  }, [isEditingEconomico, hasUnsavedChanges, economicItems, data?.budget?.id]);
+
+  // Marcar cambios pendientes cuando se modifican los items
+  const handleEconomicItemsChange = (newItems: any[]) => {
+    setEconomicItems(newItems);
+    setHasUnsavedChanges(true);
+    setAutoSaveStatus('idle');
+  };
 
   const duplicateMutation = useMutation({
     mutationFn: async (budget: any) => {
@@ -457,10 +536,11 @@ export default function PresupuestoDetalle() {
       // Eliminar items antiguos
       await supabase.from('budget_items').delete().eq('budget_id', data.budget.id);
 
-      // Insertar nuevos items
+      // Insertar nuevos items con specialist_id
       const itemsToInsert = economicItems.map((item) => ({
         budget_id: data.budget.id,
         service_id: item.service_id,
+        specialist_id: item.specialist_id || null,
         description: item.description,
         quantity: item.quantity,
         unit_price: item.unit_price,
@@ -499,6 +579,8 @@ export default function PresupuestoDetalle() {
       queryClient.invalidateQueries({ queryKey: ['budget-detail', data.budget.id] });
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
       toast.success('Detalle económico actualizado correctamente');
+      setHasUnsavedChanges(false);
+      setAutoSaveStatus('idle');
       setIsEditingEconomico(false);
     } catch (error: any) {
       toast.error('Error al actualizar: ' + error.message);
@@ -523,6 +605,9 @@ export default function PresupuestoDetalle() {
     if (data?.items) {
       setEconomicItems(data.items);
     }
+    setHasUnsavedChanges(false);
+    setAutoSaveStatus('idle');
+    setLastAutoSave(null);
     setIsEditingEconomico(false);
   };
 
@@ -870,7 +955,37 @@ export default function PresupuestoDetalle() {
           <TabsContent value="economico" className="space-y-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-                <CardTitle>Líneas del Presupuesto</CardTitle>
+                <div className="flex items-center gap-3">
+                  <CardTitle>Líneas del Presupuesto</CardTitle>
+                  {isEditingEconomico && (
+                    <div className="flex items-center gap-2 text-sm">
+                      {autoSaveStatus === 'saving' && (
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Guardando...
+                        </span>
+                      )}
+                      {autoSaveStatus === 'saved' && (
+                        <span className="flex items-center gap-1 text-green-600">
+                          <Cloud className="h-3 w-3" />
+                          Guardado automáticamente
+                        </span>
+                      )}
+                      {autoSaveStatus === 'error' && (
+                        <span className="flex items-center gap-1 text-destructive">
+                          <CloudOff className="h-3 w-3" />
+                          Error al guardar
+                        </span>
+                      )}
+                      {hasUnsavedChanges && autoSaveStatus === 'idle' && (
+                        <span className="flex items-center gap-1 text-amber-600">
+                          <span className="h-2 w-2 rounded-full bg-amber-500" />
+                          Cambios sin guardar
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
                 {!isEditingEconomico && (
                   <Button variant="outline" size="sm" onClick={() => setIsEditingEconomico(true)}>
                     <Edit className="h-4 w-4 mr-2" />
@@ -884,19 +999,31 @@ export default function PresupuestoDetalle() {
                   <div className="space-y-4">
                     <BudgetItemsEditor
                       items={economicItems}
-                      onChange={setEconomicItems}
+                      onChange={handleEconomicItemsChange}
                       disabled={false}
                     />
-                    <div className="flex justify-end gap-2 pt-4 border-t">
-                      <Button variant="outline" onClick={handleCancelEconomico} disabled={isSavingEconomico}>
-                        <X className="h-4 w-4 mr-2" />
-                        Cancelar
-                      </Button>
-                      <Button onClick={handleSaveEconomico} disabled={isSavingEconomico}>
-                        {isSavingEconomico && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                        <Save className="h-4 w-4 mr-2" />
-                        Guardar Cambios
-                      </Button>
+                    <div className="flex items-center justify-between pt-4 border-t">
+                      <div className="text-xs text-muted-foreground">
+                        {lastAutoSave && (
+                          <span>
+                            Último guardado: {format(lastAutoSave, 'HH:mm:ss', { locale: es })}
+                          </span>
+                        )}
+                        {!lastAutoSave && hasUnsavedChanges && (
+                          <span>Autoguardado cada 30 segundos</span>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" onClick={handleCancelEconomico} disabled={isSavingEconomico}>
+                          <X className="h-4 w-4 mr-2" />
+                          Cancelar
+                        </Button>
+                        <Button onClick={handleSaveEconomico} disabled={isSavingEconomico}>
+                          {isSavingEconomico && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                          <Save className="h-4 w-4 mr-2" />
+                          Guardar y Cerrar
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ) : (

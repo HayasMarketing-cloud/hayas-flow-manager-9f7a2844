@@ -220,15 +220,15 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
               />
             )}
 
-            {/* Tercera línea: Especialista (solo visible cuando hay servicio) */}
+            {/* Tercera línea: Especialista - dato interno (solo visible cuando hay servicio) */}
             {item.service_id && (
               <Select
                 value={item.specialist_id || ''}
                 onValueChange={(value) => handleItemChange(index, 'specialist_id', value)}
                 disabled={disabled}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un especialista (opcional)" />
+                <SelectTrigger className="text-sm text-muted-foreground bg-muted/30 border-dashed">
+                  <SelectValue placeholder="Especialista asignado (interno, opcional)" />
                 </SelectTrigger>
                 <SelectContent>
                   {specialists?.map((specialist) => (

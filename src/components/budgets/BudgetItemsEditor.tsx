@@ -116,11 +116,10 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
 
       {/* Header row */}
       <div className="grid grid-cols-12 gap-2 px-3 py-2 text-sm font-medium text-muted-foreground border-b">
-        <div className="col-span-4">Servicio</div>
-        <div className="col-span-3">Descripción</div>
+        <div className="col-span-6">Servicio</div>
         <div className="col-span-1 text-center">Cant.</div>
         <div className="col-span-2 text-center">Precio Unit.</div>
-        <div className="col-span-1 text-right">Total</div>
+        <div className="col-span-2 text-right">Total</div>
         <div className="col-span-1"></div>
       </div>
 
@@ -130,8 +129,9 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
             key={index}
             className="p-3 border rounded-lg bg-card space-y-2"
           >
+            {/* Primera línea: Servicio + Cantidad + Precio + Total + Eliminar */}
             <div className="grid grid-cols-12 gap-2 items-center">
-              <div className="col-span-4">
+              <div className="col-span-6">
                 <Select
                   value={item.service_id || ''}
                   onValueChange={(value) => handleServiceSelect(index, value)}
@@ -149,16 +149,6 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="col-span-3">
-                <Input
-                  type="text"
-                  placeholder="Descripción del servicio..."
-                  value={item.description}
-                  onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                  disabled={disabled || !item.service_id}
-                />
               </div>
 
               <div className="col-span-1">
@@ -187,7 +177,7 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
                 />
               </div>
 
-              <div className="col-span-1 flex items-center justify-end font-semibold">
+              <div className="col-span-2 flex items-center justify-end font-semibold">
                 {formatCurrency(item.total)}
               </div>
 
@@ -204,18 +194,27 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
               </div>
             </div>
 
-            {/* Notas internas - solo visible cuando hay servicio seleccionado */}
+            {/* Segunda línea: Descripción (solo visible cuando hay servicio) */}
             {item.service_id && (
-              <div className="pl-0">
-                <Input
-                  type="text"
-                  placeholder="Notas internas (no aparecen en el presupuesto final)..."
-                  value={item.notes || ''}
-                  onChange={(e) => handleItemChange(index, 'notes', e.target.value)}
-                  disabled={disabled}
-                  className="text-sm text-muted-foreground bg-muted/30 border-dashed"
-                />
-              </div>
+              <Input
+                type="text"
+                placeholder="Descripción del servicio..."
+                value={item.description}
+                onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                disabled={disabled}
+              />
+            )}
+
+            {/* Tercera línea: Notas internas (solo visible cuando hay servicio) */}
+            {item.service_id && (
+              <Input
+                type="text"
+                placeholder="Notas internas (no aparecen en el presupuesto final)..."
+                value={item.notes || ''}
+                onChange={(e) => handleItemChange(index, 'notes', e.target.value)}
+                disabled={disabled}
+                className="text-sm text-muted-foreground bg-muted/30 border-dashed"
+              />
             )}
           </div>
         ))}

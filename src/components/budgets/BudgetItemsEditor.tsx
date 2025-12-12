@@ -128,79 +128,95 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
         {localItems.map((item, index) => (
           <div
             key={index}
-            className="grid grid-cols-12 gap-2 p-3 border rounded-lg bg-card items-center"
+            className="p-3 border rounded-lg bg-card space-y-2"
           >
-            <div className="col-span-4">
-              <Select
-                value={item.service_id || ''}
-                onValueChange={(value) => handleServiceSelect(index, value)}
-                disabled={disabled}
-              >
-                <SelectTrigger className={!item.service_id ? 'border-destructive ring-1 ring-destructive/30' : ''}>
-                  <SelectValue placeholder="Selecciona un servicio" />
-                </SelectTrigger>
-                <SelectContent>
-                  {services?.map((service) => (
-                    <SelectItem key={service.id} value={service.id}>
-                      {service.name}
-                      {service.category ? ` · ${service.category}` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-12 gap-2 items-center">
+              <div className="col-span-4">
+                <Select
+                  value={item.service_id || ''}
+                  onValueChange={(value) => handleServiceSelect(index, value)}
+                  disabled={disabled}
+                >
+                  <SelectTrigger className={!item.service_id ? 'border-destructive ring-1 ring-destructive/30' : ''}>
+                    <SelectValue placeholder="Selecciona un servicio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {services?.map((service) => (
+                      <SelectItem key={service.id} value={service.id}>
+                        {service.name}
+                        {service.category ? ` · ${service.category}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="col-span-3">
+                <Input
+                  type="text"
+                  placeholder="Descripción del servicio..."
+                  value={item.description}
+                  onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                  disabled={disabled || !item.service_id}
+                />
+              </div>
+
+              <div className="col-span-1">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Cant."
+                  value={item.quantity}
+                  onChange={(e) => handleItemChange(index, 'quantity', parseFloat(e.target.value) || 0)}
+                  disabled={disabled}
+                />
+              </div>
+
+              <div className="col-span-2">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Precio"
+                  value={item.unit_price}
+                  onChange={(e) =>
+                    handleItemChange(index, 'unit_price', parseFloat(e.target.value) || 0)
+                  }
+                  disabled={disabled}
+                />
+              </div>
+
+              <div className="col-span-1 flex items-center justify-end font-semibold">
+                {formatCurrency(item.total)}
+              </div>
+
+              <div className="col-span-1 flex items-center justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveItem(index)}
+                  disabled={disabled}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
             </div>
 
-            <div className="col-span-3">
-              <Input
-                type="text"
-                placeholder="Descripción del servicio..."
-                value={item.description}
-                onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                disabled={disabled || !item.service_id}
-              />
-            </div>
-
-            <div className="col-span-1">
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="Cant."
-                value={item.quantity}
-                onChange={(e) => handleItemChange(index, 'quantity', parseFloat(e.target.value) || 0)}
-                disabled={disabled}
-              />
-            </div>
-
-            <div className="col-span-2">
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="Precio"
-                value={item.unit_price}
-                onChange={(e) =>
-                  handleItemChange(index, 'unit_price', parseFloat(e.target.value) || 0)
-                }
-                disabled={disabled}
-              />
-            </div>
-
-            <div className="col-span-1 flex items-center justify-end font-semibold">
-              {formatCurrency(item.total)}
-            </div>
-
-            <div className="col-span-1 flex items-center justify-end">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => handleRemoveItem(index)}
-                disabled={disabled}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            </div>
+            {/* Notas internas - solo visible cuando hay servicio seleccionado */}
+            {item.service_id && (
+              <div className="pl-0">
+                <Input
+                  type="text"
+                  placeholder="Notas internas (no aparecen en el presupuesto final)..."
+                  value={item.notes || ''}
+                  onChange={(e) => handleItemChange(index, 'notes', e.target.value)}
+                  disabled={disabled}
+                  className="text-sm text-muted-foreground bg-muted/30 border-dashed"
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>

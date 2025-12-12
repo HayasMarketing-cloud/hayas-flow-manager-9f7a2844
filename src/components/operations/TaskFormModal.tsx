@@ -271,15 +271,15 @@ export function TaskFormModal({
             <div>
               <Label htmlFor="assignee_user_id">Asignar Usuario</Label>
               <Select
-                value={watch("assignee_user_id") || ""}
-                onValueChange={(value) => setValue("assignee_user_id", value)}
+                value={watch("assignee_user_id") || "none"}
+                onValueChange={(value) => setValue("assignee_user_id", value === "none" ? "" : value)}
                 disabled={isReadOnly}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Ninguno" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Ninguno</SelectItem>
+                  <SelectItem value="none">Ninguno</SelectItem>
                   {users.map((user) => (
                     <SelectItem key={user.id} value={user.id}>
                       {user.full_name || "Sin nombre"}
@@ -292,15 +292,15 @@ export function TaskFormModal({
             <div>
               <Label htmlFor="assignee_specialist_id">Asignar Especialista</Label>
               <Select
-                value={watch("assignee_specialist_id") || ""}
-                onValueChange={(value) => setValue("assignee_specialist_id", value)}
+                value={watch("assignee_specialist_id") || "none"}
+                onValueChange={(value) => setValue("assignee_specialist_id", value === "none" ? "" : value)}
                 disabled={isReadOnly}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Ninguno" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Ninguno</SelectItem>
+                  <SelectItem value="none">Ninguno</SelectItem>
                   {specialists.map((specialist) => (
                     <SelectItem key={specialist.id} value={specialist.id}>
                       {specialist.name}

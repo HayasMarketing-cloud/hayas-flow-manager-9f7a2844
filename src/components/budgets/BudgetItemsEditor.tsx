@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -26,6 +26,7 @@ interface BudgetItemsEditorProps {
 
 export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEditorProps) => {
   const [localItems, setLocalItems] = useState<BudgetItem[]>(items);
+  const isInternalUpdate = useRef(false);
 
   const { data: services } = useQuery({
     queryKey: ['services'],
@@ -56,8 +57,19 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
   });
 
   useEffect(() => {
+    // Solo sincronizar desde props si no fue un cambio interno
+    if (isInternalUpdate.current) {
+      isInternalUpdate.current = false;
+      return;
+    }
     setLocalItems(items);
   }, [items]);
+
+  const updateItems = (updatedItems: BudgetItem[]) => {
+    isInternalUpdate.current = true;
+    setLocalItems(updatedItems);
+    onChange(updatedItems);
+  };
 
   const handleAddItem = () => {
     const newItem: BudgetItem = {
@@ -66,30 +78,26 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
       unit_price: 0,
       total: 0,
     };
-    const updatedItems = [...localItems, newItem];
-    setLocalItems(updatedItems);
-    onChange(updatedItems);
+    updateItems([...localItems, newItem]);
   };
 
   const handleRemoveItem = (index: number) => {
     const updatedItems = localItems.filter((_, i) => i !== index);
-    setLocalItems(updatedItems);
-    onChange(updatedItems);
+    updateItems(updatedItems);
   };
 
   const handleDuplicateItem = (index: number) => {
     const itemToDuplicate = localItems[index];
     const duplicatedItem: BudgetItem = {
       ...itemToDuplicate,
-      id: undefined, // Remove id so it creates a new record
+      id: undefined,
     };
     const updatedItems = [
       ...localItems.slice(0, index + 1),
       duplicatedItem,
       ...localItems.slice(index + 1),
     ];
-    setLocalItems(updatedItems);
-    onChange(updatedItems);
+    updateItems(updatedItems);
   };
 
   const handleItemChange = (index: number, field: keyof BudgetItem, value: any) => {
@@ -107,8 +115,7 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
       );
     }
 
-    setLocalItems(updatedItems);
-    onChange(updatedItems);
+    updateItems(updatedItems);
   };
 
   const handleServiceSelect = (index: number, serviceId: string) => {
@@ -121,8 +128,7 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
         // Solo pre-rellenar descripción si está vacía
         description: updatedItems[index].description || service.name,
       };
-      setLocalItems(updatedItems);
-      onChange(updatedItems);
+      updateItems(updatedItems);
     }
   };
 

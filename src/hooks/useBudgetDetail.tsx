@@ -40,7 +40,8 @@ export const useBudgetDetail = (budgetId: string | undefined) => {
           specialist:specialists(name),
           billed_invoice:invoices(id, code, status, total_amount)
         `)
-        .eq('budget_id', budgetId);
+        .eq('budget_id', budgetId)
+        .order('created_at');
 
       if (requestsError) throw requestsError;
 

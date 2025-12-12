@@ -61,6 +61,7 @@ export type Database = {
           notes: string | null
           quantity: number
           service_id: string | null
+          specialist_id: string | null
           total: number
           unit_price: number
           updated_at: string
@@ -73,6 +74,7 @@ export type Database = {
           notes?: string | null
           quantity?: number
           service_id?: string | null
+          specialist_id?: string | null
           total: number
           unit_price: number
           updated_at?: string
@@ -85,6 +87,7 @@ export type Database = {
           notes?: string | null
           quantity?: number
           service_id?: string | null
+          specialist_id?: string | null
           total?: number
           unit_price?: number
           updated_at?: string
@@ -102,6 +105,13 @@ export type Database = {
             columns: ["service_id"]
             isOneToOne: false
             referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_items_specialist_id_fkey"
+            columns: ["specialist_id"]
+            isOneToOne: false
+            referencedRelation: "specialists"
             referencedColumns: ["id"]
           },
         ]

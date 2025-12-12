@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, ListPlus, Trash2, CloudOff, Cloud, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, ListPlus, Trash2, CloudOff, Cloud, RefreshCw, FileDown } from 'lucide-react';
+import { generateBudgetPDF } from '@/utils/pdf/budgetPDFGenerator';
 import { useBudgetDetail } from '@/hooks/useBudgetDetail';
 import { BudgetStatusBadge } from '@/components/budgets/BudgetStatusBadge';
 import { BudgetItemsEditor } from '@/components/budgets/BudgetItemsEditor';
@@ -1276,12 +1277,23 @@ export default function PresupuestoDetalle() {
                     </div>
                   )}
                 </div>
-                {!isEditingEconomico && (
-                  <Button variant="outline" size="sm" onClick={() => setIsEditingEconomico(true)}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Editar Líneas
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => generateBudgetPDF({ budget, items })}
+                    disabled={!items || items.length === 0}
+                  >
+                    <FileDown className="h-4 w-4 mr-2" />
+                    Descargar PDF
                   </Button>
-                )}
+                  {!isEditingEconomico && (
+                    <Button variant="outline" size="sm" onClick={() => setIsEditingEconomico(true)}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Editar Líneas
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {isEditingEconomico ? (

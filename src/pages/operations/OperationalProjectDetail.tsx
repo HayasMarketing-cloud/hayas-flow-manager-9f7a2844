@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { ArrowLeft, ExternalLink, Edit2, Calendar, User, Briefcase, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ArrowLeft, ExternalLink, Edit2, Calendar, User, Briefcase, MoreHorizontal, Trash2, X } from 'lucide-react';
 import { useOperationalProject } from '@/hooks/useOperationalProjects';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -41,6 +42,7 @@ export default function OperationalProjectDetail() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editRequestId, setEditRequestId] = useState<string | null>(null);
   const [deleteRequestId, setDeleteRequestId] = useState<string | null>(null);
+  const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
 
   const { data: project, isLoading } = useOperationalProject(id || null);
 
@@ -142,6 +144,43 @@ export default function OperationalProjectDetail() {
       toast.error(`Error: ${error.message}`);
     },
   });
+
+  // Bulk update mutation
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async ({ field, value }: { field: string; value: string | null }) => {
+      const { error } = await supabase
+        .from('operational_requests')
+        .update({ [field]: value })
+        .in('id', selectedRequests);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project-operational-requests', id] });
+      toast.success(`${selectedRequests.length} solicitudes actualizadas`);
+      setSelectedRequests([]);
+    },
+    onError: (error: any) => {
+      toast.error(`Error: ${error.message}`);
+    },
+  });
+
+  // Selection handlers
+  const toggleSelectAll = () => {
+    if (!operationalRequests) return;
+    if (selectedRequests.length === operationalRequests.length) {
+      setSelectedRequests([]);
+    } else {
+      setSelectedRequests(operationalRequests.map(r => r.id));
+    }
+  };
+
+  const toggleSelectRequest = (requestId: string) => {
+    setSelectedRequests(prev => 
+      prev.includes(requestId)
+        ? prev.filter(id => id !== requestId)
+        : [...prev, requestId]
+    );
+  };
 
   if (isLoading) {
     return (
@@ -296,23 +335,104 @@ export default function OperationalProjectDetail() {
                     No hay solicitudes operativas en este proyecto
                   </div>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[40%]">Información</TableHead>
-                        <TableHead>Especialista</TableHead>
-                        <TableHead>Deadline</TableHead>
-                        <TableHead>Estado</TableHead>
-                        <TableHead className="w-12"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {operationalRequests.map((request) => {
-                        const milestoneInfo = milestoneCounts?.[request.id];
-                        return (
-                          <TableRow key={request.id}>
-                            {/* Información */}
-                            <TableCell>
+                  <>
+                    {/* Bulk Action Bar */}
+                    {selectedRequests.length > 0 && (
+                      <div className="mb-4 p-3 bg-primary/10 rounded-lg flex flex-wrap items-center gap-3">
+                        <span className="font-medium text-sm">
+                          {selectedRequests.length} seleccionado{selectedRequests.length > 1 ? 's' : ''}
+                        </span>
+                        <div className="h-4 w-px bg-border" />
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">Especialista:</span>
+                          <Select
+                            onValueChange={(value) => bulkUpdateMutation.mutate({
+                              field: 'assignee_specialist_id',
+                              value: value === 'none' ? null : value
+                            })}
+                          >
+                            <SelectTrigger className="w-[160px] h-8">
+                              <SelectValue placeholder="Cambiar..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Sin asignar</SelectItem>
+                              {specialists.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">Deadline:</span>
+                          <Input
+                            type="date"
+                            className="w-[140px] h-8"
+                            onChange={(e) => bulkUpdateMutation.mutate({
+                              field: 'deadline',
+                              value: e.target.value || null
+                            })}
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">Estado:</span>
+                          <Select
+                            onValueChange={(value) => bulkUpdateMutation.mutate({
+                              field: 'status',
+                              value
+                            })}
+                          >
+                            <SelectTrigger className="w-[140px] h-8">
+                              <SelectValue placeholder="Cambiar..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pending">Pendiente</SelectItem>
+                              <SelectItem value="in_progress">En Progreso</SelectItem>
+                              <SelectItem value="in_review">En Revisión</SelectItem>
+                              <SelectItem value="completed">Completado</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => setSelectedRequests([])}
+                          className="ml-auto"
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Limpiar
+                        </Button>
+                      </div>
+                    )}
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10">
+                            <Checkbox
+                              checked={operationalRequests.length > 0 && selectedRequests.length === operationalRequests.length}
+                              onCheckedChange={toggleSelectAll}
+                            />
+                          </TableHead>
+                          <TableHead className="w-[35%]">Información</TableHead>
+                          <TableHead>Especialista</TableHead>
+                          <TableHead>Deadline</TableHead>
+                          <TableHead>Estado</TableHead>
+                          <TableHead className="w-12"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {operationalRequests.map((request) => {
+                          const milestoneInfo = milestoneCounts?.[request.id];
+                          return (
+                            <TableRow key={request.id} className={selectedRequests.includes(request.id) ? 'bg-primary/5' : ''}>
+                              {/* Checkbox */}
+                              <TableCell>
+                                <Checkbox
+                                  checked={selectedRequests.includes(request.id)}
+                                  onCheckedChange={() => toggleSelectRequest(request.id)}
+                                />
+                              </TableCell>
+                              {/* Información */}
+                              <TableCell>
                               <div className="space-y-1">
                                 <div className="font-medium">{request.name}</div>
                                 {request.description && (
@@ -416,7 +536,8 @@ export default function OperationalProjectDetail() {
                         );
                       })}
                     </TableBody>
-                  </Table>
+                    </Table>
+                  </>
                 )}
               </CardContent>
             </Card>

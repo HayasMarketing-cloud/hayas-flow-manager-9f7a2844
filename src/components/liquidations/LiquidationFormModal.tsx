@@ -336,10 +336,10 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
 
       if (updateLiquidationError) throw updateLiquidationError;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['liquidations'] });
-      queryClient.invalidateQueries({ queryKey: ['liquidation-items'] });
-      queryClient.invalidateQueries({ queryKey: ['unliquidated-requests'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      await queryClient.invalidateQueries({ queryKey: ['liquidation-items', liquidation?.id] });
+      await queryClient.invalidateQueries({ queryKey: ['unliquidated-requests'] });
       toast.success('Solicitudes agregadas a la liquidación');
       setSelectedRequests([]);
       refetchPendingRequests();
@@ -384,9 +384,9 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
 
       if (updateError) throw updateError;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['liquidations'] });
-      queryClient.invalidateQueries({ queryKey: ['liquidation-items'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      await queryClient.invalidateQueries({ queryKey: ['liquidation-items', liquidation?.id] });
       toast.success('Item agregado');
       setNewManualDescription('');
       setNewManualAmount('');
@@ -445,10 +445,10 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
 
       if (updateError) throw updateError;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['liquidations'] });
-      queryClient.invalidateQueries({ queryKey: ['liquidation-items'] });
-      queryClient.invalidateQueries({ queryKey: ['unliquidated-requests'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      await queryClient.invalidateQueries({ queryKey: ['liquidation-items', liquidation?.id] });
+      await queryClient.invalidateQueries({ queryKey: ['unliquidated-requests'] });
       toast.success('Item eliminado');
     },
     onError: (error) => {
@@ -507,9 +507,9 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
 
       if (updateError) throw updateError;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['liquidations'] });
-      queryClient.invalidateQueries({ queryKey: ['liquidation-items'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      await queryClient.invalidateQueries({ queryKey: ['liquidation-items', liquidation?.id] });
       toast.success('Coste actualizado');
     },
     onError: (error) => {
@@ -583,7 +583,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
   };
 
   // Query para cargar items de la liquidación (para PDF y para modo edición)
-  const { data: liquidationItems } = useQuery({
+  const { data: liquidationItems, refetch: refetchLiquidationItems } = useQuery({
     queryKey: ['liquidation-items', liquidation?.id],
     queryFn: async () => {
       if (!liquidation?.id) return [];

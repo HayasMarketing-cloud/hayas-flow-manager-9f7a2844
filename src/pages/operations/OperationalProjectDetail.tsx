@@ -412,7 +412,7 @@ export default function OperationalProjectDetail() {
                               onCheckedChange={toggleSelectAll}
                             />
                           </TableHead>
-                          <TableHead className="w-[35%]">Información</TableHead>
+                          <TableHead className="w-[35%]">Descripción</TableHead>
                           <TableHead>Especialista</TableHead>
                           <TableHead>Deadline</TableHead>
                           <TableHead>Estado</TableHead>

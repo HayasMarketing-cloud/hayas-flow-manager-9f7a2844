@@ -74,20 +74,6 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
   doc.setLineWidth(0.5);
   doc.line(15, 50, pageWidth - 15, 50);
 
-  // Información del especialista
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('ESPECIALISTA', 15, 60);
-
-  doc.setFont('helvetica', 'normal');
-  doc.text(data.specialist.name, 15, 67);
-  if (data.specialist.email) {
-    doc.text(`Email: ${data.specialist.email}`, 15, 74);
-  }
-  if (data.specialist.phone) {
-    doc.text(`Tel: ${data.specialist.phone}`, 15, 81);
-  }
-
   // Agrupar items por cliente
   const groupedItems = groupItemsByClient(data.items);
 
@@ -118,7 +104,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
   });
 
   autoTable(doc, {
-    startY: 95,
+    startY: 58,
     head: [['Servicio / Cliente', 'Cantidad', 'Precio Unitario', 'Total']],
     body: tableData,
     theme: 'striped',

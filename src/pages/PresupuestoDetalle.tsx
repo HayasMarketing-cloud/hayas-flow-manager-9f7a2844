@@ -1027,7 +1027,7 @@ export default function PresupuestoDetalle() {
               disabled={duplicateMutation.isPending}
             >
               <Copy className="h-4 w-4 mr-2" />
-              Usar como Plantilla
+              Duplicar
             </Button>
             <Button onClick={() => setEditModalOpen(true)}>
               <Edit className="h-4 w-4 mr-2" />

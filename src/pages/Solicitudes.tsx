@@ -138,14 +138,44 @@ const Solicitudes = () => {
   };
 
   const handleCloneRequest = async (request: any) => {
-    const { id, code, created_at, updated_at, client, service, specialist, ...cloneData } = request;
+    // Exclude all relational and auto-generated fields
+    const { 
+      id, 
+      code, 
+      created_at, 
+      updated_at, 
+      client, 
+      service, 
+      specialist, 
+      budget,
+      billed_invoice_id,
+      liquidation_id,
+      completed_at,
+      ...cloneData 
+    } = request;
+
+    // Generate a new code using the sequence
+    const { data: newCode, error: codeError } = await supabase.rpc('generate_code', { sequence_name: 'requests' });
+    
+    if (codeError) {
+      toast.error('Error al generar código para la solicitud');
+      return;
+    }
 
     const { error } = await supabase
       .from('financial_requests')
-      .insert({ ...cloneData, status: 'draft', code: '' });
+      .insert({ 
+        ...cloneData, 
+        status: 'draft', 
+        code: newCode,
+        billed_invoice_id: null,
+        liquidation_id: null,
+        completed_at: null
+      });
 
     if (error) {
-      toast.error('Error al clonar la solicitud');
+      console.error('Clone error:', error);
+      toast.error('Error al clonar la solicitud: ' + error.message);
     } else {
       toast.success('Solicitud clonada correctamente');
       queryClient.invalidateQueries({ queryKey: ['financial_requests'] });

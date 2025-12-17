@@ -43,6 +43,11 @@ export default function OperationalProjectDetail() {
   const [editRequestId, setEditRequestId] = useState<string | null>(null);
   const [deleteRequestId, setDeleteRequestId] = useState<string | null>(null);
   const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
+  
+  // Filter states
+  const [filterSpecialist, setFilterSpecialist] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterService, setFilterService] = useState<string>('all');
 
   const { data: project, isLoading } = useOperationalProject(id || null);
 
@@ -52,6 +57,20 @@ export default function OperationalProjectDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('specialists')
+        .select('id, name')
+        .eq('active', true)
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch services list
+  const { data: services = [] } = useQuery({
+    queryKey: ['services-active-list'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('services')
         .select('id, name')
         .eq('active', true)
         .order('name');
@@ -71,7 +90,7 @@ export default function OperationalProjectDetail() {
           *,
           assignee_user:profiles!operational_requests_assignee_user_id_fkey(id, full_name),
           assignee_specialist:specialists!operational_requests_assignee_specialist_id_fkey(id, name),
-          financial_request:financial_requests(id, code, title)
+          financial_request:financial_requests(id, code, title, service_id, service:services(id, name))
         `)
         .eq('operational_project_id', id)
         .order('created_at', { ascending: true });
@@ -80,6 +99,30 @@ export default function OperationalProjectDetail() {
     },
     enabled: !!id,
   });
+
+  // Filter operational requests
+  const filteredRequests = operationalRequests?.filter(request => {
+    // Filter by specialist
+    if (filterSpecialist !== 'all') {
+      if (filterSpecialist === 'none') {
+        if (request.assignee_specialist_id) return false;
+      } else {
+        if (request.assignee_specialist_id !== filterSpecialist) return false;
+      }
+    }
+    // Filter by status
+    if (filterStatus !== 'all' && request.status !== filterStatus) return false;
+    // Filter by service (via financial_request)
+    if (filterService !== 'all') {
+      const serviceId = request.financial_request?.service_id;
+      if (filterService === 'none') {
+        if (serviceId) return false;
+      } else {
+        if (serviceId !== filterService) return false;
+      }
+    }
+    return true;
+  }) || [];
 
   // Fetch milestones count per request
   const { data: milestoneCounts } = useQuery({
@@ -166,11 +209,11 @@ export default function OperationalProjectDetail() {
 
   // Selection handlers
   const toggleSelectAll = () => {
-    if (!operationalRequests) return;
-    if (selectedRequests.length === operationalRequests.length) {
+    if (!filteredRequests.length) return;
+    if (selectedRequests.length === filteredRequests.length) {
       setSelectedRequests([]);
     } else {
-      setSelectedRequests(operationalRequests.map(r => r.id));
+      setSelectedRequests(filteredRequests.map(r => r.id));
     }
   };
 
@@ -314,14 +357,53 @@ export default function OperationalProjectDetail() {
         <Tabs defaultValue="requests" className="space-y-4">
           <TabsList>
             <TabsTrigger value="requests">
-              Solicitudes Operativas ({operationalRequests?.length || 0})
+              Solicitudes Operativas ({filteredRequests.length}{filteredRequests.length !== (operationalRequests?.length || 0) ? ` de ${operationalRequests?.length || 0}` : ''})
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="requests">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex-row items-center justify-between space-y-0 pb-4">
                 <CardTitle>Solicitudes Operativas</CardTitle>
+                {/* Filters */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <Select value={filterSpecialist} onValueChange={setFilterSpecialist}>
+                    <SelectTrigger className="w-[160px] h-9">
+                      <SelectValue placeholder="Especialista" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los especialistas</SelectItem>
+                      <SelectItem value="none">Sin asignar</SelectItem>
+                      {specialists.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <SelectTrigger className="w-[150px] h-9">
+                      <SelectValue placeholder="Estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los estados</SelectItem>
+                      <SelectItem value="pending">Pendiente</SelectItem>
+                      <SelectItem value="in_progress">En Progreso</SelectItem>
+                      <SelectItem value="in_review">En Revisión</SelectItem>
+                      <SelectItem value="completed">Completado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={filterService} onValueChange={setFilterService}>
+                    <SelectTrigger className="w-[160px] h-9">
+                      <SelectValue placeholder="Servicio" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los servicios</SelectItem>
+                      <SelectItem value="none">Sin servicio</SelectItem>
+                      {services.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardHeader>
               <CardContent>
                 {loadingRequests ? (
@@ -333,6 +415,10 @@ export default function OperationalProjectDetail() {
                 ) : !operationalRequests || operationalRequests.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     No hay solicitudes operativas en este proyecto
+                  </div>
+                ) : filteredRequests.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No hay solicitudes que coincidan con los filtros
                   </div>
                 ) : (
                   <>
@@ -408,7 +494,7 @@ export default function OperationalProjectDetail() {
                         <TableRow>
                           <TableHead className="w-10">
                             <Checkbox
-                              checked={operationalRequests.length > 0 && selectedRequests.length === operationalRequests.length}
+                              checked={filteredRequests.length > 0 && selectedRequests.length === filteredRequests.length}
                               onCheckedChange={toggleSelectAll}
                             />
                           </TableHead>
@@ -420,7 +506,7 @@ export default function OperationalProjectDetail() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {operationalRequests.map((request) => {
+                        {filteredRequests.map((request) => {
                           const milestoneInfo = milestoneCounts?.[request.id];
                           return (
                             <TableRow key={request.id} className={selectedRequests.includes(request.id) ? 'bg-primary/5' : ''}>

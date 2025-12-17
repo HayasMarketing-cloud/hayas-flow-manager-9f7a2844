@@ -403,6 +403,21 @@ export default function OperationalProjectDetail() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {(filterSpecialist !== 'all' || filterStatus !== 'all' || filterService !== 'all') && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setFilterSpecialist('all');
+                        setFilterStatus('all');
+                        setFilterService('all');
+                      }}
+                      className="h-9 px-3 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Limpiar filtros
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>

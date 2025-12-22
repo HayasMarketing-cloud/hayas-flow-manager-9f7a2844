@@ -1,1 +1,4 @@
 project_id = "zqaeokujqipntjhmbjgi"
+
+[functions.send-liquidation-email]
+verify_jwt = false

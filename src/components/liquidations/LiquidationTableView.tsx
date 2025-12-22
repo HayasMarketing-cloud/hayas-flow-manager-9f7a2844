@@ -2,6 +2,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Eye, Pencil, Trash2, Mail } from 'lucide-react';
 import { LiquidationStatusBadge } from './LiquidationStatusBadge';
+import { SignatureStatusBadge } from './SignatureStatusBadge';
 import { formatPeriod, formatCurrency } from '@/lib/liquidation-utils';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -48,6 +49,7 @@ export const LiquidationTableView = ({
                 <TableHead>Período</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead>Estado</TableHead>
+                <TableHead>Firma</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
@@ -56,6 +58,7 @@ export const LiquidationTableView = ({
                 const isEditable = liquidation.status === 'draft';
                 const hasSpecialistEmail = !!liquidation.specialist?.email;
                 const isCurrentlySending = isSending && sendingLiquidationId === liquidation.id;
+                const latestSignature = liquidation.liquidation_signatures?.[0] || null;
                 
                 return (
                   <TableRow key={liquidation.id}>
@@ -65,6 +68,9 @@ export const LiquidationTableView = ({
                     <TableCell className="text-right font-semibold">{formatCurrency(liquidation.calculated_total ?? liquidation.total_amount)}</TableCell>
                     <TableCell>
                       <LiquidationStatusBadge status={liquidation.status} />
+                    </TableCell>
+                    <TableCell>
+                      <SignatureStatusBadge signature={latestSignature} />
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">

@@ -14,6 +14,7 @@ import { useLiquidationFilters, PeriodType } from '@/hooks/useLiquidationFilters
 import { LiquidationCard } from '@/components/liquidations/LiquidationCard';
 import { LiquidationTableView } from '@/components/liquidations/LiquidationTableView';
 import { LiquidationFormModal } from '@/components/liquidations/LiquidationFormModal';
+import { EmailPreviewModal } from '@/components/liquidations/EmailPreviewModal';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { generateLiquidationPDFBase64 } from '@/utils/pdf/liquidationPDFGenerator';
@@ -190,7 +191,6 @@ export default function Liquidaciones() {
     const liquidation = liquidationToSend;
     setIsSendingEmail(true);
     setSendingLiquidationId(liquidation.id);
-    setSendEmailDialogOpen(false);
 
     try {
       // Fetch liquidation items with financial_request details
@@ -240,7 +240,8 @@ export default function Liquidaciones() {
       if (updateError) throw updateError;
 
       queryClient.invalidateQueries({ queryKey: ['liquidations'] });
-      toast.success(`Email enviado a ${liquidation.specialist.email}`);
+      setSendEmailDialogOpen(false);
+      toast.success(`Email enviado correctamente a ${liquidation.specialist.email}`);
     } catch (error: any) {
       console.error('Error sending email:', error);
       toast.error('Error al enviar email: ' + (error.message || 'Error desconocido'));
@@ -486,14 +487,12 @@ export default function Liquidaciones() {
         onConfirm={confirmDelete}
       />
 
-      <ConfirmDialog
+      <EmailPreviewModal
         open={sendEmailDialogOpen}
         onOpenChange={setSendEmailDialogOpen}
-        title="Enviar Liquidación por Email"
-        description={`¿Enviar la liquidación ${liquidationToSend?.code} a ${liquidationToSend?.specialist?.email}? El estado cambiará a "Enviada".`}
-        confirmText="Enviar"
-        cancelText="Cancelar"
+        liquidation={liquidationToSend}
         onConfirm={confirmSendEmail}
+        isSending={isSendingEmail}
       />
     </AppLayout>
   );

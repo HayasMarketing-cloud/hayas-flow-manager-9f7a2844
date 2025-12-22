@@ -833,6 +833,56 @@ export type Database = {
           },
         ]
       }
+      liquidation_signatures: {
+        Row: {
+          created_at: string | null
+          dispute_reason: string | null
+          expires_at: string
+          id: string
+          ip_address: string | null
+          liquidation_id: string
+          signed_at: string | null
+          specialist_comments: string | null
+          status: string | null
+          token: string
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          dispute_reason?: string | null
+          expires_at: string
+          id?: string
+          ip_address?: string | null
+          liquidation_id: string
+          signed_at?: string | null
+          specialist_comments?: string | null
+          status?: string | null
+          token?: string
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          dispute_reason?: string | null
+          expires_at?: string
+          id?: string
+          ip_address?: string | null
+          liquidation_id?: string
+          signed_at?: string | null
+          specialist_comments?: string | null
+          status?: string | null
+          token?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liquidation_signatures_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "liquidations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       liquidations: {
         Row: {
           code: string

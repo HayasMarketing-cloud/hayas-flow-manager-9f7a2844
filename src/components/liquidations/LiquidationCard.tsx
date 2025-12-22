@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Eye, Pencil, Calendar } from 'lucide-react';
+import { Eye, Pencil, Calendar, Mail } from 'lucide-react';
 import { LiquidationStatusBadge } from './LiquidationStatusBadge';
 import { formatPeriod, formatCurrency } from '@/lib/liquidation-utils';
 
@@ -8,11 +8,14 @@ interface LiquidationCardProps {
   liquidation: any;
   onView: (liquidation: any) => void;
   onEdit?: (liquidation: any) => void;
+  onSendEmail?: (liquidation: any) => void;
   canManage: boolean;
+  isSending?: boolean;
 }
 
-export const LiquidationCard = ({ liquidation, onView, onEdit, canManage }: LiquidationCardProps) => {
+export const LiquidationCard = ({ liquidation, onView, onEdit, onSendEmail, canManage, isSending }: LiquidationCardProps) => {
   const isEditable = liquidation.status === 'draft';
+  const hasSpecialistEmail = !!liquidation.specialist?.email;
 
   return (
     <Card>
@@ -44,9 +47,20 @@ export const LiquidationCard = ({ liquidation, onView, onEdit, canManage }: Liqu
             Ver
           </Button>
           {canManage && isEditable && onEdit && (
-            <Button onClick={() => onEdit(liquidation)} className="flex-1">
+            <Button onClick={() => onEdit(liquidation)} variant="outline" className="flex-1">
               <Pencil className="h-4 w-4 mr-2" />
               Editar
+            </Button>
+          )}
+          {canManage && isEditable && hasSpecialistEmail && onSendEmail && (
+            <Button 
+              onClick={() => onSendEmail(liquidation)} 
+              variant="default"
+              className="flex-1"
+              disabled={isSending}
+            >
+              <Mail className="h-4 w-4 mr-2" />
+              {isSending ? 'Enviando...' : 'Enviar'}
             </Button>
           )}
         </div>

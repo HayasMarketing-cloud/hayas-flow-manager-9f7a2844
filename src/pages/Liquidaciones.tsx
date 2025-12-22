@@ -16,6 +16,7 @@ import { LiquidationTableView } from '@/components/liquidations/LiquidationTable
 import { LiquidationFormModal } from '@/components/liquidations/LiquidationFormModal';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { generateLiquidationPDFBase64 } from '@/utils/pdf/liquidationPDFGenerator';
 
 export default function Liquidaciones() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -24,6 +25,10 @@ export default function Liquidaciones() {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [liquidationToDelete, setLiquidationToDelete] = useState<any>(null);
+  const [sendEmailDialogOpen, setSendEmailDialogOpen] = useState(false);
+  const [liquidationToSend, setLiquidationToSend] = useState<any>(null);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [sendingLiquidationId, setSendingLiquidationId] = useState<string | null>(null);
   const { filters, updateFilter, resetFilters } = useLiquidationFilters();
   const { canAccessFinance, loading: rolesLoading } = useUserRole();
   const queryClient = useQueryClient();
@@ -35,7 +40,7 @@ export default function Liquidaciones() {
         .from('liquidations')
         .select(`
           *,
-          specialist:specialists(id, name),
+          specialist:specialists(id, name, email),
           liquidation_items(
             id,
             total
@@ -167,6 +172,82 @@ export default function Liquidaciones() {
   const confirmDelete = () => {
     if (liquidationToDelete) {
       deleteMutation.mutate(liquidationToDelete.id);
+    }
+  };
+
+  const handleSendEmailClick = (liquidation: any) => {
+    if (!liquidation.specialist?.email) {
+      toast.error('El especialista no tiene email configurado');
+      return;
+    }
+    setLiquidationToSend(liquidation);
+    setSendEmailDialogOpen(true);
+  };
+
+  const confirmSendEmail = async () => {
+    if (!liquidationToSend) return;
+
+    const liquidation = liquidationToSend;
+    setIsSendingEmail(true);
+    setSendingLiquidationId(liquidation.id);
+    setSendEmailDialogOpen(false);
+
+    try {
+      // Fetch liquidation items with financial_request details
+      const { data: items, error: itemsError } = await supabase
+        .from('liquidation_items')
+        .select(`
+          *,
+          financial_request:financial_requests(
+            id,
+            title,
+            cost_to_agency,
+            client:clients(name)
+          )
+        `)
+        .eq('liquidation_id', liquidation.id);
+
+      if (itemsError) throw itemsError;
+
+      // Generate PDF as base64
+      const pdfBase64 = await generateLiquidationPDFBase64({
+        liquidation,
+        items: items || [],
+        specialist: liquidation.specialist,
+      });
+
+      // Call edge function to send email
+      const { data, error } = await supabase.functions.invoke('send-liquidation-email', {
+        body: {
+          specialistName: liquidation.specialist.name,
+          specialistEmail: liquidation.specialist.email,
+          liquidationCode: liquidation.code,
+          periodMonth: liquidation.period_month,
+          periodYear: liquidation.period_year,
+          totalAmount: liquidation.calculated_total ?? liquidation.total_amount,
+          pdfBase64,
+        },
+      });
+
+      if (error) throw error;
+
+      // Update liquidation status to 'sent'
+      const { error: updateError } = await supabase
+        .from('liquidations')
+        .update({ status: 'sent', sent_at: new Date().toISOString() })
+        .eq('id', liquidation.id);
+
+      if (updateError) throw updateError;
+
+      queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      toast.success(`Email enviado a ${liquidation.specialist.email}`);
+    } catch (error: any) {
+      console.error('Error sending email:', error);
+      toast.error('Error al enviar email: ' + (error.message || 'Error desconocido'));
+    } finally {
+      setIsSendingEmail(false);
+      setSendingLiquidationId(null);
+      setLiquidationToSend(null);
     }
   };
 
@@ -360,7 +441,9 @@ export default function Liquidaciones() {
                   liquidation={liquidation}
                   onView={handleView}
                   onEdit={handleEdit}
+                  onSendEmail={handleSendEmailClick}
                   canManage={canAccessFinance()}
+                  isSending={isSendingEmail && sendingLiquidationId === liquidation.id}
                 />
               ))}
             </div>
@@ -370,7 +453,10 @@ export default function Liquidaciones() {
               onView={handleView}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onSendEmail={handleSendEmailClick}
               canManage={canAccessFinance()}
+              isSending={isSendingEmail}
+              sendingLiquidationId={sendingLiquidationId || undefined}
             />
           )
         ) : (
@@ -398,6 +484,16 @@ export default function Liquidaciones() {
         cancelText="Cancelar"
         variant="destructive"
         onConfirm={confirmDelete}
+      />
+
+      <ConfirmDialog
+        open={sendEmailDialogOpen}
+        onOpenChange={setSendEmailDialogOpen}
+        title="Enviar Liquidación por Email"
+        description={`¿Enviar la liquidación ${liquidationToSend?.code} a ${liquidationToSend?.specialist?.email}? El estado cambiará a "Enviada".`}
+        confirmText="Enviar"
+        cancelText="Cancelar"
+        onConfirm={confirmSendEmail}
       />
     </AppLayout>
   );

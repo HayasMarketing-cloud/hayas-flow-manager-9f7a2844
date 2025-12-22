@@ -1,6 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Eye, Pencil, Trash2 } from 'lucide-react';
+import { Eye, Pencil, Trash2, Mail } from 'lucide-react';
 import { LiquidationStatusBadge } from './LiquidationStatusBadge';
 import { formatPeriod, formatCurrency } from '@/lib/liquidation-utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,10 +10,22 @@ interface LiquidationTableViewProps {
   onView: (liquidation: any) => void;
   onEdit: (liquidation: any) => void;
   onDelete: (liquidation: any) => void;
+  onSendEmail?: (liquidation: any) => void;
   canManage: boolean;
+  isSending?: boolean;
+  sendingLiquidationId?: string;
 }
 
-export const LiquidationTableView = ({ liquidations, onView, onEdit, onDelete, canManage }: LiquidationTableViewProps) => {
+export const LiquidationTableView = ({ 
+  liquidations, 
+  onView, 
+  onEdit, 
+  onDelete, 
+  onSendEmail,
+  canManage,
+  isSending,
+  sendingLiquidationId
+}: LiquidationTableViewProps) => {
   if (!liquidations || liquidations.length === 0) {
     return (
       <Card>
@@ -42,6 +54,8 @@ export const LiquidationTableView = ({ liquidations, onView, onEdit, onDelete, c
             <TableBody>
               {liquidations.map((liquidation) => {
                 const isEditable = liquidation.status === 'draft';
+                const hasSpecialistEmail = !!liquidation.specialist?.email;
+                const isCurrentlySending = isSending && sendingLiquidationId === liquidation.id;
                 
                 return (
                   <TableRow key={liquidation.id}>
@@ -68,6 +82,17 @@ export const LiquidationTableView = ({ liquidations, onView, onEdit, onDelete, c
                             onClick={() => onEdit(liquidation)}
                           >
                             <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canManage && isEditable && hasSpecialistEmail && onSendEmail && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onSendEmail(liquidation)}
+                            disabled={isCurrentlySending}
+                            className="text-primary hover:text-primary"
+                          >
+                            <Mail className="h-4 w-4" />
                           </Button>
                         )}
                         {canManage && isEditable && (

@@ -45,6 +45,15 @@ export default function Liquidaciones() {
           liquidation_items(
             id,
             total
+          ),
+          liquidation_signatures(
+            id,
+            token,
+            status,
+            signed_at,
+            ip_address,
+            dispute_reason,
+            expires_at
           )
         `)
         .order('period_year', { ascending: false })

@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Eye, Pencil, Calendar, Mail } from 'lucide-react';
 import { LiquidationStatusBadge } from './LiquidationStatusBadge';
+import { SignatureStatusBadge } from './SignatureStatusBadge';
 import { formatPeriod, formatCurrency } from '@/lib/liquidation-utils';
 
 interface LiquidationCardProps {
@@ -16,6 +17,8 @@ interface LiquidationCardProps {
 export const LiquidationCard = ({ liquidation, onView, onEdit, onSendEmail, canManage, isSending }: LiquidationCardProps) => {
   const isEditable = liquidation.status === 'draft';
   const hasSpecialistEmail = !!liquidation.specialist?.email;
+  // Get latest signature (first one in array, sorted by created_at desc)
+  const latestSignature = liquidation.liquidation_signatures?.[0] || null;
 
   return (
     <Card>
@@ -30,6 +33,13 @@ export const LiquidationCard = ({ liquidation, onView, onEdit, onSendEmail, canM
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Signature status */}
+        {liquidation.status !== 'draft' && (
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Firma:</span>
+            <SignatureStatusBadge signature={latestSignature} />
+          </div>
+        )}
 
         <div className="text-sm text-muted-foreground">
           <Calendar className="h-4 w-4 inline mr-2" />

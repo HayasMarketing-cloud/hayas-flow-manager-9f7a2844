@@ -14,10 +14,11 @@ import { useEffect, useState, useMemo } from 'react';
 import { formatPeriod } from '@/lib/liquidation-utils';
 import { Database } from '@/integrations/supabase/types';
 import { generateLiquidationPDF } from '@/utils/pdf/liquidationPDFGenerator';
-import { FileDown, Plus, Trash2 } from 'lucide-react';
+import { FileDown, Plus, Trash2, Shield, CheckCircle2, XCircle, Clock, Globe, Monitor } from 'lucide-react';
 import { useUnliquidatedRequests } from '@/hooks/useUnliquidatedRequests';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 
 type LiquidationStatus = Database['public']['Enums']['liquidation_status'];
 
@@ -43,6 +44,158 @@ interface ManualItem {
   description: string;
   amount: number;
 }
+
+// Component to display digital signature details
+const SignatureDetailsSection = ({ signature }: { signature: any }) => {
+  const isExpired = new Date(signature.expires_at) < new Date();
+  const isPending = signature.status === 'pending';
+  const isAccepted = signature.status === 'accepted';
+  const isDisputed = signature.status === 'disputed';
+
+  const getStatusConfig = () => {
+    if (isAccepted) {
+      return {
+        icon: CheckCircle2,
+        title: 'Liquidación Aceptada',
+        bgColor: 'bg-green-50 border-green-200',
+        iconColor: 'text-green-600',
+        badgeVariant: 'default' as const,
+        badgeClass: 'bg-green-100 text-green-700',
+      };
+    }
+    if (isDisputed) {
+      return {
+        icon: XCircle,
+        title: 'Liquidación Disputada',
+        bgColor: 'bg-red-50 border-red-200',
+        iconColor: 'text-red-600',
+        badgeVariant: 'destructive' as const,
+        badgeClass: 'bg-red-100 text-red-700',
+      };
+    }
+    if (isPending && isExpired) {
+      return {
+        icon: Clock,
+        title: 'Enlace de Firma Expirado',
+        bgColor: 'bg-orange-50 border-orange-200',
+        iconColor: 'text-orange-600',
+        badgeVariant: 'secondary' as const,
+        badgeClass: 'bg-orange-100 text-orange-700',
+      };
+    }
+    return {
+      icon: Clock,
+      title: 'Pendiente de Firma',
+      bgColor: 'bg-yellow-50 border-yellow-200',
+      iconColor: 'text-yellow-600',
+      badgeVariant: 'secondary' as const,
+      badgeClass: 'bg-yellow-100 text-yellow-700',
+    };
+  };
+
+  const config = getStatusConfig();
+  const Icon = config.icon;
+
+  return (
+    <div className={`border rounded-lg p-4 space-y-4 ${config.bgColor}`}>
+      <div className="flex items-center gap-3">
+        <div className={`p-2 rounded-full bg-background ${config.iconColor}`}>
+          <Shield className="h-5 w-5" />
+        </div>
+        <div>
+          <h4 className="font-semibold flex items-center gap-2">
+            Firma Digital
+            <Badge className={config.badgeClass}>
+              <Icon className="h-3 w-3 mr-1" />
+              {isAccepted ? 'Firmada' : isDisputed ? 'Disputada' : isPending && isExpired ? 'Expirada' : 'Pendiente'}
+            </Badge>
+          </h4>
+          <p className="text-sm text-muted-foreground">{config.title}</p>
+        </div>
+      </div>
+
+      {/* Digital Evidence Details */}
+      {(isAccepted || isDisputed) && signature.signed_at && (
+        <div className="bg-background rounded-md p-3 space-y-2">
+          <h5 className="text-sm font-medium flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            Evidencia Digital
+          </h5>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Clock className="h-4 w-4" />
+              Fecha y hora:
+            </div>
+            <div className="font-medium">
+              {new Date(signature.signed_at).toLocaleString('es-ES', {
+                dateStyle: 'full',
+                timeStyle: 'medium',
+              })}
+            </div>
+
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Globe className="h-4 w-4" />
+              Dirección IP:
+            </div>
+            <div className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit">
+              {signature.ip_address || 'No disponible'}
+            </div>
+
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Monitor className="h-4 w-4" />
+              Navegador:
+            </div>
+            <div className="text-xs truncate" title={signature.user_agent}>
+              {signature.user_agent ? signature.user_agent.substring(0, 50) + '...' : 'No disponible'}
+            </div>
+          </div>
+
+          {/* Specialist Comments */}
+          {signature.specialist_comments && (
+            <div className="pt-2 border-t mt-2">
+              <p className="text-sm text-muted-foreground mb-1">Comentarios del especialista:</p>
+              <p className="text-sm bg-muted p-2 rounded">{signature.specialist_comments}</p>
+            </div>
+          )}
+
+          {/* Dispute Reason */}
+          {isDisputed && signature.dispute_reason && (
+            <div className="pt-2 border-t mt-2">
+              <p className="text-sm text-muted-foreground mb-1 flex items-center gap-1">
+                <XCircle className="h-4 w-4 text-red-500" />
+                Motivo de la disputa:
+              </p>
+              <p className="text-sm bg-red-50 text-red-800 p-2 rounded border border-red-200">
+                {signature.dispute_reason}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Pending Status Info */}
+      {isPending && !isExpired && (
+        <div className="bg-background rounded-md p-3 text-sm">
+          <p className="text-muted-foreground">
+            Se ha enviado un enlace de firma al especialista. El enlace expira el{' '}
+            <strong>{new Date(signature.expires_at).toLocaleDateString('es-ES')}</strong>.
+          </p>
+        </div>
+      )}
+
+      {/* Expired Status Info */}
+      {isPending && isExpired && (
+        <div className="bg-background rounded-md p-3 text-sm">
+          <p className="text-muted-foreground">
+            El enlace de firma expiró el{' '}
+            <strong>{new Date(signature.expires_at).toLocaleDateString('es-ES')}</strong>.
+            Puedes reenviar el email para generar un nuevo enlace.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: LiquidationFormModalProps) => {
   const queryClient = useQueryClient();
@@ -1073,6 +1226,11 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
               <span>{displaySubtotal.toFixed(2)} €</span>
             </div>
           </div>
+
+          {/* Digital Signature Details - Only in View Mode when signature exists */}
+          {isViewMode && liquidation?.liquidation_signatures?.[0] && (
+            <SignatureDetailsSection signature={liquidation.liquidation_signatures[0]} />
+          )}
 
           <div>
             <Label htmlFor="notes">Notas</Label>

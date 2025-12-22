@@ -216,16 +216,18 @@ export default function Liquidaciones() {
         specialist: liquidation.specialist,
       });
 
-      // Call edge function to send email
+      // Call edge function to send email with signature token
       const { data, error } = await supabase.functions.invoke('send-liquidation-email', {
         body: {
           specialistName: liquidation.specialist.name,
           specialistEmail: liquidation.specialist.email,
           liquidationCode: liquidation.code,
+          liquidationId: liquidation.id,
           periodMonth: liquidation.period_month,
           periodYear: liquidation.period_year,
           totalAmount: liquidation.calculated_total ?? liquidation.total_amount,
           pdfBase64,
+          appUrl: window.location.origin,
         },
       });
 

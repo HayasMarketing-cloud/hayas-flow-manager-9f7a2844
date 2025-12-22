@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -11,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Mail, FileText, User, Calendar, Euro, Send, Loader2 } from 'lucide-react';
+import { Mail, FileText, User, Calendar, Euro, Send, Loader2, Shield, Link } from 'lucide-react';
 
 interface EmailPreviewModalProps {
   open: boolean;
@@ -86,6 +85,26 @@ export const EmailPreviewModal = ({
             </CardContent>
           </Card>
 
+          {/* New: Digital Signature Info */}
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="pt-4">
+              <div className="flex items-start gap-3">
+                <Shield className="h-5 w-5 text-primary mt-0.5" />
+                <div className="space-y-1">
+                  <h4 className="font-medium text-sm">Sistema de Firma Digital</h4>
+                  <p className="text-xs text-muted-foreground">
+                    El email incluirá un enlace único para que el especialista pueda <strong>Aceptar</strong> o <strong>Disputar</strong> la liquidación. 
+                    Se registrará fecha, hora e IP como evidencia digital.
+                  </p>
+                  <div className="flex items-center gap-1 text-xs text-primary">
+                    <Link className="h-3 w-3" />
+                    <span>El enlace expira en 30 días</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Email body preview */}
           <Card>
             <CardContent className="pt-4">
@@ -127,11 +146,15 @@ export const EmailPreviewModal = ({
                 </div>
                 
                 <p className="mb-4">
-                  Por favor, revisa el documento adjunto y confirma que los datos son correctos.
+                  Por favor, revisa el documento adjunto y <strong>confirma o disputa</strong> la liquidación haciendo clic en el botón del email.
                 </p>
-                <p className="mb-4">
-                  Si tienes alguna discrepancia, no dudes en contactarnos.
-                </p>
+
+                {/* Mock button preview */}
+                <div className="text-center my-4">
+                  <div className="inline-block bg-green-500 text-white px-6 py-3 rounded-lg font-medium">
+                    ✓ Revisar y Firmar
+                  </div>
+                </div>
                 
                 <Separator className="my-4" />
                 

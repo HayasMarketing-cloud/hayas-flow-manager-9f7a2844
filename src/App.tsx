@@ -30,6 +30,7 @@ import NotFound from "./pages/NotFound";
 import OperationalProjects from "./pages/operations/OperationalProjects";
 import OperationalProjectDetail from "./pages/operations/OperationalProjectDetail";
 import MyTasks from "./pages/operations/MyTasks";
+import FirmaLiquidacion from "./pages/FirmaLiquidacion";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +44,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            {/* Public signing page - no auth required */}
+            <Route path="/liquidacion/firmar/:token" element={<FirmaLiquidacion />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/dashboard-mensual" element={<ProtectedRoute><DashboardMensual /></ProtectedRoute>} />
             <Route path="/dashboard-finanzas" element={<ProtectedRoute><DashboardFinanzas /></ProtectedRoute>} />

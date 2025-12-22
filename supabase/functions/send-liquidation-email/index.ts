@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,10 +10,12 @@ interface LiquidationEmailRequest {
   specialistName: string;
   specialistEmail: string;
   liquidationCode: string;
+  liquidationId: string;
   periodMonth: number;
   periodYear: number;
   totalAmount: number;
   pdfBase64: string;
+  appUrl: string;
 }
 
 const monthNames = [
@@ -21,7 +24,6 @@ const monthNames = [
 ];
 
 const handler = async (req: Request): Promise<Response> => {
-  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -29,6 +31,8 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const gmailUser = Deno.env.get("GMAIL_USER");
     const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     if (!gmailUser || !gmailPassword) {
       console.error("Gmail credentials not configured");
@@ -39,13 +43,41 @@ const handler = async (req: Request): Promise<Response> => {
       specialistName,
       specialistEmail,
       liquidationCode,
+      liquidationId,
       periodMonth,
       periodYear,
       totalAmount,
       pdfBase64,
+      appUrl,
     }: LiquidationEmailRequest = await req.json();
 
     console.log(`Sending liquidation email to ${specialistEmail} for ${liquidationCode}`);
+
+    // Create Supabase client with service role
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Create signature token with 30 days expiration
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+
+    const { data: signatureData, error: signatureError } = await supabase
+      .from('liquidation_signatures')
+      .insert({
+        liquidation_id: liquidationId,
+        expires_at: expiresAt.toISOString(),
+      })
+      .select('token')
+      .single();
+
+    if (signatureError) {
+      console.error("Error creating signature token:", signatureError);
+      throw new Error("Failed to create signature token");
+    }
+
+    const signatureToken = signatureData.token;
+    const signatureUrl = `${appUrl}/liquidacion/firmar/${signatureToken}`;
+
+    console.log(`Created signature token: ${signatureToken}`);
 
     const periodName = `${monthNames[periodMonth - 1]} ${periodYear}`;
     const formattedAmount = new Intl.NumberFormat('es-ES', { 
@@ -53,7 +85,6 @@ const handler = async (req: Request): Promise<Response> => {
       currency: 'EUR' 
     }).format(totalAmount);
 
-    // Build email content
     const subject = `Liquidación ${liquidationCode} - ${periodName} - Pendiente de validación`;
     
     const htmlContent = `
@@ -81,8 +112,20 @@ const handler = async (req: Request): Promise<Response> => {
           </table>
         </div>
         
-        <p>Por favor, revisa el documento adjunto y confirma que los datos son correctos.</p>
-        <p>Si tienes alguna discrepancia, no dudes en contactarnos.</p>
+        <p>Por favor, revisa el documento adjunto y <strong>confirma o disputa</strong> la liquidación haciendo clic en uno de los botones de abajo:</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${signatureUrl}" 
+             style="display: inline-block; background-color: #10b981; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-right: 10px;">
+            ✓ Revisar y Firmar
+          </a>
+        </div>
+        
+        <p style="color: #666; font-size: 0.9em; text-align: center;">
+          Este enlace expira en 30 días.<br>
+          Si tienes problemas, copia y pega esta URL en tu navegador:<br>
+          <a href="${signatureUrl}" style="color: #3b82f6;">${signatureUrl}</a>
+        </p>
         
         <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
         
@@ -93,46 +136,6 @@ const handler = async (req: Request): Promise<Response> => {
       </div>
     `;
 
-    // Use native fetch to send email via Gmail API with SMTP simulation
-    // Since denomailer causes CPU timeout, we'll use a simpler approach with nodemailer-like logic
-    
-    // For now, let's use the Gmail API approach with base64 encoding
-    const boundary = "boundary_" + Date.now();
-    
-    const rawEmail = [
-      `From: ${gmailUser}`,
-      `To: ${specialistEmail}`,
-      `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
-      `MIME-Version: 1.0`,
-      `Content-Type: multipart/mixed; boundary="${boundary}"`,
-      ``,
-      `--${boundary}`,
-      `Content-Type: text/html; charset=UTF-8`,
-      `Content-Transfer-Encoding: base64`,
-      ``,
-      btoa(unescape(encodeURIComponent(htmlContent))),
-      ``,
-      `--${boundary}`,
-      `Content-Type: application/pdf; name="Liquidacion_${liquidationCode}.pdf"`,
-      `Content-Disposition: attachment; filename="Liquidacion_${liquidationCode}.pdf"`,
-      `Content-Transfer-Encoding: base64`,
-      ``,
-      pdfBase64,
-      ``,
-      `--${boundary}--`,
-    ].join("\r\n");
-
-    // Convert to base64url for Gmail API
-    const encodedEmail = btoa(unescape(encodeURIComponent(rawEmail)))
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
-
-    // Get OAuth2 access token using service account or app password
-    // For simplicity with App Password, we'll use SMTP relay
-    // But since that times out, let's try a direct HTTP approach to Gmail's SMTP
-    
-    // Alternative: Use a lightweight SMTP approach
     const smtpResponse = await sendViaSMTP({
       host: "smtp.gmail.com",
       port: 587,
@@ -153,7 +156,11 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Email sent successfully to ${specialistEmail}`);
 
     return new Response(
-      JSON.stringify({ success: true, message: "Email enviado correctamente" }),
+      JSON.stringify({ 
+        success: true, 
+        message: "Email enviado correctamente",
+        signatureToken: signatureToken,
+      }),
       {
         status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -171,7 +178,6 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
-// Lightweight SMTP implementation optimized for Deno edge functions
 async function sendViaSMTP(config: {
   host: string;
   port: number;
@@ -210,20 +216,15 @@ async function sendViaSMTP(config: {
       return response.startsWith(expectedCode);
     };
 
-    // Read greeting
     await read();
-
-    // EHLO
     await write(`EHLO ${config.host}`);
     await read();
 
-    // STARTTLS
     await write("STARTTLS");
     if (!await readAndCheck("220")) {
       throw new Error("STARTTLS failed");
     }
 
-    // Upgrade to TLS
     const tlsConn = await Deno.startTls(conn, { hostname: config.host });
 
     const tlsRead = async (): Promise<string> => {
@@ -237,11 +238,9 @@ async function sendViaSMTP(config: {
       await tlsConn.write(encoder.encode(data + "\r\n"));
     };
 
-    // EHLO again after TLS
     await tlsWrite(`EHLO ${config.host}`);
     await tlsRead();
 
-    // AUTH LOGIN
     await tlsWrite("AUTH LOGIN");
     await tlsRead();
 
@@ -254,22 +253,18 @@ async function sendViaSMTP(config: {
       throw new Error("Authentication failed: " + authResponse);
     }
 
-    // MAIL FROM
     await tlsWrite(`MAIL FROM:<${config.from}>`);
     await tlsRead();
 
-    // RCPT TO
     await tlsWrite(`RCPT TO:<${config.to}>`);
     await tlsRead();
 
-    // DATA
     await tlsWrite("DATA");
     const dataResponse = await tlsRead();
     if (!dataResponse.startsWith("354")) {
       throw new Error("DATA command failed: " + dataResponse);
     }
 
-    // Build message with attachment
     const boundary = "----=_Part_" + Date.now();
     const message = [
       `From: ${config.from}`,
@@ -302,7 +297,6 @@ async function sendViaSMTP(config: {
       throw new Error("Failed to send message: " + sendResponse);
     }
 
-    // QUIT
     await tlsWrite("QUIT");
     await tlsRead();
 

@@ -78,10 +78,10 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   doc.text(`Tel: ${company.phone}`, 55, 37);
   doc.text(company.email, 55, 43);
 
-  // Título - Derecha (PRESUPUESTO + Cliente + Título + Código)
+  // Título - Derecha (QUOTE + Cliente + Título + Código)
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text('PRESUPUESTO', pageWidth - 15, 18, { align: 'right' });
+  doc.text('QUOTE', pageWidth - 15, 18, { align: 'right' });
 
   doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
@@ -100,10 +100,10 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   doc.setLineWidth(0.5);
   doc.line(15, 50, pageWidth - 15, 50);
 
-  // Información del cliente
+  // Client information
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('CLIENTE', 15, 60);
+  doc.text('CLIENT', 15, 60);
 
   doc.setFont('helvetica', 'normal');
   doc.text(data.budget.client.name, 15, 67);
@@ -111,7 +111,7 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   let clientInfoY = 67;
   if (data.budget.client.tax_id) {
     clientInfoY += 7;
-    doc.text(`CIF/NIF: ${data.budget.client.tax_id}`, 15, clientInfoY);
+    doc.text(`Tax ID: ${data.budget.client.tax_id}`, 15, clientInfoY);
   }
   if (data.budget.client.address) {
     clientInfoY += 7;
@@ -122,14 +122,14 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
     doc.text(data.budget.client.city, 15, clientInfoY);
   }
 
-  // Validez del presupuesto (derecha)
+  // Quote validity (right side)
   let validUntilY = 60;
   if (data.budget.valid_until) {
     doc.setFont('helvetica', 'bold');
-    doc.text('Válido hasta:', pageWidth - 60, 60);
+    doc.text('Valid until:', pageWidth - 60, 60);
     doc.setFont('helvetica', 'normal');
     const validUntilDate = new Date(data.budget.valid_until);
-    const formattedDate = validUntilDate.toLocaleDateString('es-ES', {
+    const formattedDate = validUntilDate.toLocaleDateString('en-US', {
       day: 'numeric',
       month: 'long',
       year: 'numeric'
@@ -138,11 +138,11 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
     validUntilY = 67;
   }
 
-  // Título completo del presupuesto (debajo de cliente y validez)
+  // Full quote title (below client and validity)
   const titleStartY = Math.max(clientInfoY + 12, validUntilY + 12);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('CONCEPTO', 15, titleStartY);
+  doc.text('DESCRIPTION', 15, titleStartY);
   
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
@@ -179,7 +179,7 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
 
   autoTable(doc, {
     startY: tableStartY,
-    head: [['Descripción', 'Cantidad', 'Precio Unitario', 'Total']],
+    head: [['Description', 'Quantity', 'Unit Price', 'Total']],
     body: tableData,
     theme: 'striped',
     headStyles: {
@@ -212,11 +212,11 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   const total = data.budget.total_amount || data.items.reduce((sum, item) => sum + item.total, 0);
   doc.text(formatCurrency(total), pageWidth - 15, finalY, { align: 'right' });
 
-  // Descripción/Objetivo
+  // Description/Objective
   if (data.budget.description) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    doc.text('Objetivo:', 15, finalY + 20);
+    doc.text('Objective:', 15, finalY + 20);
     
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
@@ -229,14 +229,14 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   doc.setFontSize(8);
   doc.setTextColor(128, 128, 128);
   doc.text(
-    'Este presupuesto tiene validez hasta la fecha indicada',
+    'This quote is valid until the date indicated',
     pageWidth / 2,
     pageHeight - 20,
     { align: 'center' }
   );
 
-  // Descargar
-  doc.save(`presupuesto_${data.budget.code}.pdf`);
+  // Download
+  doc.save(`quote_${data.budget.code}.pdf`);
 };
 
 interface GroupedCategory {
@@ -254,7 +254,7 @@ const groupItemsByCategory = (items: BudgetPDFData['items']): GroupedCategory[] 
   const grouped: { [categoryName: string]: { items: typeof items; subtotal: number } } = {};
   
   items.forEach((item) => {
-    const categoryName = item.service?.category || item.service?.name || 'Otros servicios';
+    const categoryName = item.service?.category || item.service?.name || 'Other services';
     if (!grouped[categoryName]) {
       grouped[categoryName] = { items: [], subtotal: 0 };
     }

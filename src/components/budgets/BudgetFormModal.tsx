@@ -138,12 +138,18 @@ export const BudgetFormModal = ({
     mutationFn: async () => {
       const totalAmount = calculateBudgetTotal(items);
 
+      // Limpiar campos UUID vacíos para evitar error "invalid input syntax for type uuid"
+      const cleanedFormData = {
+        ...formData,
+        client_contact_id: formData.client_contact_id || null,
+      };
+
       if (budget?.id) {
         // Actualizar presupuesto
         const { error: budgetError } = await supabase
           .from('budgets')
           .update({
-            ...formData,
+            ...cleanedFormData,
             total_amount: totalAmount,
           })
           .eq('id', budget.id);
@@ -184,11 +190,11 @@ export const BudgetFormModal = ({
         // Crear nuevo presupuesto
         const { data: newBudget, error: budgetError } = await supabase
           .from('budgets')
-           .insert({
-             ...formData,
-             total_amount: totalAmount,
-             created_by: user?.id,
-           })
+          .insert({
+            ...cleanedFormData,
+            total_amount: totalAmount,
+            created_by: user?.id,
+          })
           .select()
           .single();
 

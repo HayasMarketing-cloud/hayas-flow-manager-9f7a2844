@@ -37,7 +37,7 @@ export const SERVICE_CATEGORIES = [
   'Desarrollo de aplicaciones',
   'Estrategia & Consultoría',
   'Web & UX',
-  'SEO & Contenidos',
+  'Content & Translations',
   'Paid Media',
   'Email & Automatización',
   'CRM & Datos',

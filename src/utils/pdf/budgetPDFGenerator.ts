@@ -123,6 +123,7 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   }
 
   // Validez del presupuesto (derecha)
+  let validUntilY = 60;
   if (data.budget.valid_until) {
     doc.setFont('helvetica', 'bold');
     doc.text('Válido hasta:', pageWidth - 60, 60);
@@ -134,7 +135,21 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
       year: 'numeric'
     });
     doc.text(formattedDate, pageWidth - 60, 67);
+    validUntilY = 67;
   }
+
+  // Título completo del presupuesto (debajo de cliente y validez)
+  const titleStartY = Math.max(clientInfoY + 12, validUntilY + 12);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text('CONCEPTO', 15, titleStartY);
+  
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  const splitTitle = doc.splitTextToSize(data.budget.title, pageWidth - 30);
+  doc.text(splitTitle, 15, titleStartY + 7);
+  
+  const titleEndY = titleStartY + 7 + (splitTitle.length - 1) * 5;
 
   // Agrupar items por categoría de servicio
   const groupedItems = groupItemsByCategory(data.items);
@@ -160,7 +175,7 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
     });
   });
 
-  const tableStartY = Math.max(clientInfoY + 15, 95);
+  const tableStartY = Math.max(titleEndY + 10, 110);
 
   autoTable(doc, {
     startY: tableStartY,

@@ -1,76 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { SignJWT, importPKCS8 } from "https://deno.land/x/jose@v5.2.0/index.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Helper function for base64url encoding
-async function base64UrlEncode(data: Uint8Array): Promise<string> {
-  let binary = '';
-  for (let i = 0; i < data.length; i++) {
-    binary += String.fromCharCode(data[i]);
-  }
-  return btoa(binary)
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-}
-
-// Create JWT for service account authentication
-async function createServiceAccountJWT(
-  serviceAccountEmail: string,
-  privateKey: string,
-  userToImpersonate: string
-): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  
-  const header = {
-    alg: 'RS256',
-    typ: 'JWT'
-  };
-
-  const payload = {
-    iss: serviceAccountEmail,
-    sub: userToImpersonate,
-    scope: 'https://www.googleapis.com/auth/gmail.send',
-    aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600
-  };
-
-  const encodedHeader = await base64UrlEncode(new TextEncoder().encode(JSON.stringify(header)));
-  const encodedPayload = await base64UrlEncode(new TextEncoder().encode(JSON.stringify(payload)));
-  const signatureInput = `${encodedHeader}.${encodedPayload}`;
-
-  // Clean the private key
-  const cleanedKey = privateKey
-    .replace(/\\n/g, '\n')
-    .replace(/-----BEGIN PRIVATE KEY-----/, '')
-    .replace(/-----END PRIVATE KEY-----/, '')
-    .replace(/\s/g, '');
-
-  const binaryKey = Uint8Array.from(atob(cleanedKey), c => c.charCodeAt(0));
-  
-  const cryptoKey = await crypto.subtle.importKey(
-    'pkcs8',
-    binaryKey,
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-
-  const signature = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    cryptoKey,
-    new TextEncoder().encode(signatureInput)
-  );
-
-  const encodedSignature = await base64UrlEncode(new Uint8Array(signature));
-  return `${signatureInput}.${encodedSignature}`;
-}
-
-// Get OAuth2 access token using the JWT
+// Get OAuth2 access token using the signed JWT
 async function getAccessToken(jwt: string): Promise<string> {
   const response = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -98,8 +34,6 @@ function createMimeMessage(
   subject: string,
   body: string
 ): string {
-  const boundary = `boundary_${Date.now()}`;
-  
   const mimeMessage = [
     `From: ${fromEmail}`,
     `To: ${toEmail}`,
@@ -151,7 +85,7 @@ serve(async (req) => {
 
   try {
     const serviceAccountEmail = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL');
-    const privateKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY');
+    let privateKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY');
 
     if (!serviceAccountEmail || !privateKey) {
       throw new Error('Missing Google Service Account credentials');
@@ -172,8 +106,34 @@ serve(async (req) => {
     console.log(`Test email: ${fromEmail} -> ${toEmail}`);
     console.log(`Subject: ${subject}`);
 
+    // Fix the private key format - handle escaped newlines
+    privateKey = privateKey.replace(/\\n/g, '\n');
+    
+    // Ensure proper PEM format
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+      privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
+    }
+
+    console.log('Importing private key...');
+    
+    // Import the private key using jose library
+    const key = await importPKCS8(privateKey, 'RS256');
+    console.log('Private key imported successfully');
+
     // Create JWT for service account with domain-wide delegation
-    const jwt = await createServiceAccountJWT(serviceAccountEmail, privateKey, fromEmail);
+    const now = Math.floor(Date.now() / 1000);
+    const jwt = await new SignJWT({
+      iss: serviceAccountEmail,
+      sub: fromEmail, // Impersonate this user
+      scope: 'https://www.googleapis.com/auth/gmail.send',
+      aud: 'https://oauth2.googleapis.com/token',
+    })
+      .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
+      .setIssuedAt(now)
+      .setExpirationTime(now + 3600)
+      .sign(key);
+
+    console.log('JWT created successfully');
     
     // Get access token
     const accessToken = await getAccessToken(jwt);

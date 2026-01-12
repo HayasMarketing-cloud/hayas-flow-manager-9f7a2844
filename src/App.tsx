@@ -31,6 +31,7 @@ import OperationalProjects from "./pages/operations/OperationalProjects";
 import OperationalProjectDetail from "./pages/operations/OperationalProjectDetail";
 import MyTasks from "./pages/operations/MyTasks";
 import FirmaLiquidacion from "./pages/FirmaLiquidacion";
+import TestEmail from "./pages/TestEmail";
 
 const queryClient = new QueryClient();
 
@@ -68,6 +69,7 @@ const App = () => (
             <Route path="/proyectos-operativos" element={<ProtectedRoute><OperationalProjects /></ProtectedRoute>} />
             <Route path="/operaciones/proyectos/:id" element={<ProtectedRoute><OperationalProjectDetail /></ProtectedRoute>} />
             <Route path="/mis-tareas" element={<ProtectedRoute><MyTasks /></ProtectedRoute>} />
+            <Route path="/test-email" element={<ProtectedRoute><TestEmail /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

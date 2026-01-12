@@ -217,14 +217,21 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
     mutationFn: async () => {
       if (!contract?.id) return;
 
-      // Llamar al edge function para generar requests
+      // Get the current user's session token for authorization
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        throw new Error('No hay sesión activa');
+      }
+
+      // Call edge function with user's JWT for proper authorization
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-monthly-requests`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({ contract_id: contract.id }),
         }

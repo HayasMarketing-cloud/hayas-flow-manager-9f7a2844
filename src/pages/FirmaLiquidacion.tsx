@@ -44,48 +44,59 @@ export default function FirmaLiquidacion() {
   const [disputeReason, setDisputeReason] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Fetch signature and liquidation data
+  // Fetch signature and liquidation data via secure edge function
   const { data: signatureData, isLoading, error } = useQuery({
     queryKey: ['signature', token],
     queryFn: async () => {
-      const { data: signature, error: sigError } = await supabase
-        .from('liquidation_signatures')
-        .select(`
-          *,
-          liquidation:liquidations(
-            *,
-            specialist:specialists(id, name, email)
-          )
-        `)
-        .eq('token', token)
-        .single();
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-signature-token`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ token }),
+        }
+      );
 
-      if (sigError) throw sigError;
-      return signature;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Token not found');
+      }
+
+      return await response.json();
     },
     enabled: !!token,
   });
 
-  // Fetch liquidation items
+  // Fetch liquidation items via secure edge function
   const { data: items } = useQuery({
-    queryKey: ['liquidation-items', signatureData?.liquidation_id],
+    queryKey: ['liquidation-items', signatureData?.liquidation?.id, token],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('liquidation_items')
-        .select(`
-          *,
-          financial_request:financial_requests(
-            id,
-            title,
-            client:clients(name)
-          )
-        `)
-        .eq('liquidation_id', signatureData!.liquidation_id);
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-liquidation-items`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ 
+            token, 
+            liquidation_id: signatureData!.liquidation.id 
+          }),
+        }
+      );
 
-      if (error) throw error;
-      return data;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error fetching items');
+      }
+
+      return await response.json();
     },
-    enabled: !!signatureData?.liquidation_id,
+    enabled: !!signatureData?.liquidation?.id && !!token,
   });
 
   const processMutation = useMutation({

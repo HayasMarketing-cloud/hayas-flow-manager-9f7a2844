@@ -12,11 +12,62 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
+    // 1. Validate authorization header
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Authorization required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 2. Validate user token and get user identity
+    const token = authHeader.replace('Bearer ', '');
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: invalid token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 3. Check user roles using service role client
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    const { data: roles, error: rolesError } = await supabaseAdmin
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id);
+
+    if (rolesError) {
+      console.error('Error fetching user roles:', rolesError);
+      return new Response(
+        JSON.stringify({ error: 'Error validating permissions' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const allowedRoles = ['admin', 'finanzas', 'project_manager'];
+    const hasPermission = roles?.some(r => allowedRoles.includes(r.role));
+
+    if (!hasPermission) {
+      return new Response(
+        JSON.stringify({ error: 'Forbidden: insufficient permissions' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 4. Parse request body
     const { contract_id } = await req.json();
 
     if (!contract_id) {
@@ -26,8 +77,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 1. Obtener contrato con sus servicios
-    const { data: contract, error: contractError } = await supabase
+    // 5. Fetch contract with services using admin client
+    const { data: contract, error: contractError } = await supabaseAdmin
       .from('contracts')
       .select('*, contract_services(*)')
       .eq('id', contract_id)
@@ -47,14 +98,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Crear requests según billing_frequency
+    // 6. Create requests based on billing_frequency
     const now = new Date();
     const monthName = now.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
     const requests = [];
 
     for (const service of contract.contract_services) {
       if (service.billing_frequency === 'monthly') {
-        // Crear request mensual sin precios (se resuelven en facturación)
         requests.push({
           client_id: contract.client_id,
           service_id: service.service_id,
@@ -63,11 +113,10 @@ Deno.serve(async (req) => {
           title: `${service.description} - ${monthName}`,
           description: `Generado automáticamente desde contrato. ${service.notes || ''}`,
           quantity: service.quantity,
-          status: 'active', // Los contratos crean requests activos
-          code: '', // El trigger generate_request_code lo generará
+          status: 'active',
+          code: '',
         });
       }
-      // billing_frequency === 'one_time', 'per_project', 'on_demand' no generan requests automáticamente
     }
 
     if (requests.length === 0) {
@@ -77,8 +126,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 4. Insertar requests
-    const { data: createdRequests, error: requestsError } = await supabase
+    // 7. Insert requests
+    const { data: createdRequests, error: requestsError } = await supabaseAdmin
       .from('financial_requests')
       .insert(requests)
       .select();

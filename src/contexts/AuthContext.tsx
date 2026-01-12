@@ -9,6 +9,7 @@ interface AuthContextType {
   session: Session | null;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
+  signInWithGoogle: () => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   loading: boolean;
 }
@@ -24,7 +25,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
+        // Validar dominio @hayas.es después del login
+        if (event === 'SIGNED_IN' && session?.user) {
+          const email = session.user.email;
+          
+          if (!email?.endsWith('@hayas.es')) {
+            await supabase.auth.signOut();
+            toast({
+              title: "Acceso denegado",
+              description: "Solo usuarios con email @hayas.es pueden acceder",
+              variant: "destructive",
+            });
+            setSession(null);
+            setUser(null);
+            setLoading(false);
+            return;
+          }
+        }
+        
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
@@ -101,6 +120,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const signInWithGoogle = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard-mensual`,
+          queryParams: {
+            hd: 'hayas.es', // Restringe selector de cuentas a dominio hayas.es
+          },
+        },
+      });
+
+      if (error) throw error;
+      return { error: null };
+    } catch (error: any) {
+      toast({
+        title: "Error al iniciar sesión con Google",
+        description: error.message,
+        variant: "destructive",
+      });
+      return { error };
+    }
+  };
+
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
@@ -119,7 +162,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, signIn, signUp, signOut, loading }}>
+    <AuthContext.Provider value={{ user, session, signIn, signUp, signInWithGoogle, signOut, loading }}>
       {children}
     </AuthContext.Provider>
   );

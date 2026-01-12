@@ -5,15 +5,20 @@ import { useAuth } from '@/contexts/AuthContext';
 export type UserRole = 'admin' | 'moderator' | 'user' | 'finanzas' | 'project_manager' | 'especialista' | 'account_manager' | 'seller';
 
 export const useUserRole = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [roles, setRoles] = useState<UserRole[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [rolesLoading, setRolesLoading] = useState(true);
 
   useEffect(() => {
     const fetchRoles = async () => {
+      // Wait for auth to finish loading
+      if (authLoading) {
+        return;
+      }
+
       if (!user) {
         setRoles([]);
-        setLoading(false);
+        setRolesLoading(false);
         return;
       }
 
@@ -36,12 +41,15 @@ export const useUserRole = () => {
         console.error('Error fetching user roles:', error);
         setRoles([]);
       } finally {
-        setLoading(false);
+        setRolesLoading(false);
       }
     };
 
     fetchRoles();
-  }, [user]);
+  }, [user, authLoading]);
+
+  // Combined loading state
+  const loading = authLoading || rolesLoading;
 
   const hasRole = (role: UserRole) => roles.includes(role);
   const isAdmin = () => hasRole('admin');

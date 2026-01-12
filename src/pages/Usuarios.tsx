@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Trash2, UserPlus } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -25,6 +26,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { InviteUserModal } from '@/components/users/InviteUserModal';
+import { InvitationsList } from '@/components/users/InvitationsList';
 
 type UserRole = 'admin' | 'moderator' | 'user' | 'finanzas' | 'project_manager' | 'especialista' | 'account_manager' | 'seller';
 
@@ -56,6 +59,7 @@ function UsuariosContent() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<UserRole>('user');
   const [roleToDelete, setRoleToDelete] = useState<{ userId: string; role: UserRole } | null>(null);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
   const { data: users, isLoading } = useQuery({
     queryKey: ['users-with-roles'],
@@ -158,106 +162,125 @@ function UsuariosContent() {
   return (
     <AppLayout>
       <div className="container mx-auto p-6 space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Gestión de Usuarios</h1>
-          <p className="text-muted-foreground mt-2">
-            Administra los roles y permisos de los usuarios del sistema
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Gestión de Usuarios</h1>
+            <p className="text-muted-foreground mt-2">
+              Administra los roles y permisos de los usuarios del sistema
+            </p>
+          </div>
+          <Button onClick={() => setIsInviteModalOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Invitar Usuario
+          </Button>
         </div>
 
-        <div className="grid gap-4">
-          {users?.map((user) => (
-            <Card key={user.id}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{user.full_name || 'Sin nombre'}</CardTitle>
-                    <CardDescription>{user.email}</CardDescription>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Creado: {new Date(user.created_at).toLocaleDateString()}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm font-medium mb-2">Roles actuales:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {user.roles.length > 0 ? (
-                        user.roles.map((role) => (
-                          <Badge
-                            key={role}
-                            className={`${roleColors[role]} flex items-center gap-1`}
-                          >
-                            {roleLabels[role]}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-4 w-4 p-0 hover:bg-transparent"
-                              onClick={() => handleDeleteRole(user.id, role)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-sm text-muted-foreground">Sin roles asignados</span>
-                      )}
-                    </div>
-                  </div>
+        <Tabs defaultValue="users" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="users">Usuarios Activos</TabsTrigger>
+            <TabsTrigger value="invitations">Invitaciones</TabsTrigger>
+          </TabsList>
 
-                  <div className="flex items-end gap-2">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium mb-2">Agregar rol:</p>
-                      <Select
-                        value={selectedUserId === user.id ? selectedRole : ''}
-                        onValueChange={(value) => {
-                          setSelectedUserId(user.id);
-                          setSelectedRole(value as UserRole);
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar rol" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(Object.keys(roleLabels) as UserRole[])
-                            .filter(role => !user.roles.includes(role))
-                            .map((role) => (
-                              <SelectItem key={role} value={role}>
+          <TabsContent value="users" className="space-y-4">
+            <div className="grid gap-4">
+              {users?.map((user) => (
+                <Card key={user.id}>
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <CardTitle className="text-lg">{user.full_name || 'Sin nombre'}</CardTitle>
+                        <CardDescription>{user.email}</CardDescription>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Creado: {new Date(user.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-sm font-medium mb-2">Roles actuales:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {user.roles.length > 0 ? (
+                            user.roles.map((role) => (
+                              <Badge
+                                key={role}
+                                className={`${roleColors[role]} flex items-center gap-1`}
+                              >
                                 {roleLabels[role]}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button
-                      onClick={() => handleAddRole(user.id)}
-                      disabled={selectedUserId !== user.id || addRoleMutation.isPending}
-                    >
-                      {addRoleMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Agregar
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-4 w-4 p-0 hover:bg-transparent"
+                                  onClick={() => handleDeleteRole(user.id, role)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-sm text-muted-foreground">Sin roles asignados</span>
+                          )}
+                        </div>
+                      </div>
 
-        {users?.length === 0 && (
-          <Card>
-            <CardContent className="py-8 text-center text-muted-foreground">
-              No hay usuarios registrados en el sistema
-            </CardContent>
-          </Card>
-        )}
+                      <div className="flex items-end gap-2">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium mb-2">Agregar rol:</p>
+                          <Select
+                            value={selectedUserId === user.id ? selectedRole : ''}
+                            onValueChange={(value) => {
+                              setSelectedUserId(user.id);
+                              setSelectedRole(value as UserRole);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar rol" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(Object.keys(roleLabels) as UserRole[])
+                                .filter(role => !user.roles.includes(role))
+                                .map((role) => (
+                                  <SelectItem key={role} value={role}>
+                                    {roleLabels[role]}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          onClick={() => handleAddRole(user.id)}
+                          disabled={selectedUserId !== user.id || addRoleMutation.isPending}
+                        >
+                          {addRoleMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Plus className="h-4 w-4 mr-2" />
+                              Agregar
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {users?.length === 0 && (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  No hay usuarios registrados en el sistema
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="invitations">
+            <InvitationsList />
+          </TabsContent>
+        </Tabs>
       </div>
 
       <AlertDialog open={!!roleToDelete} onOpenChange={() => setRoleToDelete(null)}>
@@ -278,6 +301,11 @@ function UsuariosContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <InviteUserModal 
+        open={isInviteModalOpen} 
+        onOpenChange={setIsInviteModalOpen} 
+      />
     </AppLayout>
   );
 }

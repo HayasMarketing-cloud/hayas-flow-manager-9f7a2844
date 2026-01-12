@@ -18,6 +18,7 @@ import { EmailPreviewModal } from '@/components/liquidations/EmailPreviewModal';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { generateLiquidationPDFBase64 } from '@/utils/pdf/liquidationPDFGenerator';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Liquidaciones() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -32,6 +33,7 @@ export default function Liquidaciones() {
   const [sendingLiquidationId, setSendingLiquidationId] = useState<string | null>(null);
   const { filters, updateFilter, resetFilters } = useLiquidationFilters();
   const { canAccessFinance, loading: rolesLoading } = useUserRole();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: liquidations, isLoading } = useQuery({
@@ -190,6 +192,10 @@ export default function Liquidaciones() {
       toast.error('El especialista no tiene email configurado');
       return;
     }
+    if (!user?.email?.endsWith('@hayas.es')) {
+      toast.error('Solo usuarios con email @hayas.es pueden enviar liquidaciones');
+      return;
+    }
     setLiquidationToSend(liquidation);
     setSendEmailDialogOpen(true);
   };
@@ -237,6 +243,7 @@ export default function Liquidaciones() {
           totalAmount: liquidation.calculated_total ?? liquidation.total_amount,
           pdfBase64,
           appUrl: window.location.origin,
+          senderEmail: user?.email, // Email del usuario que envía
         },
       });
 
@@ -504,6 +511,7 @@ export default function Liquidaciones() {
         liquidation={liquidationToSend}
         onConfirm={confirmSendEmail}
         isSending={isSendingEmail}
+        senderEmail={user?.email || undefined}
       />
     </AppLayout>
   );

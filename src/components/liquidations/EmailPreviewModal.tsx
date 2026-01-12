@@ -18,6 +18,7 @@ interface EmailPreviewModalProps {
   liquidation: any;
   onConfirm: () => void;
   isSending: boolean;
+  senderEmail?: string;
 }
 
 const monthNames = [
@@ -38,6 +39,7 @@ export const EmailPreviewModal = ({
   liquidation,
   onConfirm,
   isSending,
+  senderEmail,
 }: EmailPreviewModalProps) => {
   if (!liquidation) return null;
 
@@ -61,6 +63,13 @@ export const EmailPreviewModal = ({
           {/* Email metadata */}
           <Card>
             <CardContent className="pt-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-medium text-muted-foreground w-24">De:</span>
+                <span className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  {senderEmail || 'tu-email@hayas.es'}
+                </span>
+              </div>
               <div className="flex items-center gap-2 text-sm">
                 <span className="font-medium text-muted-foreground w-24">Para:</span>
                 <span className="flex items-center gap-2">

@@ -78,6 +78,34 @@ async function sendViaGmailAPI(
   return { success: true, messageId: result.id };
 }
 
+// Function to properly format PEM key
+function formatPrivateKey(key: string): string {
+  // First, handle escaped newlines
+  let formattedKey = key.replace(/\\n/g, '\n');
+  
+  // Check if key already has proper PEM headers
+  const hasBegin = formattedKey.includes('-----BEGIN');
+  const hasEnd = formattedKey.includes('-----END');
+  
+  if (hasBegin && hasEnd) {
+    // Key has headers, just ensure proper formatting
+    // Remove any extra whitespace but preserve structure
+    return formattedKey.trim();
+  }
+  
+  // Key is raw base64, wrap it
+  // Remove any whitespace first
+  const cleanKey = formattedKey.replace(/\s/g, '');
+  
+  // Split into 64-char lines
+  const lines: string[] = [];
+  for (let i = 0; i < cleanKey.length; i += 64) {
+    lines.push(cleanKey.substring(i, i + 64));
+  }
+  
+  return `-----BEGIN PRIVATE KEY-----\n${lines.join('\n')}\n-----END PRIVATE KEY-----`;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -85,9 +113,9 @@ serve(async (req) => {
 
   try {
     const serviceAccountEmail = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL');
-    let privateKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY');
+    const rawPrivateKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY');
 
-    if (!serviceAccountEmail || !privateKey) {
+    if (!serviceAccountEmail || !rawPrivateKey) {
       throw new Error('Missing Google Service Account credentials');
     }
 
@@ -106,15 +134,19 @@ serve(async (req) => {
     console.log(`Test email: ${fromEmail} -> ${toEmail}`);
     console.log(`Subject: ${subject}`);
 
-    // Fix the private key format - handle escaped newlines
-    privateKey = privateKey.replace(/\\n/g, '\n');
-    
-    // Ensure proper PEM format
-    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-      privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
-    }
+    // Debug: Log key format info (not the actual key!)
+    console.log('Raw key length:', rawPrivateKey.length);
+    console.log('Key starts with:', rawPrivateKey.substring(0, 30));
+    console.log('Contains \\n literal:', rawPrivateKey.includes('\\n'));
+    console.log('Contains newline:', rawPrivateKey.includes('\n'));
 
-    console.log('Importing private key...');
+    // Format the private key properly
+    const privateKey = formatPrivateKey(rawPrivateKey);
+    
+    console.log('Formatted key starts with:', privateKey.substring(0, 50));
+    console.log('Formatted key length:', privateKey.length);
+
+    console.log('Importing private key with jose...');
     
     // Import the private key using jose library
     const key = await importPKCS8(privateKey, 'RS256');

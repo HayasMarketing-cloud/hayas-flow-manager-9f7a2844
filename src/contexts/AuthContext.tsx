@@ -42,6 +42,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setLoading(false);
             return;
           }
+
+          // Verificar que el usuario tiene un perfil (significa que fue invitado)
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', session.user.id)
+            .single();
+
+          if (profileError || !profile) {
+            await supabase.auth.signOut();
+            toast({
+              title: "Acceso denegado",
+              description: "No tienes una invitación válida. Contacta con un administrador.",
+              variant: "destructive",
+            });
+            setSession(null);
+            setUser(null);
+            setLoading(false);
+            return;
+          }
         }
         
         setSession(session);

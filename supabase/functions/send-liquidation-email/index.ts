@@ -16,6 +16,7 @@ interface LiquidationEmailRequest {
   totalAmount: number;
   pdfBase64: string;
   appUrl: string;
+  senderEmail: string; // Email del usuario que envía (debe ser @hayas.es)
 }
 
 const monthNames = [
@@ -23,20 +24,189 @@ const monthNames = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ];
 
+// Base64URL encode (for JWT)
+function base64UrlEncode(data: Uint8Array | string): string {
+  const base64 = typeof data === 'string' 
+    ? btoa(data)
+    : btoa(String.fromCharCode(...data));
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// Create JWT for Google Service Account
+async function createServiceAccountJWT(
+  serviceAccountEmail: string, 
+  privateKeyPem: string, 
+  userToImpersonate: string
+): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  
+  const header = {
+    alg: "RS256",
+    typ: "JWT"
+  };
+  
+  const payload = {
+    iss: serviceAccountEmail,
+    sub: userToImpersonate, // User to impersonate
+    scope: "https://www.googleapis.com/auth/gmail.send",
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600 // 1 hour
+  };
+  
+  const headerB64 = base64UrlEncode(JSON.stringify(header));
+  const payloadB64 = base64UrlEncode(JSON.stringify(payload));
+  const unsignedToken = `${headerB64}.${payloadB64}`;
+  
+  // Parse PEM private key
+  const pemContent = privateKeyPem
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\\n/g, '')
+    .replace(/\s/g, '');
+  
+  const binaryKey = Uint8Array.from(atob(pemContent), c => c.charCodeAt(0));
+  
+  // Import key for signing
+  const cryptoKey = await crypto.subtle.importKey(
+    "pkcs8",
+    binaryKey,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  
+  // Sign the token
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    cryptoKey,
+    new TextEncoder().encode(unsignedToken)
+  );
+  
+  const signatureB64 = base64UrlEncode(new Uint8Array(signature));
+  
+  return `${unsignedToken}.${signatureB64}`;
+}
+
+// Get access token from Google OAuth
+async function getAccessToken(serviceAccountEmail: string, privateKey: string, userEmail: string): Promise<string> {
+  console.log(`Getting access token for impersonating: ${userEmail}`);
+  
+  const jwt = await createServiceAccountJWT(serviceAccountEmail, privateKey, userEmail);
+  
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Token exchange failed:", errorText);
+    throw new Error(`Failed to get access token: ${errorText}`);
+  }
+  
+  const data = await response.json();
+  return data.access_token;
+}
+
+// Create MIME message with attachment
+function createMimeMessage(
+  from: string,
+  to: string,
+  subject: string,
+  htmlContent: string,
+  pdfBase64: string,
+  pdfFilename: string
+): string {
+  const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+  
+  // Encode subject for UTF-8
+  const encodedSubject = `=?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`;
+  
+  const messageParts = [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${encodedSubject}`,
+    `MIME-Version: 1.0`,
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    ``,
+    `--${boundary}`,
+    `Content-Type: text/html; charset="UTF-8"`,
+    `Content-Transfer-Encoding: base64`,
+    ``,
+    btoa(unescape(encodeURIComponent(htmlContent))),
+    ``,
+    `--${boundary}`,
+    `Content-Type: application/pdf; name="${pdfFilename}"`,
+    `Content-Disposition: attachment; filename="${pdfFilename}"`,
+    `Content-Transfer-Encoding: base64`,
+    ``,
+    pdfBase64,
+    ``,
+    `--${boundary}--`,
+  ];
+  
+  return messageParts.join("\r\n");
+}
+
+// Send email via Gmail API
+async function sendViaGmailAPI(
+  accessToken: string,
+  from: string,
+  to: string,
+  subject: string,
+  htmlContent: string,
+  pdfBase64: string,
+  pdfFilename: string
+): Promise<{ success: boolean; error?: string; messageId?: string }> {
+  try {
+    const mimeMessage = createMimeMessage(from, to, subject, htmlContent, pdfBase64, pdfFilename);
+    
+    // Gmail API expects web-safe base64
+    const encodedMessage = base64UrlEncode(mimeMessage);
+    
+    console.log(`Sending email via Gmail API from ${from} to ${to}`);
+    
+    const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ raw: encodedMessage }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error("Gmail API error:", errorData);
+      return { success: false, error: `Gmail API error: ${errorData}` };
+    }
+    
+    const result = await response.json();
+    console.log("Gmail API response:", result);
+    
+    return { success: true, messageId: result.id };
+  } catch (error: any) {
+    console.error("Error sending via Gmail API:", error);
+    return { success: false, error: error.message };
+  }
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const gmailUser = Deno.env.get("GMAIL_USER");
-    const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
+    const serviceAccountEmail = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_EMAIL");
+    const serviceAccountPrivateKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    if (!gmailUser || !gmailPassword) {
-      console.error("Gmail credentials not configured");
-      throw new Error("Gmail credentials not configured. Please add GMAIL_USER and GMAIL_APP_PASSWORD secrets.");
+    if (!serviceAccountEmail || !serviceAccountPrivateKey) {
+      console.error("Google Service Account credentials not configured");
+      throw new Error("Google Service Account credentials not configured. Please add GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY secrets.");
     }
 
     const {
@@ -49,9 +219,15 @@ const handler = async (req: Request): Promise<Response> => {
       totalAmount,
       pdfBase64,
       appUrl,
+      senderEmail,
     }: LiquidationEmailRequest = await req.json();
 
-    console.log(`Sending liquidation email to ${specialistEmail} for ${liquidationCode}`);
+    // Validate sender email is from hayas.es domain
+    if (!senderEmail || !senderEmail.endsWith('@hayas.es')) {
+      throw new Error("El remitente debe tener un email @hayas.es");
+    }
+
+    console.log(`Sending liquidation email from ${senderEmail} to ${specialistEmail} for ${liquidationCode}`);
 
     // Create Supabase client with service role
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -131,35 +307,37 @@ const handler = async (req: Request): Promise<Response> => {
         
         <p style="color: #666; font-size: 0.9em;">
           Saludos cordiales,<br>
-          <strong>El equipo de administración</strong>
+          <strong>El equipo de Hayas</strong>
         </p>
       </div>
     `;
 
-    const smtpResponse = await sendViaSMTP({
-      host: "smtp.gmail.com",
-      port: 587,
-      user: gmailUser,
-      password: gmailPassword,
-      from: gmailUser,
-      to: specialistEmail,
-      subject: subject,
-      html: htmlContent,
-      pdfBase64: pdfBase64,
-      pdfFilename: `Liquidacion_${liquidationCode}.pdf`,
-    });
+    // Get access token by impersonating the sender
+    const accessToken = await getAccessToken(serviceAccountEmail, serviceAccountPrivateKey, senderEmail);
 
-    if (!smtpResponse.success) {
-      throw new Error(smtpResponse.error || "Failed to send email");
+    // Send via Gmail API
+    const emailResult = await sendViaGmailAPI(
+      accessToken,
+      senderEmail,
+      specialistEmail,
+      subject,
+      htmlContent,
+      pdfBase64,
+      `Liquidacion_${liquidationCode}.pdf`
+    );
+
+    if (!emailResult.success) {
+      throw new Error(emailResult.error || "Failed to send email via Gmail API");
     }
 
-    console.log(`Email sent successfully to ${specialistEmail}`);
+    console.log(`Email sent successfully from ${senderEmail} to ${specialistEmail}, messageId: ${emailResult.messageId}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: "Email enviado correctamente",
         signatureToken: signatureToken,
+        messageId: emailResult.messageId,
       }),
       {
         status: 200,
@@ -177,136 +355,5 @@ const handler = async (req: Request): Promise<Response> => {
     );
   }
 };
-
-async function sendViaSMTP(config: {
-  host: string;
-  port: number;
-  user: string;
-  password: string;
-  from: string;
-  to: string;
-  subject: string;
-  html: string;
-  pdfBase64: string;
-  pdfFilename: string;
-}): Promise<{ success: boolean; error?: string }> {
-  try {
-    const conn = await Deno.connect({
-      hostname: config.host,
-      port: config.port,
-    });
-
-    const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
-
-    const read = async (): Promise<string> => {
-      const buffer = new Uint8Array(1024);
-      const n = await conn.read(buffer);
-      if (n === null) return "";
-      return decoder.decode(buffer.subarray(0, n));
-    };
-
-    const write = async (data: string): Promise<void> => {
-      await conn.write(encoder.encode(data + "\r\n"));
-    };
-
-    const readAndCheck = async (expectedCode: string): Promise<boolean> => {
-      const response = await read();
-      console.log("SMTP Response:", response.trim());
-      return response.startsWith(expectedCode);
-    };
-
-    await read();
-    await write(`EHLO ${config.host}`);
-    await read();
-
-    await write("STARTTLS");
-    if (!await readAndCheck("220")) {
-      throw new Error("STARTTLS failed");
-    }
-
-    const tlsConn = await Deno.startTls(conn, { hostname: config.host });
-
-    const tlsRead = async (): Promise<string> => {
-      const buffer = new Uint8Array(4096);
-      const n = await tlsConn.read(buffer);
-      if (n === null) return "";
-      return decoder.decode(buffer.subarray(0, n));
-    };
-
-    const tlsWrite = async (data: string): Promise<void> => {
-      await tlsConn.write(encoder.encode(data + "\r\n"));
-    };
-
-    await tlsWrite(`EHLO ${config.host}`);
-    await tlsRead();
-
-    await tlsWrite("AUTH LOGIN");
-    await tlsRead();
-
-    await tlsWrite(btoa(config.user));
-    await tlsRead();
-
-    await tlsWrite(btoa(config.password));
-    const authResponse = await tlsRead();
-    if (!authResponse.startsWith("235")) {
-      throw new Error("Authentication failed: " + authResponse);
-    }
-
-    await tlsWrite(`MAIL FROM:<${config.from}>`);
-    await tlsRead();
-
-    await tlsWrite(`RCPT TO:<${config.to}>`);
-    await tlsRead();
-
-    await tlsWrite("DATA");
-    const dataResponse = await tlsRead();
-    if (!dataResponse.startsWith("354")) {
-      throw new Error("DATA command failed: " + dataResponse);
-    }
-
-    const boundary = "----=_Part_" + Date.now();
-    const message = [
-      `From: ${config.from}`,
-      `To: ${config.to}`,
-      `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(config.subject)))}?=`,
-      `MIME-Version: 1.0`,
-      `Content-Type: multipart/mixed; boundary="${boundary}"`,
-      ``,
-      `--${boundary}`,
-      `Content-Type: text/html; charset="UTF-8"`,
-      `Content-Transfer-Encoding: base64`,
-      ``,
-      btoa(unescape(encodeURIComponent(config.html))),
-      ``,
-      `--${boundary}`,
-      `Content-Type: application/pdf; name="${config.pdfFilename}"`,
-      `Content-Disposition: attachment; filename="${config.pdfFilename}"`,
-      `Content-Transfer-Encoding: base64`,
-      ``,
-      config.pdfBase64,
-      ``,
-      `--${boundary}--`,
-      `.`,
-    ].join("\r\n");
-
-    await tlsWrite(message);
-    const sendResponse = await tlsRead();
-    
-    if (!sendResponse.startsWith("250")) {
-      throw new Error("Failed to send message: " + sendResponse);
-    }
-
-    await tlsWrite("QUIT");
-    await tlsRead();
-
-    tlsConn.close();
-
-    return { success: true };
-  } catch (error: any) {
-    console.error("SMTP Error:", error);
-    return { success: false, error: error.message };
-  }
-}
 
 serve(handler);

@@ -112,8 +112,8 @@ serve(async (req) => {
   }
 
   try {
-    const serviceAccountEmail = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL');
-    const rawPrivateKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY');
+    const serviceAccountEmail = (Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL') ?? '').trim();
+    const rawPrivateKey = (Deno.env.get('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY') ?? '').trim();
 
     if (!serviceAccountEmail || !rawPrivateKey) {
       throw new Error('Missing Google Service Account credentials');
@@ -134,17 +134,17 @@ serve(async (req) => {
     console.log(`Test email: ${fromEmail} -> ${toEmail}`);
     console.log(`Subject: ${subject}`);
 
-    // Debug: Log key format info (not the actual key!)
+    // Debug: Log key format info (DO NOT log key contents)
+    console.log('Service account email looks valid:', serviceAccountEmail.includes('gserviceaccount.com'));
     console.log('Raw key length:', rawPrivateKey.length);
-    console.log('Key starts with:', rawPrivateKey.substring(0, 30));
-    console.log('Contains \\n literal:', rawPrivateKey.includes('\\n'));
-    console.log('Contains newline:', rawPrivateKey.includes('\n'));
+    console.log('Raw key has PEM headers:', rawPrivateKey.includes('-----BEGIN'));
+    console.log('Raw key contains escaped newlines:', rawPrivateKey.includes('\\n'));
 
     // Format the private key properly
     const privateKey = formatPrivateKey(rawPrivateKey);
-    
-    console.log('Formatted key starts with:', privateKey.substring(0, 50));
+
     console.log('Formatted key length:', privateKey.length);
+    console.log('Formatted key has PEM headers:', privateKey.includes('-----BEGIN PRIVATE KEY-----'));
 
     console.log('Importing private key with jose...');
     
@@ -153,16 +153,15 @@ serve(async (req) => {
     console.log('Private key imported successfully');
 
     // Create JWT for service account with domain-wide delegation
-    const now = Math.floor(Date.now() / 1000);
     const jwt = await new SignJWT({
-      iss: serviceAccountEmail,
-      sub: fromEmail, // Impersonate this user
       scope: 'https://www.googleapis.com/auth/gmail.send',
-      aud: 'https://oauth2.googleapis.com/token',
     })
       .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
-      .setIssuedAt(now)
-      .setExpirationTime(now + 3600)
+      .setIssuer(serviceAccountEmail)
+      .setSubject(fromEmail) // Impersonate this user
+      .setAudience('https://oauth2.googleapis.com/token')
+      .setIssuedAt()
+      .setExpirationTime('1h')
       .sign(key);
 
     console.log('JWT created successfully');

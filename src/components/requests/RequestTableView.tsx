@@ -8,7 +8,8 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { RequestStatusBadge } from './RequestStatusBadge';
+import { RequestFlowIndicator } from './RequestFlowIndicator';
+import { FlowStatusCell } from './FlowStatusCell';
 import { Edit, Eye, Copy, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/request-utils';
 import { format } from 'date-fns';
@@ -54,9 +55,9 @@ export const RequestTableView = ({
             <TableHead>Código</TableHead>
             <TableHead>Título</TableHead>
             <TableHead>Cliente</TableHead>
-            <TableHead>Servicio</TableHead>
-            <TableHead>Especialista</TableHead>
-            <TableHead>Estado</TableHead>
+            <TableHead>Flujo</TableHead>
+            <TableHead>Factura</TableHead>
+            <TableHead>Liquidación</TableHead>
             <TableHead className="text-right">Coste (€)</TableHead>
             <TableHead>Fecha</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
@@ -87,12 +88,28 @@ export const RequestTableView = ({
                     />
                   </TableCell>
                   <TableCell className="font-mono text-xs">{request.code}</TableCell>
-                  <TableCell className="font-medium">{request.title}</TableCell>
+                  <TableCell className="font-medium max-w-[200px] truncate" title={request.title}>
+                    {request.title}
+                  </TableCell>
                   <TableCell>{request.client?.name || '-'}</TableCell>
-                  <TableCell>{request.service?.name || '-'}</TableCell>
-                  <TableCell>{request.specialist?.name || '-'}</TableCell>
                   <TableCell>
-                    <RequestStatusBadge status={request.status} />
+                    <RequestFlowIndicator status={request.status} compact />
+                  </TableCell>
+                  <TableCell>
+                    <FlowStatusCell
+                      type="invoice"
+                      linkedId={request.billed_invoice_id}
+                      linkedCode={request.invoice?.code}
+                      linkedStatus={request.invoice?.status}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <FlowStatusCell
+                      type="liquidation"
+                      linkedId={request.liquidation_id}
+                      linkedCode={request.liquidation?.code}
+                      linkedStatus={request.liquidation?.status}
+                    />
                   </TableCell>
                   <TableCell className="text-right font-semibold">
                     {formatCurrency(totalAmount)}

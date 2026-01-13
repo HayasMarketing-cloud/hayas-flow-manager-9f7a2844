@@ -1494,7 +1494,14 @@ export type Database = {
       billing_frequency: "monthly" | "one_time" | "per_project" | "on_demand"
       contract_type: "retainer" | "project" | "one_time"
       cost_type: "hourly" | "fixed"
-      financial_request_status: "draft" | "active" | "invoiced" | "liquidated"
+      financial_request_status:
+        | "draft"
+        | "pending_specialist"
+        | "pending_approval"
+        | "in_progress"
+        | "pending_review"
+        | "completed"
+        | "cancelled"
       invoice_status: "draft" | "sent" | "paid" | "overdue" | "cancelled"
       liquidation_status: "draft" | "sent" | "paid" | "disputed"
       operational_status: "pending" | "in_progress" | "in_review" | "completed"
@@ -1650,7 +1657,15 @@ export const Constants = {
       billing_frequency: ["monthly", "one_time", "per_project", "on_demand"],
       contract_type: ["retainer", "project", "one_time"],
       cost_type: ["hourly", "fixed"],
-      financial_request_status: ["draft", "active", "invoiced", "liquidated"],
+      financial_request_status: [
+        "draft",
+        "pending_specialist",
+        "pending_approval",
+        "in_progress",
+        "pending_review",
+        "completed",
+        "cancelled",
+      ],
       invoice_status: ["draft", "sent", "paid", "overdue", "cancelled"],
       liquidation_status: ["draft", "sent", "paid", "disputed"],
       operational_status: ["pending", "in_progress", "in_review", "completed"],

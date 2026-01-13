@@ -56,7 +56,9 @@ const Solicitudes = () => {
           client:clients(id, name, code),
           service:services(id, name),
           specialist:specialists(id, name),
-          budget:budgets(id, title, code, client_contact_id)
+          budget:budgets(id, title, code, client_contact_id),
+          invoice:invoices(id, code, status),
+          liquidation:liquidations(id, code, status)
         `
         )
         .match(queryFilters)
@@ -328,9 +330,12 @@ const Solicitudes = () => {
               <SelectContent>
                 <SelectItem value="all">Todos los estados</SelectItem>
                 <SelectItem value="draft">Borrador</SelectItem>
-                <SelectItem value="active">Activo</SelectItem>
-                <SelectItem value="invoiced">Facturado</SelectItem>
-                <SelectItem value="liquidated">Liquidado</SelectItem>
+                <SelectItem value="pending_specialist">Pend. Especialista</SelectItem>
+                <SelectItem value="pending_approval">Pend. Aprobación</SelectItem>
+                <SelectItem value="in_progress">En Progreso</SelectItem>
+                <SelectItem value="pending_review">Pend. Revisión</SelectItem>
+                <SelectItem value="completed">Completado</SelectItem>
+                <SelectItem value="cancelled">Cancelado</SelectItem>
               </SelectContent>
             </Select>
 

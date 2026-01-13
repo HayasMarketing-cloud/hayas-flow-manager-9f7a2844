@@ -1,32 +1,36 @@
 import { Database } from '@/integrations/supabase/types';
 
-type RequestStatus = Database['public']['Enums']['request_status'];
+type FinancialRequestStatus = Database['public']['Enums']['financial_request_status'];
 
-export const getRequestStatusColor = (status: RequestStatus): string => {
-  const colors: Record<RequestStatus, string> = {
+export const getFinancialRequestStatusColor = (status: FinancialRequestStatus): string => {
+  const colors: Record<FinancialRequestStatus, string> = {
     draft: 'bg-muted text-muted-foreground',
-    pending_approval: 'bg-yellow-500 text-white',
-    approved: 'bg-blue-500 text-white',
-    in_progress: 'bg-purple-500 text-white',
+    pending_specialist: 'bg-yellow-500 text-white',
+    pending_approval: 'bg-orange-500 text-white',
+    in_progress: 'bg-blue-500 text-white',
+    pending_review: 'bg-purple-500 text-white',
     completed: 'bg-green-500 text-white',
-    billed: 'bg-emerald-700 text-white',
     cancelled: 'bg-destructive text-destructive-foreground',
   };
   return colors[status] || 'bg-muted text-muted-foreground';
 };
 
-export const getRequestStatusLabel = (status: RequestStatus): string => {
-  const labels: Record<RequestStatus, string> = {
+export const getFinancialRequestStatusLabel = (status: FinancialRequestStatus): string => {
+  const labels: Record<FinancialRequestStatus, string> = {
     draft: 'Borrador',
-    pending_approval: 'Pendiente',
-    approved: 'Aprobado',
+    pending_specialist: 'Pend. Especialista',
+    pending_approval: 'Pend. Aprobación',
     in_progress: 'En Progreso',
+    pending_review: 'Pend. Revisión',
     completed: 'Completado',
-    billed: 'Facturado',
     cancelled: 'Cancelado',
   };
   return labels[status] || status;
 };
+
+// Backward compatibility aliases
+export const getRequestStatusColor = getFinancialRequestStatusColor;
+export const getRequestStatusLabel = getFinancialRequestStatusLabel;
 
 export const calculateTotal = (quantity: number, unitPrice: number): number => {
   return quantity * unitPrice;

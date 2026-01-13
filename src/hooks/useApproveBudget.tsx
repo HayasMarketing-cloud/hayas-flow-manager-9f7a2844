@@ -52,7 +52,7 @@ export const useApproveBudget = () => {
           quantity: item.quantity,
           unit_price: item.unit_price || 0,
           sale_amount: item.total || 0,
-          status: 'active' as const,
+          status: 'pending_specialist' as const,
           code: '', // El trigger generate_request_code lo generará automáticamente
         }));
 

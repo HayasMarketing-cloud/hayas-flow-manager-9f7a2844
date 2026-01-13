@@ -1,18 +1,18 @@
 import { Badge } from '@/components/ui/badge';
-import { getRequestStatusColor, getRequestStatusLabel } from '@/lib/request-utils';
+import { getFinancialRequestStatusColor, getFinancialRequestStatusLabel } from '@/lib/request-utils';
 import { Database } from '@/integrations/supabase/types';
 
-type RequestStatus = Database['public']['Enums']['request_status'];
+type FinancialRequestStatus = Database['public']['Enums']['financial_request_status'];
 
 interface RequestStatusBadgeProps {
-  status: RequestStatus;
+  status: FinancialRequestStatus;
   className?: string;
 }
 
 export const RequestStatusBadge = ({ status, className }: RequestStatusBadgeProps) => {
   return (
-    <Badge className={`${getRequestStatusColor(status)} ${className || ''}`}>
-      {getRequestStatusLabel(status)}
+    <Badge className={`${getFinancialRequestStatusColor(status)} ${className || ''}`}>
+      {getFinancialRequestStatusLabel(status)}
     </Badge>
   );
 };

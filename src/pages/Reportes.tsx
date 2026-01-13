@@ -172,7 +172,7 @@ export default function Reportes() {
             .select('client_id, client:clients(name), cost_to_agency')
             .gte('created_at', startDate)
             .lte('created_at', endDate)
-            .in('status', ['active', 'invoiced', 'liquidated']);
+            .in('status', ['in_progress', 'pending_review', 'completed']);
 
           return { requests };
         }

@@ -143,7 +143,7 @@ export default function Liquidaciones() {
       // First, update all related financial_requests to remove liquidation_id and reset status
       const { error: requestsError } = await supabase
         .from('financial_requests')
-        .update({ liquidation_id: null, status: 'active' })
+        .update({ liquidation_id: null })
         .eq('liquidation_id', liquidationId);
       
       if (requestsError) throw requestsError;

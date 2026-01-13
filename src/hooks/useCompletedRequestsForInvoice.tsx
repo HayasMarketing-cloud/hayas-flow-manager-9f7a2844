@@ -17,7 +17,7 @@ export const useCompletedRequestsForInvoice = (clientId?: string) => {
           contract:contracts(id)
         `)
         .eq('client_id', clientId)
-        .in('status', ['active', 'invoiced'])
+        .in('status', ['completed', 'in_progress', 'pending_review'])
         .is('billed_invoice_id', null)
         .order('created_at', { ascending: false });
 

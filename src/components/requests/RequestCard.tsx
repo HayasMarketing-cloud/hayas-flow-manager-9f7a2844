@@ -1,7 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RequestStatusBadge } from './RequestStatusBadge';
-import { Edit, Building2, Briefcase, Calendar, Euro, User, Copy, Trash2 } from 'lucide-react';
+import { RequestFlowIndicator } from './RequestFlowIndicator';
+import { FlowStatusCell } from './FlowStatusCell';
+import { Edit, Building2, Calendar, Euro, Copy, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/request-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -33,30 +35,25 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, canManage }: R
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Flow Indicator */}
+        <div className="py-2 border-y">
+          <RequestFlowIndicator status={request.status} />
+        </div>
+
         {request.client && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Building2 className="h-4 w-4 flex-shrink-0" />
             <span className="truncate">{request.client.name}</span>
           </div>
         )}
-        {request.service && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Briefcase className="h-4 w-4 flex-shrink-0" />
-            <span className="truncate">{request.service.name}</span>
-          </div>
-        )}
-        {request.specialist && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <User className="h-4 w-4 flex-shrink-0" />
-            <span className="truncate">{request.specialist.name}</span>
-          </div>
-        )}
+        
         <div className="flex items-center gap-2 text-sm">
           <Euro className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
           <span className="font-semibold text-foreground">
             {formatCurrency(totalAmount)}
           </span>
         </div>
+
         {request.deadline && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Calendar className="h-4 w-4 flex-shrink-0" />
@@ -65,6 +62,23 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, canManage }: R
             </span>
           </div>
         )}
+
+        {/* Invoice/Liquidation Status */}
+        <div className="flex items-center gap-4 pt-2">
+          <FlowStatusCell
+            type="invoice"
+            linkedId={request.billed_invoice_id}
+            linkedCode={request.invoice?.code}
+            linkedStatus={request.invoice?.status}
+          />
+          <FlowStatusCell
+            type="liquidation"
+            linkedId={request.liquidation_id}
+            linkedCode={request.liquidation?.code}
+            linkedStatus={request.liquidation?.status}
+          />
+        </div>
+
         {canManage && (
           <div className="pt-2 flex gap-2">
             <Button

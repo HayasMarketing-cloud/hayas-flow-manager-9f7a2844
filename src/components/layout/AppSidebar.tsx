@@ -24,16 +24,16 @@ const financeItems: NavItem[] = [
   { title: 'Dashboard', url: '/dashboard-mensual', icon: LayoutDashboard },
   { title: 'Contratos', url: '/contratos', icon: FileText },
   { title: 'Presupuestos', url: '/presupuestos', icon: Calculator },
-  { title: 'Requests Financieros', url: '/solicitudes', icon: FileCheck, requiredRoles: ['admin', 'finanzas', 'project_manager'] },
-  { title: 'Facturas', url: '/facturas', icon: Receipt, requiredRoles: ['admin', 'finanzas', 'seller'] },
-  { title: 'Liquidaciones', url: '/liquidaciones', icon: Wallet, requiredRoles: ['admin', 'finanzas'] },
+  { title: 'Requests Financieros', url: '/solicitudes', icon: FileCheck, requiredRoles: ['admin', 'finanzas', 'project_manager', 'account_manager'] },
+  { title: 'Facturas', url: '/facturas', icon: Receipt, requiredRoles: ['admin', 'finanzas', 'seller', 'account_manager'] },
+  { title: 'Liquidaciones', url: '/liquidaciones', icon: Wallet, requiredRoles: ['admin', 'finanzas', 'account_manager'] },
   { title: 'Mis Liquidaciones', url: '/mis-liquidaciones', icon: Wallet, requiredRoles: ['especialista'] },
   { title: 'Flujo Requests', url: '/flujo-requests', icon: GitBranch, requiredRoles: ['admin', 'finanzas', 'project_manager'] },
   { title: 'Reportes', url: '/reportes', icon: BarChart3, requiredRoles: ['admin', 'finanzas'] },
 ];
 
 const operationsItems: NavItem[] = [
-  { title: 'Proyectos', url: '/proyectos-operativos', icon: Briefcase, requiredRoles: ['admin', 'project_manager', 'especialista'] },
+  { title: 'Proyectos', url: '/proyectos-operativos', icon: Briefcase, requiredRoles: ['admin', 'project_manager', 'especialista', 'account_manager'] },
   { title: 'Mis Tareas', url: '/mis-tareas', icon: CheckSquare },
 ];
 

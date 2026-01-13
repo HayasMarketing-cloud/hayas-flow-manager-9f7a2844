@@ -26,6 +26,7 @@ import RequestFlowTracker from "./pages/RequestFlowTracker";
 import Reportes from "./pages/Reportes";
 import Usuarios from "./pages/Usuarios";
 import Perfil from "./pages/Perfil";
+import Comisiones from "./pages/Comisiones";
 import NotFound from "./pages/NotFound";
 import OperationalProjects from "./pages/operations/OperationalProjects";
 import OperationalProjectDetail from "./pages/operations/OperationalProjectDetail";
@@ -65,6 +66,7 @@ const App = () => (
             <Route path="/flujo-requests" element={<ProtectedRoute><RequestFlowTracker /></ProtectedRoute>} />
             <Route path="/reportes" element={<ProtectedRoute><Reportes /></ProtectedRoute>} />
             <Route path="/usuarios" element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
+            <Route path="/comisiones" element={<ProtectedRoute><Comisiones /></ProtectedRoute>} />
             <Route path="/perfil" element={<ProtectedRoute><Perfil /></ProtectedRoute>} />
             <Route path="/proyectos-operativos" element={<ProtectedRoute><OperationalProjects /></ProtectedRoute>} />
             <Route path="/operaciones/proyectos/:id" element={<ProtectedRoute><OperationalProjectDetail /></ProtectedRoute>} />

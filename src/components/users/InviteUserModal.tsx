@@ -53,40 +53,90 @@ export function InviteUserModal({ open, onOpenChange }: InviteUserModalProps) {
         throw new Error('Debes seleccionar al menos un rol');
       }
 
-      // Check if invitation already exists
-      const { data: existingInvitation } = await supabase
-        .from('user_invitations')
-        .select('id, status')
-        .eq('email', emailLower)
-        .single();
-
-      if (existingInvitation) {
-        if (existingInvitation.status === 'pending') {
-          throw new Error('Ya existe una invitación pendiente para este email');
-        }
-        if (existingInvitation.status === 'accepted') {
-          throw new Error('Este usuario ya ha sido invitado y aceptó la invitación');
-        }
-      }
-
       // Check if user already exists
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('id')
         .eq('email', emailLower)
-        .single();
+        .maybeSingle();
 
       if (existingProfile) {
         throw new Error('Este usuario ya existe en el sistema');
       }
 
-      // Create invitation
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      // Check latest invitation for this email (if any)
+      const { data: existingInvitation, error: existingInvitationError } = await supabase
+        .from('user_invitations')
+        .select('id, status')
+        .eq('email', emailLower)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingInvitationError) throw existingInvitationError;
+
+      // If there is a pending invitation, refresh it (extend expiry + update roles) and resend
+      if (existingInvitation) {
+        if (existingInvitation.status === 'accepted') {
+          throw new Error('Este usuario ya ha sido invitado y aceptó la invitación');
+        }
+
+        const { error: updateError } = await supabase
+          .from('user_invitations')
+          .update({
+            roles: selectedRoles,
+            invited_by: user.id,
+            status: 'pending',
+            expires_at: expiresAt,
+            updated_at: new Date().toISOString(),
+            accepted_at: null,
+          })
+          .eq('id', existingInvitation.id);
+
+        if (updateError) throw updateError;
+
+        // Send invitation email
+        const { data: inviterProfile } = await supabase
+          .from('profiles')
+          .select('full_name, email')
+          .eq('id', user.id)
+          .single();
+
+        const invitedByName = inviterProfile?.full_name || inviterProfile?.email || 'Un administrador';
+        const senderEmail = user.email || inviterProfile?.email;
+
+        if (!senderEmail) {
+          throw new Error('No se pudo obtener el email del remitente');
+        }
+
+        const response = await supabase.functions.invoke('send-user-invitation', {
+          body: {
+            recipientEmail: emailLower,
+            invitedByName,
+            roles: selectedRoles,
+            senderEmail,
+            appUrl: window.location.origin,
+          },
+        });
+
+        if (response.error) {
+          console.error('Error sending invitation email:', response.error);
+          return { emailSent: false, resent: true };
+        }
+
+        return { emailSent: true, resent: true };
+      }
+
+      // Create new invitation
       const { error: insertError } = await supabase
         .from('user_invitations')
         .insert({
           email: emailLower,
           invited_by: user.id,
           roles: selectedRoles,
+          expires_at: expiresAt,
         });
 
       if (insertError) throw insertError;
@@ -119,18 +169,18 @@ export function InviteUserModal({ open, onOpenChange }: InviteUserModalProps) {
       if (response.error) {
         console.error('Error sending invitation email:', response.error);
         // Don't throw - invitation was created, just email failed
-        return { emailSent: false };
+        return { emailSent: false, resent: false };
       }
 
-      return { emailSent: true };
+      return { emailSent: true, resent: false };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['user-invitations'] });
       toast({
-        title: 'Invitación creada',
-        description: result?.emailSent 
-          ? 'La invitación ha sido enviada por email' 
-          : 'La invitación fue creada pero no se pudo enviar el email',
+        title: result?.resent ? 'Invitación reenviada' : 'Invitación creada',
+        description: result?.emailSent
+          ? (result?.resent ? 'La invitación se ha reenviado por email' : 'La invitación ha sido enviada por email')
+          : (result?.resent ? 'La invitación se actualizó pero no se pudo reenviar el email' : 'La invitación fue creada pero no se pudo enviar el email'),
       });
       onOpenChange(false);
       setEmail('');

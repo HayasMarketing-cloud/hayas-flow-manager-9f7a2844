@@ -173,7 +173,18 @@ serve(async (req) => {
 
     const rolesDisplay = roles.map(r => roleLabels[r] || r).join(', ');
     const displayName = recipientName || recipientEmail.split('@')[0];
-    const loginUrl = appUrl ? `${appUrl}/auth` : 'https://tu-app.lovableproject.com/auth';
+    
+    // Use production URL from env, fallback to appUrl from request
+    const productionUrl = Deno.env.get('APP_PRODUCTION_URL');
+    const loginUrl = productionUrl ? `${productionUrl}/auth` : (appUrl ? `${appUrl}/auth` : 'https://hayas-hub.lovable.app/auth');
+    
+    console.log('Invitation details:', { 
+      recipientEmail, 
+      senderEmail, 
+      appUrl, 
+      productionUrl,
+      finalLoginUrl: loginUrl 
+    });
 
     // Create HTML email
     const htmlBody = `
@@ -224,7 +235,11 @@ serve(async (req) => {
               </a>
             </div>
             
-            <p style="font-size: 14px; color: #9ca3af; text-align: center; margin: 30px 0 0;">
+            <p style="font-size: 12px; color: #6b7280; text-align: center; margin: 20px 0 0;">
+              O copia este enlace: <a href="${loginUrl}" style="color: #059669; word-break: break-all;">${loginUrl}</a>
+            </p>
+            
+            <p style="font-size: 14px; color: #9ca3af; text-align: center; margin: 20px 0 0;">
               Esta invitación expira en 7 días.
             </p>
           </div>

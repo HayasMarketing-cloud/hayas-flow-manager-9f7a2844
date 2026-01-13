@@ -455,6 +455,7 @@ const Solicitudes = () => {
                   onDelete={confirmDelete}
                   onClone={handleCloneRequest}
                   canManage={canManage}
+                  onRefresh={handleSuccess}
                 />
               ))}
             </div>
@@ -468,6 +469,7 @@ const Solicitudes = () => {
               selectedIds={selectedIds}
               onSelectAll={handleSelectAll}
               onSelectOne={handleSelectOne}
+              onRefresh={handleSuccess}
             />
           )
         ) : (

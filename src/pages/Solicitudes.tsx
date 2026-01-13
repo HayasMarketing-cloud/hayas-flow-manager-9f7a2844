@@ -47,7 +47,6 @@ const Solicitudes = () => {
       if (filters.clientId) queryFilters.client_id = filters.clientId;
       if (filters.specialistId) queryFilters.specialist_id = filters.specialistId;
       if (filters.budgetId) queryFilters.budget_id = filters.budgetId;
-      if (filters.projectId) queryFilters.operational_project_id = filters.projectId;
 
       let query = supabase
         .from('financial_requests')
@@ -57,8 +56,7 @@ const Solicitudes = () => {
           client:clients(id, name, code),
           service:services(id, name),
           specialist:specialists(id, name),
-          budget:budgets(id, title, code, client_contact_id),
-          operational_project:operational_projects(id, name)
+          budget:budgets(id, title, code, client_contact_id)
         `
         )
         .match(queryFilters)
@@ -118,21 +116,6 @@ const Solicitudes = () => {
     enabled: !!filters.clientId,
   });
 
-  // Fetch operational projects filtered by selected client
-  const { data: projects } = useQuery({
-    queryKey: ['projects-filter', filters.clientId],
-    queryFn: async () => {
-      if (!filters.clientId) return [];
-      const { data, error } = await supabase
-        .from('operational_projects')
-        .select('id, name')
-        .eq('client_id', filters.clientId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!filters.clientId,
-  });
 
   const handleNewRequest = () => {
     setSelectedRequest(null);
@@ -411,29 +394,7 @@ const Solicitudes = () => {
               </Select>
             )}
 
-            {/* Project filter - only shown when client is selected */}
-            {filters.clientId && (
-              <Select
-                value={filters.projectId || 'all'}
-                onValueChange={(value) =>
-                  updateFilter('projectId', value === 'all' ? null : value)
-                }
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Todos los proyectos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los proyectos</SelectItem>
-                  {projects?.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
-            {(filters.status || filters.clientId || filters.specialistId || filters.budgetId || filters.projectId || filters.searchTerm) && (
+            {(filters.status || filters.clientId || filters.specialistId || filters.budgetId || filters.searchTerm) && (
               <Button variant="outline" onClick={resetFilters}>
                 Limpiar filtros
               </Button>

@@ -6,7 +6,6 @@ export interface RequestFilters {
   clientId: string | null;
   specialistId: string | null;
   budgetId: string | null;
-  projectId: string | null;
 }
 
 export const useRequestFilters = () => {
@@ -16,7 +15,6 @@ export const useRequestFilters = () => {
     clientId: null,
     specialistId: null,
     budgetId: null,
-    projectId: null,
   });
 
   const updateFilter = <K extends keyof RequestFilters>(
@@ -25,10 +23,9 @@ export const useRequestFilters = () => {
   ) => {
     setFilters((prev) => {
       const newFilters = { ...prev, [key]: value };
-      // Reset budget and project filters when client changes
+      // Reset budget filter when client changes
       if (key === 'clientId') {
         newFilters.budgetId = null;
-        newFilters.projectId = null;
       }
       return newFilters;
     });
@@ -41,7 +38,6 @@ export const useRequestFilters = () => {
       clientId: null,
       specialistId: null,
       budgetId: null,
-      projectId: null,
     });
   };
 

@@ -5,6 +5,8 @@ export interface RequestFilters {
   status: string | null;
   clientId: string | null;
   specialistId: string | null;
+  budgetId: string | null;
+  projectId: string | null;
 }
 
 export const useRequestFilters = () => {
@@ -13,13 +15,23 @@ export const useRequestFilters = () => {
     status: null,
     clientId: null,
     specialistId: null,
+    budgetId: null,
+    projectId: null,
   });
 
   const updateFilter = <K extends keyof RequestFilters>(
     key: K,
     value: RequestFilters[K]
   ) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
+    setFilters((prev) => {
+      const newFilters = { ...prev, [key]: value };
+      // Reset budget and project filters when client changes
+      if (key === 'clientId') {
+        newFilters.budgetId = null;
+        newFilters.projectId = null;
+      }
+      return newFilters;
+    });
   };
 
   const resetFilters = () => {
@@ -28,6 +40,8 @@ export const useRequestFilters = () => {
       status: null,
       clientId: null,
       specialistId: null,
+      budgetId: null,
+      projectId: null,
     });
   };
 

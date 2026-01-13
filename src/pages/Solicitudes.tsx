@@ -41,6 +41,14 @@ const Solicitudes = () => {
   const { data: requests, isLoading, error } = useQuery({
     queryKey: ['financial_requests', filters],
     queryFn: async () => {
+      // Build filters object
+      const queryFilters: Record<string, string> = {};
+      if (filters.status) queryFilters.status = filters.status;
+      if (filters.clientId) queryFilters.client_id = filters.clientId;
+      if (filters.specialistId) queryFilters.specialist_id = filters.specialistId;
+      if (filters.budgetId) queryFilters.budget_id = filters.budgetId;
+      if (filters.projectId) queryFilters.operational_project_id = filters.projectId;
+
       let query = supabase
         .from('financial_requests')
         .select(
@@ -49,20 +57,13 @@ const Solicitudes = () => {
           client:clients(id, name, code),
           service:services(id, name),
           specialist:specialists(id, name),
-          budget:budgets(id, title, code, client_contact_id)
+          budget:budgets(id, title, code, client_contact_id),
+          operational_project:operational_projects(id, name)
         `
         )
+        .match(queryFilters)
         .order('created_at', { ascending: false });
 
-      if (filters.status) {
-        query = query.eq('status', filters.status as any);
-      }
-      if (filters.clientId) {
-        query = query.eq('client_id', filters.clientId);
-      }
-      if (filters.specialistId) {
-        query = query.eq('specialist_id', filters.specialistId);
-      }
       if (filters.searchTerm) {
         query = query.or(
           `title.ilike.%${filters.searchTerm}%,code.ilike.%${filters.searchTerm}%`
@@ -99,6 +100,38 @@ const Solicitudes = () => {
       if (error) throw error;
       return data;
     },
+  });
+
+  // Fetch budgets filtered by selected client
+  const { data: budgets } = useQuery({
+    queryKey: ['budgets-filter', filters.clientId],
+    queryFn: async () => {
+      if (!filters.clientId) return [];
+      const { data, error } = await supabase
+        .from('budgets')
+        .select('id, title, code')
+        .eq('client_id', filters.clientId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!filters.clientId,
+  });
+
+  // Fetch operational projects filtered by selected client
+  const { data: projects } = useQuery({
+    queryKey: ['projects-filter', filters.clientId],
+    queryFn: async () => {
+      if (!filters.clientId) return [];
+      const { data, error } = await supabase
+        .from('operational_projects')
+        .select('id, name')
+        .eq('client_id', filters.clientId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!filters.clientId,
   });
 
   const handleNewRequest = () => {
@@ -356,7 +389,51 @@ const Solicitudes = () => {
               </SelectContent>
             </Select>
 
-            {(filters.status || filters.clientId || filters.specialistId || filters.searchTerm) && (
+            {/* Budget filter - only shown when client is selected */}
+            {filters.clientId && (
+              <Select
+                value={filters.budgetId || 'all'}
+                onValueChange={(value) =>
+                  updateFilter('budgetId', value === 'all' ? null : value)
+                }
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Todos los presupuestos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los presupuestos</SelectItem>
+                  {budgets?.map((budget) => (
+                    <SelectItem key={budget.id} value={budget.id}>
+                      {budget.code} - {budget.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Project filter - only shown when client is selected */}
+            {filters.clientId && (
+              <Select
+                value={filters.projectId || 'all'}
+                onValueChange={(value) =>
+                  updateFilter('projectId', value === 'all' ? null : value)
+                }
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Todos los proyectos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los proyectos</SelectItem>
+                  {projects?.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {(filters.status || filters.clientId || filters.specialistId || filters.budgetId || filters.projectId || filters.searchTerm) && (
               <Button variant="outline" onClick={resetFilters}>
                 Limpiar filtros
               </Button>

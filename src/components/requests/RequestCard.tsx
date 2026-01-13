@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RequestStatusBadge } from './RequestStatusBadge';
 import { RequestFlowIndicator } from './RequestFlowIndicator';
+import { RequestFlowActions } from './RequestFlowActions';
 import { FlowStatusCell } from './FlowStatusCell';
 import { Edit, Building2, Calendar, Euro, Copy, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/request-utils';
@@ -14,9 +15,10 @@ interface RequestCardProps {
   onDelete: (request: any) => void;
   onClone: (request: any) => void;
   canManage: boolean;
+  onRefresh?: () => void;
 }
 
-export const RequestCard = ({ request, onEdit, onDelete, onClone, canManage }: RequestCardProps) => {
+export const RequestCard = ({ request, onEdit, onDelete, onClone, canManage, onRefresh }: RequestCardProps) => {
   // Calculate total: cost_to_agency or calculate from hours/fixed
   const totalAmount = request.cost_to_agency || 
     (request.cost_type === 'hourly' 
@@ -78,6 +80,13 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, canManage }: R
             linkedStatus={request.liquidation?.status}
           />
         </div>
+
+        {/* Flow Actions */}
+        {canManage && (
+          <div className="pt-3 border-t mt-3">
+            <RequestFlowActions request={request} onSuccess={onRefresh} compact />
+          </div>
+        )}
 
         {canManage && (
           <div className="pt-2 flex gap-2">

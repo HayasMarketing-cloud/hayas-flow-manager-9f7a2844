@@ -9,6 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RequestFlowIndicator } from './RequestFlowIndicator';
+import { RequestFlowActions } from './RequestFlowActions';
 import { FlowStatusCell } from './FlowStatusCell';
 import { Edit, Eye, Copy, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/request-utils';
@@ -24,6 +25,7 @@ interface RequestTableViewProps {
   selectedIds: string[];
   onSelectAll: (checked: boolean) => void;
   onSelectOne: (id: string, checked: boolean) => void;
+  onRefresh?: () => void;
 }
 
 export const RequestTableView = ({
@@ -35,6 +37,7 @@ export const RequestTableView = ({
   selectedIds,
   onSelectAll,
   onSelectOne,
+  onRefresh,
 }: RequestTableViewProps) => {
   const allSelected = requests.length > 0 && selectedIds.length === requests.length;
   const someSelected = selectedIds.length > 0 && selectedIds.length < requests.length;
@@ -56,6 +59,7 @@ export const RequestTableView = ({
             <TableHead>Título</TableHead>
             <TableHead>Cliente</TableHead>
             <TableHead>Flujo</TableHead>
+            <TableHead>Siguiente Acción</TableHead>
             <TableHead>Factura</TableHead>
             <TableHead>Liquidación</TableHead>
             <TableHead className="text-right">Coste (€)</TableHead>
@@ -66,7 +70,7 @@ export const RequestTableView = ({
         <TableBody>
           {requests.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={10} className="text-center text-muted-foreground">
+              <TableCell colSpan={11} className="text-center text-muted-foreground">
                 No se encontraron solicitudes
               </TableCell>
             </TableRow>
@@ -94,6 +98,11 @@ export const RequestTableView = ({
                   <TableCell>{request.client?.name || '-'}</TableCell>
                   <TableCell>
                     <RequestFlowIndicator status={request.status} compact />
+                  </TableCell>
+                  <TableCell>
+                    {canManage && (
+                      <RequestFlowActions request={request} onSuccess={onRefresh} compact />
+                    )}
                   </TableCell>
                   <TableCell>
                     <FlowStatusCell

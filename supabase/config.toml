@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.send-user-invitation]
 verify_jwt = false
+
+[functions.send-request-notification]
+verify_jwt = false

@@ -29,35 +29,31 @@ import {
 import { InviteUserModal } from '@/components/users/InviteUserModal';
 import { InvitationsList } from '@/components/users/InvitationsList';
 
-type UserRole = 'admin' | 'moderator' | 'user' | 'finanzas' | 'project_manager' | 'especialista' | 'account_manager' | 'seller';
+type UserRole = 'admin' | 'finanzas' | 'project_manager' | 'especialista' | 'account_manager' | 'seller';
 
 const roleLabels: Record<UserRole, string> = {
   admin: 'Administrador',
-  moderator: 'Moderador',
-  user: 'Usuario',
   finanzas: 'Finanzas',
   project_manager: 'Project Manager',
-  especialista: 'Especialista',
   account_manager: 'Account Manager',
   seller: 'Vendedor',
+  especialista: 'Especialista',
 };
 
 const roleColors: Record<UserRole, string> = {
   admin: 'bg-destructive text-destructive-foreground',
-  moderator: 'bg-primary text-primary-foreground',
-  user: 'bg-secondary text-secondary-foreground',
   finanzas: 'bg-blue-500 text-white',
   project_manager: 'bg-purple-500 text-white',
-  especialista: 'bg-green-500 text-white',
   account_manager: 'bg-orange-500 text-white',
   seller: 'bg-yellow-500 text-white',
+  especialista: 'bg-green-500 text-white',
 };
 
 function UsuariosContent() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [selectedRole, setSelectedRole] = useState<UserRole>('user');
+  const [selectedRole, setSelectedRole] = useState<UserRole>('especialista');
   const [roleToDelete, setRoleToDelete] = useState<{ userId: string; role: UserRole } | null>(null);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 

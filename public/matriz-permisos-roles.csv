@@ -1,14 +1,14 @@
-Módulo,admin,finanzas,project_manager,account_manager,seller,especialista,user,moderator
-Dashboard,Full,Finanzas,Operaciones,Cuentas,Ventas,Mis tareas,Básico,Básico
-Clientes,CRUD,Ver,Ver,CRUD,CRUD,Ver,Ver,Ver
-Contactos Cliente,CRUD,Ver,Ver,CRUD,Ver,Ver,Ver,Ver
-Presupuestos,CRUD,Ver,Ver,Ver,Crear,Ver,Ver,Ver
-Contratos,CRUD,Ver,Ver,Ver,Ver,Ver,Ver,Ver
-Solicitudes,CRUD,CRUD,CRUD,No,No,Ver propias,No,No
-Facturas,CRUD,CRUD,No,No,No,No,No,No
-Liquidaciones,CRUD,CRUD,No,No,No,Ver propias,No,No
-Proyectos Operacionales,CRUD,Ver,CRUD,No,No,Ver asignados,No,No
-Tareas/Hitos,CRUD,No,CRUD,No,No,Actualizar propias,No,No
-Especialistas,CRUD,Ver,Ver,Ver,Ver,Ver,Ver,Ver
-Servicios,CRUD,Ver,Ver,Ver,Ver,Ver,Ver,Ver
-Usuarios,CRUD,No,No,No,No,No,No,No
+Módulo,admin,finanzas,project_manager,account_manager,seller,especialista
+Dashboard,Full,Finanzas,Operaciones,Cuentas,Ventas,Mis tareas
+Clientes,CRUD,Ver,Ver,Ver sus clientes,CRUD,Ver
+Contactos Cliente,CRUD,Ver,Ver,CRUD sus clientes,Ver,Ver
+Presupuestos,CRUD,Ver,Ver,Ver,Crear + Ver propios,Ver
+Contratos,CRUD,Ver,Ver,Ver sus clientes,Ver,Ver
+Solicitudes,CRUD,CRUD,CRUD,Ver sus clientes,No,Ver propias
+Facturas,CRUD,CRUD,No,No,Ver sus clientes,No
+Liquidaciones,CRUD,CRUD,No,No,No,Ver propias
+Proyectos Operacionales,CRUD,Ver,CRUD,No,No,Ver asignados
+Tareas/Hitos,CRUD,No,CRUD,No,No,Actualizar propias
+Especialistas,CRUD,Ver,Ver,Ver,Ver,Ver
+Servicios,CRUD,Ver,Ver,Ver,Ver,Ver
+Usuarios,CRUD,No,No,No,No,No

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
-export type UserRole = 'admin' | 'moderator' | 'user' | 'finanzas' | 'project_manager' | 'especialista' | 'account_manager' | 'seller';
+export type UserRole = 'admin' | 'finanzas' | 'project_manager' | 'especialista' | 'account_manager' | 'seller';
 
 export const useUserRole = () => {
   const { user, loading: authLoading } = useAuth();
@@ -33,7 +33,7 @@ export const useUserRole = () => {
           setRoles([]);
         } else {
           const validRoles = data?.map(r => r.role).filter((role: string): role is UserRole => 
-            ['admin', 'moderator', 'user', 'finanzas', 'project_manager', 'especialista', 'account_manager', 'seller'].includes(role)
+            ['admin', 'finanzas', 'project_manager', 'especialista', 'account_manager', 'seller'].includes(role)
           ) || [];
           setRoles(validRoles);
         }
@@ -53,22 +53,25 @@ export const useUserRole = () => {
 
   const hasRole = (role: UserRole) => roles.includes(role);
   const isAdmin = () => hasRole('admin');
-  const isModerator = () => hasRole('moderator');
   const canAccessFinance = () => hasRole('admin') || hasRole('finanzas');
-  const canAccessOperations = () => hasRole('admin') || hasRole('project_manager') || hasRole('account_manager');
+  const canAccessOperations = () => hasRole('admin') || hasRole('project_manager');
   const canRead = () => roles.length > 0;
   const isAccountManager = () => hasRole('account_manager');
   const isSeller = () => hasRole('seller');
   const isProjectManager = () => hasRole('project_manager');
   const isSpecialist = () => hasRole('especialista');
   const canManageClients = () => canAccessFinance() || isAccountManager() || isSeller();
+  
+  // New permission helpers
+  const canViewOwnInvoices = () => isSeller();
+  const canViewAssignedClients = () => isAccountManager();
+  const canViewOwnLiquidations = () => isSpecialist();
 
   return {
     roles,
     loading,
     hasRole,
     isAdmin,
-    isModerator,
     canAccessFinance,
     canAccessOperations,
     canRead,
@@ -77,5 +80,8 @@ export const useUserRole = () => {
     isProjectManager,
     isSpecialist,
     canManageClients,
+    canViewOwnInvoices,
+    canViewAssignedClients,
+    canViewOwnLiquidations,
   };
 };

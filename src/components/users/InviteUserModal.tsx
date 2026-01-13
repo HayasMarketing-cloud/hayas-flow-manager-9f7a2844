@@ -16,17 +16,15 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Mail, UserPlus } from 'lucide-react';
 
-type UserRole = 'admin' | 'moderator' | 'user' | 'finanzas' | 'project_manager' | 'especialista' | 'account_manager' | 'seller';
+type UserRole = 'admin' | 'finanzas' | 'project_manager' | 'especialista' | 'account_manager' | 'seller';
 
 const roleLabels: Record<UserRole, string> = {
   admin: 'Administrador',
-  moderator: 'Moderador',
-  user: 'Usuario',
   finanzas: 'Finanzas',
   project_manager: 'Project Manager',
-  especialista: 'Especialista',
   account_manager: 'Account Manager',
   seller: 'Vendedor',
+  especialista: 'Especialista',
 };
 
 interface InviteUserModalProps {
@@ -40,7 +38,7 @@ export function InviteUserModal({ open, onOpenChange }: InviteUserModalProps) {
   const queryClient = useQueryClient();
   
   const [email, setEmail] = useState('');
-  const [selectedRoles, setSelectedRoles] = useState<UserRole[]>(['user']);
+  const [selectedRoles, setSelectedRoles] = useState<UserRole[]>([]);
 
   const inviteMutation = useMutation({
     mutationFn: async () => {
@@ -137,7 +135,7 @@ export function InviteUserModal({ open, onOpenChange }: InviteUserModalProps) {
       });
       onOpenChange(false);
       setEmail('');
-      setSelectedRoles(['user']);
+      setSelectedRoles([]);
     },
     onError: (error: Error) => {
       toast({

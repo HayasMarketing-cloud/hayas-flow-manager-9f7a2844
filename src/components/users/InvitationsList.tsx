@@ -20,28 +20,22 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useState } from 'react';
 
-type UserRole = 'admin' | 'moderator' | 'user' | 'finanzas' | 'project_manager' | 'especialista' | 'account_manager' | 'seller';
+type UserRole = 'admin' | 'finanzas' | 'project_manager' | 'especialista' | 'account_manager';
 
 const roleLabels: Record<UserRole, string> = {
   admin: 'Administrador',
-  moderator: 'Moderador',
-  user: 'Usuario',
   finanzas: 'Finanzas',
   project_manager: 'Project Manager',
   especialista: 'Especialista',
   account_manager: 'Account Manager',
-  seller: 'Vendedor',
 };
 
 const roleColors: Record<UserRole, string> = {
   admin: 'bg-destructive text-destructive-foreground',
-  moderator: 'bg-primary text-primary-foreground',
-  user: 'bg-secondary text-secondary-foreground',
   finanzas: 'bg-blue-500 text-white',
   project_manager: 'bg-purple-500 text-white',
   especialista: 'bg-green-500 text-white',
   account_manager: 'bg-orange-500 text-white',
-  seller: 'bg-yellow-500 text-white',
 };
 
 interface Invitation {

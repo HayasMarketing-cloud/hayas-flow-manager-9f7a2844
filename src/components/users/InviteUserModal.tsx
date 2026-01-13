@@ -16,14 +16,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Mail, UserPlus } from 'lucide-react';
 
-type UserRole = 'admin' | 'finanzas' | 'project_manager' | 'especialista' | 'account_manager' | 'seller';
+type UserRole = 'admin' | 'finanzas' | 'project_manager' | 'especialista' | 'account_manager';
 
 const roleLabels: Record<UserRole, string> = {
   admin: 'Administrador',
   finanzas: 'Finanzas',
   project_manager: 'Project Manager',
   account_manager: 'Account Manager',
-  seller: 'Vendedor',
   especialista: 'Especialista',
 };
 

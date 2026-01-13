@@ -29,14 +29,13 @@ import {
 import { InviteUserModal } from '@/components/users/InviteUserModal';
 import { InvitationsList } from '@/components/users/InvitationsList';
 
-type UserRole = 'admin' | 'finanzas' | 'project_manager' | 'especialista' | 'account_manager' | 'seller';
+type UserRole = 'admin' | 'finanzas' | 'project_manager' | 'especialista' | 'account_manager';
 
 const roleLabels: Record<UserRole, string> = {
   admin: 'Administrador',
   finanzas: 'Finanzas',
   project_manager: 'Project Manager',
   account_manager: 'Account Manager',
-  seller: 'Vendedor',
   especialista: 'Especialista',
 };
 
@@ -45,7 +44,6 @@ const roleColors: Record<UserRole, string> = {
   finanzas: 'bg-blue-500 text-white',
   project_manager: 'bg-purple-500 text-white',
   account_manager: 'bg-orange-500 text-white',
-  seller: 'bg-yellow-500 text-white',
   especialista: 'bg-green-500 text-white',
 };
 

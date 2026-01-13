@@ -66,6 +66,13 @@ export const useUserRole = () => {
   const canViewOwnInvoices = () => isSeller();
   const canViewAssignedClients = () => isAccountManager();
   const canViewOwnLiquidations = () => isSpecialist();
+  
+  // Account Manager expanded permissions - can view everything under assigned clients
+  const canViewClientBudgets = () => isAccountManager();
+  const canViewClientInvoices = () => isAccountManager();
+  const canViewClientLiquidations = () => isAccountManager();
+  const canViewClientProjects = () => isAccountManager();
+  const canViewClientTasks = () => isAccountManager();
 
   return {
     roles,
@@ -83,5 +90,10 @@ export const useUserRole = () => {
     canViewOwnInvoices,
     canViewAssignedClients,
     canViewOwnLiquidations,
+    canViewClientBudgets,
+    canViewClientInvoices,
+    canViewClientLiquidations,
+    canViewClientProjects,
+    canViewClientTasks,
   };
 };

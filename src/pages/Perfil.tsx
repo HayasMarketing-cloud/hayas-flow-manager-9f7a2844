@@ -145,13 +145,10 @@ export default function Perfil() {
 
   const roleLabels: Record<string, string> = {
     admin: 'Administrador',
-    moderator: 'Moderador',
-    user: 'Usuario',
     finanzas: 'Finanzas',
     project_manager: 'Project Manager',
     especialista: 'Especialista',
     account_manager: 'Account Manager',
-    seller: 'Vendedor',
   };
 
   return (

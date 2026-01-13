@@ -25,7 +25,7 @@ const financeItems: NavItem[] = [
   { title: 'Contratos', url: '/contratos', icon: FileText },
   { title: 'Presupuestos', url: '/presupuestos', icon: Calculator },
   { title: 'Requests Financieros', url: '/solicitudes', icon: FileCheck, requiredRoles: ['admin', 'finanzas', 'project_manager', 'account_manager'] },
-  { title: 'Facturas', url: '/facturas', icon: Receipt, requiredRoles: ['admin', 'finanzas', 'seller', 'account_manager'] },
+  { title: 'Facturas', url: '/facturas', icon: Receipt, requiredRoles: ['admin', 'finanzas', 'account_manager'] },
   { title: 'Liquidaciones', url: '/liquidaciones', icon: Wallet, requiredRoles: ['admin', 'finanzas', 'account_manager'] },
   { title: 'Mis Liquidaciones', url: '/mis-liquidaciones', icon: Wallet, requiredRoles: ['especialista'] },
   { title: 'Flujo Requests', url: '/flujo-requests', icon: GitBranch, requiredRoles: ['admin', 'finanzas', 'project_manager'] },

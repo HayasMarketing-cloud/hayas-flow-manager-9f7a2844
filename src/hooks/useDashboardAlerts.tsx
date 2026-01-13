@@ -70,7 +70,7 @@ export const useDashboardAlerts = () => {
         const { data: unbilledRequests } = await supabase
           .from('financial_requests')
           .select('id')
-          .eq('status', 'active')
+          .eq('status', 'completed')
           .is('billed_invoice_id', null);
 
         if (unbilledRequests && unbilledRequests.length > 0) {

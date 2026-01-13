@@ -171,9 +171,8 @@ export const AddToLiquidationModal = ({
       // Update financial_requests with liquidation_id and status
       const { error: updateError } = await supabase
         .from('financial_requests')
-        .update({ 
-          liquidation_id: liquidationId,
-          status: 'liquidated' as const
+      .update({ 
+          liquidation_id: liquidationId
         })
         .in('id', validRequests.map(r => r.id));
 

@@ -23,7 +23,7 @@ export const useRequestsForPeriod = (
           specialist:specialists(name)
         `)
         .eq('client_id', clientId)
-        .eq('status', 'active')
+        .eq('status', 'completed')
         .is('billed_invoice_id', null)
         .gte('completed_at', startDate.toISOString())
         .lte('completed_at', endDate.toISOString())

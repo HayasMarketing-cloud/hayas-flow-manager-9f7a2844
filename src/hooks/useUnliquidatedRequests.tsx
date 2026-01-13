@@ -16,7 +16,7 @@ export const useUnliquidatedRequests = (specialistId?: string) => {
         `)
         .eq('specialist_id', specialistId)
         .is('liquidation_id', null)
-        .neq('status', 'liquidated')
+        .eq('status', 'completed')
         .order('created_at', { ascending: false });
 
       if (error) throw error;

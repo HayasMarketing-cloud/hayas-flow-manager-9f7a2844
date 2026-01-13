@@ -186,7 +186,6 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
             .from('financial_requests')
             .update({
               billed_invoice_id: newInvoice.id,
-              status: 'invoiced',
             })
             .in('id', item.request_ids);
 
@@ -249,7 +248,6 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
             .from('financial_requests')
             .update({
               billed_invoice_id: invoice.id,
-              status: 'invoiced',
             })
             .in('id', item.request_ids);
         }

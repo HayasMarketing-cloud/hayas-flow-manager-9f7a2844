@@ -368,7 +368,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
         // Actualizar los requests para marcarlos como liquidados
         const { error: updateError } = await supabase
           .from('financial_requests')
-          .update({ liquidation_id: newLiquidation.id, status: 'liquidated' })
+          .update({ liquidation_id: newLiquidation.id })
           .in('id', requests.map(r => r.id));
 
         if (updateError) throw updateError;
@@ -463,7 +463,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       // Actualizar los requests para marcarlos como liquidados
       const { error: updateError } = await supabase
         .from('financial_requests')
-        .update({ liquidation_id: liquidation.id, status: 'liquidated' })
+        .update({ liquidation_id: liquidation.id })
         .in('id', requests.map(r => r.id));
 
       if (updateError) throw updateError;
@@ -575,7 +575,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       if (item?.financial_request_id) {
         const { error: updateRequestError } = await supabase
           .from('financial_requests')
-          .update({ liquidation_id: null, status: 'active' })
+          .update({ liquidation_id: null })
           .eq('id', item.financial_request_id);
 
         if (updateRequestError) throw updateRequestError;

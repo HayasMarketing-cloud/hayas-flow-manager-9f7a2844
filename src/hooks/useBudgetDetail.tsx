@@ -19,12 +19,13 @@ export const useBudgetDetail = (budgetId: string | undefined) => {
 
       if (budgetError) throw budgetError;
 
-      // Fetch budget items with services
+      // Fetch budget items with services and specialists
       const { data: items, error: itemsError } = await supabase
         .from('budget_items')
         .select(`
           *,
-          service:services(id, name, category)
+          service:services(id, name, category),
+          specialist:specialists(id, name, type, email)
         `)
         .eq('budget_id', budgetId)
         .order('created_at');
@@ -61,11 +62,23 @@ export const useBudgetDetail = (budgetId: string | undefined) => {
 
       if (projectsError) throw projectsError;
 
+      // Fetch creator profile (Account Manager)
+      let creatorProfile = null;
+      if (budget.created_by) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .eq('id', budget.created_by)
+          .single();
+        creatorProfile = profile;
+      }
+
       return {
         budget,
         items: items || [],
         requests: requests || [],
         projects: projects || [],
+        creatorProfile,
       };
     },
     enabled: !!budgetId,

@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, ListPlus, Trash2, CloudOff, Cloud, RefreshCw, FileDown } from 'lucide-react';
+import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, ListPlus, Trash2, CloudOff, Cloud, RefreshCw, FileDown, Users } from 'lucide-react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { generateBudgetPDF } from '@/utils/pdf/budgetPDFGenerator';
 import { useBudgetDetail } from '@/hooks/useBudgetDetail';
 import { BudgetStatusBadge } from '@/components/budgets/BudgetStatusBadge';
@@ -18,7 +19,7 @@ import { formatCurrency, getBudgetStatusLabel, calculateBudgetTotal } from '@/li
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BudgetFormModal } from '@/components/budgets/BudgetFormModal';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -974,7 +975,19 @@ export default function PresupuestoDetalle() {
     );
   }
 
-  const { budget, items, requests, projects } = data;
+  const { budget, items, requests, projects, creatorProfile } = data;
+
+  // Extraer especialistas únicos del presupuesto
+  const teamSpecialists = React.useMemo(() => {
+    if (!items) return [];
+    const specialistMap = new Map();
+    items.forEach((item: any) => {
+      if (item.specialist && !specialistMap.has(item.specialist.id)) {
+        specialistMap.set(item.specialist.id, item.specialist);
+      }
+    });
+    return Array.from(specialistMap.values());
+  }, [items]);
 
   const itemsByCategory = items.reduce((acc: any, item: any) => {
     const category = item.service?.category || 'Sin categoría';
@@ -1299,6 +1312,82 @@ export default function PresupuestoDetalle() {
                     </div>
                   </>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Sección Equipo de Trabajo */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Equipo de Trabajo
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {/* Account Manager / Creador */}
+                  {creatorProfile && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-2">
+                        Account Manager
+                      </p>
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback>
+                            {creatorProfile.full_name?.charAt(0) || 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">{creatorProfile.full_name}</p>
+                          <p className="text-sm text-muted-foreground">{creatorProfile.email}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Especialistas */}
+                  {teamSpecialists.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-2">
+                        Especialistas ({teamSpecialists.length})
+                      </p>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {teamSpecialists.map((specialist: any) => (
+                          <div 
+                            key={specialist.id} 
+                            className="flex items-center gap-3 p-3 rounded-lg border"
+                          >
+                            <Avatar className="h-10 w-10">
+                              <AvatarFallback>
+                                {specialist.name?.charAt(0) || 'E'}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{specialist.name}</p>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">
+                                  {specialist.type === 'freelance' ? 'Freelance' : 'Partner'}
+                                </Badge>
+                                {specialist.email && (
+                                  <span className="text-xs text-muted-foreground truncate">
+                                    {specialist.email}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Estado vacío */}
+                  {!creatorProfile && teamSpecialists.length === 0 && (
+                    <p className="text-muted-foreground text-center py-4">
+                      No hay miembros del equipo asignados a este presupuesto
+                    </p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

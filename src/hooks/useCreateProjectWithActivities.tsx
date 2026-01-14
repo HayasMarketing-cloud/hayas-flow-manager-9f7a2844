@@ -33,7 +33,7 @@ export const useCreateProjectWithActivities = () => {
       // 2. Obtener los financial_requests asociados al presupuesto
       const { data: financialRequests, error: requestsError } = await supabase
         .from('financial_requests')
-        .select('id, title, description, client_id')
+        .select('id, title, description, client_id, specialist_id')
         .eq('budget_id', projectData.budget_id);
 
       if (requestsError) throw requestsError;
@@ -48,6 +48,7 @@ export const useCreateProjectWithActivities = () => {
           description: fr.description || `Actividad generada desde solicitud financiera`,
           status: 'pending' as const,
           created_by: projectData.created_by,
+          assignee_specialist_id: fr.specialist_id || null,
         }));
 
         const { error: opRequestsError } = await supabase

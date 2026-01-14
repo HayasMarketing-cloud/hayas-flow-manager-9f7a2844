@@ -951,6 +951,18 @@ export default function PresupuestoDetalle() {
     setIsEditingEconomico(false);
   };
 
+  // Extraer especialistas únicos del presupuesto - MUST be before early returns
+  const teamSpecialists = React.useMemo(() => {
+    if (!data?.items) return [];
+    const specialistMap = new Map();
+    data.items.forEach((item: any) => {
+      if (item.specialist && !specialistMap.has(item.specialist.id)) {
+        specialistMap.set(item.specialist.id, item.specialist);
+      }
+    });
+    return Array.from(specialistMap.values());
+  }, [data?.items]);
+
   if (isLoading) {
     return (
       <AppLayout title="Cargando..." description="">
@@ -976,18 +988,6 @@ export default function PresupuestoDetalle() {
   }
 
   const { budget, items, requests, projects, creatorProfile, amProfile, pmProfile } = data;
-
-  // Extraer especialistas únicos del presupuesto
-  const teamSpecialists = React.useMemo(() => {
-    if (!items) return [];
-    const specialistMap = new Map();
-    items.forEach((item: any) => {
-      if (item.specialist && !specialistMap.has(item.specialist.id)) {
-        specialistMap.set(item.specialist.id, item.specialist);
-      }
-    });
-    return Array.from(specialistMap.values());
-  }, [items]);
 
   const itemsByCategory = items.reduce((acc: any, item: any) => {
     const category = item.service?.category || 'Sin categoría';

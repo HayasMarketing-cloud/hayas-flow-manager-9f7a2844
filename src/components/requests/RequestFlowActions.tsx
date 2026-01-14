@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserRole } from '@/hooks/useUserRole';
 import { 
   Send, 
   Check, 
@@ -11,7 +12,8 @@ import {
   PlayCircle, 
   CheckCircle, 
   AlertCircle,
-  Loader2
+  Loader2,
+  Clock
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -42,6 +44,7 @@ interface RequestFlowActionsProps {
 
 export const RequestFlowActions = ({ request, onSuccess, compact = false }: RequestFlowActionsProps) => {
   const { user } = useAuth();
+  const { isAdmin, isProjectManager, isAccountManager, isSpecialist } = useUserRole();
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -53,6 +56,16 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
     recipientName: string;
   } | null>(null);
   const [message, setMessage] = useState('');
+
+  // Permission helpers
+  const isManagement = () => isAdmin() || isProjectManager() || isAccountManager();
+  
+  const isAssignedSpecialist = () => {
+    if (!isSpecialist()) return false;
+    const specialistEmail = request.specialist?.email?.toLowerCase();
+    const currentUserEmail = user?.email?.toLowerCase();
+    return specialistEmail && currentUserEmail && specialistEmail === currentUserEmail;
+  };
 
   const sendNotification = async (
     notificationType: NotificationType,
@@ -181,7 +194,7 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
     );
   };
 
-  // Determine which actions to show based on status
+  // Determine which actions to show based on status and permissions
   const renderActions = () => {
     const status = request.status;
     const specialist = request.specialist;
@@ -189,15 +202,26 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
     const specialistName = specialist?.name || 'Especialista';
 
     // Get AM/PM email for notifications back to management
-    // For now, we'll use a placeholder - in production this would come from the contract or project
     const managementEmail = 'info@hayas.es';
     const managementName = 'Gestión';
 
     const buttonSize = compact ? 'sm' : 'default';
     const iconSize = compact ? 'h-3 w-3' : 'h-4 w-4';
 
+    // Helper to render waiting message
+    const renderWaitingMessage = (waitingFor: string) => (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Clock className={iconSize} />
+        <span>Esperando: {waitingFor}</span>
+      </div>
+    );
+
     switch (status) {
       case 'draft':
+        // Only management can send to specialist
+        if (!isManagement()) {
+          return null;
+        }
         if (!specialist || !specialistEmail) {
           return (
             <p className="text-sm text-muted-foreground">
@@ -223,6 +247,10 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
         );
 
       case 'pending_specialist':
+        // Only the assigned specialist can accept/reject
+        if (!isAssignedSpecialist()) {
+          return renderWaitingMessage(specialistName);
+        }
         return (
           <div className="flex gap-2 flex-wrap">
             <Button
@@ -259,6 +287,10 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
         );
 
       case 'pending_approval':
+        // Only management can approve start
+        if (!isManagement()) {
+          return renderWaitingMessage('Aprobación de gestión');
+        }
         return (
           <Button
             size={buttonSize}
@@ -277,6 +309,10 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
         );
 
       case 'in_progress':
+        // Only the assigned specialist can mark as completed
+        if (!isAssignedSpecialist()) {
+          return renderWaitingMessage(specialistName);
+        }
         return (
           <Button
             size={buttonSize}
@@ -295,6 +331,10 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
         );
 
       case 'pending_review':
+        // Only management can approve/request corrections
+        if (!isManagement()) {
+          return renderWaitingMessage('Revisión de gestión');
+        }
         return (
           <div className="flex gap-2 flex-wrap">
             <Button

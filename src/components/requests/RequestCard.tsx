@@ -4,10 +4,11 @@ import { RequestStatusBadge } from './RequestStatusBadge';
 import { RequestFlowIndicator } from './RequestFlowIndicator';
 import { RequestFlowActions } from './RequestFlowActions';
 import { FlowStatusCell } from './FlowStatusCell';
-import { Edit, Building2, Calendar, Euro, Copy, Trash2 } from 'lucide-react';
+import { Edit, Building2, Calendar, Euro, Copy, Trash2, Eye } from 'lucide-react';
 import { formatCurrency } from '@/lib/request-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useNavigate } from 'react-router-dom';
 
 interface RequestCardProps {
   request: any;
@@ -19,6 +20,8 @@ interface RequestCardProps {
 }
 
 export const RequestCard = ({ request, onEdit, onDelete, onClone, canManage, onRefresh }: RequestCardProps) => {
+  const navigate = useNavigate();
+  
   // Calculate total: cost_to_agency or calculate from hours/fixed
   const totalAmount = request.cost_to_agency || 
     (request.cost_type === 'hourly' 
@@ -88,35 +91,45 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, canManage, onR
           </div>
         )}
 
-        {canManage && (
-          <div className="pt-2 flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onEdit(request)}
-              className="flex-1"
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              Editar
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onClone(request)}
-              title="Clonar"
-            >
-              <Copy className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onDelete(request)}
-              title="Eliminar"
-            >
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          </div>
-        )}
+        <div className="pt-2 flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/solicitudes/${request.id}`)}
+            className="flex-1"
+          >
+            <Eye className="h-4 w-4 mr-2" />
+            Ver Detalle
+          </Button>
+          {canManage && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onEdit(request)}
+                title="Editar"
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onClone(request)}
+                title="Clonar"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onDelete(request)}
+                title="Eliminar"
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

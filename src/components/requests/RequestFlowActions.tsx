@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
 import { 
   Send, 
   Check, 
@@ -46,6 +47,7 @@ interface RequestFlowActionsProps {
 export const RequestFlowActions = ({ request, onSuccess, compact = false }: RequestFlowActionsProps) => {
   const { user } = useAuth();
   const { isAdmin, isProjectManager, isAccountManager, isSpecialist } = useUserRole();
+  const { logActivity } = useRequestActivityLog();
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -121,6 +123,8 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
     additionalMessage?: string
   ) => {
     setIsLoading(true);
+    const previousStatus = request.status;
+    
     try {
       const updateData: any = { status: newStatus };
       
@@ -143,6 +147,13 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
 
       if (error) throw error;
 
+      // Log the status change
+      await logActivity({
+        entityId: request.id,
+        action: 'status_change',
+        changes: { previous: previousStatus, new: newStatus }
+      });
+
       // Send notification if recipient provided
       if (notificationType && recipientEmail && recipientName) {
         const notificationSent = await sendNotification(
@@ -152,7 +163,13 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
           additionalMessage
         );
 
+        // Log notification sent
         if (notificationSent) {
+          await logActivity({
+            entityId: request.id,
+            action: 'notification_sent',
+            changes: { recipient: recipientName, type: notificationType }
+          });
           toast.success('Estado actualizado y notificación enviada');
         } else {
           toast.success('Estado actualizado (notificación no enviada)');
@@ -162,6 +179,7 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
       }
 
       queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
+      queryClient.invalidateQueries({ queryKey: ['request-activity', request.id] });
       onSuccess?.();
     } catch (error: any) {
       toast.error(error.message || 'Error al actualizar el estado');

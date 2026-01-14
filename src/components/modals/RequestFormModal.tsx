@@ -34,6 +34,7 @@ import { toast } from 'sonner';
 import { Loader2, Clock, Euro, User, FileText, ShoppingCart } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
 
 const requestSchema = z.object({
   client_id: z.string().uuid('Selecciona un cliente'),
@@ -76,6 +77,7 @@ export const RequestFormModal = ({
   mode = 'create',
 }: RequestFormModalProps) => {
   const isViewMode = mode === 'view';
+  const { logActivity } = useRequestActivityLog();
 
   const form = useForm<RequestFormData>({
     resolver: zodResolver(requestSchema),
@@ -242,12 +244,27 @@ export const RequestFormModal = ({
           .update(requestData)
           .eq('id', initialData.id);
         if (error) throw error;
+        return { isNew: false, id: initialData.id };
       } else {
-        const { error } = await supabase.from('financial_requests').insert([requestData as any]);
+        const { data: newRequest, error } = await supabase
+          .from('financial_requests')
+          .insert([requestData as any])
+          .select('id')
+          .single();
         if (error) throw error;
+        return { isNew: true, id: newRequest?.id };
       }
     },
-    onSuccess: () => {
+    onSuccess: async (result) => {
+      // Log the activity
+      if (result?.id) {
+        await logActivity({
+          entityId: result.id,
+          action: result.isNew ? 'created' : 'updated',
+          changes: result.isNew ? { title: form.getValues('title') } : null
+        });
+      }
+      
       toast.success(
         initialData ? 'Solicitud actualizada' : 'Solicitud creada correctamente'
       );

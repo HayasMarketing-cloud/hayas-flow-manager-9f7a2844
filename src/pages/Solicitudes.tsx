@@ -23,6 +23,7 @@ import { useRequestFilters } from '@/hooks/useRequestFilters';
 import { useUserRole } from '@/hooks/useUserRole';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { AddToLiquidationModal } from '@/components/liquidations/AddToLiquidationModal';
+import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
 
 const Solicitudes = () => {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -36,6 +37,7 @@ const Solicitudes = () => {
   const queryClient = useQueryClient();
   const { filters, updateFilter, resetFilters } = useRequestFilters();
   const { canAccessFinance, canAccessOperations, loading: rolesLoading } = useUserRole();
+  const { logActivity } = useRequestActivityLog();
   const canManage = canAccessFinance() || canAccessOperations();
 
   const { data: requests, isLoading, error } = useQuery({
@@ -185,7 +187,7 @@ const Solicitudes = () => {
       return;
     }
 
-    const { error } = await supabase
+    const { data: newRequest, error } = await supabase
       .from('financial_requests')
       .insert({ 
         ...cloneData, 
@@ -194,12 +196,22 @@ const Solicitudes = () => {
         billed_invoice_id: null,
         liquidation_id: null,
         completed_at: null
-      });
+      })
+      .select('id')
+      .single();
 
     if (error) {
       console.error('Clone error:', error);
       toast.error('Error al clonar la solicitud: ' + error.message);
     } else {
+      // Log the clone activity
+      if (newRequest?.id) {
+        await logActivity({
+          entityId: newRequest.id,
+          action: 'cloned',
+          changes: { from_code: code, from_id: id }
+        });
+      }
       toast.success('Solicitud clonada correctamente');
       queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
     }

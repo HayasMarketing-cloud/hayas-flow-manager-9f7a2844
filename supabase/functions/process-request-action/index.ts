@@ -226,6 +226,31 @@ const handler = async (req: Request): Promise<Response> => {
       console.error("Error updating token:", tokenUpdateError);
     }
 
+    // Log activity for the specialist action
+    try {
+      // We need to find a user_id to log the activity, but the specialist may not have a user account
+      // For now, we'll log without a user_id by using a service account approach
+      // Actually, we can use the specialist's linked user_id if available
+      const { data: specialist } = await supabase
+        .from('specialists')
+        .select('user_id')
+        .eq('id', request.specialist?.id)
+        .single();
+
+      if (specialist?.user_id) {
+        await supabase.from('activity_log').insert({
+          user_id: specialist.user_id,
+          entity_type: 'financial_request',
+          entity_id: tokenData.request_id,
+          action: action === 'accept' ? 'specialist_accepted' : 'specialist_rejected',
+          changes: { ip_address: ipAddress, comments: comments || null }
+        });
+      }
+    } catch (logError) {
+      console.error("Error logging activity:", logError);
+      // Don't fail the action if logging fails
+    }
+
     // Send notification to management
     try {
       const serviceAccountEmail = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_EMAIL");

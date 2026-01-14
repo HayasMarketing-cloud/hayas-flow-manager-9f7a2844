@@ -113,7 +113,6 @@ function createMimeMessage(
   subject: string,
   htmlContent: string
 ): string {
-  const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
   const encodedSubject = `=?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`;
   
   const messageParts = [
@@ -173,7 +172,8 @@ function getNotificationContent(
   request: any, 
   recipientName: string, 
   appUrl: string,
-  additionalMessage?: string
+  additionalMessage?: string,
+  actionToken?: string
 ): { subject: string; html: string } {
   const requestUrl = `${appUrl}/solicitudes?search=${request.code}`;
   const clientName = request.client?.name || 'Cliente';
@@ -183,10 +183,6 @@ function getNotificationContent(
     ? new Date(request.deadline).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
   
-  const saleAmount = request.sale_amount 
-    ? new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(request.sale_amount)
-    : null;
-    
   const costAmount = request.cost_to_agency
     ? new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(request.cost_to_agency)
     : null;
@@ -196,14 +192,44 @@ function getNotificationContent(
   let message = '';
   let actionText = '';
   let buttonColor = '#3b82f6';
+  let actionButtons = '';
 
   switch (type) {
     case 'specialist_assigned':
       subject = `Nuevo trabajo asignado: ${requestCode}`;
       title = '🎯 Tienes un nuevo trabajo asignado';
       message = `Se te ha asignado un nuevo trabajo. Por favor, revisa los detalles y confirma si puedes aceptarlo.`;
-      actionText = 'Ver y Aceptar Trabajo';
-      buttonColor = '#10b981';
+      actionText = 'Ver Detalles en la App';
+      buttonColor = '#3b82f6';
+      
+      // If we have an action token, add accept/reject buttons
+      if (actionToken) {
+        const actionPageUrl = `${appUrl}/solicitud/accion/${actionToken}`;
+        actionButtons = `
+          <div style="text-align: center; margin: 30px 0;">
+            <p style="margin-bottom: 16px; color: #374151; font-weight: 500;">Responde directamente desde aquí:</p>
+            <table border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+              <tr>
+                <td style="padding: 0 8px;">
+                  <a href="${actionPageUrl}?action=accept" 
+                     style="display: inline-block; background-color: #10b981; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                    ✓ Aceptar Trabajo
+                  </a>
+                </td>
+                <td style="padding: 0 8px;">
+                  <a href="${actionPageUrl}?action=reject" 
+                     style="display: inline-block; background-color: #ef4444; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                    ✗ Rechazar
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </div>
+          <p style="text-align: center; color: #9ca3af; font-size: 12px; margin-bottom: 20px;">
+            Este enlace expira en 7 días
+          </p>
+        `;
+      }
       break;
     case 'specialist_accepted':
       subject = `Trabajo aceptado: ${requestCode}`;
@@ -293,6 +319,8 @@ function getNotificationContent(
           </table>
         </div>
         
+        ${actionButtons}
+        
         <div style="text-align: center; margin: 30px 0;">
           <a href="${requestUrl}" 
              style="display: inline-block; background-color: ${buttonColor}; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold;">
@@ -370,12 +398,45 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error(`Request not found: ${requestError?.message || 'Unknown error'}`);
     }
 
+    // Create action token for specialist_assigned notification
+    let actionToken: string | undefined;
+    if (notificationType === 'specialist_assigned') {
+      // Invalidate any existing pending tokens for this request
+      await supabase
+        .from('request_action_tokens')
+        .update({ status: 'expired' })
+        .eq('request_id', requestId)
+        .eq('status', 'pending');
+
+      // Create new token (expires in 7 days)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+
+      const { data: tokenData, error: tokenError } = await supabase
+        .from('request_action_tokens')
+        .insert({
+          request_id: requestId,
+          action_type: 'specialist_response',
+          expires_at: expiresAt.toISOString()
+        })
+        .select('token')
+        .single();
+
+      if (tokenError) {
+        console.error("Error creating action token:", tokenError);
+      } else {
+        actionToken = tokenData.token;
+        console.log(`Created action token: ${actionToken}`);
+      }
+    }
+
     const { subject, html } = getNotificationContent(
       notificationType,
       request,
       recipientName,
       appUrl,
-      additionalMessage
+      additionalMessage,
+      actionToken
     );
 
     // Get access token by impersonating the sender
@@ -401,6 +462,7 @@ const handler = async (req: Request): Promise<Response> => {
         success: true, 
         message: "Notificación enviada correctamente",
         messageId: emailResult.messageId,
+        actionToken: actionToken || null,
       }),
       {
         status: 200,

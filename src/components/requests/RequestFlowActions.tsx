@@ -13,7 +13,8 @@ import {
   CheckCircle, 
   AlertCircle,
   Loader2,
-  Clock
+  Clock,
+  RefreshCw
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -249,6 +250,29 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
       case 'pending_specialist':
         // Only the assigned specialist can accept/reject
         if (!isAssignedSpecialist()) {
+          // Management can resend notification
+          if (isManagement()) {
+            return (
+              <div className="flex items-center gap-2">
+                {renderWaitingMessage(specialistName)}
+                <Button
+                  size={buttonSize}
+                  variant="outline"
+                  onClick={() => handleAction(
+                    'Reenviar Notificación',
+                    'pending_specialist',
+                    'specialist_assigned',
+                    specialistEmail,
+                    specialistName
+                  )}
+                  disabled={isLoading || !specialistEmail}
+                  title="Reenviar email con nuevo enlace de acción"
+                >
+                  {isLoading ? <Loader2 className={`${iconSize} animate-spin`} /> : <RefreshCw className={iconSize} />}
+                </Button>
+              </div>
+            );
+          }
           return renderWaitingMessage(specialistName);
         }
         return (

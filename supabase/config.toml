@@ -14,3 +14,9 @@ verify_jwt = false
 
 [functions.send-request-notification]
 verify_jwt = false
+
+[functions.validate-request-action-token]
+verify_jwt = false
+
+[functions.process-request-action]
+verify_jwt = false

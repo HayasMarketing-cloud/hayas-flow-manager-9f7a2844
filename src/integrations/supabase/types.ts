@@ -1235,6 +1235,56 @@ export type Database = {
         }
         Relationships: []
       }
+      request_action_tokens: {
+        Row: {
+          acted_at: string | null
+          action_type: string
+          comments: string | null
+          created_at: string | null
+          expires_at: string
+          id: string
+          ip_address: string | null
+          request_id: string
+          status: string | null
+          token: string
+          user_agent: string | null
+        }
+        Insert: {
+          acted_at?: string | null
+          action_type: string
+          comments?: string | null
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          ip_address?: string | null
+          request_id: string
+          status?: string | null
+          token?: string
+          user_agent?: string | null
+        }
+        Update: {
+          acted_at?: string | null
+          action_type?: string
+          comments?: string | null
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          ip_address?: string | null
+          request_id?: string
+          status?: string | null
+          token?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "request_action_tokens_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "financial_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sequences: {
         Row: {
           created_at: string

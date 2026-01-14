@@ -13,6 +13,7 @@ import { LogOut, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
+import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
 
 interface AppHeaderProps {
   title?: string;
@@ -60,7 +61,10 @@ export const AppHeader = ({ title, description }: AppHeaderProps) => {
           </div>
         </div>
 
-        <DropdownMenu>
+        <div className="flex items-center gap-2">
+          <NotificationDropdown />
+          
+          <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Avatar className="h-9 w-9 cursor-pointer">
               <AvatarFallback className="bg-primary text-primary-foreground">
@@ -87,6 +91,7 @@ export const AppHeader = ({ title, description }: AppHeaderProps) => {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
     </header>
   );

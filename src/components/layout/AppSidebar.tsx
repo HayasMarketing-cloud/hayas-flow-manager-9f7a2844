@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Package, UserCheck, FileText, Calculator, FileCheck, Receipt, Wallet, BarChart3, Shield, Briefcase, CheckSquare, DollarSign } from 'lucide-react';
+import { LayoutDashboard, Users, Package, UserCheck, FileText, Calculator, FileCheck, Receipt, Wallet, BarChart3, Shield, Briefcase, CheckSquare, DollarSign, Bell } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
   Sidebar,
@@ -35,6 +35,7 @@ const financeItems: NavItem[] = [
 const operationsItems: NavItem[] = [
   { title: 'Proyectos', url: '/proyectos-operativos', icon: Briefcase, requiredRoles: ['admin', 'project_manager', 'especialista', 'account_manager'] },
   { title: 'Mis Tareas', url: '/mis-tareas', icon: CheckSquare },
+  { title: 'Notificaciones', url: '/notificaciones', icon: Bell },
 ];
 
 const adminItems: NavItem[] = [

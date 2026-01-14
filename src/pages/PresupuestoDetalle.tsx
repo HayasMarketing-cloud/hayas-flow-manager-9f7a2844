@@ -198,20 +198,50 @@ export default function PresupuestoDetalle() {
         throw new Error('Hay líneas sin servicio asignado');
       }
 
-      const requestsToInsert = data.items.map((item: any) => ({
-        title: item.description,
-        description: `Generado desde presupuesto: ${data.budget.title}`,
-        client_id: data.budget.client_id,
-        service_id: item.service_id,
-        specialist_id: item.specialist_id || null,
-        budget_id: data.budget.id,
-        budget_item_id: item.id, // Vincular con budget_item
-        quantity: item.quantity,
-        unit_price: item.unit_price || 0,
-        sale_amount: item.total || 0,
-        status: 'pending_specialist' as const,
-        code: '',
-      }));
+      // Obtener tarifas por hora de los especialistas asignados
+      const specialistIds = data.items
+        .filter((item: any) => item.specialist_id)
+        .map((item: any) => item.specialist_id);
+
+      let specialistsMap: Record<string, number> = {};
+      if (specialistIds.length > 0) {
+        const { data: specialists } = await supabase
+          .from('specialists')
+          .select('id, hourly_rate')
+          .in('id', specialistIds);
+        
+        specialists?.forEach((s: any) => {
+          specialistsMap[s.id] = s.hourly_rate || 0;
+        });
+      }
+
+      const requestsToInsert = data.items.map((item: any) => {
+        const specialistRate = item.specialist_id 
+          ? specialistsMap[item.specialist_id] || 0 
+          : 0;
+        const hours = item.quantity || 0;
+        const costToAgency = specialistRate > 0 ? hours * specialistRate : null;
+
+        return {
+          title: item.description,
+          description: `Generado desde presupuesto: ${data.budget.title}`,
+          client_id: data.budget.client_id,
+          service_id: item.service_id,
+          specialist_id: item.specialist_id || null,
+          budget_id: data.budget.id,
+          budget_item_id: item.id,
+          quantity: item.quantity,
+          unit_price: item.unit_price || 0,
+          sale_amount: item.total || 0,
+          status: 'pending_specialist' as const,
+          code: '',
+          // Auto-calcular coste si hay especialista con tarifa por hora
+          cost_type: specialistRate > 0 ? 'hourly' as const : null,
+          hours: specialistRate > 0 ? hours : null,
+          cost_rate: specialistRate > 0 ? specialistRate : null,
+          cost_to_agency: costToAgency,
+        };
+      });
 
       const { error } = await supabase
         .from('financial_requests')
@@ -263,21 +293,51 @@ export default function PresupuestoDetalle() {
 
       if (deleteError) throw deleteError;
 
-      // Crear nuevas solicitudes vinculadas
-      const requestsToInsert = data.items.map((item: any) => ({
-        title: item.description,
-        description: `Generado desde presupuesto: ${data.budget.title}`,
-        client_id: data.budget.client_id,
-        service_id: item.service_id,
-        specialist_id: item.specialist_id || null,
-        budget_id: data.budget.id,
-        budget_item_id: item.id,
-        quantity: item.quantity,
-        unit_price: item.unit_price || 0,
-        sale_amount: item.total || 0,
-        status: 'pending_specialist' as const,
-        code: '',
-      }));
+      // Obtener tarifas por hora de los especialistas asignados
+      const specialistIds = data.items
+        .filter((item: any) => item.specialist_id)
+        .map((item: any) => item.specialist_id);
+
+      let specialistsMap: Record<string, number> = {};
+      if (specialistIds.length > 0) {
+        const { data: specialists } = await supabase
+          .from('specialists')
+          .select('id, hourly_rate')
+          .in('id', specialistIds);
+        
+        specialists?.forEach((s: any) => {
+          specialistsMap[s.id] = s.hourly_rate || 0;
+        });
+      }
+
+      // Crear nuevas solicitudes vinculadas con coste auto-calculado
+      const requestsToInsert = data.items.map((item: any) => {
+        const specialistRate = item.specialist_id 
+          ? specialistsMap[item.specialist_id] || 0 
+          : 0;
+        const hours = item.quantity || 0;
+        const costToAgency = specialistRate > 0 ? hours * specialistRate : null;
+
+        return {
+          title: item.description,
+          description: `Generado desde presupuesto: ${data.budget.title}`,
+          client_id: data.budget.client_id,
+          service_id: item.service_id,
+          specialist_id: item.specialist_id || null,
+          budget_id: data.budget.id,
+          budget_item_id: item.id,
+          quantity: item.quantity,
+          unit_price: item.unit_price || 0,
+          sale_amount: item.total || 0,
+          status: 'pending_specialist' as const,
+          code: '',
+          // Auto-calcular coste si hay especialista con tarifa por hora
+          cost_type: specialistRate > 0 ? 'hourly' as const : null,
+          hours: specialistRate > 0 ? hours : null,
+          cost_rate: specialistRate > 0 ? specialistRate : null,
+          cost_to_agency: costToAgency,
+        };
+      });
 
       const { error } = await supabase
         .from('financial_requests')

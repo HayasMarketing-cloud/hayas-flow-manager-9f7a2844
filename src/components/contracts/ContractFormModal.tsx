@@ -7,13 +7,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { ContractServicesEditor } from './ContractServicesEditor';
-import { Loader2, FileText, Play, Pause, RotateCw } from 'lucide-react';
-
+import { Loader2, FileText, Play, Pause, RotateCw, AlertCircle } from 'lucide-react';
 interface ContractFormModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -107,6 +107,25 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
       
       if (error) throw error;
       return data;
+    },
+    enabled: !!contract?.id && isOpen,
+  });
+
+  // Cargar datos relacionados para mostrar aviso
+  const { data: relatedData } = useQuery({
+    queryKey: ['contract-related-data', contract?.id],
+    queryFn: async () => {
+      if (!contract?.id) return { budgets: 0, requests: 0 };
+      
+      const [budgetsResult, requestsResult] = await Promise.all([
+        supabase.from('budgets').select('id', { count: 'exact', head: true }).eq('contract_id', contract.id),
+        supabase.from('financial_requests').select('id', { count: 'exact', head: true }).eq('contract_id', contract.id)
+      ]);
+      
+      return {
+        budgets: budgetsResult.count || 0,
+        requests: requestsResult.count || 0,
+      };
     },
     enabled: !!contract?.id && isOpen,
   });
@@ -307,7 +326,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
 
   const isViewMode = mode === 'view';
   const canEdit = !isViewMode;
-  const canEditBasicInfo = canEdit && formData.status === 'draft';
+  const hasRelatedData = (relatedData?.budgets || 0) > 0 || (relatedData?.requests || 0) > 0;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -323,6 +342,19 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
           </DialogTitle>
         </DialogHeader>
 
+        {mode === 'edit' && hasRelatedData && (
+          <Alert variant="default" className="bg-amber-50 border-amber-200">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertTitle className="text-amber-800">Contrato con datos vinculados</AlertTitle>
+            <AlertDescription className="text-amber-700">
+              Este contrato tiene {relatedData?.requests ? `${relatedData.requests} solicitudes` : ''}
+              {relatedData?.requests && relatedData?.budgets ? ' y ' : ''}
+              {relatedData?.budgets ? `${relatedData.budgets} presupuestos` : ''} vinculados.
+              Los cambios en el cliente no afectarán a los registros existentes.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -333,7 +365,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                 id="title"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                disabled={!canEditBasicInfo}
+                disabled={!canEdit}
                 placeholder="Ej: Contrato Servicios Mensual"
               />
             </div>
@@ -345,7 +377,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
               <Select
                 value={formData.client_id}
                 onValueChange={(value) => setFormData({ ...formData, client_id: value })}
-                disabled={!canEditBasicInfo}
+                disabled={!canEdit}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar cliente" />
@@ -367,7 +399,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                 type="date"
                 value={formData.start_date}
                 onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                disabled={!canEditBasicInfo}
+                disabled={!canEdit}
               />
             </div>
 
@@ -378,7 +410,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                 type="date"
                 value={formData.end_date}
                 onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                disabled={!canEditBasicInfo}
+                disabled={!canEdit}
               />
             </div>
 
@@ -388,7 +420,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
               <Select
                 value={formData.am_user_id || 'none'}
                 onValueChange={(value) => setFormData({ ...formData, am_user_id: value === 'none' ? '' : value })}
-                disabled={!canEditBasicInfo}
+                disabled={!canEdit}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Sin asignar" />
@@ -410,7 +442,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
               <Select
                 value={formData.pm_user_id || 'none'}
                 onValueChange={(value) => setFormData({ ...formData, pm_user_id: value === 'none' ? '' : value })}
-                disabled={!canEditBasicInfo}
+                disabled={!canEdit}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Sin asignar" />
@@ -433,7 +465,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
               id="description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              disabled={!canEditBasicInfo}
+              disabled={!canEdit}
               rows={3}
               placeholder="Describe el contrato..."
             />
@@ -452,7 +484,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
               onCheckedChange={(checked) =>
                 setFormData({ ...formData, enable_auto_requests: checked })
               }
-              disabled={!canEditBasicInfo}
+              disabled={!canEdit}
             />
           </div>
 

@@ -1353,6 +1353,21 @@ export default function PresupuestoDetalle() {
                       Editar Líneas
                     </Button>
                   )}
+                  {budget.status === 'approved' && requests.length > 0 && !isEditingEconomico && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => regenerateRequestsMutation.mutate()}
+                      disabled={regenerateRequestsMutation.isPending}
+                    >
+                      {regenerateRequestsMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                      )}
+                      Regenerar Solicitudes
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -1469,26 +1484,9 @@ export default function PresupuestoDetalle() {
 
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>
-                    {requests.length > 0 ? 'Solicitudes Financieras Generadas' : 'Items del Presupuesto (Sin solicitudes generadas)'}
-                  </CardTitle>
-                  {budget.status === 'approved' && requests.length > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => regenerateRequestsMutation.mutate()}
-                      disabled={regenerateRequestsMutation.isPending}
-                    >
-                      {regenerateRequestsMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                      )}
-                      Regenerar Solicitudes
-                    </Button>
-                  )}
-                </div>
+                <CardTitle>
+                  {requests.length > 0 ? 'Solicitudes Financieras Generadas' : 'Items del Presupuesto (Sin solicitudes generadas)'}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 {requests.length > 0 ? (

@@ -119,6 +119,7 @@ export type Database = {
       budgets: {
         Row: {
           accepted_document_url: string | null
+          am_user_id: string | null
           client_contact_id: string | null
           client_id: string
           code: string
@@ -126,6 +127,7 @@ export type Database = {
           created_by: string
           description: string | null
           id: string
+          pm_user_id: string | null
           status: string
           title: string
           total_amount: number | null
@@ -134,6 +136,7 @@ export type Database = {
         }
         Insert: {
           accepted_document_url?: string | null
+          am_user_id?: string | null
           client_contact_id?: string | null
           client_id: string
           code?: string
@@ -141,6 +144,7 @@ export type Database = {
           created_by: string
           description?: string | null
           id?: string
+          pm_user_id?: string | null
           status?: string
           title: string
           total_amount?: number | null
@@ -149,6 +153,7 @@ export type Database = {
         }
         Update: {
           accepted_document_url?: string | null
+          am_user_id?: string | null
           client_contact_id?: string | null
           client_id?: string
           code?: string
@@ -156,6 +161,7 @@ export type Database = {
           created_by?: string
           description?: string | null
           id?: string
+          pm_user_id?: string | null
           status?: string
           title?: string
           total_amount?: number | null
@@ -163,6 +169,13 @@ export type Database = {
           valid_until?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "budgets_am_user_id_fkey"
+            columns: ["am_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "budgets_client_contact_id_fkey"
             columns: ["client_contact_id"]
@@ -175,6 +188,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budgets_pm_user_id_fkey"
+            columns: ["pm_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

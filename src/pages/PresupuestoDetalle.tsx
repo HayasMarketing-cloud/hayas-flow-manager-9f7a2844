@@ -975,7 +975,7 @@ export default function PresupuestoDetalle() {
     );
   }
 
-  const { budget, items, requests, projects, creatorProfile } = data;
+  const { budget, items, requests, projects, creatorProfile, amProfile, pmProfile } = data;
 
   // Extraer especialistas únicos del presupuesto
   const teamSpecialists = React.useMemo(() => {
@@ -1325,11 +1325,51 @@ export default function PresupuestoDetalle() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  {/* Account Manager / Creador */}
-                  {creatorProfile && (
+                  {/* Account Manager */}
+                  {amProfile && (
                     <div>
                       <p className="text-sm font-medium text-muted-foreground mb-2">
                         Account Manager
+                      </p>
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 border border-blue-100 dark:bg-blue-950/30 dark:border-blue-900">
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                            {amProfile.full_name?.charAt(0) || 'A'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">{amProfile.full_name}</p>
+                          <p className="text-sm text-muted-foreground">{amProfile.email}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Project Manager */}
+                  {pmProfile && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-2">
+                        Project Manager
+                      </p>
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-purple-50 border border-purple-100 dark:bg-purple-950/30 dark:border-purple-900">
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+                            {pmProfile.full_name?.charAt(0) || 'P'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">{pmProfile.full_name}</p>
+                          <p className="text-sm text-muted-foreground">{pmProfile.email}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fallback: Creador si no hay AM asignado */}
+                  {!amProfile && creatorProfile && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-2">
+                        Creado por
                       </p>
                       <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                         <Avatar className="h-10 w-10">
@@ -1382,7 +1422,7 @@ export default function PresupuestoDetalle() {
                   )}
 
                   {/* Estado vacío */}
-                  {!creatorProfile && teamSpecialists.length === 0 && (
+                  {!amProfile && !pmProfile && !creatorProfile && teamSpecialists.length === 0 && (
                     <p className="text-muted-foreground text-center py-4">
                       No hay miembros del equipo asignados a este presupuesto
                     </p>

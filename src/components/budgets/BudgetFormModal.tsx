@@ -40,6 +40,8 @@ export const BudgetFormModal = ({
     valid_until: '',
     status: 'pending',
     accepted_document_url: '',
+    am_user_id: '',
+    pm_user_id: '',
   });
   const [items, setItems] = useState<any[]>([]);
   const [showProjectModal, setShowProjectModal] = useState(false);
@@ -78,6 +80,19 @@ export const BudgetFormModal = ({
     enabled: !!formData.client_id,
   });
 
+  // Load profiles for AM/PM assignment
+  const { data: profiles } = useQuery({
+    queryKey: ['profiles-for-assignment'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .order('full_name');
+      if (error) throw error;
+      return data;
+    },
+  });
+
   useEffect(() => {
     if (budget) {
       setFormData({
@@ -88,6 +103,8 @@ export const BudgetFormModal = ({
         valid_until: budget.valid_until || '',
         status: budget.status || 'pending',
         accepted_document_url: budget.accepted_document_url || '',
+        am_user_id: budget.am_user_id || '',
+        pm_user_id: budget.pm_user_id || '',
       });
     } else {
       setFormData({
@@ -98,6 +115,8 @@ export const BudgetFormModal = ({
         valid_until: '',
         status: 'pending',
         accepted_document_url: '',
+        am_user_id: '',
+        pm_user_id: '',
       });
       setItems([]);
     }
@@ -142,6 +161,8 @@ export const BudgetFormModal = ({
       const cleanedFormData = {
         ...formData,
         client_contact_id: formData.client_contact_id || null,
+        am_user_id: formData.am_user_id || null,
+        pm_user_id: formData.pm_user_id || null,
       };
 
       if (budget?.id) {
@@ -363,6 +384,50 @@ export const BudgetFormModal = ({
               <p className="text-xs text-muted-foreground">
                 Persona del cliente que solicita este presupuesto
               </p>
+            </div>
+
+            {/* Account Manager */}
+            <div className="space-y-2">
+              <Label>Account Manager</Label>
+              <Select
+                value={formData.am_user_id || 'none'}
+                onValueChange={(value) => setFormData({ ...formData, am_user_id: value === 'none' ? '' : value })}
+                disabled={!canEdit}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin asignar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin asignar</SelectItem>
+                  {profiles?.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {profile.full_name || profile.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Project Manager */}
+            <div className="space-y-2">
+              <Label>Project Manager</Label>
+              <Select
+                value={formData.pm_user_id || 'none'}
+                onValueChange={(value) => setFormData({ ...formData, pm_user_id: value === 'none' ? '' : value })}
+                disabled={!canEdit}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin asignar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin asignar</SelectItem>
+                  {profiles?.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {profile.full_name || profile.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

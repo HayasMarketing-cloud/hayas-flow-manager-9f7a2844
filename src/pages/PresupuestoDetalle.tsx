@@ -380,7 +380,7 @@ export default function PresupuestoDetalle() {
               // Regenerar automáticamente - necesitamos refetch de financial_requests
               const { data: newFinancialRequests } = await supabase
                 .from('financial_requests')
-                .select('id, title, description, client_id')
+                .select('id, title, description, client_id, specialist_id')
                 .eq('budget_id', data.budget.id);
 
               if (newFinancialRequests && newFinancialRequests.length > 0) {
@@ -399,6 +399,7 @@ export default function PresupuestoDetalle() {
                   description: fr.description || null,
                   status: 'pending' as const,
                   created_by: user?.id,
+                  assignee_specialist_id: fr.specialist_id || null,
                 }));
 
                 await supabase.from('operational_requests').insert(opRequestsToInsert);
@@ -457,6 +458,7 @@ export default function PresupuestoDetalle() {
         description: fr.description || null,
         status: 'pending' as const,
         created_by: user?.id,
+        assignee_specialist_id: fr.specialist_id || null,
       }));
 
       const { error: insertError } = await supabase

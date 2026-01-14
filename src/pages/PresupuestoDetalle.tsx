@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, ListPlus, Trash2, CloudOff, Cloud, RefreshCw, FileDown, Users } from 'lucide-react';
+import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, ListPlus, Trash2, CloudOff, Cloud, RefreshCw, FileDown, Users, FileSignature } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { generateBudgetPDF } from '@/utils/pdf/budgetPDFGenerator';
 import { useBudgetDetail } from '@/hooks/useBudgetDetail';
@@ -1221,6 +1221,21 @@ export default function PresupuestoDetalle() {
                         <p className="text-sm text-muted-foreground">Cliente</p>
                         <p className="text-lg font-semibold">{budget.client?.name}</p>
                       </div>
+                      {budget.contract && (
+                        <div>
+                          <p className="text-sm text-muted-foreground">Contrato Asociado</p>
+                          <div className="flex items-center gap-2">
+                            <FileSignature className="h-4 w-4 text-muted-foreground" />
+                            <Button
+                              variant="link"
+                              className="p-0 h-auto text-lg font-semibold"
+                              onClick={() => navigate(`/contratos`)}
+                            >
+                              {budget.contract.code} - {budget.contract.title}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                       <div>
                         <p className="text-sm text-muted-foreground mb-1">Estado</p>
                         <div className="flex items-center gap-3">

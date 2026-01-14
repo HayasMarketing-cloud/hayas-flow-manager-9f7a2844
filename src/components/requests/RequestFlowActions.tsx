@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
+import { notifyRequestStatusChange } from '@/lib/notification-utils';
 import { 
   Send, 
   Check, 
@@ -153,6 +154,14 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
         action: 'status_change',
         changes: { previous: previousStatus, new: newStatus }
       });
+
+      // Create in-app notifications for status change
+      await notifyRequestStatusChange(
+        request.code,
+        request.id,
+        newStatus,
+        user?.id
+      );
 
       // Send notification if recipient provided
       if (notificationType && recipientEmail && recipientName) {

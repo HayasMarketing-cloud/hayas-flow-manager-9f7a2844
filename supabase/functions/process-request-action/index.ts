@@ -251,7 +251,37 @@ const handler = async (req: Request): Promise<Response> => {
       // Don't fail the action if logging fails
     }
 
-    // Send notification to management
+    // Create in-app notifications for all relevant users
+    try {
+      // Get users with admin, finanzas, project_manager roles
+      const { data: usersToNotify } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .in('role', ['admin', 'finanzas', 'project_manager']);
+
+      if (usersToNotify && usersToNotify.length > 0) {
+        const uniqueUserIds = [...new Set(usersToNotify.map(u => u.user_id))];
+        const specialistName = request.specialist?.name || 'Especialista';
+        const requestCode = request.code;
+        
+        const notifications = uniqueUserIds.map(userId => ({
+          user_id: userId,
+          title: action === 'accept' ? 'Especialista aceptó solicitud' : 'Especialista rechazó solicitud',
+          message: `${specialistName} ${action === 'accept' ? 'aceptó' : 'rechazó'} ${requestCode}`,
+          type: action === 'accept' ? 'success' : 'warning',
+          category: 'request',
+          entity_id: tokenData.request_id,
+          entity_type: 'financial_request',
+          action_url: `/solicitudes/${tokenData.request_id}`,
+        }));
+
+        await supabase.from('notifications').insert(notifications);
+        console.log(`Created ${notifications.length} in-app notifications`);
+      }
+    } catch (notifError) {
+      console.error("Error creating in-app notifications:", notifError);
+      // Don't fail the action if in-app notifications fail
+    }
     try {
       const serviceAccountEmail = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_EMAIL");
       const serviceAccountPrivateKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY");

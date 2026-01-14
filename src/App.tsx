@@ -12,6 +12,7 @@ import DashboardMensual from "./pages/DashboardMensual";
 import DashboardFinanzas from "./pages/DashboardFinanzas";
 import DashboardEspecialista from "./pages/DashboardEspecialista";
 import Solicitudes from "./pages/Solicitudes";
+import SolicitudDetalle from "./pages/SolicitudDetalle";
 import Facturas from "./pages/Facturas";
 import Presupuestos from "./pages/Presupuestos";
 import PresupuestoDetalle from "./pages/PresupuestoDetalle";
@@ -61,6 +62,7 @@ const App = () => (
             <Route path="/presupuestos" element={<ProtectedRoute><Presupuestos /></ProtectedRoute>} />
             <Route path="/presupuestos/:id" element={<ProtectedRoute><PresupuestoDetalle /></ProtectedRoute>} />
             <Route path="/solicitudes" element={<ProtectedRoute><Solicitudes /></ProtectedRoute>} />
+            <Route path="/solicitudes/:id" element={<ProtectedRoute><SolicitudDetalle /></ProtectedRoute>} />
             <Route path="/facturas" element={<ProtectedRoute><Facturas /></ProtectedRoute>} />
             <Route path="/liquidaciones" element={<ProtectedRoute><Liquidaciones /></ProtectedRoute>} />
             <Route path="/mis-liquidaciones" element={<ProtectedRoute><MisLiquidaciones /></ProtectedRoute>} />

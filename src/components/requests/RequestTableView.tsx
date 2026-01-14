@@ -15,6 +15,7 @@ import { Edit, Eye, Copy, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/request-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useNavigate } from 'react-router-dom';
 
 interface RequestTableViewProps {
   requests: any[];
@@ -39,6 +40,7 @@ export const RequestTableView = ({
   onSelectOne,
   onRefresh,
 }: RequestTableViewProps) => {
+  const navigate = useNavigate();
   const allSelected = requests.length > 0 && selectedIds.length === requests.length;
   const someSelected = selectedIds.length > 0 && selectedIds.length < requests.length;
 
@@ -91,7 +93,12 @@ export const RequestTableView = ({
                       aria-label={`Seleccionar ${request.title}`}
                     />
                   </TableCell>
-                  <TableCell className="font-mono text-xs">{request.code}</TableCell>
+                  <TableCell 
+                    className="font-mono text-xs cursor-pointer hover:text-primary hover:underline"
+                    onClick={() => navigate(`/solicitudes/${request.id}`)}
+                  >
+                    {request.code}
+                  </TableCell>
                   <TableCell className="font-medium max-w-[200px] truncate" title={request.title}>
                     {request.title}
                   </TableCell>

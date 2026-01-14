@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { BudgetItemsEditor } from './BudgetItemsEditor';
 import { calculateBudgetTotal } from '@/lib/budget-utils';
-import { Loader2, FileText, User } from 'lucide-react';
+import { Loader2, FileText, User, FileSignature } from 'lucide-react';
 import { useApproveBudget } from '@/hooks/useApproveBudget';
 import { ProjectCreationModal } from './ProjectCreationModal';
 
@@ -36,6 +36,7 @@ export const BudgetFormModal = ({
     title: '',
     client_id: '',
     client_contact_id: '',
+    contract_id: '',
     description: '',
     valid_until: '',
     status: 'pending',
@@ -80,6 +81,23 @@ export const BudgetFormModal = ({
     enabled: !!formData.client_id,
   });
 
+  // Load contracts for selected client
+  const { data: contracts } = useQuery({
+    queryKey: ['contracts-for-budget', formData.client_id],
+    queryFn: async () => {
+      if (!formData.client_id) return [];
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('id, title, code, am_user_id, pm_user_id, status')
+        .eq('client_id', formData.client_id)
+        .in('status', ['active', 'draft'])
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!formData.client_id,
+  });
+
   // Load profiles for AM/PM assignment
   const { data: profiles } = useQuery({
     queryKey: ['profiles-for-assignment'],
@@ -99,6 +117,7 @@ export const BudgetFormModal = ({
         title: budget.title || '',
         client_id: budget.client_id || '',
         client_contact_id: budget.client_contact_id || '',
+        contract_id: budget.contract_id || '',
         description: budget.description || '',
         valid_until: budget.valid_until || '',
         status: budget.status || 'pending',
@@ -111,6 +130,7 @@ export const BudgetFormModal = ({
         title: '',
         client_id: '',
         client_contact_id: '',
+        contract_id: '',
         description: '',
         valid_until: '',
         status: 'pending',
@@ -122,10 +142,24 @@ export const BudgetFormModal = ({
     }
   }, [budget, isOpen]);
 
-  // Clear contact when client changes
+  // Auto-fill AM/PM when contract is selected
+  useEffect(() => {
+    if (formData.contract_id && contracts) {
+      const selectedContract = contracts.find(c => c.id === formData.contract_id);
+      if (selectedContract) {
+        setFormData(prev => ({
+          ...prev,
+          am_user_id: selectedContract.am_user_id || prev.am_user_id,
+          pm_user_id: selectedContract.pm_user_id || prev.pm_user_id,
+        }));
+      }
+    }
+  }, [formData.contract_id, contracts]);
+
+  // Clear contact and contract when client changes
   useEffect(() => {
     if (formData.client_id && budget?.client_id && formData.client_id !== budget.client_id) {
-      setFormData(prev => ({ ...prev, client_contact_id: '' }));
+      setFormData(prev => ({ ...prev, client_contact_id: '', contract_id: '' }));
     }
   }, [formData.client_id, budget?.client_id]);
 
@@ -161,6 +195,7 @@ export const BudgetFormModal = ({
       const cleanedFormData = {
         ...formData,
         client_contact_id: formData.client_contact_id || null,
+        contract_id: formData.contract_id || null,
         am_user_id: formData.am_user_id || null,
         pm_user_id: formData.pm_user_id || null,
       };
@@ -383,6 +418,34 @@ export const BudgetFormModal = ({
               </Select>
               <p className="text-xs text-muted-foreground">
                 Persona del cliente que solicita este presupuesto
+              </p>
+            </div>
+
+            {/* Contrato Asociado (opcional) */}
+            <div className="col-span-2 space-y-2">
+              <Label className="flex items-center gap-2">
+                <FileSignature className="h-4 w-4" />
+                Contrato Asociado
+              </Label>
+              <Select
+                value={formData.contract_id || 'none'}
+                onValueChange={(value) => setFormData({ ...formData, contract_id: value === 'none' ? '' : value })}
+                disabled={!canEdit || !formData.client_id}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin contrato asociado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin contrato asociado</SelectItem>
+                  {contracts?.map((contract) => (
+                    <SelectItem key={contract.id} value={contract.id}>
+                      {contract.code} - {contract.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Opcional. Al seleccionar un contrato se auto-rellenan AM y PM si están definidos
               </p>
             </div>
 

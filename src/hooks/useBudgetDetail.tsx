@@ -7,12 +7,13 @@ export const useBudgetDetail = (budgetId: string | undefined) => {
     queryFn: async () => {
       if (!budgetId) throw new Error('Budget ID is required');
 
-      // Fetch budget with client and AM/PM profiles
+      // Fetch budget with client, contract, and AM/PM profiles
       const { data: budget, error: budgetError } = await supabase
         .from('budgets')
         .select(`
           *,
           client:clients(id, name, code),
+          contract:contracts(id, title, code),
           am_profile:profiles!budgets_am_user_id_fkey(id, full_name, email),
           pm_profile:profiles!budgets_pm_user_id_fkey(id, full_name, email)
         `)

@@ -123,6 +123,7 @@ export type Database = {
           client_contact_id: string | null
           client_id: string
           code: string
+          contract_id: string | null
           created_at: string
           created_by: string
           description: string | null
@@ -140,6 +141,7 @@ export type Database = {
           client_contact_id?: string | null
           client_id: string
           code?: string
+          contract_id?: string | null
           created_at?: string
           created_by: string
           description?: string | null
@@ -157,6 +159,7 @@ export type Database = {
           client_contact_id?: string | null
           client_id?: string
           code?: string
+          contract_id?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
@@ -188,6 +191,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budgets_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
             referencedColumns: ["id"]
           },
           {

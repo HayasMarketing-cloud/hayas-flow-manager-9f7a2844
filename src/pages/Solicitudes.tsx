@@ -170,6 +170,7 @@ const Solicitudes = () => {
       contract,
       budget_item,
       client_contact,
+      liquidation,
       billed_invoice_id,
       liquidation_id,
       completed_at,

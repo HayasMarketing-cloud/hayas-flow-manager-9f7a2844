@@ -32,8 +32,23 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
     end_date: '',
     status: 'draft',
     enable_auto_requests: false,
+    am_user_id: '',
+    pm_user_id: '',
   });
   const [services, setServices] = useState<any[]>([]);
+
+  // Load profiles for AM/PM assignment
+  const { data: profiles } = useQuery({
+    queryKey: ['profiles-for-assignment'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .order('full_name');
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const { data: clients } = useQuery({
     queryKey: ['clients'],
@@ -59,6 +74,8 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         end_date: contract.end_date || '',
         status: contract.status || 'draft',
         enable_auto_requests: contract.enable_auto_requests || false,
+        am_user_id: contract.am_user_id || '',
+        pm_user_id: contract.pm_user_id || '',
       });
     } else {
       setFormData({
@@ -69,6 +86,8 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         end_date: '',
         status: 'draft',
         enable_auto_requests: false,
+        am_user_id: '',
+        pm_user_id: '',
       });
       setServices([]);
     }
@@ -115,6 +134,8 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         status: formData.status,
         total_amount: fixedServicesTotal,
         enable_auto_requests: formData.enable_auto_requests,
+        am_user_id: formData.am_user_id || null,
+        pm_user_id: formData.pm_user_id || null,
       };
 
       if (contract?.id) {
@@ -359,6 +380,50 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                 onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
                 disabled={!canEditBasicInfo}
               />
+            </div>
+
+            {/* Account Manager */}
+            <div className="space-y-2">
+              <Label>Account Manager</Label>
+              <Select
+                value={formData.am_user_id || 'none'}
+                onValueChange={(value) => setFormData({ ...formData, am_user_id: value === 'none' ? '' : value })}
+                disabled={!canEditBasicInfo}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin asignar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin asignar</SelectItem>
+                  {profiles?.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {profile.full_name || profile.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Project Manager */}
+            <div className="space-y-2">
+              <Label>Project Manager</Label>
+              <Select
+                value={formData.pm_user_id || 'none'}
+                onValueChange={(value) => setFormData({ ...formData, pm_user_id: value === 'none' ? '' : value })}
+                disabled={!canEditBasicInfo}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin asignar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin asignar</SelectItem>
+                  {profiles?.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {profile.full_name || profile.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

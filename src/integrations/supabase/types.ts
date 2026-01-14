@@ -1448,6 +1448,7 @@ export type Database = {
           created_at: string
           created_by: string
           email: string | null
+          hourly_rate: number | null
           id: string
           name: string
           notes: string | null
@@ -1460,6 +1461,7 @@ export type Database = {
           created_at?: string
           created_by: string
           email?: string | null
+          hourly_rate?: number | null
           id?: string
           name: string
           notes?: string | null
@@ -1472,6 +1474,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           email?: string | null
+          hourly_rate?: number | null
           id?: string
           name?: string
           notes?: string | null

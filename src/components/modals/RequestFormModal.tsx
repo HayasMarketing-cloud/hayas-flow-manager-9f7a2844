@@ -146,7 +146,7 @@ export const RequestFormModal = ({
           .order('name'),
         supabase
           .from('specialists')
-          .select('id, name')
+          .select('id, name, hourly_rate')
           .eq('active', true)
           .order('name'),
       ]);
@@ -529,7 +529,31 @@ export const RequestFormModal = ({
                   <FormItem>
                     <FormLabel>Especialista</FormLabel>
                     <Select
-                      onValueChange={(value) => field.onChange(value === 'none' ? null : value)}
+                      onValueChange={(value) => {
+                        const newValue = value === 'none' ? null : value;
+                        field.onChange(newValue);
+                        
+                        // Auto-fill hourly rate when specialist is selected
+                        if (newValue) {
+                          const selectedSpecialist = specialists?.find(s => s.id === newValue);
+                          if (selectedSpecialist?.hourly_rate && selectedSpecialist.hourly_rate > 0) {
+                            const currentCostType = form.getValues('cost_type');
+                            const currentCostRate = form.getValues('cost_rate');
+                            
+                            // Only pre-fill if cost_type is hourly and cost_rate is empty/zero
+                            if (currentCostType === 'hourly' && (!currentCostRate || currentCostRate === 0)) {
+                              form.setValue('cost_rate', selectedSpecialist.hourly_rate);
+                            }
+                            
+                            // Also pre-fill hours with quantity if hours is empty
+                            const currentHours = form.getValues('hours');
+                            const currentQuantity = form.getValues('quantity');
+                            if ((!currentHours || currentHours === 0) && currentQuantity > 0) {
+                              form.setValue('hours', currentQuantity);
+                            }
+                          }
+                        }
+                      }}
                       value={field.value || 'none'}
                       disabled={isViewMode}
                     >
@@ -542,7 +566,7 @@ export const RequestFormModal = ({
                         <SelectItem value="none">Sin asignar</SelectItem>
                         {specialists?.map((specialist) => (
                           <SelectItem key={specialist.id} value={specialist.id}>
-                            {specialist.name}
+                            {specialist.name} {specialist.hourly_rate ? `(${specialist.hourly_rate}€/h)` : ''}
                           </SelectItem>
                         ))}
                       </SelectContent>

@@ -26,6 +26,7 @@ interface Specialist {
   email: string | null;
   type: SpecialistType | null;
   active: boolean;
+  hourly_rate: number | null;
   notes: string | null;
   user_id: string | null;
   created_at: string;

@@ -45,6 +45,7 @@ const formSchema = z.object({
     required_error: "El tipo es obligatorio",
   }),
   active: z.boolean(),
+  hourly_rate: z.coerce.number().min(0, "La tarifa no puede ser negativa").optional(),
   notes: z.string().optional(),
 });
 
@@ -56,6 +57,7 @@ interface Specialist {
   email: string | null;
   type: "interno" | "freelance" | "partner" | null;
   active: boolean;
+  hourly_rate: number | null;
   notes: string | null;
 }
 
@@ -81,6 +83,7 @@ export function SpecialistFormModal({
       email: "",
       type: "freelance",
       active: true,
+      hourly_rate: 0,
       notes: "",
     },
   });
@@ -92,6 +95,7 @@ export function SpecialistFormModal({
         email: specialist.email || "",
         type: specialist.type || "freelance",
         active: specialist.active,
+        hourly_rate: specialist.hourly_rate || 0,
         notes: specialist.notes || "",
       });
     } else {
@@ -100,6 +104,7 @@ export function SpecialistFormModal({
         email: "",
         type: "freelance",
         active: true,
+        hourly_rate: 0,
         notes: "",
       });
     }
@@ -112,6 +117,7 @@ export function SpecialistFormModal({
         email: values.email || null,
         type: values.type,
         active: values.active,
+        hourly_rate: values.hourly_rate || 0,
         notes: values.notes || null,
         created_by: user!.id,
       });
@@ -137,6 +143,7 @@ export function SpecialistFormModal({
           email: values.email || null,
           type: values.type,
           active: values.active,
+          hourly_rate: values.hourly_rate || 0,
           notes: values.notes || null,
         })
         .eq("id", specialist!.id);
@@ -231,6 +238,29 @@ export function SpecialistFormModal({
                     </SelectContent>
                   </Select>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="hourly_rate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tarifa por hora (€/hora)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      {...field}
+                      value={field.value || ""}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Tarifa estándar del especialista. Se usa para pre-rellenar costes en solicitudes.
+                  </p>
                 </FormItem>
               )}
             />

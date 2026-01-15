@@ -22,14 +22,79 @@ import { useState } from 'react';
 
 // Component for pending requests section
 function PendingRequestsSection({ 
-  specialistId, 
-  onAddRequest 
+  specialistId,
+  liquidationId,
+  onAddRequest,
+  onRequestAdded,
 }: { 
-  specialistId: string; 
+  specialistId: string;
+  liquidationId: string;
   onAddRequest: () => void;
+  onRequestAdded: () => void;
 }) {
   const { data: unliquidatedRequests, isLoading } = useUnliquidatedRequests(specialistId);
-  
+  const [addingRequestId, setAddingRequestId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const addSingleRequest = async (request: any) => {
+    if (addingRequestId) return;
+    
+    setAddingRequestId(request.id);
+    try {
+      const cost = Number(request.cost_to_agency) || 0;
+
+      // Create liquidation item
+      const { error: itemError } = await supabase
+        .from('liquidation_items')
+        .insert({
+          liquidation_id: liquidationId,
+          financial_request_id: request.id,
+          description: `${request.code} - ${request.title}`,
+          quantity: 1,
+          unit_price: cost,
+          total: cost,
+        });
+
+      if (itemError) throw itemError;
+
+      // Update financial request
+      const { error: requestError } = await supabase
+        .from('financial_requests')
+        .update({ liquidation_id: liquidationId })
+        .eq('id', request.id);
+
+      if (requestError) throw requestError;
+
+      // Get current liquidation total and update
+      const { data: liquidation, error: fetchError } = await supabase
+        .from('liquidations')
+        .select('total_amount')
+        .eq('id', liquidationId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const newTotal = (Number(liquidation.total_amount) || 0) + cost;
+      const { error: updateError } = await supabase
+        .from('liquidations')
+        .update({ total_amount: newTotal })
+        .eq('id', liquidationId);
+
+      if (updateError) throw updateError;
+
+      queryClient.invalidateQueries({ queryKey: ['liquidation-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      queryClient.invalidateQueries({ queryKey: ['unliquidated-requests'] });
+      
+      toast.success(`Solicitud ${request.code} añadida a la liquidación`);
+      onRequestAdded();
+    } catch (error: any) {
+      toast.error('Error al añadir solicitud: ' + error.message);
+    } finally {
+      setAddingRequestId(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -71,10 +136,13 @@ function PendingRequestsSection({
         </div>
         <Button variant="outline" size="sm" onClick={onAddRequest}>
           <Plus className="h-4 w-4 mr-2" />
-          Añadir a liquidación
+          Añadir varias
         </Button>
       </CardHeader>
       <CardContent>
+        <p className="text-xs text-muted-foreground mb-3">
+          Haz clic en una fila para añadirla directamente a la liquidación
+        </p>
         <Table>
           <TableHeader>
             <TableRow>
@@ -83,11 +151,16 @@ function PendingRequestsSection({
               <TableHead>Cliente</TableHead>
               <TableHead>Servicio</TableHead>
               <TableHead className="text-right">Coste</TableHead>
+              <TableHead className="w-10"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {unliquidatedRequests.slice(0, 5).map((request) => (
-              <TableRow key={request.id}>
+              <TableRow 
+                key={request.id}
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => addSingleRequest(request)}
+              >
                 <TableCell className="font-mono text-sm">{request.code}</TableCell>
                 <TableCell className="max-w-[200px] truncate">{request.title}</TableCell>
                 <TableCell>{request.client?.name || '-'}</TableCell>
@@ -95,13 +168,26 @@ function PendingRequestsSection({
                 <TableCell className="text-right font-medium">
                   {formatCurrency(Number(request.cost_to_agency) || 0)}
                 </TableCell>
+                <TableCell>
+                  {addingRequestId === request.id ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  ) : (
+                    <Plus className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
         {unliquidatedRequests.length > 5 && (
           <p className="text-center text-sm text-muted-foreground mt-4">
-            Y {unliquidatedRequests.length - 5} solicitud(es) más...
+            Y {unliquidatedRequests.length - 5} solicitud(es) más...{' '}
+            <button 
+              onClick={onAddRequest}
+              className="text-primary hover:underline"
+            >
+              Ver todas
+            </button>
           </p>
         )}
       </CardContent>
@@ -567,8 +653,12 @@ export default function LiquidacionDetalle() {
         {/* Pending Requests Section */}
         {isEditable && canAccessFinance() && (
           <PendingRequestsSection 
-            specialistId={liquidation.specialist_id} 
-            onAddRequest={() => setAddRequestsModalOpen(true)} 
+            specialistId={liquidation.specialist_id}
+            liquidationId={liquidation.id}
+            onAddRequest={() => setAddRequestsModalOpen(true)}
+            onRequestAdded={() => {
+              queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
+            }}
           />
         )}
 

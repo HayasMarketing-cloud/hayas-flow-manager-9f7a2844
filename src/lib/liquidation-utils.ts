@@ -94,3 +94,22 @@ export const isPeriodBefore = (
   if (year1 > year2) return false;
   return month1 < month2;
 };
+
+export const getExpectedPaymentDate = (periodYear: number, periodMonth: number): Date => {
+  // El pago es el día 28 del mes siguiente al período
+  if (periodMonth === 12) {
+    // Diciembre → 28 de enero del año siguiente
+    return new Date(periodYear + 1, 0, 28); // Enero es mes 0
+  }
+  // Cualquier otro mes → 28 del mes siguiente (periodMonth ya es 1-12)
+  return new Date(periodYear, periodMonth, 28);
+};
+
+export const formatExpectedPaymentDate = (periodYear: number, periodMonth: number): string => {
+  const date = getExpectedPaymentDate(periodYear, periodMonth);
+  return date.toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+};

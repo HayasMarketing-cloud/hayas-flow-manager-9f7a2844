@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { formatCurrency } from '@/lib/liquidation-utils';
+import { formatCurrency, formatExpectedPaymentDate } from '@/lib/liquidation-utils';
 import { cn } from '@/lib/utils';
 import { Database } from '@/integrations/supabase/types';
 
@@ -44,6 +44,8 @@ interface LiquidationData {
   paid_at?: string | null;
   total_amount: number;
   calculated_total?: number;
+  period_year: number;
+  period_month: number;
   liquidation_items?: any[];
   specialist?: { 
     email?: string;
@@ -217,10 +219,14 @@ const buildTimelineSteps = (
   }
 
   // 6. Pendiente de pago
+  const showPaymentDate = currentIndex >= 3 || signature?.status === 'accepted';
   steps.push({
     id: 'pending_payment',
     label: 'Pendiente de pago',
     status: currentIndex >= 4 ? 'completed' : (currentIndex === 3 ? 'current' : 'pending'),
+    description: showPaymentDate 
+      ? `Pago previsto: ${formatExpectedPaymentDate(liquidation.period_year, liquidation.period_month)}`
+      : undefined,
   });
 
   // 7. Pagada

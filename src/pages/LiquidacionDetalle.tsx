@@ -24,15 +24,19 @@ import { useState } from 'react';
 function PendingRequestsSection({ 
   specialistId,
   liquidationId,
+  periodYear,
+  periodMonth,
   onAddRequest,
   onRequestAdded,
 }: { 
   specialistId: string;
   liquidationId: string;
+  periodYear: number;
+  periodMonth: number;
   onAddRequest: () => void;
   onRequestAdded: () => void;
 }) {
-  const { data: unliquidatedRequests, isLoading } = useUnliquidatedRequests(specialistId);
+  const { data: unliquidatedRequests, isLoading } = useUnliquidatedRequests(specialistId, periodYear, periodMonth);
   const [addingRequestId, setAddingRequestId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
@@ -150,6 +154,7 @@ function PendingRequestsSection({
               <TableHead>Título</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Servicio</TableHead>
+              <TableHead>Estado</TableHead>
               <TableHead className="text-right">Coste</TableHead>
               <TableHead className="w-10"></TableHead>
             </TableRow>
@@ -165,6 +170,11 @@ function PendingRequestsSection({
                 <TableCell className="max-w-[200px] truncate">{request.title}</TableCell>
                 <TableCell>{request.client?.name || '-'}</TableCell>
                 <TableCell>{request.service?.name || '-'}</TableCell>
+                <TableCell>
+                  <Badge variant={request.status === 'completed' ? 'default' : 'secondary'}>
+                    {request.status === 'completed' ? 'Completado' : 'En progreso'}
+                  </Badge>
+                </TableCell>
                 <TableCell className="text-right font-medium">
                   {formatCurrency(Number(request.cost_to_agency) || 0)}
                 </TableCell>
@@ -655,6 +665,8 @@ export default function LiquidacionDetalle() {
           <PendingRequestsSection 
             specialistId={liquidation.specialist_id}
             liquidationId={liquidation.id}
+            periodYear={liquidation.period_year}
+            periodMonth={liquidation.period_month}
             onAddRequest={() => setAddRequestsModalOpen(true)}
             onRequestAdded={() => {
               queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
@@ -724,6 +736,8 @@ export default function LiquidacionDetalle() {
         onOpenChange={setAddRequestsModalOpen}
         liquidationId={liquidation.id}
         specialistId={liquidation.specialist_id}
+        periodYear={liquidation.period_year}
+        periodMonth={liquidation.period_month}
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
         }}

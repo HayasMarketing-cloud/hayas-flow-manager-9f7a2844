@@ -55,9 +55,12 @@ export const ContractCard = ({
       <CardContent className="space-y-2">
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <p className="text-muted-foreground">Monto Total</p>
+            <p className="text-muted-foreground">Tipo</p>
             <p className="font-semibold text-lg">
-              {formatCurrency(contract.total_amount || 0)}
+              {contract.contract_type === 'retainer' && 'Retainer'}
+              {contract.contract_type === 'project' && 'Por Proyecto'}
+              {contract.contract_type === 'one_time' && 'Puntual'}
+              {!contract.contract_type && 'Sin definir'}
             </p>
           </div>
           <div>

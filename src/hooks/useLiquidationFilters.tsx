@@ -20,9 +20,9 @@ const getDefaultFilters = (): LiquidationFilters => ({
   searchTerm: '',
   status: null,
   specialistId: null,
-  periodType: 'current_month',
-  year: now.getFullYear(),
-  month: now.getMonth() + 1,
+  periodType: 'all',
+  year: null,
+  month: null,
 });
 
 export const useLiquidationFilters = () => {

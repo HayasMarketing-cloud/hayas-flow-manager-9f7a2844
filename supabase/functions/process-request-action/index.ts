@@ -188,8 +188,12 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const request = tokenData.request;
+    const now = new Date().toISOString();
     const newStatus = action === 'accept' ? 'pending_approval' : 'draft';
     const tokenStatus = action === 'accept' ? 'accepted' : 'rejected';
+
+    console.log(`Processing action: ${action} for request ${tokenData.request_id}`);
+    console.log(`New status: ${newStatus}, Token status: ${tokenStatus}`);
 
     // Update request status
     const updateData: any = { 
@@ -210,12 +214,33 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Verify request update was successful
+    const { data: verifiedRequest, error: verifyError } = await supabase
+      .from('financial_requests')
+      .select('status')
+      .eq('id', tokenData.request_id)
+      .single();
+
+    if (verifyError || verifiedRequest?.status !== newStatus) {
+      console.error("CRITICAL: Request update verification failed:", { 
+        expected: newStatus, 
+        actual: verifiedRequest?.status,
+        error: verifyError 
+      });
+      return new Response(
+        JSON.stringify({ error: "Error al verificar la actualización de la solicitud" }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    console.log(`Request ${tokenData.request_id} updated successfully to ${newStatus}`);
+
     // Mark token as used
     const { error: tokenUpdateError } = await supabase
       .from('request_action_tokens')
       .update({
         status: tokenStatus,
-        acted_at: new Date().toISOString(),
+        acted_at: now,
         ip_address: ipAddress,
         user_agent: userAgent,
         comments: comments || null
@@ -223,8 +248,45 @@ const handler = async (req: Request): Promise<Response> => {
       .eq('id', tokenData.id);
 
     if (tokenUpdateError) {
-      console.error("Error updating token:", tokenUpdateError);
+      console.error("CRITICAL: Token update failed:", tokenUpdateError);
+      // Rollback the request status update
+      await supabase
+        .from('financial_requests')
+        .update({ status: 'pending_specialist', specialist_acceptance: false })
+        .eq('id', tokenData.request_id);
+      
+      return new Response(
+        JSON.stringify({ error: "Error al registrar la acción. Por favor, intente nuevamente." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
     }
+
+    // Verify token update was successful
+    const { data: verifiedToken, error: tokenVerifyError } = await supabase
+      .from('request_action_tokens')
+      .select('status')
+      .eq('id', tokenData.id)
+      .single();
+
+    if (tokenVerifyError || verifiedToken?.status !== tokenStatus) {
+      console.error("CRITICAL: Token update verification failed:", {
+        expected: tokenStatus,
+        actual: verifiedToken?.status,
+        error: tokenVerifyError
+      });
+      // Rollback
+      await supabase
+        .from('financial_requests')
+        .update({ status: 'pending_specialist', specialist_acceptance: false })
+        .eq('id', tokenData.request_id);
+      
+      return new Response(
+        JSON.stringify({ error: "Error al verificar el registro de la acción" }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    console.log(`Token ${tokenData.id} updated successfully to ${tokenStatus}`);
 
     // Log activity for the specialist action
     try {

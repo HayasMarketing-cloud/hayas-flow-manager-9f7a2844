@@ -280,14 +280,38 @@ export const RequestFormModal = ({
       }
       
       // Notify specialist if assigned with pending_specialist status
-      if (result?.isNew && result?.specialistData?.user_id && result?.status === 'pending_specialist') {
+      if (result?.isNew && result?.specialistData && result?.status === 'pending_specialist') {
         const client = formData?.clients?.find(c => c.id === result.clientId);
-        await notifySpecialistAssigned(
-          result.specialistData.user_id,
-          result.code || `Solicitud`,
-          result.id,
-          client?.name || 'Cliente'
-        );
+        
+        // In-app notification (if specialist has user_id)
+        if (result.specialistData.user_id) {
+          await notifySpecialistAssigned(
+            result.specialistData.user_id,
+            result.code || `Solicitud`,
+            result.id,
+            client?.name || 'Cliente'
+          );
+        }
+        
+        // Email notification (if specialist has email)
+        if (result.specialistData.email) {
+          try {
+            const appUrl = window.location.origin;
+            await supabase.functions.invoke('send-request-notification', {
+              body: {
+                requestId: result.id,
+                notificationType: 'specialist_assigned',
+                recipientEmail: result.specialistData.email,
+                recipientName: result.specialistData.name || 'Especialista',
+                senderEmail: 'noreply@hayas.es',
+                appUrl,
+              },
+            });
+          } catch (emailError) {
+            console.error('Error sending email notification:', emailError);
+            // Don't fail the whole operation if email fails
+          }
+        }
       }
       
       toast.success(

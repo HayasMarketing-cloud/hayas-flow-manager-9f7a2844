@@ -4,7 +4,7 @@ import { RequestStatusBadge } from './RequestStatusBadge';
 import { RequestFlowIndicator } from './RequestFlowIndicator';
 import { RequestFlowActions } from './RequestFlowActions';
 import { FlowStatusCell } from './FlowStatusCell';
-import { Edit, Building2, Calendar, Euro, Copy, Trash2, Eye, Receipt } from 'lucide-react';
+import { Edit, Building2, Calendar, Euro, Copy, Trash2, Eye, Receipt, User, TrendingUp } from 'lucide-react';
 import { formatCurrency } from '@/lib/request-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -23,11 +23,17 @@ interface RequestCardProps {
 export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquidation, canManage, onRefresh }: RequestCardProps) => {
   const navigate = useNavigate();
   
-  // Calculate total: cost_to_agency or calculate from hours/fixed
-  const totalAmount = request.cost_to_agency || 
+  // Calculate cost: cost_to_agency or calculate from hours/fixed
+  const costAmount = request.cost_to_agency || 
     (request.cost_type === 'hourly' 
       ? (request.hours || 0) * (request.cost_rate || 0) 
       : (request.fixed_cost || 0));
+  
+  // Calculate sale amount
+  const saleAmount = request.sale_amount || 
+    (request.sale_type === 'hourly' 
+      ? (request.sale_hours || request.hours || 0) * (request.sale_rate || 0) 
+      : (request.unit_price || 0) * (request.quantity || 1));
 
   return (
     <Card className="hover:shadow-lg transition-shadow">
@@ -53,11 +59,28 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
           </div>
         )}
         
-        <div className="flex items-center gap-2 text-sm">
-          <Euro className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-          <span className="font-semibold text-foreground">
-            {formatCurrency(totalAmount)}
-          </span>
+        {request.specialist && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <User className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">{request.specialist.name}</span>
+          </div>
+        )}
+        
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-2">
+            <Euro className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+            <span className="font-semibold text-foreground">
+              {formatCurrency(costAmount)}
+            </span>
+            <span className="text-xs text-muted-foreground">coste</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 flex-shrink-0 text-primary" />
+            <span className="font-semibold text-primary">
+              {formatCurrency(saleAmount)}
+            </span>
+            <span className="text-xs text-muted-foreground">venta</span>
+          </div>
         </div>
 
         {request.deadline && (

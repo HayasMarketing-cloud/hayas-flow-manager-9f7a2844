@@ -251,23 +251,22 @@ const handler = async (req: Request): Promise<Response> => {
       // Don't fail the action if logging fails
     }
 
-    // Create in-app notifications for all relevant users
-    try {
-      // Get users with admin, finanzas, project_manager roles
-      const { data: usersToNotify } = await supabase
-        .from('user_roles')
-        .select('user_id')
-        .in('role', ['admin', 'finanzas', 'project_manager']);
+    // Create in-app notifications for admins/project managers/account managers
+    const { data: usersToNotify } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .in('role', ['admin', 'finanzas', 'project_manager', 'account_manager']);
 
-      if (usersToNotify && usersToNotify.length > 0) {
-        const uniqueUserIds = [...new Set(usersToNotify.map(u => u.user_id))];
-        const specialistName = request.specialist?.name || 'Especialista';
-        const requestCode = request.code;
-        
+    const uniqueUserIds = [...new Set(usersToNotify?.map(u => u.user_id) || [])];
+    const specialistName = request.specialist?.name || 'Especialista';
+    const requestCode = request.code;
+
+    if (uniqueUserIds.length > 0) {
+      try {
         const notifications = uniqueUserIds.map(userId => ({
           user_id: userId,
           title: action === 'accept' ? 'Especialista aceptó solicitud' : 'Especialista rechazó solicitud',
-          message: `${specialistName} ${action === 'accept' ? 'aceptó' : 'rechazó'} ${requestCode}`,
+          message: `${specialistName} ${action === 'accept' ? 'aceptó' : 'rechazó'} ${requestCode}${comments ? `: ${comments}` : ''}`,
           type: action === 'accept' ? 'success' : 'warning',
           category: 'request',
           entity_id: tokenData.request_id,
@@ -277,102 +276,124 @@ const handler = async (req: Request): Promise<Response> => {
 
         await supabase.from('notifications').insert(notifications);
         console.log(`Created ${notifications.length} in-app notifications`);
+      } catch (notifError) {
+        console.error("Error creating in-app notifications:", notifError);
       }
-    } catch (notifError) {
-      console.error("Error creating in-app notifications:", notifError);
-      // Don't fail the action if in-app notifications fail
     }
-    try {
-      const serviceAccountEmail = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_EMAIL");
-      const serviceAccountPrivateKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY");
-      const senderEmail = 'info@hayas.es';
-      const managementEmail = 'info@hayas.es';
-      
-      if (serviceAccountEmail && serviceAccountPrivateKey) {
-        const specialistName = request.specialist?.name || 'Especialista';
-        const clientName = request.client?.name || 'Cliente';
-        const requestCode = request.code;
-        const requestTitle = request.title;
+
+    // Get emails of users with admin/account_manager roles to send email notifications
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('email')
+      .in('id', uniqueUserIds);
+
+    const recipientEmails = profiles
+      ?.map(p => p.email)
+      .filter((email): email is string => !!email && email.endsWith('@hayas.es')) || [];
+
+    console.log('Attempting to send notification emails to:', recipientEmails);
+    // Send notification emails to management
+    if (recipientEmails.length > 0) {
+      try {
+        const serviceAccountEmail = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_EMAIL");
+        const serviceAccountPrivateKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY");
+        const senderEmail = Deno.env.get("GMAIL_USER");
         
-        const subject = action === 'accept' 
-          ? `✅ Trabajo aceptado: ${requestCode}`
-          : `❌ Trabajo rechazado: ${requestCode}`;
-        
-        const actionIcon = action === 'accept' ? '✅' : '❌';
-        const actionText = action === 'accept' ? 'ha aceptado' : 'ha rechazado';
-        const statusBg = action === 'accept' ? '#10b981' : '#ef4444';
-        
-        const appUrl = Deno.env.get("APP_PRODUCTION_URL") || "https://hayas-flow-manager.lovable.app";
-        const requestUrl = `${appUrl}/solicitudes?search=${requestCode}`;
-        
-        const htmlContent = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-            <div style="background-color: #1a1a2e; padding: 20px; text-align: center;">
-              <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Hayas Marketing</h1>
-            </div>
-            
-            <div style="padding: 30px;">
-              <h2 style="color: #1a1a2e; margin-top: 0;">${actionIcon} Especialista ${actionText} el trabajo</h2>
-              
-              <p><strong>${specialistName}</strong> ${actionText} el trabajo desde el email.</p>
-              
-              ${comments ? `<p style="background-color: #fef3c7; padding: 12px; border-radius: 6px; border-left: 4px solid #f59e0b;"><strong>Comentario:</strong> ${comments}</p>` : ''}
-              
-              <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <table style="width: 100%; border-collapse: collapse;">
-                  <tr>
-                    <td style="color: #666; padding: 8px 0;">Código:</td>
-                    <td style="font-weight: bold; text-align: right;">${requestCode}</td>
-                  </tr>
-                  <tr>
-                    <td style="color: #666; padding: 8px 0;">Concepto:</td>
-                    <td style="font-weight: bold; text-align: right;">${requestTitle}</td>
-                  </tr>
-                  <tr>
-                    <td style="color: #666; padding: 8px 0;">Cliente:</td>
-                    <td style="font-weight: bold; text-align: right;">${clientName}</td>
-                  </tr>
-                  <tr>
-                    <td style="color: #666; padding: 8px 0;">Nuevo estado:</td>
-                    <td style="font-weight: bold; text-align: right; color: ${statusBg};">
-                      ${action === 'accept' ? 'Pendiente Aprobación' : 'Borrador (Reasignar)'}
-                    </td>
-                  </tr>
-                </table>
+        if (serviceAccountEmail && serviceAccountPrivateKey && senderEmail) {
+          const clientName = request.client?.name || 'Cliente';
+          const requestTitle = request.title;
+          
+          const subject = action === 'accept' 
+            ? `✅ Especialista aceptó: ${requestCode}`
+            : `❌ Especialista rechazó: ${requestCode}`;
+          
+          const statusColor = action === 'accept' ? '#22c55e' : '#ef4444';
+          const statusText = action === 'accept' ? 'ACEPTADO' : 'RECHAZADO';
+          const appUrl = Deno.env.get("APP_PRODUCTION_URL") || "https://hayas-flow-manager.lovable.app";
+          
+          const htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 24px;">Respuesta de Especialista</h1>
               </div>
               
-              <div style="background-color: #f0f9ff; padding: 12px; border-radius: 6px; margin: 20px 0;">
-                <p style="margin: 0; font-size: 12px; color: #0369a1;">
-                  <strong>Evidencia digital:</strong><br>
-                  IP: ${ipAddress}<br>
-                  Fecha: ${new Date().toLocaleString('es-ES')}
-                </p>
+              <div style="background: #f8fafc; padding: 30px; border: 1px solid #e2e8f0; border-top: none;">
+                <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                  <div style="text-align: center; margin-bottom: 20px;">
+                    <span style="display: inline-block; padding: 8px 20px; background: ${statusColor}; color: white; border-radius: 20px; font-weight: bold; font-size: 14px;">
+                      ${statusText}
+                    </span>
+                  </div>
+                  
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                      <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 140px;">Solicitud:</td>
+                      <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; font-weight: 500;">${requestCode}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b;">Especialista:</td>
+                      <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0;">${specialistName}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b;">Cliente:</td>
+                      <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0;">${clientName}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b;">Concepto:</td>
+                      <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0;">${requestTitle}</td>
+                    </tr>
+                    ${comments ? `
+                    <tr>
+                      <td style="padding: 10px 0; color: #64748b; vertical-align: top;">Comentarios:</td>
+                      <td style="padding: 10px 0;">${comments}</td>
+                    </tr>
+                    ` : ''}
+                  </table>
+                  
+                  <div style="background: #f0f9ff; padding: 12px; border-radius: 6px; margin-top: 20px;">
+                    <p style="margin: 0; font-size: 12px; color: #0369a1;">
+                      <strong>Evidencia digital:</strong> IP ${ipAddress} - ${new Date().toLocaleString('es-ES')}
+                    </p>
+                  </div>
+                  
+                  <div style="margin-top: 25px; text-align: center;">
+                    <a href="${appUrl}/solicitudes/${tokenData.request_id}" 
+                       style="display: inline-block; padding: 12px 30px; background: #1e3a5f; color: white; text-decoration: none; border-radius: 6px; font-weight: 500;">
+                      Ver Solicitud
+                    </a>
+                  </div>
+                </div>
               </div>
               
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${requestUrl}" 
-                   style="display: inline-block; background-color: #3b82f6; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold;">
-                  Ver Solicitud
-                </a>
+              <div style="text-align: center; padding: 20px; color: #64748b; font-size: 12px;">
+                <p>Este es un mensaje automático del sistema de gestión.</p>
               </div>
-            </div>
-            
-            <div style="background-color: #f5f5f5; padding: 20px; text-align: center;">
-              <p style="color: #666; font-size: 0.9em; margin: 0;">
-                Saludos cordiales,<br>
-                <strong>Sistema de Notificaciones Hayas</strong>
-              </p>
-            </div>
-          </div>
-        `;
-        
-        const accessToken = await getAccessToken(serviceAccountEmail, serviceAccountPrivateKey, senderEmail);
-        await sendNotificationEmail(accessToken, senderEmail, managementEmail, subject, htmlContent);
-        console.log("Notification sent to management");
+            </body>
+            </html>
+          `;
+          
+          const accessToken = await getAccessToken(serviceAccountEmail, serviceAccountPrivateKey, senderEmail);
+          
+          // Send email to each recipient
+          for (const recipientEmail of recipientEmails) {
+            try {
+              await sendNotificationEmail(accessToken, senderEmail, recipientEmail, subject, htmlContent);
+              console.log(`Email sent successfully to ${recipientEmail}`);
+            } catch (emailError) {
+              console.error(`Failed to send email to ${recipientEmail}:`, emailError);
+            }
+          }
+        }
+      } catch (emailError) {
+        console.error('Failed to send email notifications:', emailError);
+        // Don't fail the whole request if email fails
       }
-    } catch (notifyError) {
-      console.error("Error sending notification:", notifyError);
-      // Don't fail the action if notification fails
     }
 
     const actionedAt = new Date().toISOString();

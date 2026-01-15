@@ -457,6 +457,26 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Estado */}
+            <div className="space-y-2">
+              <Label>Estado</Label>
+              <Select
+                value={formData.status}
+                onValueChange={(value) => setFormData({ ...formData, status: value })}
+                disabled={!canEdit}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Borrador</SelectItem>
+                  <SelectItem value="active">Activo</SelectItem>
+                  <SelectItem value="suspended">Suspendido</SelectItem>
+                  <SelectItem value="cancelled">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">

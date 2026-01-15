@@ -5,9 +5,11 @@ type LiquidationStatus = Database['public']['Enums']['liquidation_status'];
 export const getLiquidationStatusColor = (status: LiquidationStatus): string => {
   const colors: Record<LiquidationStatus, string> = {
     draft: 'bg-muted text-muted-foreground',
+    validated: 'bg-purple-500 text-white',
     sent: 'bg-blue-500 text-white',
+    accepted: 'bg-teal-500 text-white',
+    pending_payment: 'bg-orange-500 text-white',
     paid: 'bg-green-500 text-white',
-    disputed: 'bg-destructive text-destructive-foreground',
   };
   return colors[status] || 'bg-muted text-muted-foreground';
 };
@@ -15,9 +17,11 @@ export const getLiquidationStatusColor = (status: LiquidationStatus): string => 
 export const getLiquidationStatusLabel = (status: LiquidationStatus): string => {
   const labels: Record<LiquidationStatus, string> = {
     draft: 'Borrador',
+    validated: 'Validada',
     sent: 'Enviada',
+    accepted: 'Aceptada',
+    pending_payment: 'Pendiente de pago',
     paid: 'Pagada',
-    disputed: 'En Disputa',
   };
   return labels[status] || status;
 };

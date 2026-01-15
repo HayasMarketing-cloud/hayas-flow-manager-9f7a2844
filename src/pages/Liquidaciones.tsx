@@ -315,12 +315,14 @@ export default function Liquidaciones() {
                   <SelectTrigger>
                     <SelectValue placeholder="Todos los estados" />
                   </SelectTrigger>
-                  <SelectContent>
+                <SelectContent>
                     <SelectItem value="all">Todos los estados</SelectItem>
                     <SelectItem value="draft">Borrador</SelectItem>
+                    <SelectItem value="validated">Validada</SelectItem>
                     <SelectItem value="sent">Enviada</SelectItem>
+                    <SelectItem value="accepted">Aceptada</SelectItem>
+                    <SelectItem value="pending_payment">Pendiente de pago</SelectItem>
                     <SelectItem value="paid">Pagada</SelectItem>
-                    <SelectItem value="disputed">En Disputa</SelectItem>
                   </SelectContent>
                 </Select>
 

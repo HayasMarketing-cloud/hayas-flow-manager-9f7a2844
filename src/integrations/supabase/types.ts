@@ -1677,7 +1677,13 @@ export type Database = {
         | "completed"
         | "cancelled"
       invoice_status: "draft" | "sent" | "paid" | "overdue" | "cancelled"
-      liquidation_status: "draft" | "sent" | "paid" | "disputed"
+      liquidation_status:
+        | "draft"
+        | "validated"
+        | "sent"
+        | "accepted"
+        | "pending_payment"
+        | "paid"
       operational_status: "pending" | "in_progress" | "in_review" | "completed"
       payment_method: "stripe" | "credit_card" | "sdd" | "bank_transfer"
       price_rule_type: "hourly" | "fixed"
@@ -1841,7 +1847,14 @@ export const Constants = {
         "cancelled",
       ],
       invoice_status: ["draft", "sent", "paid", "overdue", "cancelled"],
-      liquidation_status: ["draft", "sent", "paid", "disputed"],
+      liquidation_status: [
+        "draft",
+        "validated",
+        "sent",
+        "accepted",
+        "pending_payment",
+        "paid",
+      ],
       operational_status: ["pending", "in_progress", "in_review", "completed"],
       payment_method: ["stripe", "credit_card", "sdd", "bank_transfer"],
       price_rule_type: ["hourly", "fixed"],

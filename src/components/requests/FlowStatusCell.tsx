@@ -67,7 +67,7 @@ export const FlowStatusCell = ({ type, linkedId, linkedCode, linkedStatus }: Flo
     if (type === 'invoice') {
       navigate(`/facturas`);
     } else {
-      navigate(`/liquidaciones`);
+      navigate(`/liquidaciones/${linkedId}`);
     }
   };
 

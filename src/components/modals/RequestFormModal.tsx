@@ -288,24 +288,24 @@ export const RequestFormModal = ({
         form.reset({
           client_id: initialData.client_id,
           service_id: initialData.service_id,
-          specialist_id: initialData.specialist_id || null,
-          contract_id: initialData.contract_id || null,
+          specialist_id: initialData.specialist_id ?? null,
+          contract_id: initialData.contract_id ?? null,
           client_contact_id: contactToUse,
           title: initialData.title,
-          description: initialData.description || null,
-          quantity: initialData.quantity,
-          deadline: initialData.deadline || null,
+          description: initialData.description ?? null,
+          quantity: initialData.quantity ?? 1,
+          deadline: initialData.deadline ?? null,
           status: initialData.status,
           // Sale fields
-          sale_type: initialData.sale_type || 'fixed',
-          unit_price: initialData.unit_price || null,
-          sale_rate: initialData.sale_rate || null,
-          sale_hours: initialData.sale_hours || null,
+          sale_type: initialData.sale_type ?? 'fixed',
+          unit_price: initialData.unit_price ?? null,
+          sale_rate: initialData.sale_rate ?? null,
+          sale_hours: initialData.sale_hours ?? null,
           // Cost fields
-          cost_type: initialData.cost_type || 'fixed',
-          hours: initialData.hours || null,
-          cost_rate: initialData.cost_rate || null,
-          fixed_cost: initialData.fixed_cost || null,
+          cost_type: initialData.cost_type ?? 'fixed',
+          hours: initialData.hours ?? null,
+          cost_rate: initialData.cost_rate ?? null,
+          fixed_cost: initialData.fixed_cost ?? null,
         });
       } else {
         form.reset({

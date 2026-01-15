@@ -57,7 +57,8 @@ export default function Liquidaciones() {
             signed_at,
             ip_address,
             dispute_reason,
-            expires_at
+            expires_at,
+            created_at
           )
         `)
         .order('period_year', { ascending: false })
@@ -83,14 +84,19 @@ export default function Liquidaciones() {
       const { data, error } = await query;
       if (error) throw error;
       
-      // Calcular el total correcto usando el campo total de liquidation_items
+      // Calcular el total correcto y ordenar firmas por fecha descendente
       return data?.map(liquidation => {
         const calculatedTotal = liquidation.liquidation_items?.reduce((sum: number, item: any) => {
           return sum + (Number(item.total) || 0);
         }, 0) || 0;
         
+        // Ordenar firmas para obtener siempre la más reciente primero
+        const sortedSignatures = liquidation.liquidation_signatures
+          ?.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        
         return {
           ...liquidation,
+          liquidation_signatures: sortedSignatures,
           calculated_total: calculatedTotal
         };
       });

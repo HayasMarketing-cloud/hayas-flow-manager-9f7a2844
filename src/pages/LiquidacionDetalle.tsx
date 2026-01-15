@@ -247,7 +247,8 @@ export default function LiquidacionDetalle() {
             ip_address,
             dispute_reason,
             specialist_comments,
-            expires_at
+            expires_at,
+            created_at
           )
         `)
         .eq('id', id)
@@ -260,7 +261,11 @@ export default function LiquidacionDetalle() {
         return sum + (Number(item.total) || 0);
       }, 0) || 0;
 
-      return { ...data, calculated_total: calculatedTotal };
+      // Ordenar firmas por fecha descendente para obtener siempre la más reciente primero
+      const sortedSignatures = data.liquidation_signatures
+        ?.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      return { ...data, liquidation_signatures: sortedSignatures, calculated_total: calculatedTotal };
     },
     enabled: !!id,
   });

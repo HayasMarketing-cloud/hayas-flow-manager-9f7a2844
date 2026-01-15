@@ -496,7 +496,7 @@ export default function LiquidacionDetalle() {
   const hasSpecialistEmail = !!liquidation.specialist?.email;
 
   return (
-    <AppLayout title={`Liquidación ${liquidation.code}`}>
+    <AppLayout title={`Liquidación ${formatPeriod(liquidation.period_year, liquidation.period_month)}`}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -506,8 +506,8 @@ export default function LiquidacionDetalle() {
               Volver
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">{liquidation.code}</h1>
-              <p className="text-muted-foreground">{formatPeriod(liquidation.period_year, liquidation.period_month)}</p>
+              <h1 className="text-2xl font-bold">Liquidación {formatPeriod(liquidation.period_year, liquidation.period_month)}</h1>
+              <p className="text-muted-foreground">{liquidation.code}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

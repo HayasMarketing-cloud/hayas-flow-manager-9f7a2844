@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { RequestFlowIndicator } from './RequestFlowIndicator';
 import { RequestFlowActions } from './RequestFlowActions';
 import { FlowStatusCell } from './FlowStatusCell';
+import { RequestStatusBadge } from './RequestStatusBadge';
 import { Edit, Eye, Copy, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/request-utils';
 import { format } from 'date-fns';
@@ -60,6 +61,7 @@ export const RequestTableView = ({
             <TableHead>Código</TableHead>
             <TableHead>Título</TableHead>
             <TableHead>Cliente</TableHead>
+            <TableHead>Estado</TableHead>
             <TableHead>Flujo</TableHead>
             <TableHead>Siguiente Acción</TableHead>
             <TableHead>Factura</TableHead>
@@ -72,7 +74,7 @@ export const RequestTableView = ({
         <TableBody>
           {requests.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={11} className="text-center text-muted-foreground">
+              <TableCell colSpan={12} className="text-center text-muted-foreground">
                 No se encontraron solicitudes
               </TableCell>
             </TableRow>
@@ -103,6 +105,9 @@ export const RequestTableView = ({
                     {request.title}
                   </TableCell>
                   <TableCell>{request.client?.name || '-'}</TableCell>
+                  <TableCell>
+                    <RequestStatusBadge status={request.status} />
+                  </TableCell>
                   <TableCell>
                     <RequestFlowIndicator status={request.status} compact />
                   </TableCell>

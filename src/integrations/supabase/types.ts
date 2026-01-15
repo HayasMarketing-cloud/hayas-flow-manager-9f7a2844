@@ -444,6 +444,7 @@ export type Database = {
           end_date: string | null
           hub_project_url: string | null
           id: string
+          is_on_demand: boolean
           pm_user_id: string | null
           seller_id: string | null
           specialists_default: string[] | null
@@ -467,6 +468,7 @@ export type Database = {
           end_date?: string | null
           hub_project_url?: string | null
           id?: string
+          is_on_demand?: boolean
           pm_user_id?: string | null
           seller_id?: string | null
           specialists_default?: string[] | null
@@ -490,6 +492,7 @@ export type Database = {
           end_date?: string | null
           hub_project_url?: string | null
           id?: string
+          is_on_demand?: boolean
           pm_user_id?: string | null
           seller_id?: string | null
           specialists_default?: string[] | null

@@ -19,6 +19,8 @@ import { useUnliquidatedRequests } from '@/hooks/useUnliquidatedRequests';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { SpecialistLiquidationTimeline } from './SpecialistLiquidationTimeline';
+import { useUserRole } from '@/hooks/useUserRole';
 
 type LiquidationStatus = Database['public']['Enums']['liquidation_status'];
 
@@ -205,7 +207,10 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
   const [manualItems, setManualItems] = useState<ManualItem[]>([]);
   const [newManualDescription, setNewManualDescription] = useState('');
   const [newManualAmount, setNewManualAmount] = useState<number | ''>('');
-
+  
+  // Check if user is specialist (only specialist role, not admin/manager/finance)
+  const { isSpecialist, isAdmin, canAccessFinance, canAccessOperations } = useUserRole();
+  const showSpecialistTimeline = isSpecialist() && !isAdmin() && !canAccessFinance() && !canAccessOperations();
   const { register, handleSubmit, formState: { errors }, watch, setValue, reset } = useForm<LiquidationFormData>({
     resolver: zodResolver(liquidationSchema),
     defaultValues: {
@@ -960,6 +965,22 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
               <p className="text-sm text-destructive mt-1">{errors.status.message}</p>
             )}
           </div>
+
+          {/* Timeline simplificado para especialistas - Solo en modo VIEW */}
+          {isViewMode && showSpecialistTimeline && liquidation && (
+            <SpecialistLiquidationTimeline 
+              liquidation={{
+                status: liquidation.status,
+                code: liquidation.code,
+                sent_at: liquidation.sent_at,
+                paid_at: liquidation.paid_at,
+                total_amount: liquidation.total_amount,
+                period_year: liquidation.period_year,
+                period_month: liquidation.period_month,
+              }}
+              signature={liquidation.liquidation_signatures?.[0] || null}
+            />
+          )}
 
           {/* Items existentes de la liquidación - Visible en VIEW y EDIT */}
           {(isViewMode || mode === 'edit') && itemsGroupedByClient.length > 0 && (

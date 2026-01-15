@@ -1,10 +1,20 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+interface PendingRequest {
+  id: string;
+  code: string;
+  title: string;
+  status: string;
+  cost_to_agency: number | null;
+  client?: { id: string; name: string } | null;
+}
+
 interface LiquidationData {
   liquidation: any;
   items: any[];
   specialist: any;
+  pendingRequests?: PendingRequest[];
   companyInfo?: {
     name: string;
     tradeName?: string;
@@ -138,12 +148,84 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
   doc.text(formatCurrency(data.liquidation.subtotal), pageWidth - 15, finalY, { align: 'right' });
 
   // Notas
+  let currentY = finalY;
   if (data.liquidation.notes) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.text('Notas:', 15, finalY + 30);
+    doc.text('Notas:', 15, currentY + 30);
     const splitNotes = doc.splitTextToSize(data.liquidation.notes, pageWidth - 30);
-    doc.text(splitNotes, 15, finalY + 37);
+    doc.text(splitNotes, 15, currentY + 37);
+    currentY = currentY + 37 + (splitNotes.length * 5);
+  } else {
+    currentY = finalY + 15;
+  }
+
+  // Sección de solicitudes pendientes
+  if (data.pendingRequests && data.pendingRequests.length > 0) {
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    // Check if we need a new page
+    if (currentY + 60 > pageHeight - 30) {
+      doc.addPage();
+      currentY = 20;
+    } else {
+      currentY += 15;
+    }
+
+    // Título de la sección
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('SOLICITUDES PENDIENTES DE LIQUIDAR', 15, currentY);
+
+    // Subtítulo informativo
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text('(Solicitudes completadas o en progreso aún no incluidas en esta liquidación)', 15, currentY + 6);
+
+    // Tabla de solicitudes pendientes
+    const pendingTableData = data.pendingRequests.map(req => [
+      req.code || '-',
+      (req.title?.substring(0, 35) + (req.title && req.title.length > 35 ? '...' : '')) || '-',
+      req.client?.name || '-',
+      req.status === 'completed' ? 'Completado' : 'En progreso',
+      formatCurrency(Number(req.cost_to_agency) || 0)
+    ]);
+
+    autoTable(doc, {
+      startY: currentY + 10,
+      head: [['Código', 'Título', 'Cliente', 'Estado', 'Coste']],
+      body: pendingTableData,
+      theme: 'plain',
+      headStyles: {
+        fillColor: [245, 245, 245],
+        textColor: [100, 100, 100],
+        fontSize: 8,
+        fontStyle: 'bold',
+      },
+      styles: {
+        fontSize: 8,
+        cellPadding: 3,
+      },
+      columnStyles: {
+        0: { cellWidth: 25 },
+        1: { cellWidth: 55 },
+        2: { cellWidth: 40 },
+        3: { cellWidth: 25 },
+        4: { cellWidth: 30, halign: 'right' },
+      },
+    });
+
+    // Total pendiente
+    const totalPending = data.pendingRequests.reduce(
+      (sum, req) => sum + (Number(req.cost_to_agency) || 0), 0
+    );
+    const pendingFinalY = (doc as any).lastAutoTable.finalY + 5;
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Total pendiente: ${formatCurrency(totalPending)}`, pageWidth - 15, pendingFinalY, { align: 'right' });
   }
 
   // Footer
@@ -286,12 +368,84 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
   doc.text(formatCurrency(data.liquidation.subtotal), pageWidth - 15, finalY, { align: 'right' });
 
   // Notas
+  let currentY = finalY;
   if (data.liquidation.notes) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.text('Notas:', 15, finalY + 30);
+    doc.text('Notas:', 15, currentY + 30);
     const splitNotes = doc.splitTextToSize(data.liquidation.notes, pageWidth - 30);
-    doc.text(splitNotes, 15, finalY + 37);
+    doc.text(splitNotes, 15, currentY + 37);
+    currentY = currentY + 37 + (splitNotes.length * 5);
+  } else {
+    currentY = finalY + 15;
+  }
+
+  // Sección de solicitudes pendientes
+  if (data.pendingRequests && data.pendingRequests.length > 0) {
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    // Check if we need a new page
+    if (currentY + 60 > pageHeight - 30) {
+      doc.addPage();
+      currentY = 20;
+    } else {
+      currentY += 15;
+    }
+
+    // Título de la sección
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('SOLICITUDES PENDIENTES DE LIQUIDAR', 15, currentY);
+
+    // Subtítulo informativo
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text('(Solicitudes completadas o en progreso aún no incluidas en esta liquidación)', 15, currentY + 6);
+
+    // Tabla de solicitudes pendientes
+    const pendingTableData = data.pendingRequests.map(req => [
+      req.code || '-',
+      (req.title?.substring(0, 35) + (req.title && req.title.length > 35 ? '...' : '')) || '-',
+      req.client?.name || '-',
+      req.status === 'completed' ? 'Completado' : 'En progreso',
+      formatCurrency(Number(req.cost_to_agency) || 0)
+    ]);
+
+    autoTable(doc, {
+      startY: currentY + 10,
+      head: [['Código', 'Título', 'Cliente', 'Estado', 'Coste']],
+      body: pendingTableData,
+      theme: 'plain',
+      headStyles: {
+        fillColor: [245, 245, 245],
+        textColor: [100, 100, 100],
+        fontSize: 8,
+        fontStyle: 'bold',
+      },
+      styles: {
+        fontSize: 8,
+        cellPadding: 3,
+      },
+      columnStyles: {
+        0: { cellWidth: 25 },
+        1: { cellWidth: 55 },
+        2: { cellWidth: 40 },
+        3: { cellWidth: 25 },
+        4: { cellWidth: 30, halign: 'right' },
+      },
+    });
+
+    // Total pendiente
+    const totalPending = data.pendingRequests.reduce(
+      (sum, req) => sum + (Number(req.cost_to_agency) || 0), 0
+    );
+    const pendingFinalY = (doc as any).lastAutoTable.finalY + 5;
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Total pendiente: ${formatCurrency(totalPending)}`, pageWidth - 15, pendingFinalY, { align: 'right' });
   }
 
   // Footer

@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { generateLiquidationPDF, generateLiquidationPDFBase64 } from '@/utils/pdf/liquidationPDFGenerator';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useState } from 'react';
+import { notifyLiquidationSent } from '@/lib/notification-utils';
 
 // Component for pending requests section
 function PendingRequestsSection({ 
@@ -224,7 +225,7 @@ export default function LiquidacionDetalle() {
         .from('liquidations')
         .select(`
           *,
-          specialist:specialists(id, name, email, hourly_rate, type),
+          specialist:specialists(id, name, email, hourly_rate, type, user_id),
           liquidation_items(
             id,
             description,
@@ -370,7 +371,7 @@ export default function LiquidacionDetalle() {
         .select(`id, code, title, status, cost_to_agency, client:clients(id, name)`)
         .eq('specialist_id', liquidation.specialist?.id)
         .is('liquidation_id', null)
-        .in('status', ['completed', 'in_progress'])
+        .eq('status', 'completed')
         .order('created_at', { ascending: false });
 
       await generateLiquidationPDF({
@@ -405,7 +406,7 @@ export default function LiquidacionDetalle() {
         .select(`id, code, title, status, cost_to_agency, client:clients(id, name)`)
         .eq('specialist_id', liquidation.specialist?.id)
         .is('liquidation_id', null)
-        .in('status', ['completed', 'in_progress'])
+        .eq('status', 'completed')
         .order('created_at', { ascending: false });
 
       const pdfBase64 = await generateLiquidationPDFBase64({
@@ -437,6 +438,15 @@ export default function LiquidacionDetalle() {
         .from('liquidations')
         .update({ status: 'sent', sent_at: new Date().toISOString() })
         .eq('id', id);
+
+      // Send in-app notification to specialist if they have user_id
+      await notifyLiquidationSent(
+        liquidation.specialist?.user_id || null,
+        liquidation.code,
+        liquidation.id,
+        liquidation.period_month,
+        liquidation.period_year
+      );
 
       queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
       queryClient.invalidateQueries({ queryKey: ['liquidations'] });

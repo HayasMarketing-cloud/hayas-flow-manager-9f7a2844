@@ -176,7 +176,73 @@ export const notifyLiquidationSigned = async (
       category: 'liquidation',
       entity_id: liquidationId,
       entity_type: 'liquidation',
-      action_url: `/liquidaciones`,
+      action_url: `/liquidaciones/${liquidationId}`,
+    }
+  );
+};
+
+// Notify specialist when liquidation is sent
+export const notifyLiquidationSent = async (
+  specialistUserId: string | null,
+  liquidationCode: string,
+  liquidationId: string,
+  periodMonth: number,
+  periodYear: number
+) => {
+  if (!specialistUserId) return;
+
+  const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+  await supabase.from('notifications').insert({
+    user_id: specialistUserId,
+    title: 'Nueva liquidación recibida',
+    message: `Tienes pendiente revisar ${liquidationCode} de ${monthNames[periodMonth - 1]} ${periodYear}`,
+    type: 'info',
+    category: 'liquidation',
+    entity_id: liquidationId,
+    entity_type: 'liquidation',
+    action_url: '/mis-liquidaciones',
+  });
+};
+
+// Notify admins/AM when specialist accepts liquidation  
+export const notifyLiquidationAccepted = async (
+  liquidationCode: string,
+  liquidationId: string,
+  specialistName: string
+) => {
+  await notifyByRole(
+    ['admin', 'finanzas', 'account_manager'],
+    {
+      title: 'Liquidación aceptada',
+      message: `${specialistName} ha aceptado ${liquidationCode}`,
+      type: 'success',
+      category: 'liquidation',
+      entity_id: liquidationId,
+      entity_type: 'liquidation',
+      action_url: `/liquidaciones/${liquidationId}`,
+    }
+  );
+};
+
+// Notify admins/AM when specialist disputes liquidation
+export const notifyLiquidationDisputed = async (
+  liquidationCode: string,
+  liquidationId: string,
+  specialistName: string,
+  disputeReason?: string
+) => {
+  await notifyByRole(
+    ['admin', 'finanzas', 'account_manager'],
+    {
+      title: 'Liquidación disputada',
+      message: `${specialistName} ha disputado ${liquidationCode}${disputeReason ? `: ${disputeReason}` : ''}`,
+      type: 'warning',
+      category: 'liquidation',
+      entity_id: liquidationId,
+      entity_type: 'liquidation',
+      action_url: `/liquidaciones/${liquidationId}`,
     }
   );
 };

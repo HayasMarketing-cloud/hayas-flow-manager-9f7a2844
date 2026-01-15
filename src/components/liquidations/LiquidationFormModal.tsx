@@ -26,7 +26,7 @@ const liquidationSchema = z.object({
   specialist_id: z.string().min(1, 'Especialista es requerido'),
   period_year: z.number().min(2020).max(2100),
   period_month: z.number().min(1).max(12),
-  status: z.enum(['draft', 'sent', 'paid', 'disputed']),
+  status: z.enum(['draft', 'validated', 'sent', 'accepted', 'pending_payment', 'paid']),
   notes: z.string().optional(),
 });
 
@@ -200,7 +200,7 @@ const SignatureDetailsSection = ({ signature }: { signature: any }) => {
 export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: LiquidationFormModalProps) => {
   const queryClient = useQueryClient();
   const isViewMode = mode === 'view';
-  const isEditable = mode === 'create' || (mode === 'edit' && liquidation?.status === 'draft');
+  const isEditable = mode === 'create' || (mode === 'edit' && (liquidation?.status === 'draft' || liquidation?.status === 'validated'));
   const [selectedRequests, setSelectedRequests] = useState<Array<{ id: string; cost: number }>>([]);
   const [manualItems, setManualItems] = useState<ManualItem[]>([]);
   const [newManualDescription, setNewManualDescription] = useState('');
@@ -948,9 +948,11 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="draft">Borrador</SelectItem>
+                <SelectItem value="validated">Validada</SelectItem>
                 <SelectItem value="sent">Enviada</SelectItem>
+                <SelectItem value="accepted">Aceptada</SelectItem>
+                <SelectItem value="pending_payment">Pendiente de pago</SelectItem>
                 <SelectItem value="paid">Pagada</SelectItem>
-                <SelectItem value="disputed">En Disputa</SelectItem>
               </SelectContent>
             </Select>
             {errors.status && (

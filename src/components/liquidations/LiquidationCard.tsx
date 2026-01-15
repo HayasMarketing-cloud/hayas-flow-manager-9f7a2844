@@ -15,7 +15,7 @@ interface LiquidationCardProps {
 }
 
 export const LiquidationCard = ({ liquidation, onView, onEdit, onSendEmail, canManage, isSending }: LiquidationCardProps) => {
-  const isEditable = liquidation.status === 'draft';
+  const isEditable = liquidation.status === 'draft' || liquidation.status === 'validated';
   const hasSpecialistEmail = !!liquidation.specialist?.email;
   // Get latest signature (first one in array, sorted by created_at desc)
   const latestSignature = liquidation.liquidation_signatures?.[0] || null;

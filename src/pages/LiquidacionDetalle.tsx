@@ -217,7 +217,7 @@ export default function LiquidacionDetalle() {
   }
 
   const latestSignature = liquidation.liquidation_signatures?.[0] || null;
-  const isEditable = liquidation.status === 'draft';
+  const isEditable = liquidation.status === 'draft' || liquidation.status === 'validated';
   const hasSpecialistEmail = !!liquidation.specialist?.email;
 
   return (

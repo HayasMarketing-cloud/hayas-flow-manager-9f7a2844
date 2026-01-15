@@ -11,6 +11,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ClientFormModal } from '@/components/modals/ClientFormModal';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useCurrentSpecialist } from '@/hooks/useCurrentSpecialist';
 import GoogleDriveIcon from '@/assets/icons8-google-drive.svg';
 
 const Clientes = () => {
@@ -19,12 +20,41 @@ const Clientes = () => {
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canManageClients, loading: rolesLoading } = useUserRole();
+  const { canManageClients, isSpecialist, isAdmin, canAccessFinance, isProjectManager, loading: rolesLoading } = useUserRole();
+  const { specialistId, isLoading: specialistLoading } = useCurrentSpecialist();
   const canManage = canManageClients();
+  
+  // Check if user is only specialist (no other management roles)
+  const isOnlySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && !isProjectManager();
 
   const { data: clients, isLoading, error } = useQuery({
-    queryKey: ['clients'],
+    queryKey: ['clients', isOnlySpecialist, specialistId],
     queryFn: async () => {
+      if (isOnlySpecialist && specialistId) {
+        // Get unique client IDs from requests where this specialist is assigned
+        const { data: requests, error: reqError } = await supabase
+          .from('financial_requests')
+          .select('client_id')
+          .eq('specialist_id', specialistId);
+        
+        if (reqError) throw reqError;
+        
+        const clientIds = [...new Set(requests?.map(r => r.client_id) || [])];
+        
+        if (clientIds.length === 0) return [];
+        
+        const { data, error } = await supabase
+          .from('clients')
+          .select('*')
+          .in('id', clientIds)
+          .eq('status', 'active')
+          .order('name');
+
+        if (error) throw error;
+        return data;
+      }
+      
+      // Default: show all clients
       const { data, error } = await supabase
         .from('clients')
         .select('*')
@@ -34,6 +64,7 @@ const Clientes = () => {
       if (error) throw error;
       return data;
     },
+    enabled: !rolesLoading && (!isOnlySpecialist || !specialistLoading),
   });
 
   const filteredClients = clients?.filter(

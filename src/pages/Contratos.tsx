@@ -16,6 +16,8 @@ import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useUserRole } from '@/hooks/useUserRole';
+import { useCurrentSpecialist } from '@/hooks/useCurrentSpecialist';
 
 export default function Contratos() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -28,10 +30,56 @@ export default function Contratos() {
   const { user } = useAuth();
   const { filters, updateFilter, resetFilters } = useContractFilters();
   const queryClient = useQueryClient();
+  const { isSpecialist, isAdmin, canAccessFinance, isProjectManager, loading: rolesLoading } = useUserRole();
+  const { specialistId, isLoading: specialistLoading } = useCurrentSpecialist();
+  
+  // Check if user is only specialist (no other management roles)
+  const isOnlySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && !isProjectManager();
 
   const { data: contracts, isLoading } = useQuery({
-    queryKey: ['contracts', filters],
+    queryKey: ['contracts', filters, isOnlySpecialist, specialistId],
     queryFn: async () => {
+      if (isOnlySpecialist && specialistId) {
+        // Get contracts where specialist is in specialists_default or has contract_services
+        const { data: contractServices, error: csError } = await supabase
+          .from('contract_services')
+          .select('contract_id')
+          .eq('specialist_id', specialistId);
+        
+        if (csError) throw csError;
+        
+        const contractIdsFromServices = contractServices?.map(cs => cs.contract_id) || [];
+        
+        // Also get contracts where specialist is in specialists_default array
+        const { data: allContracts, error: cError } = await supabase
+          .from('contracts')
+          .select(`*, client:clients(id, name)`)
+          .order('created_at', { ascending: false });
+        
+        if (cError) throw cError;
+        
+        // Filter contracts where specialist is in specialists_default or has services
+        const filteredContracts = allContracts?.filter(c => 
+          contractIdsFromServices.includes(c.id) || 
+          (c.specialists_default && c.specialists_default.includes(specialistId))
+        ) || [];
+        
+        // Apply additional filters
+        let result = filteredContracts;
+        if (filters.status) {
+          result = result.filter(c => c.status === filters.status);
+        }
+        if (filters.clientId) {
+          result = result.filter(c => c.client_id === filters.clientId);
+        }
+        if (filters.searchTerm) {
+          result = result.filter(c => c.title?.toLowerCase().includes(filters.searchTerm.toLowerCase()));
+        }
+        
+        return result;
+      }
+      
+      // Default query for non-specialists
       let query = supabase
         .from('contracts')
         .select(`
@@ -54,7 +102,7 @@ export default function Contratos() {
       if (error) throw error;
       return data;
     },
-    enabled: !!user,
+    enabled: !!user && !rolesLoading && (!isOnlySpecialist || !specialistLoading),
   });
 
   const { data: clients } = useQuery({
@@ -132,10 +180,12 @@ export default function Contratos() {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">Contratos</h2>
-          <Button onClick={handleCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo Contrato
-          </Button>
+          {!isOnlySpecialist && (
+            <Button onClick={handleCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo Contrato
+            </Button>
+          )}
         </div>
 
         <Card>

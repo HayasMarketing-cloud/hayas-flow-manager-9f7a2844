@@ -18,6 +18,8 @@ import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useUserRole } from '@/hooks/useUserRole';
+import { useCurrentSpecialist } from '@/hooks/useCurrentSpecialist';
 
 export default function Presupuestos() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -39,10 +41,50 @@ export default function Presupuestos() {
   const navigate = useNavigate();
   const { filters, updateFilter, resetFilters } = useBudgetFilters();
   const queryClient = useQueryClient();
+  const { isSpecialist, isAdmin, canAccessFinance, isProjectManager, loading: rolesLoading } = useUserRole();
+  const { specialistId, isLoading: specialistLoading } = useCurrentSpecialist();
+  
+  // Check if user is only specialist (no other management roles)
+  const isOnlySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && !isProjectManager();
 
   const { data: budgets, isLoading } = useQuery({
-    queryKey: ['budgets', filters],
+    queryKey: ['budgets', filters, isOnlySpecialist, specialistId],
     queryFn: async () => {
+      if (isOnlySpecialist && specialistId) {
+        // Get budget IDs where specialist has items assigned
+        const { data: budgetItems, error: biError } = await supabase
+          .from('budget_items')
+          .select('budget_id')
+          .eq('specialist_id', specialistId);
+        
+        if (biError) throw biError;
+        
+        const budgetIds = [...new Set(budgetItems?.map(bi => bi.budget_id) || [])];
+        
+        if (budgetIds.length === 0) return [];
+        
+        let query = supabase
+          .from('budgets')
+          .select(`*, client:clients(id, name)`)
+          .in('id', budgetIds)
+          .order('created_at', { ascending: false });
+
+        if (filters.status) {
+          query = query.eq('status', filters.status);
+        }
+        if (filters.clientId) {
+          query = query.eq('client_id', filters.clientId);
+        }
+        if (filters.searchTerm) {
+          query = query.or(`title.ilike.%${filters.searchTerm}%`);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return data;
+      }
+      
+      // Default query for non-specialists
       let query = supabase
         .from('budgets')
         .select(`
@@ -65,7 +107,7 @@ export default function Presupuestos() {
       if (error) throw error;
       return data;
     },
-    enabled: !!user,
+    enabled: !!user && !rolesLoading && (!isOnlySpecialist || !specialistLoading),
   });
 
   const { data: clients } = useQuery({
@@ -325,10 +367,12 @@ export default function Presupuestos() {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h2 className="text-2xl font-bold">Presupuestos</h2>
-          <Button onClick={handleCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo Presupuesto
-          </Button>
+          {!isOnlySpecialist && (
+            <Button onClick={handleCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo Presupuesto
+            </Button>
+          )}
         </div>
 
         <Card>

@@ -106,6 +106,50 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Error al actualizar la liquidación");
     }
 
+    // Get liquidation details for notification
+    const { data: liquidationData } = await supabase
+      .from('liquidations')
+      .select('code, specialist:specialists(name)')
+      .eq('id', signature.liquidation_id)
+      .single();
+
+    // Get users with admin, account_manager, and finanzas roles for notification
+    const { data: usersToNotify } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .in('role', ['admin', 'account_manager', 'finanzas']);
+
+    if (usersToNotify && usersToNotify.length > 0 && liquidationData) {
+      const uniqueUserIds = [...new Set(usersToNotify.map((u: { user_id: string }) => u.user_id))];
+      
+      // Handle specialist as object (single relation via .single())
+      const specialistName = (liquidationData.specialist as any)?.name || 'Especialista';
+      
+      const notifications = uniqueUserIds.map((userId: string) => ({
+        user_id: userId,
+        title: action === 'accept' 
+          ? 'Liquidación aceptada' 
+          : 'Liquidación disputada',
+        message: action === 'accept'
+          ? `${specialistName} ha aceptado ${liquidationData.code}`
+          : `${specialistName} ha disputado ${liquidationData.code}${disputeReason ? `: ${disputeReason}` : ''}`,
+        type: action === 'accept' ? 'success' : 'warning',
+        category: 'liquidation',
+        entity_id: signature.liquidation_id,
+        entity_type: 'liquidation',
+        action_url: `/liquidaciones/${signature.liquidation_id}`,
+        is_read: false,
+      }));
+
+      const { error: notifyError } = await supabase.from('notifications').insert(notifications);
+      if (notifyError) {
+        console.error("Error creating notifications:", notifyError);
+        // Don't fail the whole request, just log the error
+      } else {
+        console.log(`Notifications sent to ${uniqueUserIds.length} users`);
+      }
+    }
+
     console.log(`Signature processed successfully: ${action}`);
 
     return new Response(

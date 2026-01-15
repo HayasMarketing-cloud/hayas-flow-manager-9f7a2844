@@ -31,6 +31,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
     start_date: '',
     end_date: '',
     status: 'draft',
+    contract_type: 'retainer' as 'retainer' | 'project' | 'one_time',
     enable_auto_requests: false,
     is_on_demand: false,
     am_user_id: '',
@@ -74,6 +75,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         start_date: contract.start_date || '',
         end_date: contract.end_date || '',
         status: contract.status || 'draft',
+        contract_type: contract.contract_type || 'retainer',
         enable_auto_requests: contract.enable_auto_requests || false,
         is_on_demand: contract.is_on_demand || false,
         am_user_id: contract.am_user_id || '',
@@ -87,6 +89,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         start_date: '',
         end_date: '',
         status: 'draft',
+        contract_type: 'retainer',
         enable_auto_requests: false,
         is_on_demand: false,
         am_user_id: '',
@@ -154,6 +157,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         start_date: formData.start_date || null,
         end_date: formData.end_date || null,
         status: formData.status,
+        contract_type: formData.contract_type,
         total_amount: fixedServicesTotal,
         enable_auto_requests: formData.enable_auto_requests,
         is_on_demand: formData.is_on_demand,
@@ -478,6 +482,25 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                   <SelectItem value="active">Activo</SelectItem>
                   <SelectItem value="suspended">Suspendido</SelectItem>
                   <SelectItem value="cancelled">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Tipo de Contrato */}
+            <div className="space-y-2">
+              <Label>Tipo de Contrato</Label>
+              <Select
+                value={formData.contract_type}
+                onValueChange={(value: 'retainer' | 'project' | 'one_time') => setFormData({ ...formData, contract_type: value })}
+                disabled={!canEdit}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="retainer">Retainer</SelectItem>
+                  <SelectItem value="project">Por Proyecto</SelectItem>
+                  <SelectItem value="one_time">Puntual</SelectItem>
                 </SelectContent>
               </Select>
             </div>

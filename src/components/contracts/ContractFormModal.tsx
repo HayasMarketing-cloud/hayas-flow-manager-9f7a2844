@@ -32,6 +32,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
     end_date: '',
     status: 'draft',
     enable_auto_requests: false,
+    is_on_demand: false,
     am_user_id: '',
     pm_user_id: '',
   });
@@ -74,6 +75,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         end_date: contract.end_date || '',
         status: contract.status || 'draft',
         enable_auto_requests: contract.enable_auto_requests || false,
+        is_on_demand: contract.is_on_demand || false,
         am_user_id: contract.am_user_id || '',
         pm_user_id: contract.pm_user_id || '',
       });
@@ -86,6 +88,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         end_date: '',
         status: 'draft',
         enable_auto_requests: false,
+        is_on_demand: false,
         am_user_id: '',
         pm_user_id: '',
       });
@@ -153,6 +156,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         status: formData.status,
         total_amount: fixedServicesTotal,
         enable_auto_requests: formData.enable_auto_requests,
+        is_on_demand: formData.is_on_demand,
         am_user_id: formData.am_user_id || null,
         pm_user_id: formData.pm_user_id || null,
       };
@@ -491,21 +495,40 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
             />
         </div>
 
-          <div className="flex items-center justify-between rounded-lg border p-4">
-            <div className="space-y-0.5">
-              <Label htmlFor="enable_auto_requests">Requests Recurrentes</Label>
-              <p className="text-sm text-muted-foreground">
-                Activar generación automática de requests mensuales
-              </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="enable_auto_requests">Requests Recurrentes</Label>
+                <p className="text-sm text-muted-foreground">
+                  Generación automática mensual
+                </p>
+              </div>
+              <Switch
+                id="enable_auto_requests"
+                checked={formData.enable_auto_requests}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, enable_auto_requests: checked })
+                }
+                disabled={!canEdit}
+              />
             </div>
-            <Switch
-              id="enable_auto_requests"
-              checked={formData.enable_auto_requests}
-              onCheckedChange={(checked) =>
-                setFormData({ ...formData, enable_auto_requests: checked })
-              }
-              disabled={!canEdit}
-            />
+
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="is_on_demand">Según Demanda</Label>
+                <p className="text-sm text-muted-foreground">
+                  Servicios sin cantidad prefijada
+                </p>
+              </div>
+              <Switch
+                id="is_on_demand"
+                checked={formData.is_on_demand}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, is_on_demand: checked })
+                }
+                disabled={!canEdit}
+              />
+            </div>
           </div>
 
           <ContractServicesEditor services={services} onChange={setServices} disabled={!canEdit} />

@@ -11,6 +11,7 @@ import { ArrowLeft, User, Calendar, FileText, Mail, Download, Trash2, Plus } fro
 import { AddRequestsToLiquidationModal } from '@/components/liquidations/AddRequestsToLiquidationModal';
 import { LiquidationStatusBadge } from '@/components/liquidations/LiquidationStatusBadge';
 import { SignatureStatusBadge } from '@/components/liquidations/SignatureStatusBadge';
+import { LiquidationProcessTimeline } from '@/components/liquidations/LiquidationProcessTimeline';
 import { formatPeriod, formatCurrency } from '@/lib/liquidation-utils';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useUnliquidatedRequests } from '@/hooks/useUnliquidatedRequests';
@@ -576,36 +577,13 @@ export default function LiquidacionDetalle() {
           </Card>
         </div>
 
-        {/* Signature Info */}
-        {latestSignature && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium">Estado de Firma</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <SignatureStatusBadge signature={latestSignature} />
-                {latestSignature.signed_at && (
-                  <span className="text-sm text-muted-foreground">
-                    Firmada el {new Date(latestSignature.signed_at).toLocaleString('es-ES')}
-                  </span>
-                )}
-                {latestSignature.dispute_reason && (
-                  <div className="flex-1">
-                    <p className="text-sm text-destructive font-medium">Motivo de disputa:</p>
-                    <p className="text-sm">{latestSignature.dispute_reason}</p>
-                  </div>
-                )}
-                {latestSignature.specialist_comments && (
-                  <div className="flex-1">
-                    <p className="text-sm text-muted-foreground font-medium">Comentarios:</p>
-                    <p className="text-sm">{latestSignature.specialist_comments}</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Process Timeline */}
+        <LiquidationProcessTimeline 
+          liquidation={liquidation}
+          signature={latestSignature}
+          onResendEmail={hasSpecialistEmail && canAccessFinance() ? handleSendEmail : undefined}
+          isSending={isSending}
+        />
 
         {/* Items Table */}
         <Card>

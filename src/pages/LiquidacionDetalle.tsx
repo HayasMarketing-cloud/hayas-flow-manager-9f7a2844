@@ -28,6 +28,7 @@ export default function LiquidacionDetalle() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [addRequestsModalOpen, setAddRequestsModalOpen] = useState(false);
+  const [itemToRemove, setItemToRemove] = useState<{ id: string; requestId: string | null; description: string } | null>(null);
 
   const { data: liquidation, isLoading, error } = useQuery({
     queryKey: ['liquidation-detail', id],
@@ -116,6 +117,56 @@ export default function LiquidacionDetalle() {
       queryClient.invalidateQueries({ queryKey: ['liquidations'] });
       toast.success('Liquidación eliminada correctamente');
       navigate('/liquidaciones');
+    },
+    onError: (error: any) => {
+      toast.error('Error al eliminar: ' + error.message);
+    },
+  });
+
+  const removeItemMutation = useMutation({
+    mutationFn: async ({ itemId, requestId }: { itemId: string; requestId: string | null }) => {
+      // Get the item to know the total to subtract
+      const { data: item, error: fetchError } = await supabase
+        .from('liquidation_items')
+        .select('total')
+        .eq('id', itemId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Delete the liquidation item
+      const { error: deleteError } = await supabase
+        .from('liquidation_items')
+        .delete()
+        .eq('id', itemId);
+
+      if (deleteError) throw deleteError;
+
+      // Update the financial_request to remove liquidation_id
+      if (requestId) {
+        const { error: updateError } = await supabase
+          .from('financial_requests')
+          .update({ liquidation_id: null })
+          .eq('id', requestId);
+
+        if (updateError) throw updateError;
+      }
+
+      // Recalculate and update liquidation total
+      const newTotal = (liquidation?.calculated_total || 0) - (Number(item.total) || 0);
+      const { error: liquidationError } = await supabase
+        .from('liquidations')
+        .update({ total_amount: Math.max(0, newTotal) })
+        .eq('id', id);
+
+      if (liquidationError) throw liquidationError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      queryClient.invalidateQueries({ queryKey: ['unliquidated-requests'] });
+      toast.success('Solicitud eliminada de la liquidación');
+      setItemToRemove(null);
     },
     onError: (error: any) => {
       toast.error('Error al eliminar: ' + error.message);
@@ -376,6 +427,7 @@ export default function LiquidacionDetalle() {
                     <TableHead className="text-right">Cantidad</TableHead>
                     <TableHead className="text-right">Precio Unit.</TableHead>
                     <TableHead className="text-right">Total</TableHead>
+                    {isEditable && canAccessFinance() && <TableHead className="w-10"></TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -393,6 +445,25 @@ export default function LiquidacionDetalle() {
                       <TableCell className="text-right">{item.quantity}</TableCell>
                       <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(item.total)}</TableCell>
+                      {isEditable && canAccessFinance() && (
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setItemToRemove({
+                                id: item.id,
+                                requestId: item.financial_request?.id || null,
+                                description: item.description,
+                              });
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -444,6 +515,17 @@ export default function LiquidacionDetalle() {
         title="Eliminar liquidación"
         description={`¿Estás seguro de que deseas eliminar la liquidación ${liquidation.code}? Esta acción no se puede deshacer.`}
         onConfirm={() => deleteMutation.mutate()}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="destructive"
+      />
+
+      <ConfirmDialog
+        open={!!itemToRemove}
+        onOpenChange={(open) => !open && setItemToRemove(null)}
+        title="Eliminar solicitud de la liquidación"
+        description={`¿Estás seguro de que deseas eliminar "${itemToRemove?.description}" de esta liquidación? La solicitud quedará disponible para incluir en otras liquidaciones.`}
+        onConfirm={() => itemToRemove && removeItemMutation.mutate({ itemId: itemToRemove.id, requestId: itemToRemove.requestId })}
         confirmText="Eliminar"
         cancelText="Cancelar"
         variant="destructive"

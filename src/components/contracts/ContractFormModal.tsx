@@ -490,17 +490,16 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
             <div className="space-y-2">
               <Label>Tipo de Contrato</Label>
               <Select
-                value={formData.contract_type}
-                onValueChange={(value: 'retainer' | 'project' | 'one_time') => setFormData({ ...formData, contract_type: value })}
+                value={formData.contract_type === 'one_time' ? 'project' : formData.contract_type}
+                onValueChange={(value: 'retainer' | 'project') => setFormData({ ...formData, contract_type: value })}
                 disabled={!canEdit}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="retainer">Retainer</SelectItem>
-                  <SelectItem value="project">Por Proyecto</SelectItem>
-                  <SelectItem value="one_time">Puntual</SelectItem>
+                  <SelectItem value="retainer">Recurrente</SelectItem>
+                  <SelectItem value="project">Puntual</SelectItem>
                 </SelectContent>
               </Select>
             </div>

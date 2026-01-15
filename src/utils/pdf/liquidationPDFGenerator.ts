@@ -136,6 +136,14 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     },
   });
 
+  // Calcular total desde los items en lugar de usar subtotal guardado
+  const calculatedTotal = data.items.reduce((sum, item) => {
+    const costToAgency = item.financial_request_id 
+      ? (Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0)
+      : Number(item.unit_price) || 0;
+    return sum + costToAgency;
+  }, 0);
+
   // Total
   const finalY = (doc as any).lastAutoTable.finalY + 10;
 
@@ -145,7 +153,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.text('TOTAL A PAGAR:', totalsX, finalY);
-  doc.text(formatCurrency(data.liquidation.subtotal), pageWidth - 15, finalY, { align: 'right' });
+  doc.text(formatCurrency(calculatedTotal), pageWidth - 15, finalY, { align: 'right' });
 
   // Notas
   let currentY = finalY;
@@ -356,6 +364,14 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
     },
   });
 
+  // Calcular total desde los items en lugar de usar subtotal guardado
+  const calculatedTotal = data.items.reduce((sum, item) => {
+    const costToAgency = item.financial_request_id 
+      ? (Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0)
+      : Number(item.unit_price) || 0;
+    return sum + costToAgency;
+  }, 0);
+
   // Total
   const finalY = (doc as any).lastAutoTable.finalY + 10;
 
@@ -365,7 +381,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.text('TOTAL A PAGAR:', totalsX, finalY);
-  doc.text(formatCurrency(data.liquidation.subtotal), pageWidth - 15, finalY, { align: 'right' });
+  doc.text(formatCurrency(calculatedTotal), pageWidth - 15, finalY, { align: 'right' });
 
   // Notas
   let currentY = finalY;

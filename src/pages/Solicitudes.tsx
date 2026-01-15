@@ -269,6 +269,11 @@ const Solicitudes = () => {
     setDeleteConfirmOpen(true);
   };
 
+  const handleAddToLiquidation = (request: any) => {
+    setSelectedIds([request.id]);
+    setAddToLiquidationOpen(true);
+  };
+
   // Bulk update mutation
   const bulkUpdateMutation = useMutation({
     mutationFn: async ({ field, value }: { field: string; value: any }) => {
@@ -603,6 +608,7 @@ const Solicitudes = () => {
                   onEdit={handleEditRequest}
                   onDelete={confirmDelete}
                   onClone={handleCloneRequest}
+                  onAddToLiquidation={handleAddToLiquidation}
                   canManage={canManage}
                   onRefresh={handleSuccess}
                 />

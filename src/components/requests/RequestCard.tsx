@@ -4,7 +4,7 @@ import { RequestStatusBadge } from './RequestStatusBadge';
 import { RequestFlowIndicator } from './RequestFlowIndicator';
 import { RequestFlowActions } from './RequestFlowActions';
 import { FlowStatusCell } from './FlowStatusCell';
-import { Edit, Building2, Calendar, Euro, Copy, Trash2, Eye } from 'lucide-react';
+import { Edit, Building2, Calendar, Euro, Copy, Trash2, Eye, Receipt } from 'lucide-react';
 import { formatCurrency } from '@/lib/request-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -15,11 +15,12 @@ interface RequestCardProps {
   onEdit: (request: any) => void;
   onDelete: (request: any) => void;
   onClone: (request: any) => void;
+  onAddToLiquidation?: (request: any) => void;
   canManage: boolean;
   onRefresh?: () => void;
 }
 
-export const RequestCard = ({ request, onEdit, onDelete, onClone, canManage, onRefresh }: RequestCardProps) => {
+export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquidation, canManage, onRefresh }: RequestCardProps) => {
   const navigate = useNavigate();
   
   // Calculate total: cost_to_agency or calculate from hours/fixed
@@ -111,6 +112,16 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, canManage, onR
               >
                 <Edit className="h-4 w-4" />
               </Button>
+              {!request.liquidation_id && onAddToLiquidation && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onAddToLiquidation(request)}
+                  title="Añadir a Liquidación"
+                >
+                  <Receipt className="h-4 w-4" />
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"

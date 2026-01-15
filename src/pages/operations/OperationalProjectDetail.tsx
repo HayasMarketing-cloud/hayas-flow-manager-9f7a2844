@@ -286,10 +286,23 @@ export default function OperationalProjectDetail() {
               <div className="flex items-start gap-3">
                 <User className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Owner</p>
-                  <p className="font-medium">{project.owner?.full_name || '-'}</p>
+                  <p className="text-sm text-muted-foreground">Account Manager</p>
+                  <p className="font-medium">
+                    {project.budget?.am_profile?.full_name || project.contract?.am_profile?.full_name || '-'}
+                  </p>
                 </div>
               </div>
+              {(project.budget?.pm_profile?.full_name || project.contract?.pm_profile?.full_name) && (
+                <div className="flex items-start gap-3">
+                  <User className="h-5 w-5 text-muted-foreground mt-0.5" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Project Manager</p>
+                    <p className="font-medium">
+                      {project.budget?.pm_profile?.full_name || project.contract?.pm_profile?.full_name}
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="flex items-start gap-3">
                 <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div>

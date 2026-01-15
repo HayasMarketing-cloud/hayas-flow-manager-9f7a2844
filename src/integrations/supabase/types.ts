@@ -1687,6 +1687,7 @@ export type Database = {
         | "accepted"
         | "pending_payment"
         | "paid"
+        | "disputed"
       operational_status: "pending" | "in_progress" | "in_review" | "completed"
       payment_method: "stripe" | "credit_card" | "sdd" | "bank_transfer"
       price_rule_type: "hourly" | "fixed"
@@ -1857,6 +1858,7 @@ export const Constants = {
         "accepted",
         "pending_payment",
         "paid",
+        "disputed",
       ],
       operational_status: ["pending", "in_progress", "in_review", "completed"],
       payment_method: ["stripe", "credit_card", "sdd", "bank_transfer"],

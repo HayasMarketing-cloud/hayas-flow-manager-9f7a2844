@@ -8,6 +8,7 @@ export const getLiquidationStatusColor = (status: LiquidationStatus): string => 
     validated: 'bg-purple-500 text-white',
     sent: 'bg-blue-500 text-white',
     accepted: 'bg-teal-500 text-white',
+    disputed: 'bg-red-500 text-white',
     pending_payment: 'bg-orange-500 text-white',
     paid: 'bg-green-500 text-white',
   };
@@ -20,6 +21,7 @@ export const getLiquidationStatusLabel = (status: LiquidationStatus): string => 
     validated: 'Validada',
     sent: 'Enviada',
     accepted: 'Aceptada',
+    disputed: 'Disputada',
     pending_payment: 'Pendiente de pago',
     paid: 'Pagada',
   };

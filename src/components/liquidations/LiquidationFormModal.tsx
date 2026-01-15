@@ -26,7 +26,7 @@ const liquidationSchema = z.object({
   specialist_id: z.string().min(1, 'Especialista es requerido'),
   period_year: z.number().min(2020).max(2100),
   period_month: z.number().min(1).max(12),
-  status: z.enum(['draft', 'validated', 'sent', 'accepted', 'pending_payment', 'paid']),
+  status: z.enum(['draft', 'validated', 'sent', 'accepted', 'disputed', 'pending_payment', 'paid']),
   notes: z.string().optional(),
 });
 
@@ -951,6 +951,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
                 <SelectItem value="validated">Validada</SelectItem>
                 <SelectItem value="sent">Enviada</SelectItem>
                 <SelectItem value="accepted">Aceptada</SelectItem>
+                <SelectItem value="disputed">Disputada</SelectItem>
                 <SelectItem value="pending_payment">Pendiente de pago</SelectItem>
                 <SelectItem value="paid">Pagada</SelectItem>
               </SelectContent>

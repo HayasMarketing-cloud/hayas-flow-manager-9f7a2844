@@ -35,6 +35,7 @@ import { Loader2, Clock, Euro, User, FileText, ShoppingCart } from 'lucide-react
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
+import { notifySpecialistAssigned } from '@/lib/notification-utils';
 
 const requestSchema = z.object({
   client_id: z.string().uuid('Selecciona un cliente'),
@@ -146,7 +147,7 @@ export const RequestFormModal = ({
           .order('name'),
         supabase
           .from('specialists')
-          .select('id, name, hourly_rate')
+          .select('id, name, hourly_rate, user_id, email')
           .eq('active', true)
           .order('name'),
       ]);
@@ -249,10 +250,23 @@ export const RequestFormModal = ({
         const { data: newRequest, error } = await supabase
           .from('financial_requests')
           .insert([requestData as any])
-          .select('id')
+          .select('id, code')
           .single();
         if (error) throw error;
-        return { isNew: true, id: newRequest?.id };
+        
+        // Get specialist data for notification
+        const specialistData = data.specialist_id 
+          ? specialists?.find(s => s.id === data.specialist_id)
+          : null;
+        
+        return { 
+          isNew: true, 
+          id: newRequest?.id,
+          code: newRequest?.code,
+          specialistData,
+          status: data.status,
+          clientId: data.client_id,
+        };
       }
     },
     onSuccess: async (result) => {
@@ -263,6 +277,17 @@ export const RequestFormModal = ({
           action: result.isNew ? 'created' : 'updated',
           changes: result.isNew ? { title: form.getValues('title') } : null
         });
+      }
+      
+      // Notify specialist if assigned with pending_specialist status
+      if (result?.isNew && result?.specialistData?.user_id && result?.status === 'pending_specialist') {
+        const client = formData?.clients?.find(c => c.id === result.clientId);
+        await notifySpecialistAssigned(
+          result.specialistData.user_id,
+          result.code || `Solicitud`,
+          result.id,
+          client?.name || 'Cliente'
+        );
       }
       
       toast.success(

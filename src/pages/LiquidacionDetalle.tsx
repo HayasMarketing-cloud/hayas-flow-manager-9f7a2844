@@ -13,11 +13,101 @@ import { LiquidationStatusBadge } from '@/components/liquidations/LiquidationSta
 import { SignatureStatusBadge } from '@/components/liquidations/SignatureStatusBadge';
 import { formatPeriod, formatCurrency } from '@/lib/liquidation-utils';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useUnliquidatedRequests } from '@/hooks/useUnliquidatedRequests';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { generateLiquidationPDF, generateLiquidationPDFBase64 } from '@/utils/pdf/liquidationPDFGenerator';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useState } from 'react';
+
+// Component for pending requests section
+function PendingRequestsSection({ 
+  specialistId, 
+  onAddRequest 
+}: { 
+  specialistId: string; 
+  onAddRequest: () => void;
+}) {
+  const { data: unliquidatedRequests, isLoading } = useUnliquidatedRequests(specialistId);
+  
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Solicitudes pendientes de liquidar</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-20 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!unliquidatedRequests || unliquidatedRequests.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Solicitudes pendientes de liquidar</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-center text-muted-foreground py-4">
+            No hay solicitudes pendientes de liquidar para este especialista
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const totalPending = unliquidatedRequests.reduce((sum, req) => sum + (Number(req.cost_to_agency) || 0), 0);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-base">Solicitudes pendientes de liquidar</CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            {unliquidatedRequests.length} solicitud(es) disponible(s) • Total: {formatCurrency(totalPending)}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={onAddRequest}>
+          <Plus className="h-4 w-4 mr-2" />
+          Añadir a liquidación
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Código</TableHead>
+              <TableHead>Título</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead>Servicio</TableHead>
+              <TableHead className="text-right">Coste</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {unliquidatedRequests.slice(0, 5).map((request) => (
+              <TableRow key={request.id}>
+                <TableCell className="font-mono text-sm">{request.code}</TableCell>
+                <TableCell className="max-w-[200px] truncate">{request.title}</TableCell>
+                <TableCell>{request.client?.name || '-'}</TableCell>
+                <TableCell>{request.service?.name || '-'}</TableCell>
+                <TableCell className="text-right font-medium">
+                  {formatCurrency(Number(request.cost_to_agency) || 0)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        {unliquidatedRequests.length > 5 && (
+          <p className="text-center text-sm text-muted-foreground mt-4">
+            Y {unliquidatedRequests.length - 5} solicitud(es) más...
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function LiquidacionDetalle() {
   const { id } = useParams<{ id: string }>();
@@ -473,6 +563,14 @@ export default function LiquidacionDetalle() {
             )}
           </CardContent>
         </Card>
+
+        {/* Pending Requests Section */}
+        {isEditable && canAccessFinance() && (
+          <PendingRequestsSection 
+            specialistId={liquidation.specialist_id} 
+            onAddRequest={() => setAddRequestsModalOpen(true)} 
+          />
+        )}
 
         {/* Notes */}
         {liquidation.notes && (

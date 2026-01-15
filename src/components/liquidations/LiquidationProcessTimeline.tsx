@@ -58,7 +58,7 @@ interface LiquidationProcessTimelineProps {
   isSending?: boolean;
 }
 
-const statusOrder: LiquidationStatus[] = ['draft', 'validated', 'sent', 'accepted', 'pending_payment', 'paid'];
+const statusOrder: LiquidationStatus[] = ['draft', 'validated', 'sent', 'accepted', 'disputed', 'pending_payment', 'paid'];
 
 const getStatusIndex = (status: LiquidationStatus): number => {
   return statusOrder.indexOf(status);

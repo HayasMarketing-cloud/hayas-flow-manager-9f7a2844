@@ -187,7 +187,7 @@ export default function FirmaLiquidacion() {
   const isAlreadyProcessed = signatureData.status !== 'pending';
   const liquidation = signatureData.liquidation;
   const periodName = `${monthNames[(liquidation?.period_month || 1) - 1]} ${liquidation?.period_year}`;
-  const totalAmount = items?.reduce((sum, item) => sum + Number(item.total), 0) || liquidation?.total_amount || 0;
+  const totalAmount = items?.reduce((sum, item) => sum + Number(item.total), 0) || liquidation?.subtotal || 0;
 
   // Already processed
   if (isAlreadyProcessed || processMutation.isSuccess) {

@@ -6,13 +6,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RequestFlowIndicator } from './RequestFlowIndicator';
 import { RequestFlowActions } from './RequestFlowActions';
 import { FlowStatusCell } from './FlowStatusCell';
 import { RequestStatusBadge } from './RequestStatusBadge';
-import { Edit, Eye, Copy, Trash2 } from 'lucide-react';
+import { Edit, Eye, Copy, Trash2, User } from 'lucide-react';
 import { formatCurrency } from '@/lib/request-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -61,12 +62,14 @@ export const RequestTableView = ({
             <TableHead>Código</TableHead>
             <TableHead>Título</TableHead>
             <TableHead>Cliente</TableHead>
+            <TableHead>Especialista</TableHead>
             <TableHead>Estado</TableHead>
             <TableHead>Flujo</TableHead>
             <TableHead>Siguiente Acción</TableHead>
             <TableHead>Factura</TableHead>
             <TableHead>Liquidación</TableHead>
             <TableHead className="text-right">Coste (€)</TableHead>
+            <TableHead className="text-right">Venta (€)</TableHead>
             <TableHead>Fecha</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
@@ -74,17 +77,23 @@ export const RequestTableView = ({
         <TableBody>
           {requests.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={12} className="text-center text-muted-foreground">
+              <TableCell colSpan={14} className="text-center text-muted-foreground">
                 No se encontraron solicitudes
               </TableCell>
             </TableRow>
           ) : (
             requests.map((request) => {
-              // Calculate total: cost_to_agency or calculate from hours/fixed
-              const totalAmount = request.cost_to_agency || 
+              // Calculate cost: cost_to_agency or calculate from hours/fixed
+              const costAmount = request.cost_to_agency || 
                 (request.cost_type === 'hourly' 
                   ? (request.hours || 0) * (request.cost_rate || 0) 
                   : (request.fixed_cost || 0));
+              
+              // Calculate sale amount
+              const saleAmount = request.sale_amount || 
+                (request.sale_type === 'hourly' 
+                  ? (request.sale_hours || request.hours || 0) * (request.sale_rate || 0) 
+                  : (request.unit_price || 0) * (request.quantity || 1));
               
               return (
                 <TableRow key={request.id}>
@@ -105,6 +114,26 @@ export const RequestTableView = ({
                     {request.title}
                   </TableCell>
                   <TableCell>{request.client?.name || '-'}</TableCell>
+                  <TableCell>
+                    {request.specialist ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-1.5 max-w-[120px]">
+                            <User className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                            <span className="text-sm truncate">{request.specialist.name}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{request.specialist.name}</p>
+                          {request.specialist.email && (
+                            <p className="text-xs text-muted-foreground">{request.specialist.email}</p>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <RequestStatusBadge status={request.status} />
                   </TableCell>
@@ -133,7 +162,10 @@ export const RequestTableView = ({
                     />
                   </TableCell>
                   <TableCell className="text-right font-semibold">
-                    {formatCurrency(totalAmount)}
+                    {formatCurrency(costAmount)}
+                  </TableCell>
+                  <TableCell className="text-right font-semibold text-primary">
+                    {formatCurrency(saleAmount)}
                   </TableCell>
                   <TableCell>
                     {format(new Date(request.created_at), 'dd/MM/yyyy', { locale: es })}

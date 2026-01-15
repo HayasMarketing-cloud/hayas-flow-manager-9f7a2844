@@ -517,6 +517,7 @@ const Solicitudes = () => {
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Coste:</span>
               <Input
+                id="bulk-cost-input"
                 type="number"
                 placeholder="0.00"
                 className="w-[100px] h-8"
@@ -525,11 +526,26 @@ const Solicitudes = () => {
                     const value = parseFloat((e.target as HTMLInputElement).value);
                     if (!isNaN(value)) {
                       confirmBulkEdit('cost_to_agency', value, `${value.toFixed(2)} €`);
-                      (e.target as HTMLInputElement).value = '';
                     }
                   }
                 }}
               />
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => {
+                  const input = document.getElementById('bulk-cost-input') as HTMLInputElement;
+                  const value = parseFloat(input?.value || '');
+                  if (!isNaN(value) && value >= 0) {
+                    confirmBulkEdit('cost_to_agency', value, `${value.toFixed(2)} €`);
+                  } else {
+                    toast.error('Introduce un coste válido');
+                  }
+                }}
+              >
+                Aplicar
+              </Button>
             </div>
             
             <div className="h-4 w-px bg-border" />

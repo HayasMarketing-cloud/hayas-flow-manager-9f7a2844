@@ -77,10 +77,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 5. Fetch contract with services using admin client
+    // 5. Fetch contract with services and specialist data using admin client
     const { data: contract, error: contractError } = await supabaseAdmin
       .from('contracts')
-      .select('*, contract_services(*)')
+      .select('*, contract_services(*, specialist:specialists(hourly_rate))')
       .eq('id', contract_id)
       .single();
 
@@ -105,6 +105,8 @@ Deno.serve(async (req) => {
 
     for (const service of contract.contract_services) {
       if (service.billing_frequency === 'monthly') {
+        const specialistHourlyRate = service.specialist?.hourly_rate || 0;
+        
         requests.push({
           client_id: contract.client_id,
           service_id: service.service_id,
@@ -115,6 +117,17 @@ Deno.serve(async (req) => {
           quantity: service.quantity,
           status: 'draft',
           code: '',
+          
+          // Cost fields (what the agency pays the specialist)
+          cost_type: service.price_rule_type === 'hourly' ? 'hourly' : 'fixed',
+          cost_rate: service.price_rule_type === 'hourly' ? specialistHourlyRate : null,
+          fixed_cost: service.price_rule_type === 'fixed' ? (service.quantity * specialistHourlyRate) : null,
+          
+          // Sale fields (what the agency charges the client)
+          sale_type: service.price_rule_type,
+          sale_rate: service.price_rule_type === 'hourly' ? service.price_value : null,
+          unit_price: service.price_rule_type === 'fixed' ? service.price_value : null,
+          sale_amount: service.price_rule_type === 'fixed' ? (service.quantity * service.price_value) : null,
         });
       }
     }

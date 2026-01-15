@@ -10,11 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, LayoutGrid, Table as TableIcon, Download, Trash2, Receipt } from 'lucide-react';
+import { Plus, Search, LayoutGrid, Table as TableIcon, Download, Trash2, Receipt, X } from 'lucide-react';
 import { exportRequestsToExcel } from '@/utils/excel/requestsExporter';
 import { toast } from 'sonner';
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { RequestFormModal } from '@/components/modals/RequestFormModal';
 import { RequestCard } from '@/components/requests/RequestCard';
@@ -267,6 +267,25 @@ const Solicitudes = () => {
     setDeleteConfirmOpen(true);
   };
 
+  // Bulk update mutation
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async ({ field, value }: { field: string; value: any }) => {
+      const { error } = await supabase
+        .from('financial_requests')
+        .update({ [field]: value })
+        .in('id', selectedIds);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Solicitudes actualizadas correctamente');
+      queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
+      setSelectedIds([]);
+    },
+    onError: () => {
+      toast.error('Error al actualizar las solicitudes');
+    },
+  });
+
   if (error) {
     return (
       <AppLayout title="Solicitudes" description="Gestión de solicitudes de servicios">
@@ -426,8 +445,69 @@ const Solicitudes = () => {
 
         {/* Barra de acciones en grupo */}
         {selectedIds.length > 0 && viewMode === 'table' && (
-          <div className="flex items-center gap-4 p-3 bg-muted rounded-md">
+          <div className="flex flex-wrap items-center gap-4 p-3 bg-muted rounded-md">
             <span className="text-sm font-medium">{selectedIds.length} seleccionados</span>
+            
+            <div className="h-4 w-px bg-border" />
+            
+            {/* Estado */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Estado:</span>
+              <Select 
+                onValueChange={(value) => {
+                  bulkUpdateMutation.mutate({ field: 'status', value });
+                }}
+              >
+                <SelectTrigger className="w-[160px] h-8">
+                  <SelectValue placeholder="Cambiar..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Borrador</SelectItem>
+                  <SelectItem value="pending_specialist">Pend. Especialista</SelectItem>
+                  <SelectItem value="pending_approval">Pend. Aprobación</SelectItem>
+                  <SelectItem value="in_progress">En Progreso</SelectItem>
+                  <SelectItem value="pending_review">Pend. Revisión</SelectItem>
+                  <SelectItem value="completed">Completado</SelectItem>
+                  <SelectItem value="cancelled">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Fecha */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Fecha:</span>
+              <Input
+                type="date"
+                className="w-[140px] h-8"
+                onChange={(e) => {
+                  if (e.target.value) {
+                    bulkUpdateMutation.mutate({ field: 'deadline', value: e.target.value });
+                  }
+                }}
+              />
+            </div>
+            
+            {/* Coste */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Coste:</span>
+              <Input
+                type="number"
+                placeholder="0.00"
+                className="w-[100px] h-8"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const value = parseFloat((e.target as HTMLInputElement).value);
+                    if (!isNaN(value)) {
+                      bulkUpdateMutation.mutate({ field: 'cost_to_agency', value });
+                      (e.target as HTMLInputElement).value = '';
+                    }
+                  }
+                }}
+              />
+            </div>
+            
+            <div className="h-4 w-px bg-border" />
+            
             <Button
               variant="outline"
               size="sm"
@@ -442,7 +522,17 @@ const Solicitudes = () => {
               onClick={() => setBulkDeleteConfirmOpen(true)}
             >
               <Trash2 className="h-4 w-4 mr-2" />
-              Eliminar seleccionados
+              Eliminar
+            </Button>
+            
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setSelectedIds([])} 
+              className="ml-auto"
+            >
+              <X className="h-4 w-4 mr-1" />
+              Limpiar
             </Button>
           </div>
         )}

@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
           title: `${service.description} - ${monthName}`,
           description: `Generado automáticamente desde contrato. ${service.notes || ''}`,
           quantity: service.quantity,
-          status: 'active',
+          status: 'draft',
           code: '',
         });
       }

@@ -12,9 +12,11 @@ import { RequestFlowIndicator } from '@/components/requests/RequestFlowIndicator
 import { RequestFlowActions } from '@/components/requests/RequestFlowActions';
 import { FlowStatusCell } from '@/components/requests/FlowStatusCell';
 import { RequestActivityTimeline } from '@/components/requests/RequestActivityTimeline';
+import { RequestProcessTimeline } from '@/components/requests/RequestProcessTimeline';
 import { RequestFormModal } from '@/components/modals/RequestFormModal';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/lib/request-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -40,10 +42,12 @@ const SolicitudDetalle = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canAccessFinance, canAccessOperations } = useUserRole();
+  const { user } = useAuth();
   const canManage = canAccessFinance() || canAccessOperations();
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   const { data: request, isLoading, error } = useQuery({
     queryKey: ['financial_request', id],
@@ -56,12 +60,13 @@ const SolicitudDetalle = () => {
           *,
           client:clients(id, name, code),
           service:services(id, name),
-          specialist:specialists(id, name, email),
+          specialist:specialists(id, name, email, user_id),
           contract:contracts(id, title, code),
           budget:budgets(id, title, code),
           invoice:invoices(id, code, status),
           liquidation:liquidations(id, code, status),
-          client_contact:client_contacts(id, name, email, role)
+          client_contact:client_contacts(id, name, email, role),
+          request_action_tokens(id, token, status, acted_at, ip_address, user_agent, comments, expires_at, created_at)
         `)
         .eq('id', id)
         .single();
@@ -148,6 +153,38 @@ const SolicitudDetalle = () => {
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['financial_request', id] });
     queryClient.invalidateQueries({ queryKey: ['request-activity', id] });
+  };
+
+  // Resend email to specialist
+  const handleResendEmail = async () => {
+    if (!request?.specialist?.email || !user?.email?.endsWith('@hayas.es')) {
+      toast.error('No se puede reenviar el email');
+      return;
+    }
+
+    setIsSendingEmail(true);
+    try {
+      const appUrl = window.location.origin;
+      const { error } = await supabase.functions.invoke('send-request-notification', {
+        body: {
+          requestId: request.id,
+          notificationType: 'specialist_assigned',
+          recipientEmail: request.specialist.email,
+          recipientName: request.specialist.name || 'Especialista',
+          senderEmail: user.email,
+          appUrl,
+        },
+      });
+
+      if (error) throw error;
+      toast.success('Email reenviado al especialista');
+      handleRefresh();
+    } catch (error) {
+      console.error('Error resending email:', error);
+      toast.error('Error al reenviar el email');
+    } finally {
+      setIsSendingEmail(false);
+    }
   };
 
   if (isLoading) {
@@ -259,7 +296,10 @@ const SolicitudDetalle = () => {
 
           {/* Summary Tab */}
           <TabsContent value="summary" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Left column - Details */}
+              <div className="lg:col-span-2 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Client Info */}
               <Card>
                 <CardHeader className="pb-2">
@@ -403,48 +443,69 @@ const SolicitudDetalle = () => {
                   </CardContent>
                 </Card>
               )}
-            </div>
-
-            {/* Description */}
-            {request.description && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Descripción</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="whitespace-pre-wrap">{request.description}</p>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Invoice & Liquidation Status */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Estado de Facturación</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-6">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Factura</p>
-                    <FlowStatusCell
-                      type="invoice"
-                      linkedId={request.billed_invoice_id}
-                      linkedCode={request.invoice?.code}
-                      linkedStatus={request.invoice?.status}
-                    />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Liquidación</p>
-                    <FlowStatusCell
-                      type="liquidation"
-                      linkedId={request.liquidation_id}
-                      linkedCode={request.liquidation?.code}
-                      linkedStatus={request.liquidation?.status}
-                    />
-                  </div>
                 </div>
-              </CardContent>
-            </Card>
+
+                {/* Description */}
+                {request.description && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium">Descripción</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="whitespace-pre-wrap">{request.description}</p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Invoice & Liquidation Status */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Estado de Facturación</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-6">
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Factura</p>
+                        <FlowStatusCell
+                          type="invoice"
+                          linkedId={request.billed_invoice_id}
+                          linkedCode={request.invoice?.code}
+                          linkedStatus={request.invoice?.status}
+                        />
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Liquidación</p>
+                        <FlowStatusCell
+                          type="liquidation"
+                          linkedId={request.liquidation_id}
+                          linkedCode={request.liquidation?.code}
+                          linkedStatus={request.liquidation?.status}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Right column - Process Timeline */}
+              <div className="lg:col-span-1">
+                <RequestProcessTimeline 
+                  request={{
+                    id: request.id,
+                    status: request.status as any,
+                    created_at: request.created_at,
+                    updated_at: request.updated_at,
+                    specialist: request.specialist,
+                  }}
+                  actionToken={request.request_action_tokens?.[0] ? {
+                    ...request.request_action_tokens[0],
+                    status: request.request_action_tokens[0].status as 'pending' | 'accepted' | 'rejected' | 'expired'
+                  } : null}
+                  onResendEmail={canManage ? handleResendEmail : undefined}
+                  isSending={isSendingEmail}
+                />
+              </div>
+            </div>
           </TabsContent>
 
           {/* Financial Tab */}

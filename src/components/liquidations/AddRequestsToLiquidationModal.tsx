@@ -18,6 +18,8 @@ interface AddRequestsToLiquidationModalProps {
   onOpenChange: (open: boolean) => void;
   liquidationId: string;
   specialistId: string;
+  periodYear: number;
+  periodMonth: number;
   onSuccess?: () => void;
 }
 
@@ -26,12 +28,14 @@ export function AddRequestsToLiquidationModal({
   onOpenChange,
   liquidationId,
   specialistId,
+  periodYear,
+  periodMonth,
   onSuccess,
 }: AddRequestsToLiquidationModalProps) {
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const { data: requests, isLoading } = useUnliquidatedRequests(specialistId);
+  const { data: requests, isLoading } = useUnliquidatedRequests(specialistId, periodYear, periodMonth);
 
   const totalToAdd = useMemo(() => {
     if (!requests) return 0;
@@ -153,13 +157,14 @@ export function AddRequestsToLiquidationModal({
                   <TableHead>Código</TableHead>
                   <TableHead>Título</TableHead>
                   <TableHead>Cliente</TableHead>
-                  <TableHead>Fecha</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Deadline</TableHead>
                   <TableHead className="text-right">Coste</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {requests.map((request) => (
-                  <TableRow key={request.id}>
+                <TableRow key={request.id}>
                     <TableCell>
                       <Checkbox
                         checked={selectedIds.includes(request.id)}
@@ -171,9 +176,14 @@ export function AddRequestsToLiquidationModal({
                     <TableCell>
                       <Badge variant="outline">{request.client?.name || '-'}</Badge>
                     </TableCell>
+                    <TableCell>
+                      <Badge variant={request.status === 'completed' ? 'default' : 'secondary'}>
+                        {request.status === 'completed' ? 'Completado' : 'En progreso'}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {request.created_at
-                        ? format(new Date(request.created_at), 'dd MMM yyyy', { locale: es })
+                      {request.deadline
+                        ? format(new Date(request.deadline), 'dd MMM yyyy', { locale: es })
                         : '-'}
                     </TableCell>
                     <TableCell className="text-right font-medium">

@@ -103,7 +103,7 @@ function PendingRequestsSection({
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Solicitudes pendientes de liquidar</CardTitle>
+          <CardTitle className="text-base">Trabajos pendientes para próxima liquidación</CardTitle>
         </CardHeader>
         <CardContent>
           <Skeleton className="h-20 w-full" />
@@ -116,11 +116,11 @@ function PendingRequestsSection({
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Solicitudes pendientes de liquidar</CardTitle>
+          <CardTitle className="text-base">Trabajos pendientes para próxima liquidación</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-center text-muted-foreground py-4">
-            No hay solicitudes pendientes de liquidar para este especialista
+            No hay trabajos pendientes para próxima liquidación
           </p>
         </CardContent>
       </Card>
@@ -133,9 +133,9 @@ function PendingRequestsSection({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle className="text-base">Solicitudes pendientes de liquidar</CardTitle>
+          <CardTitle className="text-base">Trabajos pendientes para próxima liquidación</CardTitle>
           <p className="text-sm text-muted-foreground mt-1">
-            {unliquidatedRequests.length} solicitud(es) disponible(s) • Total: {formatCurrency(totalPending)}
+            {unliquidatedRequests.length} trabajo(s) disponible(s) • Total: {formatCurrency(totalPending)}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={onAddRequest}>
@@ -191,7 +191,7 @@ function PendingRequestsSection({
         </Table>
         {unliquidatedRequests.length > 5 && (
           <p className="text-center text-sm text-muted-foreground mt-4">
-            Y {unliquidatedRequests.length - 5} solicitud(es) más...{' '}
+            Y {unliquidatedRequests.length - 5} trabajo(s) más...{' '}
             <button 
               onClick={onAddRequest}
               className="text-primary hover:underline"
@@ -610,7 +610,7 @@ export default function LiquidacionDetalle() {
         {/* Items Table */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Solicitudes incluidas</CardTitle>
+            <CardTitle>Trabajos incluidos</CardTitle>
             {isEditable && canAccessFinance() && (
               <Button 
                 variant="outline" 

@@ -176,13 +176,13 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
-    doc.text('SOLICITUDES PENDIENTES DE LIQUIDAR', 15, currentY);
+    doc.text('TRABAJOS PENDIENTES PARA PRÓXIMA LIQUIDACIÓN', 15, currentY);
 
     // Subtítulo informativo
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
-    doc.text('(Solicitudes completadas o en progreso aún no incluidas en esta liquidación)', 15, currentY + 6);
+    doc.text('(Trabajos completados o en progreso aún no incluidos en esta liquidación)', 15, currentY + 6);
 
     // Tabla de solicitudes pendientes
     const pendingTableData = data.pendingRequests.map(req => [
@@ -396,13 +396,13 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
-    doc.text('SOLICITUDES PENDIENTES DE LIQUIDAR', 15, currentY);
+    doc.text('TRABAJOS PENDIENTES PARA PRÓXIMA LIQUIDACIÓN', 15, currentY);
 
     // Subtítulo informativo
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
-    doc.text('(Solicitudes completadas o en progreso aún no incluidas en esta liquidación)', 15, currentY + 6);
+    doc.text('(Trabajos completados o en progreso aún no incluidos en esta liquidación)', 15, currentY + 6);
 
     // Tabla de solicitudes pendientes
     const pendingTableData = data.pendingRequests.map(req => [

@@ -7,7 +7,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, User, Calendar, FileText, Mail, Download, Trash2 } from 'lucide-react';
+import { ArrowLeft, User, Calendar, FileText, Mail, Download, Trash2, Plus } from 'lucide-react';
+import { AddRequestsToLiquidationModal } from '@/components/liquidations/AddRequestsToLiquidationModal';
 import { LiquidationStatusBadge } from '@/components/liquidations/LiquidationStatusBadge';
 import { SignatureStatusBadge } from '@/components/liquidations/SignatureStatusBadge';
 import { formatPeriod, formatCurrency } from '@/lib/liquidation-utils';
@@ -26,6 +27,7 @@ export default function LiquidacionDetalle() {
   const { user } = useAuth();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [addRequestsModalOpen, setAddRequestsModalOpen] = useState(false);
 
   const { data: liquidation, isLoading, error } = useQuery({
     queryKey: ['liquidation-detail', id],
@@ -350,8 +352,18 @@ export default function LiquidacionDetalle() {
 
         {/* Items Table */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Solicitudes incluidas</CardTitle>
+            {isEditable && canAccessFinance() && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setAddRequestsModalOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Añadir Solicitudes
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             {liquidation.liquidation_items && liquidation.liquidation_items.length > 0 ? (
@@ -435,6 +447,16 @@ export default function LiquidacionDetalle() {
         confirmText="Eliminar"
         cancelText="Cancelar"
         variant="destructive"
+      />
+
+      <AddRequestsToLiquidationModal
+        open={addRequestsModalOpen}
+        onOpenChange={setAddRequestsModalOpen}
+        liquidationId={liquidation.id}
+        specialistId={liquidation.specialist_id}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
+        }}
       />
     </AppLayout>
   );

@@ -15,10 +15,10 @@ Deno.serve(async (req) => {
     // 1. Validate authorization header
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Authorization required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Authorization required' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // 2. Validate user token and get user identity
@@ -29,13 +29,16 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseClient.auth.getUser(token);
 
     if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized: invalid token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Unauthorized: invalid token' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // 3. Check user roles using service role client
@@ -51,30 +54,30 @@ Deno.serve(async (req) => {
 
     if (rolesError) {
       console.error('Error fetching user roles:', rolesError);
-      return new Response(
-        JSON.stringify({ error: 'Error validating permissions' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Error validating permissions' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const allowedRoles = ['admin', 'finanzas', 'project_manager'];
-    const hasPermission = roles?.some(r => allowedRoles.includes(r.role));
+    const hasPermission = roles?.some((r) => allowedRoles.includes(r.role));
 
     if (!hasPermission) {
-      return new Response(
-        JSON.stringify({ error: 'Forbidden: insufficient permissions' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Forbidden: insufficient permissions' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // 4. Parse request body
     const { contract_id } = await req.json();
 
     if (!contract_id) {
-      return new Response(
-        JSON.stringify({ error: 'contract_id is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'contract_id is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // 5. Fetch contract with services and specialist data using admin client
@@ -85,58 +88,76 @@ Deno.serve(async (req) => {
       .single();
 
     if (contractError || !contract) {
-      return new Response(
-        JSON.stringify({ error: 'Contract not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Contract not found' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     if (contract.status !== 'active') {
-      return new Response(
-        JSON.stringify({ error: 'Contract must be active to generate requests' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Contract must be active to generate requests' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // 6. Create requests based on billing_frequency
     const now = new Date();
     const monthName = now.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
-    const requests = [];
+    const requests: Record<string, unknown>[] = [];
 
-    for (const service of contract.contract_services) {
-      if (service.billing_frequency === 'monthly') {
-        const specialistHourlyRate = service.specialist?.hourly_rate || 0;
-        
-        requests.push({
-          client_id: contract.client_id,
-          service_id: service.service_id,
-          specialist_id: service.specialist_id,
-          contract_id: contract_id,
-          title: `${service.description} - ${monthName}`,
-          description: `Generado automáticamente desde contrato. ${service.notes || ''}`,
-          quantity: service.quantity,
-          status: 'draft',
-          code: '',
-          
-          // Cost fields (what the agency pays the specialist)
-          cost_type: service.price_rule_type === 'hourly' ? 'hourly' : 'fixed',
-          cost_rate: service.price_rule_type === 'hourly' ? specialistHourlyRate : null,
-          fixed_cost: service.price_rule_type === 'fixed' ? (service.quantity * specialistHourlyRate) : null,
-          
-          // Sale fields (what the agency charges the client)
-          sale_type: service.price_rule_type,
-          sale_rate: service.price_rule_type === 'hourly' ? service.price_value : null,
-          unit_price: service.price_rule_type === 'fixed' ? service.price_value : null,
-          sale_amount: service.price_rule_type === 'fixed' ? (service.quantity * service.price_value) : null,
-        });
-      }
+    for (const service of contract.contract_services ?? []) {
+      if (service.billing_frequency !== 'monthly') continue;
+
+      const qty = Number(service.quantity ?? 1);
+      const saleValue = Number(service.price_value ?? 0);
+      const specialistHourlyRate = Number(service.specialist?.hourly_rate ?? 0);
+
+      const isHourly = service.price_rule_type === 'hourly';
+
+      const hours = isHourly ? qty : null;
+      const saleHours = isHourly ? qty : null;
+
+      const fixedCost = isHourly ? null : qty * specialistHourlyRate;
+      const costToAgency = isHourly ? qty * specialistHourlyRate : fixedCost;
+
+      const unitPrice = isHourly ? null : saleValue;
+      const saleAmount = isHourly ? qty * saleValue : qty * saleValue;
+
+      requests.push({
+        client_id: contract.client_id,
+        service_id: service.service_id,
+        specialist_id: service.specialist_id,
+        contract_id: contract_id,
+        title: `${service.description} - ${monthName}`,
+        description: `Generado automáticamente desde contrato. ${service.notes || ''}`,
+
+        // Quantity is reused as "hours" when hourly pricing (this matches current contract_services usage)
+        quantity: qty,
+        hours,
+        sale_hours: saleHours,
+
+        status: 'draft',
+        code: '',
+
+        // Cost fields (what the agency pays the specialist)
+        cost_type: isHourly ? 'hourly' : 'fixed',
+        cost_rate: isHourly ? specialistHourlyRate : null,
+        fixed_cost: fixedCost,
+        cost_to_agency: costToAgency,
+
+        // Sale fields (what the agency charges the client)
+        sale_type: service.price_rule_type,
+        sale_rate: isHourly ? saleValue : null,
+        unit_price: unitPrice,
+        sale_amount: saleAmount,
+      });
     }
 
     if (requests.length === 0) {
-      return new Response(
-        JSON.stringify({ count: 0, message: 'No monthly services to generate' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ count: 0, message: 'No monthly services to generate' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // 7. Insert requests
@@ -159,9 +180,9 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Error generating monthly requests:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: errorMessage }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });

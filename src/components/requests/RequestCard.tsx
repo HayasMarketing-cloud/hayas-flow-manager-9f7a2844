@@ -23,17 +23,20 @@ interface RequestCardProps {
 export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquidation, canManage, onRefresh }: RequestCardProps) => {
   const navigate = useNavigate();
   
-  // Calculate cost: cost_to_agency or calculate from hours/fixed
-  const costAmount = request.cost_to_agency || 
-    (request.cost_type === 'hourly' 
-      ? (request.hours || 0) * (request.cost_rate || 0) 
-      : (request.fixed_cost || 0));
+  const costHours = request.hours ?? request.quantity ?? 0;
+  const saleHours = request.sale_hours ?? request.hours ?? request.quantity ?? 0;
+
+  // Calculate cost: prefer stored total, fallback to rate * hours or fixed
+  const costAmount = request.cost_to_agency ??
+    (request.cost_type === 'hourly'
+      ? costHours * (request.cost_rate ?? 0)
+      : (request.fixed_cost ?? 0));
   
-  // Calculate sale amount
-  const saleAmount = request.sale_amount || 
-    (request.sale_type === 'hourly' 
-      ? (request.sale_hours || request.hours || 0) * (request.sale_rate || 0) 
-      : (request.unit_price || 0) * (request.quantity || 1));
+  // Calculate sale: prefer stored total, fallback to rate * hours or unit_price * qty
+  const saleAmount = request.sale_amount ??
+    (request.sale_type === 'hourly'
+      ? saleHours * (request.sale_rate ?? 0)
+      : (request.unit_price ?? 0) * (request.quantity ?? 1));
 
   return (
     <Card className="hover:shadow-lg transition-shadow">

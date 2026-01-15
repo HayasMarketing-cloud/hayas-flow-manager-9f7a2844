@@ -263,7 +263,7 @@ const SolicitudDetalle = () => {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <RequestFlowActions request={request} onSuccess={handleRefresh} />
+                <RequestFlowActions request={request} onSuccess={handleRefresh} compact />
                 
                 {canManage && (
                   <>

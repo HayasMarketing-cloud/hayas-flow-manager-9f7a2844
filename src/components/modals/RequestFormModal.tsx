@@ -36,6 +36,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
 import { notifySpecialistAssigned } from '@/lib/notification-utils';
+import { useAuth } from '@/contexts/AuthContext';
 
 const requestSchema = z.object({
   client_id: z.string().uuid('Selecciona un cliente'),
@@ -79,6 +80,7 @@ export const RequestFormModal = ({
 }: RequestFormModalProps) => {
   const isViewMode = mode === 'view';
   const { logActivity } = useRequestActivityLog();
+  const { user } = useAuth();
 
   const form = useForm<RequestFormData>({
     resolver: zodResolver(requestSchema),
@@ -293,8 +295,9 @@ export const RequestFormModal = ({
           );
         }
         
-        // Email notification (if specialist has email)
-        if (result.specialistData.email) {
+        // Email notification (if specialist has email and sender has @hayas.es email)
+        const senderEmail = user?.email;
+        if (result.specialistData.email && senderEmail?.endsWith('@hayas.es')) {
           try {
             const appUrl = window.location.origin;
             await supabase.functions.invoke('send-request-notification', {
@@ -303,7 +306,7 @@ export const RequestFormModal = ({
                 notificationType: 'specialist_assigned',
                 recipientEmail: result.specialistData.email,
                 recipientName: result.specialistData.name || 'Especialista',
-                senderEmail: 'noreply@hayas.es',
+                senderEmail,
                 appUrl,
               },
             });

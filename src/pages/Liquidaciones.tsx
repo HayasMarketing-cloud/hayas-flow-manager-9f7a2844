@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ import { generateLiquidationPDFBase64 } from '@/utils/pdf/liquidationPDFGenerato
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function Liquidaciones() {
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedLiquidation, setSelectedLiquidation] = useState<any>(null);
@@ -133,9 +135,7 @@ export default function Liquidaciones() {
   };
 
   const handleView = (liquidation: any) => {
-    setSelectedLiquidation(liquidation);
-    setModalMode('view');
-    setModalOpen(true);
+    navigate(`/liquidaciones/${liquidation.id}`);
   };
 
   const deleteMutation = useMutation({

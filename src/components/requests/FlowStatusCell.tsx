@@ -1,6 +1,7 @@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { Receipt, Wallet, FileText, Send, CheckCircle, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface FlowStatusCellProps {
   type: 'invoice' | 'liquidation';
@@ -42,6 +43,8 @@ const getStatusConfig = (type: 'invoice' | 'liquidation', status: string | null 
 };
 
 export const FlowStatusCell = ({ type, linkedId, linkedCode, linkedStatus }: FlowStatusCellProps) => {
+  const navigate = useNavigate();
+
   if (!linkedId) {
     return (
       <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -60,15 +63,26 @@ export const FlowStatusCell = ({ type, linkedId, linkedCode, linkedStatus }: Flo
   const config = getStatusConfig(type, linkedStatus);
   const StatusIcon = config.icon;
 
+  const handleClick = () => {
+    if (type === 'invoice') {
+      navigate(`/facturas`);
+    } else {
+      navigate(`/liquidaciones`);
+    }
+  };
+
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="flex items-center gap-1.5 cursor-default">
+          <div 
+            className="flex items-center gap-1.5 cursor-pointer hover:opacity-80"
+            onClick={handleClick}
+          >
             <div className={cn("w-5 h-5 rounded-full flex items-center justify-center text-white", config.color)}>
               <StatusIcon className="h-3 w-3" />
             </div>
-            <span className="text-xs font-mono">{linkedCode || 'Sin código'}</span>
+            <span className="text-xs font-mono text-primary hover:underline">{linkedCode || 'Sin código'}</span>
           </div>
         </TooltipTrigger>
         <TooltipContent>

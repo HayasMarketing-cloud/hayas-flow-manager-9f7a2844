@@ -338,9 +338,12 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
         );
 
       case 'pending_approval':
-        // Only management can approve start
-        if (!isManagement()) {
-          return renderWaitingMessage('Aprobación de gestión');
+        // Only the assigned specialist can approve start
+        if (!isAssignedSpecialist()) {
+          if (isManagement()) {
+            return renderWaitingMessage(`${specialistName} para aprobar inicio`);
+          }
+          return renderWaitingMessage('Aprobación del especialista');
         }
         return (
           <Button
@@ -349,8 +352,8 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
               'Aprobar Inicio',
               'in_progress',
               'work_started',
-              specialistEmail || managementEmail,
-              specialistName
+              managementEmail,
+              managementName
             )}
             disabled={isLoading}
           >

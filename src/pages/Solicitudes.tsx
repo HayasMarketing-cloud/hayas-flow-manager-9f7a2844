@@ -34,6 +34,8 @@ const Solicitudes = () => {
   const [requestToDelete, setRequestToDelete] = useState<any>(null);
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const [addToLiquidationOpen, setAddToLiquidationOpen] = useState(false);
+  const [bulkEditConfirmOpen, setBulkEditConfirmOpen] = useState(false);
+  const [pendingBulkEdit, setPendingBulkEdit] = useState<{ field: string; value: any; label: string } | null>(null);
   const queryClient = useQueryClient();
   const { filters, updateFilter, resetFilters } = useRequestFilters();
   const { canAccessFinance, canAccessOperations, loading: rolesLoading } = useUserRole();
@@ -280,11 +282,26 @@ const Solicitudes = () => {
       toast.success('Solicitudes actualizadas correctamente');
       queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
       setSelectedIds([]);
+      setBulkEditConfirmOpen(false);
+      setPendingBulkEdit(null);
     },
     onError: () => {
       toast.error('Error al actualizar las solicitudes');
+      setBulkEditConfirmOpen(false);
+      setPendingBulkEdit(null);
     },
   });
+
+  const confirmBulkEdit = (field: string, value: any, label: string) => {
+    setPendingBulkEdit({ field, value, label });
+    setBulkEditConfirmOpen(true);
+  };
+
+  const executeBulkEdit = () => {
+    if (pendingBulkEdit) {
+      bulkUpdateMutation.mutate({ field: pendingBulkEdit.field, value: pendingBulkEdit.value });
+    }
+  };
 
   if (error) {
     return (
@@ -455,7 +472,16 @@ const Solicitudes = () => {
               <span className="text-sm text-muted-foreground">Estado:</span>
               <Select 
                 onValueChange={(value) => {
-                  bulkUpdateMutation.mutate({ field: 'status', value });
+                  const labels: Record<string, string> = {
+                    draft: 'Borrador',
+                    pending_specialist: 'Pend. Especialista',
+                    pending_approval: 'Pend. Aprobación',
+                    in_progress: 'En Progreso',
+                    pending_review: 'Pend. Revisión',
+                    completed: 'Completado',
+                    cancelled: 'Cancelado',
+                  };
+                  confirmBulkEdit('status', value, labels[value] || value);
                 }}
               >
                 <SelectTrigger className="w-[160px] h-8">
@@ -481,7 +507,7 @@ const Solicitudes = () => {
                 className="w-[140px] h-8"
                 onChange={(e) => {
                   if (e.target.value) {
-                    bulkUpdateMutation.mutate({ field: 'deadline', value: e.target.value });
+                    confirmBulkEdit('deadline', e.target.value, e.target.value);
                   }
                 }}
               />
@@ -498,7 +524,7 @@ const Solicitudes = () => {
                   if (e.key === 'Enter') {
                     const value = parseFloat((e.target as HTMLInputElement).value);
                     if (!isNaN(value)) {
-                      bulkUpdateMutation.mutate({ field: 'cost_to_agency', value });
+                      confirmBulkEdit('cost_to_agency', value, `${value.toFixed(2)} €`);
                       (e.target as HTMLInputElement).value = '';
                     }
                   }
@@ -634,6 +660,18 @@ const Solicitudes = () => {
         confirmText="Eliminar todas"
         onConfirm={handleBulkDelete}
         variant="destructive"
+      />
+
+      <ConfirmDialog
+        open={bulkEditConfirmOpen}
+        onOpenChange={(open) => {
+          setBulkEditConfirmOpen(open);
+          if (!open) setPendingBulkEdit(null);
+        }}
+        title="Confirmar cambio masivo"
+        description={`¿Estás seguro de cambiar ${pendingBulkEdit?.field === 'status' ? 'el estado' : pendingBulkEdit?.field === 'deadline' ? 'la fecha' : 'el coste'} a "${pendingBulkEdit?.label}" en ${selectedIds.length} solicitudes?`}
+        confirmText="Aplicar cambio"
+        onConfirm={executeBulkEdit}
       />
 
       <AddToLiquidationModal

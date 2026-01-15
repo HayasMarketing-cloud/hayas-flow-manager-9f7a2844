@@ -147,16 +147,16 @@ const buildSpecialistTimelineSteps = (
       : 'Se habilitará tras la firma',
   });
 
-  // 4. Pagada
-  steps.push({
-    id: 'paid',
-    label: liquidation.status === 'paid' ? 'Pagada' : 'Pago pendiente',
-    status: liquidation.status === 'paid' ? 'completed' : 'pending',
-    date: liquidation.paid_at ? formatDate(liquidation.paid_at) : undefined,
-    description: liquidation.status === 'paid' 
-      ? 'Pago completado' 
-      : 'Se completará cuando se realice el pago',
-  });
+  // 4. Pagada - Solo se muestra cuando está realmente pagada
+  if (liquidation.status === 'paid') {
+    steps.push({
+      id: 'paid',
+      label: 'Pagada',
+      status: 'completed',
+      date: liquidation.paid_at ? formatDate(liquidation.paid_at) : undefined,
+      description: 'Pago completado',
+    });
+  }
 
   return steps;
 };

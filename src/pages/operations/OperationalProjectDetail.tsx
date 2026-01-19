@@ -93,7 +93,7 @@ export default function OperationalProjectDetail() {
           financial_request:financial_requests(id, code, title, service_id, service:services(id, name))
         `)
         .eq('operational_project_id', id)
-        .order('created_at', { ascending: true });
+        .order('deadline', { ascending: true, nullsFirst: false });
       if (error) throw error;
       return data;
     },

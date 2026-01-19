@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { notifyBudgetApproved } from '@/lib/notification-utils';
+import { notificationFeedback } from '@/lib/notification-feedback';
 
 interface ApproveBudgetParams {
   budgetId: string;
@@ -97,10 +99,17 @@ export const useApproveBudget = () => {
 
       return budget;
     },
-    onSuccess: (budget, variables) => {
+    onSuccess: async (budget, variables) => {
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
       queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
       toast.success(`Presupuesto aprobado y ${budget.budget_items?.length || 0} solicitud(es) financiera(s) creada(s)`);
+      
+      // Send in-app notification to relevant roles
+      await notifyBudgetApproved(budget.code, budget.id, budget.title);
+      
+      // Show notification feedback
+      notificationFeedback.budgetApproved(budget.code);
+      
       variables.onSuccess?.();
     },
     onError: (error: any) => {

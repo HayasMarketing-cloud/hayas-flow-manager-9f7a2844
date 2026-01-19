@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { notifyProjectCompleted } from '@/lib/notification-utils';
+import { notificationFeedback } from '@/lib/notification-feedback';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const useOperationalProjects = (filters?: {
@@ -139,6 +140,7 @@ export const useUpdateOperationalProject = () => {
         await notifyProjectCompleted(project.name, project.id, clientName);
 
         // Email notification
+        let emailSent = false;
         try {
           const userEmail = user?.email;
           if (userEmail && userEmail.endsWith('@hayas.es')) {
@@ -150,10 +152,14 @@ export const useUpdateOperationalProject = () => {
                 appUrl,
               }
             });
+            emailSent = true;
           }
         } catch (emailError) {
           console.error('Error sending project completed email:', emailError);
         }
+
+        // Show notification feedback
+        notificationFeedback.projectCompleted(project.name, emailSent);
       }
     },
     onError: (error: any) => {

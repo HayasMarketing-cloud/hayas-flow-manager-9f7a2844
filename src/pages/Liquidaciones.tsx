@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Plus, LayoutGrid, Table as TableIcon, X, Download } from 'lucide-react';
 import { exportLiquidationsToExcel } from '@/utils/excel/liquidationsExporter';
 import { toast } from 'sonner';
+import { notificationFeedback } from '@/lib/notification-feedback';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useLiquidationFilters, PeriodType } from '@/hooks/useLiquidationFilters';
@@ -284,6 +285,9 @@ export default function Liquidaciones() {
       queryClient.invalidateQueries({ queryKey: ['liquidations'] });
       setSendEmailDialogOpen(false);
       toast.success(`Email enviado correctamente a ${liquidation.specialist.email}`);
+      
+      // Show notification feedback - specialist may or may not have user_id for in-app
+      notificationFeedback.liquidationSent(liquidation.specialist.name, false);
     } catch (error: any) {
       console.error('Error sending email:', error);
       toast.error('Error al enviar email: ' + (error.message || 'Error desconocido'));

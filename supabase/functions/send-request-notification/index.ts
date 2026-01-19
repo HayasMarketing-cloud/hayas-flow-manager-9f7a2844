@@ -224,6 +224,9 @@ function getNotificationContent(
                 </td>
               </tr>
             </table>
+            <p style="color: #6b7280; font-size: 13px; margin-top: 16px; max-width: 450px; margin-left: auto; margin-right: auto; line-height: 1.5;">
+              Si no estás de acuerdo con el importe o no hay un importe previsto, dinos en notas adicionales tus comentarios, tiempo previsto de ejecución o presupuesto adhoc para el mismo.
+            </p>
           </div>
           <p style="text-align: center; color: #9ca3af; font-size: 12px; margin-bottom: 20px;">
             Este enlace expira en 7 días

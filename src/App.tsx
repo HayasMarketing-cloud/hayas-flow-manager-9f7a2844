@@ -23,7 +23,7 @@ import Clientes from "./pages/Clientes";
 import ClienteDetalle from "./pages/ClienteDetalle";
 import Liquidaciones from "./pages/Liquidaciones";
 import LiquidacionDetalle from "./pages/LiquidacionDetalle";
-import MisLiquidaciones from "./pages/MisLiquidaciones";
+
 import Reportes from "./pages/Reportes";
 import Usuarios from "./pages/Usuarios";
 import Perfil from "./pages/Perfil";
@@ -68,7 +68,7 @@ const App = () => (
             <Route path="/facturas" element={<ProtectedRoute><Facturas /></ProtectedRoute>} />
             <Route path="/liquidaciones" element={<ProtectedRoute><Liquidaciones /></ProtectedRoute>} />
             <Route path="/liquidaciones/:id" element={<ProtectedRoute><LiquidacionDetalle /></ProtectedRoute>} />
-            <Route path="/mis-liquidaciones" element={<ProtectedRoute><MisLiquidaciones /></ProtectedRoute>} />
+            
             <Route path="/reportes" element={<ProtectedRoute><Reportes /></ProtectedRoute>} />
             <Route path="/usuarios" element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
             <Route path="/comisiones" element={<ProtectedRoute><Comisiones /></ProtectedRoute>} />

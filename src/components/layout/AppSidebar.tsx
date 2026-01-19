@@ -20,22 +20,22 @@ interface NavItem {
   requiredRoles?: string[];
 }
 
+const operationsItems: NavItem[] = [
+  { title: 'Requests', url: '/solicitudes', icon: FileCheck, requiredRoles: ['admin', 'finanzas', 'project_manager', 'account_manager'] },
+  { title: 'Presupuestos', url: '/presupuestos', icon: Calculator },
+  { title: 'Proyectos', url: '/proyectos-operativos', icon: Briefcase, requiredRoles: ['admin', 'project_manager', 'especialista', 'account_manager'] },
+  { title: 'Mis Tareas', url: '/mis-tareas', icon: CheckSquare },
+  { title: 'Notificaciones', url: '/notificaciones', icon: Bell },
+];
+
 const financeItems: NavItem[] = [
   { title: 'Dashboard', url: '/dashboard-mensual', icon: LayoutDashboard },
   { title: 'Contratos', url: '/contratos', icon: FileText },
-  { title: 'Presupuestos', url: '/presupuestos', icon: Calculator },
-  { title: 'Requests', url: '/solicitudes', icon: FileCheck, requiredRoles: ['admin', 'finanzas', 'project_manager', 'account_manager'] },
   { title: 'Facturas', url: '/facturas', icon: Receipt, requiredRoles: ['admin', 'finanzas', 'account_manager'] },
   { title: 'Liquidaciones', url: '/liquidaciones', icon: Wallet, requiredRoles: ['admin', 'finanzas', 'account_manager'] },
   { title: 'Comisiones', url: '/comisiones', icon: DollarSign, requiredRoles: ['admin', 'finanzas'] },
   { title: 'Mis Liquidaciones', url: '/mis-liquidaciones', icon: Wallet, requiredRoles: ['especialista'] },
   { title: 'Reportes', url: '/reportes', icon: BarChart3, requiredRoles: ['admin', 'finanzas'] },
-];
-
-const operationsItems: NavItem[] = [
-  { title: 'Proyectos', url: '/proyectos-operativos', icon: Briefcase, requiredRoles: ['admin', 'project_manager', 'especialista', 'account_manager'] },
-  { title: 'Mis Tareas', url: '/mis-tareas', icon: CheckSquare },
-  { title: 'Notificaciones', url: '/notificaciones', icon: Bell },
 ];
 
 const adminItems: NavItem[] = [
@@ -73,13 +73,13 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className={state === 'collapsed' ? 'w-14' : 'w-60'}>
       <SidebarContent>
-        {/* Finance Layer */}
-        {visibleFinanceItems.length > 0 && (
+        {/* Operations Layer */}
+        {visibleOperationsItems.length > 0 && (
           <SidebarGroup>
-            <SidebarGroupLabel>Finance</SidebarGroupLabel>
+            <SidebarGroupLabel>Operations</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {visibleFinanceItems.map((item) => (
+                {visibleOperationsItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
                       <NavLink
@@ -99,13 +99,13 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
 
-        {/* Operations Layer */}
-        {visibleOperationsItems.length > 0 && (
+        {/* Finance Layer */}
+        {visibleFinanceItems.length > 0 && (
           <SidebarGroup>
-            <SidebarGroupLabel>Operations</SidebarGroupLabel>
+            <SidebarGroupLabel>Finance</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {visibleOperationsItems.map((item) => (
+                {visibleFinanceItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
                       <NavLink

@@ -330,6 +330,9 @@ export default function AccionRequest() {
                   onChange={(e) => setComments(e.target.value)}
                   rows={3}
                 />
+                <p className="text-sm text-muted-foreground">
+                  Si no estás de acuerdo con el importe o no hay un importe previsto, dinos en notas adicionales tus comentarios, tiempo previsto de ejecución o presupuesto adhoc para el mismo.
+                </p>
               </div>
             )}
 
@@ -344,6 +347,9 @@ export default function AccionRequest() {
                   onChange={(e) => setComments(e.target.value)}
                   rows={2}
                 />
+                <p className="text-sm text-muted-foreground">
+                  Si no estás de acuerdo con el importe o no hay un importe previsto, dinos en notas adicionales tus comentarios, tiempo previsto de ejecución o presupuesto adhoc para el mismo.
+                </p>
               </div>
             )}
 

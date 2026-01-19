@@ -7,6 +7,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { KPICard } from '@/components/dashboard/kpis/KPICard';
 import { KPISkeleton } from '@/components/dashboard/kpis/KPISkeleton';
 import { AlertsWidget } from '@/components/dashboard/widgets/AlertsWidget';
+import { CompletedProjectsWidget } from '@/components/dashboard/widgets/CompletedProjectsWidget';
 import { formatCurrency } from '@/lib/request-utils';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -158,8 +159,14 @@ export default function DashboardFinanzas() {
               />
             </div>
 
-            {/* Alerts */}
-            <AlertsWidget alerts={alerts} isLoading={isLoading} />
+            {/* Widgets Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Completed Projects Widget */}
+              <CompletedProjectsWidget />
+
+              {/* Alerts */}
+              <AlertsWidget alerts={alerts} isLoading={isLoading} />
+            </div>
           </>
         ) : null}
       </div>

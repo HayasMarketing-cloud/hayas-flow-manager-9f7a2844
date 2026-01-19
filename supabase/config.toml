@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.process-request-action]
 verify_jwt = false
+
+[functions.send-project-completed-notification]
+verify_jwt = false

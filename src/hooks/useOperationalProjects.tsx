@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { notifyProjectCompleted } from '@/lib/notification-utils';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const useOperationalProjects = (filters?: {
   clientId?: string;
@@ -95,20 +97,64 @@ export const useCreateOperationalProject = () => {
 
 export const useUpdateOperationalProject = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      // Get project details before update for notification
+      let projectDetails = null;
+      if (data.status === 'completed') {
+        const { data: project } = await supabase
+          .from('operational_projects')
+          .select(`
+            id,
+            name,
+            client:clients(id, name)
+          `)
+          .eq('id', id)
+          .single();
+        projectDetails = project;
+      }
+
       const { error } = await supabase
         .from('operational_projects')
         .update(data)
         .eq('id', id);
 
       if (error) throw error;
+      
+      return { projectDetails, newStatus: data.status };
     },
-    onSuccess: () => {
+    onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ['operational-projects'] });
       queryClient.invalidateQueries({ queryKey: ['operational-project'] });
       toast.success('Proyecto actualizado');
+
+      // Send notifications if project was marked as completed
+      if (result.newStatus === 'completed' && result.projectDetails) {
+        const project = result.projectDetails;
+        const clientName = (project.client as any)?.name || 'Cliente';
+        
+        // In-app notification
+        await notifyProjectCompleted(project.name, project.id, clientName);
+
+        // Email notification
+        try {
+          const userEmail = user?.email;
+          if (userEmail && userEmail.endsWith('@hayas.es')) {
+            const appUrl = window.location.origin;
+            await supabase.functions.invoke('send-project-completed-notification', {
+              body: {
+                projectId: project.id,
+                senderEmail: userEmail,
+                appUrl,
+              }
+            });
+          }
+        } catch (emailError) {
+          console.error('Error sending project completed email:', emailError);
+        }
+      }
     },
     onError: (error: any) => {
       toast.error(`Error: ${error.message}`);

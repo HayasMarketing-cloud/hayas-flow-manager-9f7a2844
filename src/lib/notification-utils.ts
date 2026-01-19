@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export type NotificationType = 'info' | 'success' | 'warning' | 'error';
-export type NotificationCategory = 'request' | 'budget' | 'invoice' | 'liquidation' | 'system';
+export type NotificationCategory = 'request' | 'budget' | 'invoice' | 'liquidation' | 'system' | 'project';
 
 interface NotificationData {
   title: string;
@@ -87,7 +87,7 @@ export const notifyRequestStatusChange = async (
   };
 
   await notifyByRole(
-    ['admin', 'finanzas', 'project_manager'],
+    ['admin', 'finanzas', 'project_manager', 'account_manager'],
     {
       title: 'Cambio de estado en solicitud',
       message: `${requestCode} cambió a: ${statusLabels[newStatus] || newStatus}`,
@@ -108,7 +108,7 @@ export const notifySpecialistResponse = async (
   accepted: boolean
 ) => {
   await notifyByRole(
-    ['admin', 'finanzas', 'project_manager'],
+    ['admin', 'finanzas', 'project_manager', 'account_manager'],
     {
       title: accepted ? 'Especialista aceptó solicitud' : 'Especialista rechazó solicitud',
       message: `${specialistName} ${accepted ? 'aceptó' : 'rechazó'} ${requestCode}`,
@@ -168,7 +168,7 @@ export const notifyLiquidationSigned = async (
   specialistName: string
 ) => {
   await notifyByRole(
-    ['admin', 'finanzas'],
+    ['admin', 'finanzas', 'account_manager', 'project_manager'],
     {
       title: 'Liquidación firmada',
       message: `${liquidationCode} de ${specialistName} ha sido firmada`,
@@ -234,7 +234,7 @@ export const notifyLiquidationDisputed = async (
   disputeReason?: string
 ) => {
   await notifyByRole(
-    ['admin', 'finanzas', 'account_manager'],
+    ['admin', 'finanzas', 'account_manager', 'project_manager'],
     {
       title: 'Liquidación disputada',
       message: `${specialistName} ha disputado ${liquidationCode}${disputeReason ? `: ${disputeReason}` : ''}`,
@@ -243,6 +243,26 @@ export const notifyLiquidationDisputed = async (
       entity_id: liquidationId,
       entity_type: 'liquidation',
       action_url: `/liquidaciones/${liquidationId}`,
+    }
+  );
+};
+
+// Notify when operational project is completed - for billing and liquidation
+export const notifyProjectCompleted = async (
+  projectName: string,
+  projectId: string,
+  clientName: string
+) => {
+  await notifyByRole(
+    ['admin', 'finanzas', 'account_manager', 'project_manager'],
+    {
+      title: 'Proyecto completado - Pendiente facturación',
+      message: `${projectName} de ${clientName} completado. Revisar solicitudes para facturación y liquidación.`,
+      type: 'success',
+      category: 'project',
+      entity_id: projectId,
+      entity_type: 'operational_project',
+      action_url: `/operaciones/proyectos/${projectId}`,
     }
   );
 };

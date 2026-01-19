@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { generateLiquidationPDFBase64 } from '@/utils/pdf/liquidationPDFGenerator';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCurrentSpecialist } from '@/hooks/useCurrentSpecialist';
 
 export default function Liquidaciones() {
   const navigate = useNavigate();
@@ -34,9 +35,20 @@ export default function Liquidaciones() {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [sendingLiquidationId, setSendingLiquidationId] = useState<string | null>(null);
   const { filters, updateFilter, resetFilters } = useLiquidationFilters();
-  const { canAccessFinance, loading: rolesLoading } = useUserRole();
+  const { canAccessFinance, hasRole, loading: rolesLoading } = useUserRole();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  
+  // Detectar si el usuario es especialista (no tiene rol de finanzas)
+  const { specialist: currentSpecialist, isLoading: specialistLoading } = useCurrentSpecialist();
+  const isSpecialistOnly = hasRole('especialista') && !canAccessFinance();
+  
+  // Pre-filtrar por especialista si es solo especialista
+  useEffect(() => {
+    if (isSpecialistOnly && currentSpecialist?.id && !filters.specialistId) {
+      updateFilter('specialistId', currentSpecialist.id);
+    }
+  }, [isSpecialistOnly, currentSpecialist?.id, filters.specialistId, updateFilter]);
 
   const { data: liquidations, isLoading } = useQuery({
     queryKey: ['liquidations', filters],
@@ -116,7 +128,10 @@ export default function Liquidaciones() {
     },
   });
 
-  if (!rolesLoading && !canAccessFinance()) {
+  // Permitir acceso a especialistas y roles de finanzas
+  const hasAccess = canAccessFinance() || hasRole('especialista');
+  
+  if (!rolesLoading && !specialistLoading && !hasAccess) {
     return (
       <AppLayout title="Liquidaciones">
         <Card>
@@ -127,6 +142,9 @@ export default function Liquidaciones() {
       </AppLayout>
     );
   }
+  
+  // Determinar si puede gestionar liquidaciones (crear, editar, eliminar)
+  const canManage = canAccessFinance();
 
   const handleCreate = () => {
     setSelectedLiquidation(null);
@@ -282,8 +300,15 @@ export default function Liquidaciones() {
     <AppLayout title="Gestión de Liquidaciones">
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">Liquidaciones</h2>
-          {canAccessFinance() && (
+          <div>
+            <h2 className="text-2xl font-bold">Liquidaciones</h2>
+            {isSpecialistOnly && currentSpecialist && (
+              <p className="text-muted-foreground text-sm mt-1">
+                Especialista: {currentSpecialist.name}
+              </p>
+            )}
+          </div>
+          {canManage && (
             <Button onClick={handleCreate}>
               <Plus className="h-4 w-4 mr-2" />
               Nueva Liquidación
@@ -332,7 +357,8 @@ export default function Liquidaciones() {
                   </SelectContent>
                 </Select>
 
-                {specialists && specialists.length > 0 && (
+                {/* Solo mostrar filtro de especialistas si NO es solo especialista */}
+                {!isSpecialistOnly && specialists && specialists.length > 0 && (
                   <Select
                     value={filters.specialistId || 'all'}
                     onValueChange={(value) => updateFilter('specialistId', value === 'all' ? null : value)}
@@ -469,7 +495,7 @@ export default function Liquidaciones() {
                   onView={handleView}
                   onEdit={handleEdit}
                   onSendEmail={handleSendEmailClick}
-                  canManage={canAccessFinance()}
+                  canManage={canManage}
                   isSending={isSendingEmail && sendingLiquidationId === liquidation.id}
                 />
               ))}
@@ -481,7 +507,7 @@ export default function Liquidaciones() {
               onEdit={handleEdit}
               onDelete={handleDelete}
               onSendEmail={handleSendEmailClick}
-              canManage={canAccessFinance()}
+              canManage={canManage}
               isSending={isSendingEmail}
               sendingLiquidationId={sendingLiquidationId || undefined}
             />

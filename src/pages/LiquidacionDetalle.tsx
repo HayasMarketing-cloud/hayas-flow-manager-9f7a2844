@@ -17,6 +17,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { useUnliquidatedRequests } from '@/hooks/useUnliquidatedRequests';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { notificationFeedback } from '@/lib/notification-feedback';
 import { generateLiquidationPDF, generateLiquidationPDFBase64 } from '@/utils/pdf/liquidationPDFGenerator';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useState } from 'react';
@@ -445,6 +446,7 @@ export default function LiquidacionDetalle() {
         .eq('id', id);
 
       // Send in-app notification to specialist if they have user_id
+      const hasInAppNotification = !!liquidation.specialist?.user_id;
       await notifyLiquidationSent(
         liquidation.specialist?.user_id || null,
         liquidation.code,
@@ -456,6 +458,9 @@ export default function LiquidacionDetalle() {
       queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
       queryClient.invalidateQueries({ queryKey: ['liquidations'] });
       toast.success(`Email enviado correctamente a ${liquidation.specialist.email}`);
+      
+      // Show notification feedback
+      notificationFeedback.liquidationSent(liquidation.specialist.name, hasInAppNotification);
     } catch (error: any) {
       toast.error('Error al enviar email: ' + error.message);
     } finally {

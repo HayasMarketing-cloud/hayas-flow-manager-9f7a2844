@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
 import { notifyRequestStatusChange } from '@/lib/notification-utils';
+import { notificationFeedback } from '@/lib/notification-feedback';
 import { 
   Send, 
   Check, 
@@ -163,6 +164,9 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
         user?.id
       );
 
+      // Show feedback for in-app notification
+      notificationFeedback.requestStatusChange(request.code);
+
       // Send notification if recipient provided
       if (notificationType && recipientEmail && recipientName) {
         const notificationSent = await sendNotification(
@@ -179,6 +183,9 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
             action: 'notification_sent',
             changes: { recipient: recipientName, type: notificationType }
           });
+          
+          // Show email feedback
+          notificationFeedback.emailToSpecialist(recipientName);
           toast.success('Estado actualizado y notificación enviada');
         } else {
           toast.success('Estado actualizado (notificación no enviada)');

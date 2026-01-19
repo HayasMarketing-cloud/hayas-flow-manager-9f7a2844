@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import { notificationFeedback } from '@/lib/notification-feedback';
 import { 
   CheckCircle2, 
   XCircle, 
@@ -116,6 +117,8 @@ export default function FirmaLiquidacion() {
     },
     onSuccess: (result) => {
       toast.success(result.message);
+      // Show notification feedback - notifications sent to management team
+      notificationFeedback.liquidationSigned(action === 'accept' ? 'accepted' : 'disputed');
     },
     onError: (error: any) => {
       toast.error(error.message || 'Error al procesar la firma');

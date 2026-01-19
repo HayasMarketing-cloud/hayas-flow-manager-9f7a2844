@@ -36,6 +36,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
 import { notifySpecialistAssigned } from '@/lib/notification-utils';
+import { notificationFeedback } from '@/lib/notification-feedback';
 import { useAuth } from '@/contexts/AuthContext';
 
 const requestSchema = z.object({
@@ -284,6 +285,9 @@ export const RequestFormModal = ({
       // Notify specialist if assigned with pending_specialist status
       if (result?.isNew && result?.specialistData && result?.status === 'pending_specialist') {
         const client = formData?.clients?.find(c => c.id === result.clientId);
+        const specialistName = result.specialistData.name || 'Especialista';
+        let hasInAppNotification = false;
+        let hasEmailNotification = false;
         
         // In-app notification (if specialist has user_id)
         if (result.specialistData.user_id) {
@@ -293,6 +297,7 @@ export const RequestFormModal = ({
             result.id,
             client?.name || 'Cliente'
           );
+          hasInAppNotification = true;
         }
         
         // Email notification (if specialist has email and sender has @hayas.es email)
@@ -305,16 +310,19 @@ export const RequestFormModal = ({
                 requestId: result.id,
                 notificationType: 'specialist_assigned',
                 recipientEmail: result.specialistData.email,
-                recipientName: result.specialistData.name || 'Especialista',
+                recipientName: specialistName,
                 senderEmail,
                 appUrl,
               },
             });
+            hasEmailNotification = true;
           } catch (emailError) {
             console.error('Error sending email notification:', emailError);
-            // Don't fail the whole operation if email fails
           }
         }
+
+        // Show notification feedback
+        notificationFeedback.specialistAssigned(specialistName, hasEmailNotification, hasInAppNotification);
       }
       
       toast.success(

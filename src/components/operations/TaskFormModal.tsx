@@ -163,6 +163,7 @@ export function TaskFormModal({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["my-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["milestones-with-tasks"] });
       toast.success("Tarea creada");
       onOpenChange(false);
       reset();
@@ -196,6 +197,7 @@ export function TaskFormModal({
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["task", taskId] });
       queryClient.invalidateQueries({ queryKey: ["my-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["milestones-with-tasks"] });
       toast.success("Tarea actualizada");
       onOpenChange(false);
     },

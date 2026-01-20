@@ -106,20 +106,34 @@ const Solicitudes = () => {
     },
   });
 
-  // Fetch budgets filtered by selected client
+  // Fetch budgets - either filtered by client or fetch specific budget by ID
   const { data: budgets } = useQuery({
-    queryKey: ['budgets-filter', filters.clientId],
+    queryKey: ['budgets-filter', filters.clientId, filters.budgetId],
     queryFn: async () => {
-      if (!filters.clientId) return [];
-      const { data, error } = await supabase
-        .from('budgets')
-        .select('id, title, code')
-        .eq('client_id', filters.clientId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
+      // If we have a budgetId from URL but no client, fetch that specific budget
+      if (filters.budgetId && !filters.clientId) {
+        const { data, error } = await supabase
+          .from('budgets')
+          .select('id, title, code, client_id')
+          .eq('id', filters.budgetId);
+        if (error) throw error;
+        return data;
+      }
+      
+      // If client is selected, fetch all budgets for that client
+      if (filters.clientId) {
+        const { data, error } = await supabase
+          .from('budgets')
+          .select('id, title, code')
+          .eq('client_id', filters.clientId)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return data;
+      }
+      
+      return [];
     },
-    enabled: !!filters.clientId,
+    enabled: !!filters.clientId || !!filters.budgetId,
   });
 
 
@@ -435,15 +449,15 @@ const Solicitudes = () => {
               </SelectContent>
             </Select>
 
-            {/* Budget filter - only shown when client is selected */}
-            {filters.clientId && (
+            {/* Budget filter - shown when client is selected OR when budget_id is in URL */}
+            {(filters.clientId || filters.budgetId) && (
               <Select
                 value={filters.budgetId || 'all'}
                 onValueChange={(value) =>
                   updateFilter('budgetId', value === 'all' ? null : value)
                 }
               >
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-[250px]">
                   <SelectValue placeholder="Todos los presupuestos" />
                 </SelectTrigger>
                 <SelectContent>

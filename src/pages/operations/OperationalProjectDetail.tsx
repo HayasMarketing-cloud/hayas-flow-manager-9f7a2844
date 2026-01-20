@@ -8,7 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { ArrowLeft, ExternalLink, Edit2, Calendar, User, Briefcase, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Edit2, Calendar, User, Briefcase, X, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { useOperationalProject } from '@/hooks/useOperationalProjects';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -360,6 +361,28 @@ export default function OperationalProjectDetail() {
         {/* Milestones y Tareas - Unified Section */}
         <Card>
           <CardHeader className="pb-4">
+            {/* Progress Bar */}
+            {operationalRequests && operationalRequests.length > 0 && (
+              <div className="mb-4 p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    <span className="text-sm font-medium">Progreso del Proyecto</span>
+                  </div>
+                  <span className="text-sm font-bold">
+                    {Math.round((operationalRequests.filter(r => r.status === 'completed').length / operationalRequests.length) * 100)}%
+                  </span>
+                </div>
+                <Progress 
+                  value={(operationalRequests.filter(r => r.status === 'completed').length / operationalRequests.length) * 100} 
+                  className="h-2"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {operationalRequests.filter(r => r.status === 'completed').length} de {operationalRequests.length} milestones completados
+                </p>
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <CardTitle className="flex items-center gap-2">
                 Milestones y Tareas

@@ -22,55 +22,6 @@ export const useMyTasks = () => {
         .from('tasks')
         .select(`
           *,
-          milestone:milestones(
-            id,
-            name,
-            operational_request_id,
-            operational_request:operational_requests(
-              id,
-              name,
-              operational_project_id,
-              client_id,
-              operational_project:operational_projects(
-                id,
-                name,
-                client:clients(id, name)
-              )
-            )
-          )
-        `)
-        .or(`assignee_user_id.eq.${user.id}${specialist ? `,assignee_specialist_id.eq.${specialist.id}` : ''}`)
-        .neq('status', 'completed')
-        .order('deadline', { ascending: true, nullsFirst: false });
-
-      if (error) throw error;
-
-      return tasks || [];
-    },
-    enabled: !!user?.id,
-  });
-};
-
-export const useMyMilestones = () => {
-  const { user } = useAuth();
-
-  return useQuery({
-    queryKey: ['my-milestones', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-
-      // Get current specialist (if user is specialist)
-      const { data: specialist } = await supabase
-        .from('specialists')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      // Get milestones assigned to user or their specialist profile
-      const { data: milestones, error } = await supabase
-        .from('milestones')
-        .select(`
-          *,
           operational_request:operational_requests(
             id,
             name,
@@ -89,8 +40,17 @@ export const useMyMilestones = () => {
 
       if (error) throw error;
 
-      return milestones || [];
+      return tasks || [];
     },
     enabled: !!user?.id,
+  });
+};
+
+// No longer needed - milestones table was removed
+export const useMyMilestones = () => {
+  return useQuery({
+    queryKey: ['my-milestones-deprecated'],
+    queryFn: async () => [],
+    enabled: false,
   });
 };

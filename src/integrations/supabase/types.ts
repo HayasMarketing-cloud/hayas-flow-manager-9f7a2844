@@ -981,79 +981,6 @@ export type Database = {
           },
         ]
       }
-      milestones: {
-        Row: {
-          assignee_specialist_id: string | null
-          assignee_user_id: string | null
-          context_url: string | null
-          created_at: string | null
-          deadline: string | null
-          description: string | null
-          id: string
-          name: string
-          notes: string | null
-          operational_request_id: string
-          order_index: number | null
-          reviewer_type: Database["public"]["Enums"]["reviewer_type"] | null
-          status: Database["public"]["Enums"]["operational_status"] | null
-          updated_at: string | null
-        }
-        Insert: {
-          assignee_specialist_id?: string | null
-          assignee_user_id?: string | null
-          context_url?: string | null
-          created_at?: string | null
-          deadline?: string | null
-          description?: string | null
-          id?: string
-          name: string
-          notes?: string | null
-          operational_request_id: string
-          order_index?: number | null
-          reviewer_type?: Database["public"]["Enums"]["reviewer_type"] | null
-          status?: Database["public"]["Enums"]["operational_status"] | null
-          updated_at?: string | null
-        }
-        Update: {
-          assignee_specialist_id?: string | null
-          assignee_user_id?: string | null
-          context_url?: string | null
-          created_at?: string | null
-          deadline?: string | null
-          description?: string | null
-          id?: string
-          name?: string
-          notes?: string | null
-          operational_request_id?: string
-          order_index?: number | null
-          reviewer_type?: Database["public"]["Enums"]["reviewer_type"] | null
-          status?: Database["public"]["Enums"]["operational_status"] | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "milestones_assignee_specialist_id_fkey"
-            columns: ["assignee_specialist_id"]
-            isOneToOne: false
-            referencedRelation: "specialists"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "milestones_assignee_user_id_fkey"
-            columns: ["assignee_user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "milestones_operational_request_id_fkey"
-            columns: ["operational_request_id"]
-            isOneToOne: false
-            referencedRelation: "operational_requests"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       notifications: {
         Row: {
           action_url: string | null
@@ -1526,9 +1453,9 @@ export type Database = {
           deadline: string | null
           description: string | null
           id: string
-          milestone_id: string
           name: string
           notes: string | null
+          operational_request_id: string | null
           order_index: number | null
           status: Database["public"]["Enums"]["operational_status"] | null
           updated_at: string | null
@@ -1541,9 +1468,9 @@ export type Database = {
           deadline?: string | null
           description?: string | null
           id?: string
-          milestone_id: string
           name: string
           notes?: string | null
+          operational_request_id?: string | null
           order_index?: number | null
           status?: Database["public"]["Enums"]["operational_status"] | null
           updated_at?: string | null
@@ -1556,9 +1483,9 @@ export type Database = {
           deadline?: string | null
           description?: string | null
           id?: string
-          milestone_id?: string
           name?: string
           notes?: string | null
+          operational_request_id?: string | null
           order_index?: number | null
           status?: Database["public"]["Enums"]["operational_status"] | null
           updated_at?: string | null
@@ -1579,10 +1506,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "tasks_milestone_id_fkey"
-            columns: ["milestone_id"]
+            foreignKeyName: "tasks_operational_request_id_fkey"
+            columns: ["operational_request_id"]
             isOneToOne: false
-            referencedRelation: "milestones"
+            referencedRelation: "operational_requests"
             referencedColumns: ["id"]
           },
         ]

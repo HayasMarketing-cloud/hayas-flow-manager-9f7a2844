@@ -83,12 +83,20 @@ export function MilestoneRow({
   const updateNotesMutation = useUpdateRequestNotes();
   const { tasks } = useRequestTasks(milestone.id);
   const [localNotes, setLocalNotes] = useState(milestone.notes || '');
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [localName, setLocalName] = useState(milestone.name);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout>();
 
   // Sync local notes when milestone notes change
   useEffect(() => {
     setLocalNotes(milestone.notes || '');
   }, [milestone.notes]);
+
+  // Sync local name when milestone name changes
+  useEffect(() => {
+    setLocalName(milestone.name);
+  }, [milestone.name]);
 
   // Debounced auto-save for notes
   const handleNotesChange = (value: string) => {
@@ -113,6 +121,34 @@ export function MilestoneRow({
       }
     };
   }, []);
+
+  // Focus input when entering edit mode
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [isEditingName]);
+
+  const handleNameSave = () => {
+    const trimmedName = localName.trim();
+    if (trimmedName && trimmedName !== milestone.name) {
+      onUpdateField('name', trimmedName);
+    } else {
+      setLocalName(milestone.name); // Reset if empty or unchanged
+    }
+    setIsEditingName(false);
+  };
+
+  const handleNameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleNameSave();
+    } else if (e.key === 'Escape') {
+      setLocalName(milestone.name);
+      setIsEditingName(false);
+    }
+  };
 
   const status = milestone.status as keyof typeof statusColors;
   const completedTasks = tasks.filter((t) => t.status === 'completed').length;
@@ -155,12 +191,31 @@ export function MilestoneRow({
                 {status === 'completed' && (
                   <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-500 shrink-0" />
                 )}
-                <span className={cn(
-                  "font-medium truncate",
-                  status === 'completed' && "text-muted-foreground"
-                )}>
-                  {milestone.name}
-                </span>
+                {isEditingName ? (
+                  <Input
+                    ref={nameInputRef}
+                    value={localName}
+                    onChange={(e) => setLocalName(e.target.value)}
+                    onBlur={handleNameSave}
+                    onKeyDown={handleNameKeyDown}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-7 text-sm font-medium max-w-[300px]"
+                  />
+                ) : (
+                  <span 
+                    className={cn(
+                      "font-medium truncate cursor-pointer hover:text-primary transition-colors",
+                      status === 'completed' && "text-muted-foreground"
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsEditingName(true);
+                    }}
+                    title="Clic para editar nombre"
+                  >
+                    {milestone.name}
+                  </span>
+                )}
                 {milestone.financial_request?.service?.name && (
                   <Badge variant="outline" className="text-xs shrink-0">
                     {milestone.financial_request.service.name}

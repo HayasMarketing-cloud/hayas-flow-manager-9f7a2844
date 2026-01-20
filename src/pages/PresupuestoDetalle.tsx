@@ -52,6 +52,7 @@ export default function PresupuestoDetalle() {
   } | null>(null);
   const [isLoadingAssociatedData, setIsLoadingAssociatedData] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isGeneratingRequests, setIsGeneratingRequests] = useState(false);
   
   // Hooks de aprobación y creación de proyecto con actividades
   const approveMutation = useApproveBudget();
@@ -761,6 +762,83 @@ export default function PresupuestoDetalle() {
     }
   };
 
+  // Generar requests desde budget items (sin cambiar estado)
+  const handleGenerateRequests = async () => {
+    if (!budget || !items || items.length === 0) {
+      toast.error('No hay líneas en el presupuesto para generar requests');
+      return;
+    }
+
+    const itemsWithoutService = items.filter((item: any) => !item.service_id);
+    if (itemsWithoutService.length > 0) {
+      toast.error('Hay líneas sin servicio asignado. Edita el presupuesto primero.');
+      return;
+    }
+
+    setIsGeneratingRequests(true);
+
+    try {
+      // Obtener tarifas por hora de los especialistas asignados
+      const specialistIds = items
+        .filter((item: any) => item.specialist_id)
+        .map((item: any) => item.specialist_id);
+
+      let specialistsMap: Record<string, number> = {};
+      if (specialistIds.length > 0) {
+        const { data: specialists } = await supabase
+          .from('specialists')
+          .select('id, hourly_rate')
+          .in('id', specialistIds);
+        
+        specialists?.forEach((s: any) => {
+          specialistsMap[s.id] = s.hourly_rate || 0;
+        });
+      }
+
+      const requestsToInsert = items.map((item: any) => {
+        const specialistRate = item.specialist_id 
+          ? specialistsMap[item.specialist_id] || 0 
+          : 0;
+        const hours = item.quantity || 0;
+        const costToAgency = specialistRate > 0 ? hours * specialistRate : null;
+
+        return {
+          title: item.description,
+          description: `Generado automáticamente desde presupuesto: ${budget.title}`,
+          client_id: budget.client_id,
+          client_contact_id: budget.client_contact_id || null,
+          service_id: item.service_id,
+          specialist_id: item.specialist_id || null,
+          budget_id: budget.id,
+          budget_item_id: item.id,
+          quantity: item.quantity,
+          unit_price: item.unit_price || 0,
+          sale_amount: item.total || 0,
+          status: 'pending_specialist' as const,
+          code: '',
+          cost_type: specialistRate > 0 ? 'hourly' as const : null,
+          hours: specialistRate > 0 ? hours : null,
+          cost_rate: specialistRate > 0 ? specialistRate : null,
+          cost_to_agency: costToAgency,
+        };
+      });
+
+      const { error: requestsError } = await supabase
+        .from('financial_requests')
+        .insert(requestsToInsert);
+
+      if (requestsError) throw requestsError;
+
+      queryClient.invalidateQueries({ queryKey: ['budget-requests', budget.id] });
+      queryClient.invalidateQueries({ queryKey: ['budget-detail', budget.id] });
+      toast.success(`${requestsToInsert.length} request(s) generada(s) correctamente`);
+    } catch (error: any) {
+      toast.error('Error al generar requests: ' + error.message);
+    } finally {
+      setIsGeneratingRequests(false);
+    }
+  };
+
   return (
     <AppLayout 
       title={budget.code ? `${budget.code} - ${budget.title}` : budget.title} 
@@ -1034,27 +1112,41 @@ export default function PresupuestoDetalle() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Solicitudes Financieras */}
+                    {/* Requests Proyecto */}
                     <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
                           <ListChecks className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div>
-                          <p className="font-medium">Solicitudes Financieras</p>
+                          <p className="font-medium">Requests Proyecto</p>
                           <p className="text-sm text-muted-foreground">
-                            {requests.length} {requests.length === 1 ? 'solicitud generada' : 'solicitudes generadas'}
+                            {requests.length} {requests.length === 1 ? 'request generada' : 'requests generadas'}
                           </p>
                         </div>
                       </div>
-                      {requests.length > 0 && (
+                      {requests.length > 0 ? (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => navigate(`/solicitudes?budget_id=${budget.id}`)}
                         >
-                          Ver Solicitudes
+                          Ver Requests
                           <ExternalLink className="h-4 w-4 ml-2" />
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleGenerateRequests}
+                          disabled={isGeneratingRequests}
+                        >
+                          {isGeneratingRequests ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <ListChecks className="h-4 w-4 mr-2" />
+                          )}
+                          Generar Requests
                         </Button>
                       )}
                     </div>

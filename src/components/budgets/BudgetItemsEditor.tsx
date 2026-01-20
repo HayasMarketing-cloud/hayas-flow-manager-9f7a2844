@@ -192,9 +192,12 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
                   type="number"
                   min="0"
                   step="0.01"
-                  placeholder="Cant."
-                  value={item.quantity}
-                  onChange={(e) => handleItemChange(index, 'quantity', parseFloat(e.target.value) || 0)}
+                  placeholder="0"
+                  value={item.quantity || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    handleItemChange(index, 'quantity', val === '' ? 0 : parseFloat(val) || 0);
+                  }}
                   disabled={disabled}
                 />
               </div>
@@ -204,11 +207,12 @@ export const BudgetItemsEditor = ({ items, onChange, disabled }: BudgetItemsEdit
                   type="number"
                   min="0"
                   step="0.01"
-                  placeholder="Precio"
-                  value={item.unit_price}
-                  onChange={(e) =>
-                    handleItemChange(index, 'unit_price', parseFloat(e.target.value) || 0)
-                  }
+                  placeholder="0"
+                  value={item.unit_price || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    handleItemChange(index, 'unit_price', val === '' ? 0 : parseFloat(val) || 0);
+                  }}
                   disabled={disabled}
                 />
               </div>

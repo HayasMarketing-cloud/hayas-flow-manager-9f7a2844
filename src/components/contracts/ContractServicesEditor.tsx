@@ -241,11 +241,12 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
                   <Input
                     type="number"
                     min="1"
-                    placeholder="Cant."
-                    value={service.quantity}
-                    onChange={(e) =>
-                      handleServiceChange(index, 'quantity', parseInt(e.target.value) || 1)
-                    }
+                    placeholder="1"
+                    value={service.quantity || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      handleServiceChange(index, 'quantity', val === '' ? 1 : parseInt(val) || 1);
+                    }}
                     disabled={disabled}
                   />
                 )}
@@ -257,10 +258,11 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
                   min="0"
                   step="0.01"
                   placeholder={isHourly ? '€/h' : '€/Ud.'}
-                  value={service.price_value || service.unit_price || 0}
-                  onChange={(e) =>
-                    handleServiceChange(index, 'price_value', parseFloat(e.target.value) || 0)
-                  }
+                  value={(service.price_value || service.unit_price) || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    handleServiceChange(index, 'price_value', val === '' ? 0 : parseFloat(val) || 0);
+                  }}
                   disabled={disabled}
                 />
               </div>

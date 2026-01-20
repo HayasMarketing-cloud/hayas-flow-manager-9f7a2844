@@ -531,9 +531,12 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
                           <Input
                             type="number"
                             step="0.01"
-                            value={pricePerHour}
-                            onChange={(e) => setPricePerHour(parseFloat(e.target.value) || 0)}
-                            placeholder="55.00"
+                            placeholder="0"
+                            value={pricePerHour || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setPricePerHour(val === '' ? 0 : parseFloat(val) || 0);
+                            }}
                           />
                         </div>
                         <Button type="button" onClick={handleAddAggregatedRequests}>

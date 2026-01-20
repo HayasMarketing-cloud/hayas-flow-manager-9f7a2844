@@ -115,13 +115,15 @@ export function InvoiceItemsEditor({
                     <Input
                       type="number"
                       step="0.01"
-                      value={editingItem.quantity}
-                      onChange={(e) =>
+                      placeholder="0"
+                      value={editingItem.quantity || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
                         setEditingItem({
                           ...editingItem,
-                          quantity: parseFloat(e.target.value) || 0,
-                        })
-                      }
+                          quantity: val === '' ? 0 : parseFloat(val) || 0,
+                        });
+                      }}
                     />
                   </div>
                   <div>
@@ -129,13 +131,15 @@ export function InvoiceItemsEditor({
                     <Input
                       type="number"
                       step="0.01"
-                      value={editingItem.unit_price}
-                      onChange={(e) =>
+                      placeholder="0"
+                      value={editingItem.unit_price || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
                         setEditingItem({
                           ...editingItem,
-                          unit_price: parseFloat(e.target.value) || 0,
-                        })
-                      }
+                          unit_price: val === '' ? 0 : parseFloat(val) || 0,
+                        });
+                      }}
                     />
                   </div>
                   <div>
@@ -224,13 +228,15 @@ export function InvoiceItemsEditor({
                   <Input
                     type="number"
                     step="0.01"
-                    value={newManualItem.quantity}
-                    onChange={(e) =>
+                    placeholder="0"
+                    value={newManualItem.quantity || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
                       setNewManualItem({
                         ...newManualItem,
-                        quantity: parseFloat(e.target.value) || 0,
-                      })
-                    }
+                        quantity: val === '' ? 0 : parseFloat(val) || 0,
+                      });
+                    }}
                   />
                 </div>
                 <div>
@@ -238,13 +244,15 @@ export function InvoiceItemsEditor({
                   <Input
                     type="number"
                     step="0.01"
-                    value={newManualItem.unit_price}
-                    onChange={(e) =>
+                    placeholder="0"
+                    value={newManualItem.unit_price || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
                       setNewManualItem({
                         ...newManualItem,
-                        unit_price: parseFloat(e.target.value) || 0,
-                      })
-                    }
+                        unit_price: val === '' ? 0 : parseFloat(val) || 0,
+                      });
+                    }}
                   />
                 </div>
                 <div>

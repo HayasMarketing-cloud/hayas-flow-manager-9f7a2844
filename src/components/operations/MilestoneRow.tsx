@@ -21,6 +21,8 @@ import {
 import { InlineTasksList } from './InlineTasksList';
 import { useUpdateRequestNotes, useRequestTasks } from '@/hooks/useRequestTasks';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 const statusColors = {
   pending: 'bg-yellow-500',
@@ -80,6 +82,7 @@ export function MilestoneRow({
   onEdit,
   onDelete,
 }: MilestoneRowProps) {
+  const queryClient = useQueryClient();
   const updateNotesMutation = useUpdateRequestNotes();
   const { tasks } = useRequestTasks(milestone.id);
   const [localNotes, setLocalNotes] = useState(milestone.notes || '');
@@ -246,7 +249,22 @@ export function MilestoneRow({
             <div className="hidden sm:flex items-center gap-2 shrink-0">
               <Select
                 value={milestone.assignee_specialist_id || 'none'}
-                onValueChange={(value) => onUpdateField('assignee_specialist_id', value === 'none' ? null : value)}
+                onValueChange={async (value) => {
+                  const newSpecialistId = value === 'none' ? null : value;
+                  onUpdateField('assignee_specialist_id', newSpecialistId);
+                  
+                  // Sincronizar con financial_request vinculado
+                  if (milestone.financial_request?.id) {
+                    await supabase
+                      .from('financial_requests')
+                      .update({ specialist_id: newSpecialistId })
+                      .eq('id', milestone.financial_request.id);
+                    
+                    // Invalidar queries de financial_requests
+                    queryClient.invalidateQueries({ queryKey: ['financial-requests'] });
+                    queryClient.invalidateQueries({ queryKey: ['budget-detail'] });
+                  }
+                }}
               >
                 <SelectTrigger className="w-[140px] h-8 text-sm">
                   <SelectValue placeholder="Sin asignar" />
@@ -328,7 +346,22 @@ export function MilestoneRow({
         <div className="flex sm:hidden items-center gap-2 px-3 pb-3 -mt-1">
           <Select
             value={milestone.assignee_specialist_id || 'none'}
-            onValueChange={(value) => onUpdateField('assignee_specialist_id', value === 'none' ? null : value)}
+            onValueChange={async (value) => {
+              const newSpecialistId = value === 'none' ? null : value;
+              onUpdateField('assignee_specialist_id', newSpecialistId);
+              
+              // Sincronizar con financial_request vinculado
+              if (milestone.financial_request?.id) {
+                await supabase
+                  .from('financial_requests')
+                  .update({ specialist_id: newSpecialistId })
+                  .eq('id', milestone.financial_request.id);
+                
+                // Invalidar queries de financial_requests
+                queryClient.invalidateQueries({ queryKey: ['financial-requests'] });
+                queryClient.invalidateQueries({ queryKey: ['budget-detail'] });
+              }
+            }}
           >
             <SelectTrigger className="flex-1 h-8 text-xs">
               <SelectValue placeholder="Especialista" />

@@ -29,7 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Loader2, Clock, Euro, User, FileText, ShoppingCart } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
@@ -82,6 +82,7 @@ export const RequestFormModal = ({
   const isViewMode = mode === 'view';
   const { logActivity } = useRequestActivityLog();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const form = useForm<RequestFormData>({
     resolver: zodResolver(requestSchema),
@@ -248,6 +249,15 @@ export const RequestFormModal = ({
           .update(requestData)
           .eq('id', initialData.id);
         if (error) throw error;
+        
+        // Sincronizar specialist en operational_request vinculado (si cambió)
+        if (requestData.specialist_id !== initialData.specialist_id) {
+          await supabase
+            .from('operational_requests')
+            .update({ assignee_specialist_id: requestData.specialist_id })
+            .eq('financial_request_id', initialData.id);
+        }
+        
         return { isNew: false, id: initialData.id };
       } else {
         const { data: newRequest, error } = await supabase
@@ -328,6 +338,11 @@ export const RequestFormModal = ({
       toast.success(
         initialData ? 'Solicitud actualizada' : 'Solicitud creada correctamente'
       );
+      
+      // Invalidar queries relacionadas (incluye operational_requests por sincronización)
+      queryClient.invalidateQueries({ queryKey: ['operational-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['operational-project'] });
+      
       onSuccess();
       onOpenChange(false);
       form.reset();

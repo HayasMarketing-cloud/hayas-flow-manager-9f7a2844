@@ -5,20 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, ExternalLink, Edit2, Calendar, User, Briefcase, MoreHorizontal, Trash2, X, ListTodo } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { ArrowLeft, ExternalLink, Edit2, Calendar, User, Briefcase, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useOperationalProject } from '@/hooks/useOperationalProjects';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { OperationalProjectFormModal } from '@/components/operations/OperationalProjectFormModal';
 import { OperationalRequestFormModal } from '@/components/operations/OperationalRequestFormModal';
-import { ExpandableRequestCard } from '@/components/operations/ExpandableRequestCard';
+import { MilestoneRow } from '@/components/operations/MilestoneRow';
 import { toast } from 'sonner';
 import GoogleDriveIcon from '@/assets/icons8-google-drive.svg';
 
@@ -44,8 +40,6 @@ export default function OperationalProjectDetail() {
   const [editRequestId, setEditRequestId] = useState<string | null>(null);
   const [deleteRequestId, setDeleteRequestId] = useState<string | null>(null);
   const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
-  
-  // Expanded requests in tasks tab
   const [expandedRequests, setExpandedRequests] = useState<Set<string>>(new Set());
   
   // Filter states
@@ -136,7 +130,7 @@ export default function OperationalProjectDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-operational-requests', id] });
-      toast.success('Solicitud actualizada');
+      toast.success('Milestone actualizado');
     },
     onError: (error: any) => {
       toast.error(`Error: ${error.message}`);
@@ -155,7 +149,7 @@ export default function OperationalProjectDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-operational-requests', id] });
       queryClient.invalidateQueries({ queryKey: ['operational-projects'] });
-      toast.success('Solicitud eliminada');
+      toast.success('Milestone eliminado');
       setDeleteRequestId(null);
     },
     onError: (error: any) => {
@@ -174,7 +168,7 @@ export default function OperationalProjectDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-operational-requests', id] });
-      toast.success(`${selectedRequests.length} solicitudes actualizadas`);
+      toast.success(`${selectedRequests.length} milestones actualizados`);
       setSelectedRequests([]);
     },
     onError: (error: any) => {
@@ -211,6 +205,16 @@ export default function OperationalProjectDetail() {
       return newSet;
     });
   };
+
+  const expandAll = () => {
+    setExpandedRequests(new Set(filteredRequests.map(r => r.id)));
+  };
+
+  const collapseAll = () => {
+    setExpandedRequests(new Set());
+  };
+
+  const hasFiltersApplied = filterSpecialist !== 'all' || filterStatus !== 'all' || filterService !== 'all';
 
   if (isLoading) {
     return (
@@ -353,301 +357,217 @@ export default function OperationalProjectDetail() {
           </CardContent>
         </Card>
 
-        {/* Tabs */}
-        <Tabs defaultValue="requests" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="requests">
-              Solicitudes Operativas ({filteredRequests.length}{filteredRequests.length !== (operationalRequests?.length || 0) ? ` de ${operationalRequests?.length || 0}` : ''})
-            </TabsTrigger>
-            <TabsTrigger value="tasks" className="flex items-center gap-2">
-              <ListTodo className="h-4 w-4" />
-              Tareas y Progreso
-            </TabsTrigger>
-          </TabsList>
+        {/* Milestones y Tareas - Unified Section */}
+        <Card>
+          <CardHeader className="pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <CardTitle className="flex items-center gap-2">
+                Milestones y Tareas
+                <Badge variant="secondary" className="ml-2">
+                  {filteredRequests.length}
+                  {filteredRequests.length !== (operationalRequests?.length || 0) && ` de ${operationalRequests?.length || 0}`}
+                </Badge>
+              </CardTitle>
+              
+              {/* Filters and Actions */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={filterSpecialist} onValueChange={setFilterSpecialist}>
+                  <SelectTrigger className="w-[150px] h-9">
+                    <SelectValue placeholder="Especialista" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="none">Sin asignar</SelectItem>
+                    {specialists.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                  <SelectTrigger className="w-[130px] h-9">
+                    <SelectValue placeholder="Estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="pending">Pendiente</SelectItem>
+                    <SelectItem value="in_progress">En Progreso</SelectItem>
+                    <SelectItem value="in_review">En Revisión</SelectItem>
+                    <SelectItem value="completed">Completado</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <Select value={filterService} onValueChange={setFilterService}>
+                  <SelectTrigger className="w-[150px] h-9">
+                    <SelectValue placeholder="Servicio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="none">Sin servicio</SelectItem>
+                    {services.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                {hasFiltersApplied && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setFilterSpecialist('all');
+                      setFilterStatus('all');
+                      setFilterService('all');
+                    }}
+                    className="h-9 px-3 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Limpiar
+                  </Button>
+                )}
 
-          <TabsContent value="requests">
-            <Card>
-              <CardHeader className="flex-row items-center justify-between space-y-0 pb-4">
-                <CardTitle>Solicitudes Operativas</CardTitle>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Select value={filterSpecialist} onValueChange={setFilterSpecialist}>
-                    <SelectTrigger className="w-[160px] h-9">
-                      <SelectValue placeholder="Especialista" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los especialistas</SelectItem>
-                      <SelectItem value="none">Sin asignar</SelectItem>
-                      {specialists.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="w-[150px] h-9">
-                      <SelectValue placeholder="Estado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los estados</SelectItem>
-                      <SelectItem value="pending">Pendiente</SelectItem>
-                      <SelectItem value="in_progress">En Progreso</SelectItem>
-                      <SelectItem value="in_review">En Revisión</SelectItem>
-                      <SelectItem value="completed">Completado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={filterService} onValueChange={setFilterService}>
-                    <SelectTrigger className="w-[160px] h-9">
-                      <SelectValue placeholder="Servicio" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los servicios</SelectItem>
-                      <SelectItem value="none">Sin servicio</SelectItem>
-                      {services.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {(filterSpecialist !== 'all' || filterStatus !== 'all' || filterService !== 'all') && (
+                {/* Expand/Collapse All */}
+                {filteredRequests.length > 0 && (
+                  <div className="flex items-center border-l pl-2 ml-1">
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => {
-                        setFilterSpecialist('all');
-                        setFilterStatus('all');
-                        setFilterService('all');
-                      }}
-                      className="h-9 px-3 text-muted-foreground hover:text-foreground"
+                      onClick={expandAll}
+                      className="h-9 px-2"
+                      title="Expandir todos"
                     >
-                      <X className="h-4 w-4 mr-1" />
-                      Limpiar filtros
+                      <ChevronDown className="h-4 w-4" />
                     </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                {loadingRequests ? (
-                  <div className="space-y-4">
-                    {[...Array(3)].map((_, i) => (
-                      <Skeleton key={i} className="h-20" />
-                    ))}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={collapseAll}
+                      className="h-9 px-2"
+                      title="Colapsar todos"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </Button>
                   </div>
-                ) : !operationalRequests || operationalRequests.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No hay solicitudes operativas en este proyecto
-                  </div>
-                ) : filteredRequests.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No hay solicitudes que coincidan con los filtros
-                  </div>
-                ) : (
-                  <>
-                    {selectedRequests.length > 0 && (
-                      <div className="mb-4 p-3 bg-primary/10 rounded-lg flex flex-wrap items-center gap-3">
-                        <span className="font-medium text-sm">
-                          {selectedRequests.length} seleccionado{selectedRequests.length > 1 ? 's' : ''}
-                        </span>
-                        <div className="h-4 w-px bg-border" />
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-muted-foreground">Especialista:</span>
-                          <Select
-                            onValueChange={(value) => bulkUpdateMutation.mutate({
-                              field: 'assignee_specialist_id',
-                              value: value === 'none' ? null : value
-                            })}
-                          >
-                            <SelectTrigger className="w-[160px] h-8">
-                              <SelectValue placeholder="Cambiar..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Quitar asignación</SelectItem>
-                              {specialists.map((s) => (
-                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-muted-foreground">Estado:</span>
-                          <Select
-                            onValueChange={(value) => bulkUpdateMutation.mutate({
-                              field: 'status',
-                              value
-                            })}
-                          >
-                            <SelectTrigger className="w-[140px] h-8">
-                              <SelectValue placeholder="Cambiar..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="pending">Pendiente</SelectItem>
-                              <SelectItem value="in_progress">En Progreso</SelectItem>
-                              <SelectItem value="in_review">En Revisión</SelectItem>
-                              <SelectItem value="completed">Completado</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedRequests([])}
-                          className="ml-auto"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-12">
-                            <Checkbox
-                              checked={selectedRequests.length === filteredRequests.length && filteredRequests.length > 0}
-                              onCheckedChange={toggleSelectAll}
-                            />
-                          </TableHead>
-                          <TableHead>Descripción</TableHead>
-                          <TableHead>Especialista</TableHead>
-                          <TableHead>Deadline</TableHead>
-                          <TableHead>Estado</TableHead>
-                          <TableHead className="w-12"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredRequests.map((request) => (
-                          <TableRow key={request.id}>
-                            <TableCell>
-                              <Checkbox
-                                checked={selectedRequests.includes(request.id)}
-                                onCheckedChange={() => toggleSelectRequest(request.id)}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">{request.name}</p>
-                                {request.financial_request?.service?.name && (
-                                  <Badge variant="outline" className="text-xs mt-1">
-                                    {request.financial_request.service.name}
-                                  </Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Select
-                                value={request.assignee_specialist_id || 'none'}
-                                onValueChange={(value) => updateRequestMutation.mutate({
-                                  requestId: request.id,
-                                  field: 'assignee_specialist_id',
-                                  value: value === 'none' ? null : value
-                                })}
-                              >
-                                <SelectTrigger className="w-[140px] h-8">
-                                  <SelectValue placeholder="Sin asignar" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">Sin asignar</SelectItem>
-                                  {specialists.map((s) => (
-                                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="date"
-                                value={request.deadline || ''}
-                                onChange={(e) => updateRequestMutation.mutate({
-                                  requestId: request.id,
-                                  field: 'deadline',
-                                  value: e.target.value || null
-                                })}
-                                className="w-[130px] h-8"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Select
-                                value={request.status || 'pending'}
-                                onValueChange={(value) => updateRequestMutation.mutate({
-                                  requestId: request.id,
-                                  field: 'status',
-                                  value
-                                })}
-                              >
-                                <SelectTrigger className="w-[130px] h-8">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="pending">Pendiente</SelectItem>
-                                  <SelectItem value="in_progress">En Progreso</SelectItem>
-                                  <SelectItem value="in_review">En Revisión</SelectItem>
-                                  <SelectItem value="completed">Completado</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => setEditRequestId(request.id)}>
-                                    <Edit2 className="h-4 w-4 mr-2" />
-                                    Editar
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => setDeleteRequestId(request.id)}
-                                    className="text-destructive"
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Eliminar
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Tasks Tab - New simplified model */}
-          <TabsContent value="tasks">
-            <Card>
-              <CardHeader>
-                <CardTitle>Tareas y Progreso</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loadingRequests ? (
-                  <div className="space-y-4">
-                    {[...Array(3)].map((_, i) => (
-                      <Skeleton key={i} className="h-32" />
-                    ))}
-                  </div>
-                ) : !operationalRequests || operationalRequests.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No hay solicitudes operativas en este proyecto
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {operationalRequests.map((request) => (
-                      <ExpandableRequestCard
-                        key={request.id}
-                        request={request as any}
-                        specialists={specialists}
-                        isExpanded={expandedRequests.has(request.id)}
-                        onToggleExpand={() => toggleExpandRequest(request.id)}
+              </div>
+            </div>
+          </CardHeader>
+          
+          <CardContent>
+            {loadingRequests ? (
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <Skeleton key={i} className="h-20" />
+                ))}
+              </div>
+            ) : !operationalRequests || operationalRequests.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No hay milestones en este proyecto
+              </div>
+            ) : filteredRequests.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No hay milestones que coincidan con los filtros
+              </div>
+            ) : (
+              <>
+                {/* Bulk Actions Bar */}
+                {selectedRequests.length > 0 && (
+                  <div className="mb-4 p-3 bg-primary/10 rounded-lg flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={selectedRequests.length === filteredRequests.length}
+                        onCheckedChange={toggleSelectAll}
                       />
-                    ))}
+                      <span className="font-medium text-sm">
+                        {selectedRequests.length} seleccionado{selectedRequests.length > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div className="h-4 w-px bg-border" />
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Especialista:</span>
+                      <Select
+                        onValueChange={(value) => bulkUpdateMutation.mutate({
+                          field: 'assignee_specialist_id',
+                          value: value === 'none' ? null : value
+                        })}
+                      >
+                        <SelectTrigger className="w-[140px] h-8">
+                          <SelectValue placeholder="Cambiar..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Quitar asignación</SelectItem>
+                          {specialists.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Estado:</span>
+                      <Select
+                        onValueChange={(value) => bulkUpdateMutation.mutate({
+                          field: 'status',
+                          value
+                        })}
+                      >
+                        <SelectTrigger className="w-[130px] h-8">
+                          <SelectValue placeholder="Cambiar..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pendiente</SelectItem>
+                          <SelectItem value="in_progress">En Progreso</SelectItem>
+                          <SelectItem value="in_review">En Revisión</SelectItem>
+                          <SelectItem value="completed">Completado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedRequests([])}
+                      className="ml-auto"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+
+                {/* Select All Header */}
+                {selectedRequests.length === 0 && (
+                  <div className="flex items-center gap-2 mb-3 px-3 text-sm text-muted-foreground">
+                    <Checkbox
+                      checked={selectedRequests.length === filteredRequests.length && filteredRequests.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                    <span>Seleccionar todos</span>
+                  </div>
+                )}
+
+                {/* Milestone List */}
+                <div className="space-y-3">
+                  {filteredRequests.map((request) => (
+                    <MilestoneRow
+                      key={request.id}
+                      milestone={request as any}
+                      specialists={specialists}
+                      isSelected={selectedRequests.includes(request.id)}
+                      isExpanded={expandedRequests.has(request.id)}
+                      onToggleSelect={() => toggleSelectRequest(request.id)}
+                      onToggleExpand={() => toggleExpandRequest(request.id)}
+                      onUpdateField={(field, value) => updateRequestMutation.mutate({ 
+                        requestId: request.id, 
+                        field, 
+                        value 
+                      })}
+                      onEdit={() => setEditRequestId(request.id)}
+                      onDelete={() => setDeleteRequestId(request.id)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Modal edición proyecto */}
@@ -658,7 +578,7 @@ export default function OperationalProjectDetail() {
         mode="edit"
       />
 
-      {/* Modal edición solicitud */}
+      {/* Modal edición milestone */}
       <OperationalRequestFormModal
         open={!!editRequestId}
         onOpenChange={(open) => !open && setEditRequestId(null)}
@@ -667,11 +587,11 @@ export default function OperationalProjectDetail() {
         mode="edit"
       />
 
-      {/* Confirmación eliminación solicitud */}
+      {/* Confirmación eliminación milestone */}
       <AlertDialog open={!!deleteRequestId} onOpenChange={(open) => !open && setDeleteRequestId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar solicitud operativa?</AlertDialogTitle>
+            <AlertDialogTitle>¿Eliminar milestone?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta acción no se puede deshacer. Se eliminarán también las tareas asociadas.
             </AlertDialogDescription>

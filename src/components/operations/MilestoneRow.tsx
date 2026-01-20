@@ -407,6 +407,7 @@ export function MilestoneRow({
               <InlineTasksList
                 requestId={milestone.id}
                 defaultSpecialistId={milestone.assignee_specialist_id}
+                defaultDeadline={milestone.deadline}
                 specialists={specialists}
               />
             </div>

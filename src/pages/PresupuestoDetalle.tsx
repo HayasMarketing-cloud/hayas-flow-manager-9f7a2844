@@ -362,20 +362,20 @@ export default function PresupuestoDetalle() {
           .maybeSingle();
 
         if (opProject) {
-          // Verificar si hay operational_requests con milestones
+          // Verificar si hay operational_requests con tareas
           const { data: opRequests } = await supabase
             .from('operational_requests')
             .select('id')
             .eq('operational_project_id', opProject.id);
 
           if (opRequests && opRequests.length > 0) {
-            const { data: milestones } = await supabase
-              .from('milestones')
+            const { data: tasksData } = await supabase
+              .from('tasks')
               .select('id')
               .in('operational_request_id', opRequests.map(r => r.id));
 
-            if (milestones && milestones.length > 0) {
-              toast.warning('Las solicitudes operativas tienen milestones. Usa "Regenerar Solicitudes Operativas" en la pestaña Operación.', { duration: 6000 });
+            if (tasksData && tasksData.length > 0) {
+              toast.warning('Las solicitudes operativas tienen tareas. Usa "Regenerar Solicitudes Operativas" en la pestaña Operación.', { duration: 6000 });
             } else {
               // Regenerar automáticamente - necesitamos refetch de financial_requests
               const { data: newFinancialRequests } = await supabase
@@ -423,7 +423,7 @@ export default function PresupuestoDetalle() {
         throw new Error('No hay solicitudes financieras para sincronizar');
       }
 
-      // Verificar si las operational_requests tienen milestones asociados
+      // Verificar si las operational_requests tienen tareas asociadas
       const { data: existingOpRequests } = await supabase
         .from('operational_requests')
         .select('id')
@@ -431,13 +431,13 @@ export default function PresupuestoDetalle() {
 
       if (existingOpRequests && existingOpRequests.length > 0) {
         const opRequestIds = existingOpRequests.map(r => r.id);
-        const { data: milestonesWithTasks } = await supabase
-          .from('milestones')
+        const { data: tasksWithData } = await supabase
+          .from('tasks')
           .select('id')
           .in('operational_request_id', opRequestIds);
 
-        if (milestonesWithTasks && milestonesWithTasks.length > 0) {
-          throw new Error(`Hay ${milestonesWithTasks.length} milestone(s) asociados. Elimínalos primero para poder regenerar.`);
+        if (tasksWithData && tasksWithData.length > 0) {
+          throw new Error(`Hay ${tasksWithData.length} tarea(s) asociadas. Elimínalas primero para poder regenerar.`);
         }
       }
 

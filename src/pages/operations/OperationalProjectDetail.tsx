@@ -12,17 +12,13 @@ import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ArrowLeft, ExternalLink, Edit2, Calendar, User, Briefcase, MoreHorizontal, Trash2, X, ChevronDown, ChevronRight, ListTodo } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Edit2, Calendar, User, Briefcase, MoreHorizontal, Trash2, X, ListTodo } from 'lucide-react';
 import { useOperationalProject } from '@/hooks/useOperationalProjects';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { OperationalProjectFormModal } from '@/components/operations/OperationalProjectFormModal';
 import { OperationalRequestFormModal } from '@/components/operations/OperationalRequestFormModal';
-import { MilestoneFormModal } from '@/components/operations/MilestoneFormModal';
-import { TaskFormModal } from '@/components/operations/TaskFormModal';
-import { MilestonesList } from '@/components/operations/MilestonesList';
-import { useMilestonesWithTasks } from '@/hooks/useMilestonesWithTasks';
+import { ExpandableRequestCard } from '@/components/operations/ExpandableRequestCard';
 import { toast } from 'sonner';
 import GoogleDriveIcon from '@/assets/icons8-google-drive.svg';
 
@@ -49,15 +45,7 @@ export default function OperationalProjectDetail() {
   const [deleteRequestId, setDeleteRequestId] = useState<string | null>(null);
   const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
   
-  // Milestone & Task modal states
-  const [createMilestoneForRequestId, setCreateMilestoneForRequestId] = useState<string | null>(null);
-  const [editMilestoneId, setEditMilestoneId] = useState<string | null>(null);
-  const [deleteMilestoneId, setDeleteMilestoneId] = useState<string | null>(null);
-  const [createTaskForMilestoneId, setCreateTaskForMilestoneId] = useState<string | null>(null);
-  const [editTaskId, setEditTaskId] = useState<string | null>(null);
-  const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
-  
-  // Expanded requests in milestones tab
+  // Expanded requests in tasks tab
   const [expandedRequests, setExpandedRequests] = useState<Set<string>>(new Set());
   
   // Filter states
@@ -66,17 +54,6 @@ export default function OperationalProjectDetail() {
   const [filterService, setFilterService] = useState<string>('all');
 
   const { data: project, isLoading } = useOperationalProject(id || null);
-  
-  // Fetch milestones with tasks
-  const {
-    data: requestsWithMilestones,
-    isLoading: loadingMilestones,
-    reorderMilestones,
-    reorderTasks,
-    deleteMilestone,
-    deleteTask,
-    updateTaskStatus,
-  } = useMilestonesWithTasks(id || null);
 
   // Fetch specialists list
   const { data: specialists = [] } = useQuery({
@@ -129,7 +106,6 @@ export default function OperationalProjectDetail() {
 
   // Filter operational requests
   const filteredRequests = operationalRequests?.filter(request => {
-    // Filter by specialist
     if (filterSpecialist !== 'all') {
       if (filterSpecialist === 'none') {
         if (request.assignee_specialist_id) return false;
@@ -137,9 +113,7 @@ export default function OperationalProjectDetail() {
         if (request.assignee_specialist_id !== filterSpecialist) return false;
       }
     }
-    // Filter by status
     if (filterStatus !== 'all' && request.status !== filterStatus) return false;
-    // Filter by service (via financial_request)
     if (filterService !== 'all') {
       const serviceId = request.financial_request?.service_id;
       if (filterService === 'none') {
@@ -150,32 +124,6 @@ export default function OperationalProjectDetail() {
     }
     return true;
   }) || [];
-
-  // Fetch milestones count per request
-  const { data: milestoneCounts } = useQuery({
-    queryKey: ['project-milestone-counts', id],
-    queryFn: async () => {
-      if (!operationalRequests || operationalRequests.length === 0) return {};
-      const { data, error } = await supabase
-        .from('milestones')
-        .select('id, operational_request_id, status')
-        .in('operational_request_id', operationalRequests.map(r => r.id));
-      if (error) throw error;
-      
-      const counts: Record<string, { total: number; completed: number }> = {};
-      data?.forEach(m => {
-        if (!counts[m.operational_request_id]) {
-          counts[m.operational_request_id] = { total: 0, completed: 0 };
-        }
-        counts[m.operational_request_id].total++;
-        if (m.status === 'completed') {
-          counts[m.operational_request_id].completed++;
-        }
-      });
-      return counts;
-    },
-    enabled: !!operationalRequests && operationalRequests.length > 0,
-  });
 
   // Inline update mutation
   const updateRequestMutation = useMutation({
@@ -250,6 +198,18 @@ export default function OperationalProjectDetail() {
         ? prev.filter(id => id !== requestId)
         : [...prev, requestId]
     );
+  };
+
+  const toggleExpandRequest = (requestId: string) => {
+    setExpandedRequests(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(requestId)) {
+        newSet.delete(requestId);
+      } else {
+        newSet.add(requestId);
+      }
+      return newSet;
+    });
   };
 
   if (isLoading) {
@@ -399,9 +359,9 @@ export default function OperationalProjectDetail() {
             <TabsTrigger value="requests">
               Solicitudes Operativas ({filteredRequests.length}{filteredRequests.length !== (operationalRequests?.length || 0) ? ` de ${operationalRequests?.length || 0}` : ''})
             </TabsTrigger>
-            <TabsTrigger value="milestones" className="flex items-center gap-2">
+            <TabsTrigger value="tasks" className="flex items-center gap-2">
               <ListTodo className="h-4 w-4" />
-              Milestones y Tareas
+              Tareas y Progreso
             </TabsTrigger>
           </TabsList>
 
@@ -409,7 +369,6 @@ export default function OperationalProjectDetail() {
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0 pb-4">
                 <CardTitle>Solicitudes Operativas</CardTitle>
-                {/* Filters */}
                 <div className="flex flex-wrap items-center gap-3">
                   <Select value={filterSpecialist} onValueChange={setFilterSpecialist}>
                     <SelectTrigger className="w-[160px] h-9">
@@ -481,7 +440,6 @@ export default function OperationalProjectDetail() {
                   </div>
                 ) : (
                   <>
-                    {/* Bulk Action Bar */}
                     {selectedRequests.length > 0 && (
                       <div className="mb-4 p-3 bg-primary/10 rounded-lg flex flex-wrap items-center gap-3">
                         <span className="font-medium text-sm">
@@ -500,23 +458,12 @@ export default function OperationalProjectDetail() {
                               <SelectValue placeholder="Cambiar..." />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="none">Sin asignar</SelectItem>
+                              <SelectItem value="none">Quitar asignación</SelectItem>
                               {specialists.map((s) => (
                                 <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-muted-foreground">Deadline:</span>
-                          <Input
-                            type="date"
-                            className="w-[140px] h-8"
-                            onChange={(e) => bulkUpdateMutation.mutate({
-                              field: 'deadline',
-                              value: e.target.value || null
-                            })}
-                          />
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-muted-foreground">Estado:</span>
@@ -537,27 +484,27 @@ export default function OperationalProjectDetail() {
                             </SelectContent>
                           </Select>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => setSelectedRequests([])}
                           className="ml-auto"
                         >
-                          <X className="h-4 w-4 mr-1" />
-                          Limpiar
+                          <X className="h-4 w-4" />
                         </Button>
                       </div>
                     )}
+
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-10">
+                          <TableHead className="w-12">
                             <Checkbox
-                              checked={filteredRequests.length > 0 && selectedRequests.length === filteredRequests.length}
+                              checked={selectedRequests.length === filteredRequests.length && filteredRequests.length > 0}
                               onCheckedChange={toggleSelectAll}
                             />
                           </TableHead>
-                          <TableHead className="w-[35%]">Descripción</TableHead>
+                          <TableHead>Descripción</TableHead>
                           <TableHead>Especialista</TableHead>
                           <TableHead>Deadline</TableHead>
                           <TableHead>Estado</TableHead>
@@ -565,38 +512,24 @@ export default function OperationalProjectDetail() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredRequests.map((request) => {
-                          const milestoneInfo = milestoneCounts?.[request.id];
-                          return (
-                            <TableRow key={request.id} className={selectedRequests.includes(request.id) ? 'bg-primary/5' : ''}>
-                              {/* Checkbox */}
-                              <TableCell>
-                                <Checkbox
-                                  checked={selectedRequests.includes(request.id)}
-                                  onCheckedChange={() => toggleSelectRequest(request.id)}
-                                />
-                              </TableCell>
-                              {/* Información */}
-                              <TableCell>
-                              <div className="space-y-1">
-                                <div className="font-medium">{request.name}</div>
-                                {request.description && (
-                                  <p className="text-sm text-muted-foreground line-clamp-2">
-                                    {request.description}
-                                  </p>
+                        {filteredRequests.map((request) => (
+                          <TableRow key={request.id}>
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedRequests.includes(request.id)}
+                                onCheckedChange={() => toggleSelectRequest(request.id)}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{request.name}</p>
+                                {request.financial_request?.service?.name && (
+                                  <Badge variant="outline" className="text-xs mt-1">
+                                    {request.financial_request.service.name}
+                                  </Badge>
                                 )}
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                  {request.financial_request?.code && (
-                                    <span>Solicitud: {request.financial_request.code}</span>
-                                  )}
-                                  {milestoneInfo && (
-                                    <span>Milestones: {milestoneInfo.completed}/{milestoneInfo.total}</span>
-                                  )}
-                                </div>
                               </div>
                             </TableCell>
-
-                            {/* Especialista - Editable */}
                             <TableCell>
                               <Select
                                 value={request.assignee_specialist_id || 'none'}
@@ -606,7 +539,7 @@ export default function OperationalProjectDetail() {
                                   value: value === 'none' ? null : value
                                 })}
                               >
-                                <SelectTrigger className="w-[160px]">
+                                <SelectTrigger className="w-[140px] h-8">
                                   <SelectValue placeholder="Sin asignar" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -617,8 +550,6 @@ export default function OperationalProjectDetail() {
                                 </SelectContent>
                               </Select>
                             </TableCell>
-
-                            {/* Deadline - Editable */}
                             <TableCell>
                               <Input
                                 type="date"
@@ -628,11 +559,9 @@ export default function OperationalProjectDetail() {
                                   field: 'deadline',
                                   value: e.target.value || null
                                 })}
-                                className="w-[140px]"
+                                className="w-[130px] h-8"
                               />
                             </TableCell>
-
-                            {/* Estado - Editable */}
                             <TableCell>
                               <Select
                                 value={request.status || 'pending'}
@@ -642,7 +571,7 @@ export default function OperationalProjectDetail() {
                                   value
                                 })}
                               >
-                                <SelectTrigger className="w-[140px]">
+                                <SelectTrigger className="w-[130px] h-8">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -653,8 +582,6 @@ export default function OperationalProjectDetail() {
                                 </SelectContent>
                               </Select>
                             </TableCell>
-
-                            {/* Acciones */}
                             <TableCell>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -667,7 +594,7 @@ export default function OperationalProjectDetail() {
                                     <Edit2 className="h-4 w-4 mr-2" />
                                     Editar
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem 
+                                  <DropdownMenuItem
                                     onClick={() => setDeleteRequestId(request.id)}
                                     className="text-destructive"
                                   >
@@ -678,9 +605,8 @@ export default function OperationalProjectDetail() {
                               </DropdownMenu>
                             </TableCell>
                           </TableRow>
-                        );
-                      })}
-                    </TableBody>
+                        ))}
+                      </TableBody>
                     </Table>
                   </>
                 )}
@@ -688,106 +614,34 @@ export default function OperationalProjectDetail() {
             </Card>
           </TabsContent>
 
-          {/* Tab: Milestones y Tareas */}
-          <TabsContent value="milestones">
+          {/* Tasks Tab - New simplified model */}
+          <TabsContent value="tasks">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ListTodo className="h-5 w-5" />
-                  Milestones y Tareas
-                </CardTitle>
+                <CardTitle>Tareas y Progreso</CardTitle>
               </CardHeader>
               <CardContent>
-                {loadingMilestones ? (
+                {loadingRequests ? (
                   <div className="space-y-4">
                     {[...Array(3)].map((_, i) => (
-                      <Skeleton key={i} className="h-24" />
+                      <Skeleton key={i} className="h-32" />
                     ))}
                   </div>
-                ) : !requestsWithMilestones || requestsWithMilestones.length === 0 ? (
+                ) : !operationalRequests || operationalRequests.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     No hay solicitudes operativas en este proyecto
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {requestsWithMilestones.map((request) => {
-                      const isExpanded = expandedRequests.has(request.id);
-                      const totalMilestones = request.milestones.length;
-                      const completedMilestones = request.milestones.filter(m => m.status === 'completed').length;
-                      const totalTasks = request.milestones.reduce((sum, m) => sum + m.tasks.length, 0);
-                      const completedTasks = request.milestones.reduce(
-                        (sum, m) => sum + m.tasks.filter(t => t.status === 'completed').length,
-                        0
-                      );
-
-                      return (
-                        <Collapsible
-                          key={request.id}
-                          open={isExpanded}
-                          onOpenChange={(open) => {
-                            setExpandedRequests(prev => {
-                              const newSet = new Set(prev);
-                              if (open) {
-                                newSet.add(request.id);
-                              } else {
-                                newSet.delete(request.id);
-                              }
-                              return newSet;
-                            });
-                          }}
-                        >
-                          <div className="border rounded-lg">
-                            <CollapsibleTrigger asChild>
-                              <div className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors">
-                                {isExpanded ? (
-                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-medium">{request.name}</div>
-                                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                                    <span>{totalMilestones} milestones ({completedMilestones} completados)</span>
-                                    <span>{totalTasks} tareas ({completedTasks} completadas)</span>
-                                    {request.assignee_specialist && (
-                                      <span className="flex items-center gap-1">
-                                        <User className="h-3 w-3" />
-                                        {request.assignee_specialist.name}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <Badge className={statusColors[request.status || 'pending']}>
-                                  {statusLabels[(request.status || 'pending') as keyof typeof statusLabels]}
-                                </Badge>
-                              </div>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent>
-                              <div className="px-3 pb-3 border-t pt-3">
-                                <MilestonesList
-                                  milestones={request.milestones}
-                                  requestId={request.id}
-                                  onAddMilestone={() => setCreateMilestoneForRequestId(request.id)}
-                                  onEditMilestone={(milestoneId) => setEditMilestoneId(milestoneId)}
-                                  onDeleteMilestone={(milestoneId) => setDeleteMilestoneId(milestoneId)}
-                                  onAddTask={(milestoneId) => setCreateTaskForMilestoneId(milestoneId)}
-                                  onEditTask={(taskId) => setEditTaskId(taskId)}
-                                  onDeleteTask={(taskId) => setDeleteTaskId(taskId)}
-                                  onToggleTaskComplete={(taskId, completed) => {
-                                    updateTaskStatus({
-                                      taskId,
-                                      status: completed ? 'completed' : 'pending'
-                                    });
-                                  }}
-                                  onReorderMilestones={(milestoneIds) => reorderMilestones({ milestoneIds })}
-                                  onReorderTasks={(taskIds) => reorderTasks({ taskIds })}
-                                />
-                              </div>
-                            </CollapsibleContent>
-                          </div>
-                        </Collapsible>
-                      );
-                    })}
+                  <div className="space-y-4">
+                    {operationalRequests.map((request) => (
+                      <ExpandableRequestCard
+                        key={request.id}
+                        request={request as any}
+                        specialists={specialists}
+                        isExpanded={expandedRequests.has(request.id)}
+                        onToggleExpand={() => toggleExpandRequest(request.id)}
+                      />
+                    ))}
                   </div>
                 )}
               </CardContent>
@@ -819,87 +673,13 @@ export default function OperationalProjectDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar solicitud operativa?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. Se eliminarán también los milestones y tareas asociados.
+              Esta acción no se puede deshacer. Se eliminarán también las tareas asociadas.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction 
               onClick={() => deleteRequestId && deleteRequestMutation.mutate(deleteRequestId)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Modal crear milestone */}
-      <MilestoneFormModal
-        open={!!createMilestoneForRequestId}
-        onOpenChange={(open) => !open && setCreateMilestoneForRequestId(null)}
-        requestId={createMilestoneForRequestId || undefined}
-        mode="create"
-      />
-
-      {/* Modal editar milestone */}
-      <MilestoneFormModal
-        open={!!editMilestoneId}
-        onOpenChange={(open) => !open && setEditMilestoneId(null)}
-        milestoneId={editMilestoneId}
-        mode="edit"
-      />
-
-      {/* Confirmación eliminar milestone */}
-      <AlertDialog open={!!deleteMilestoneId} onOpenChange={(open) => !open && setDeleteMilestoneId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar milestone?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Se eliminarán también todas las tareas asociadas. Esta acción no se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => deleteMilestoneId && deleteMilestone(deleteMilestoneId)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Modal crear tarea */}
-      <TaskFormModal
-        open={!!createTaskForMilestoneId}
-        onOpenChange={(open) => !open && setCreateTaskForMilestoneId(null)}
-        milestoneId={createTaskForMilestoneId || undefined}
-        mode="create"
-      />
-
-      {/* Modal editar tarea */}
-      <TaskFormModal
-        open={!!editTaskId}
-        onOpenChange={(open) => !open && setEditTaskId(null)}
-        taskId={editTaskId}
-        mode="edit"
-      />
-
-      {/* Confirmación eliminar tarea */}
-      <AlertDialog open={!!deleteTaskId} onOpenChange={(open) => !open && setDeleteTaskId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar tarea?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción no se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => deleteTaskId && deleteTask(deleteTaskId)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Eliminar

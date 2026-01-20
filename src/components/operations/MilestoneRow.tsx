@@ -15,7 +15,8 @@ import {
   Edit2, 
   Trash2, 
   ExternalLink, 
-  MessageSquare 
+  MessageSquare,
+  CheckCircle2 
 } from 'lucide-react';
 import { InlineTasksList } from './InlineTasksList';
 import { useUpdateRequestNotes, useRequestTasks } from '@/hooks/useRequestTasks';
@@ -122,7 +123,8 @@ export function MilestoneRow({
     <Card className={cn(
       'transition-all',
       isSelected && 'ring-2 ring-primary/50',
-      isExpanded && 'shadow-md'
+      isExpanded && 'shadow-md',
+      status === 'completed' && 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800'
     )}>
       <Collapsible open={isExpanded} onOpenChange={onToggleExpand}>
         {/* Row Header */}
@@ -150,7 +152,15 @@ export function MilestoneRow({
           <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-2">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-medium truncate">{milestone.name}</span>
+                {status === 'completed' && (
+                  <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-500 shrink-0" />
+                )}
+                <span className={cn(
+                  "font-medium truncate",
+                  status === 'completed' && "text-muted-foreground"
+                )}>
+                  {milestone.name}
+                </span>
                 {milestone.financial_request?.service?.name && (
                   <Badge variant="outline" className="text-xs shrink-0">
                     {milestone.financial_request.service.name}

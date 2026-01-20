@@ -324,7 +324,7 @@ const Solicitudes = () => {
 
   if (error) {
     return (
-      <AppLayout title="Solicitudes" description="Gestión de solicitudes de servicios">
+      <AppLayout title="Requests" description="Gestión de requests de servicios">
         <Card>
           <CardContent className="flex items-center justify-center h-64">
             <p className="text-destructive">Error al cargar solicitudes: {String(error?.message || 'Error desconocido')}</p>
@@ -335,7 +335,7 @@ const Solicitudes = () => {
   }
 
   return (
-    <AppLayout title="Solicitudes" description="Gestión de solicitudes de servicios">
+    <AppLayout title="Requests" description="Gestión de requests de servicios">
       <div className="space-y-6">
         {/* Barra de filtros */}
         <div className="flex flex-col gap-4">

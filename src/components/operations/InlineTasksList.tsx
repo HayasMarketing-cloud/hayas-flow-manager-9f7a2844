@@ -23,12 +23,14 @@ import { useRequestTasks, TaskData } from '@/hooks/useRequestTasks';
 interface InlineTasksListProps {
   requestId: string;
   defaultSpecialistId?: string | null;
+  defaultDeadline?: string | null;
   specialists: { id: string; name: string }[];
 }
 
 export function InlineTasksList({
   requestId,
   defaultSpecialistId,
+  defaultDeadline,
   specialists,
 }: InlineTasksListProps) {
   const {
@@ -80,6 +82,7 @@ export function InlineTasksList({
       operational_request_id: requestId,
       name: newTaskName.trim(),
       assignee_specialist_id: defaultSpecialistId || null,
+      deadline: defaultDeadline || null,
       status: 'pending',
     });
 

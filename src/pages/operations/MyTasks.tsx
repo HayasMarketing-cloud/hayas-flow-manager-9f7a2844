@@ -1,36 +1,34 @@
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { useMyTasks } from '@/hooks/useMyTasks';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
-import { CheckSquare, Calendar, ExternalLink } from 'lucide-react';
+import { CheckSquare } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-
-const statusColors = {
-  pending: 'bg-yellow-500',
-  in_progress: 'bg-blue-500',
-  in_review: 'bg-purple-500',
-  completed: 'bg-green-500',
-};
-
-const statusLabels = {
-  pending: 'Pendiente',
-  in_progress: 'En Progreso',
-  in_review: 'En Revisión',
-  completed: 'Completado',
-};
+import { useTaskFilters } from '@/hooks/useTaskFilters';
+import { useAllTasks } from '@/hooks/useAllTasks';
+import { TaskFiltersBar } from '@/components/tasks/TaskFiltersBar';
+import { ProjectTaskGroup } from '@/components/tasks/ProjectTaskGroup';
 
 export default function MyTasks() {
-  const { data: tasks, isLoading } = useMyTasks();
   const queryClient = useQueryClient();
+  
+  const {
+    filters,
+    updateFilter,
+    clearFilters,
+    hasActiveFilters,
+    clients,
+    specialists,
+    contracts,
+    budgets,
+    monthOptions,
+  } = useTaskFilters();
+
+  const { groupedTasks, isLoading, isAdmin, isAccountManager, isProjectManager } = useAllTasks(filters);
 
   const updateTaskStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: any }) => {
+    mutationFn: async ({ id, status }: { id: string; status: 'pending' | 'in_progress' | 'in_review' | 'completed' }) => {
       const { error } = await supabase
         .from('tasks')
         .update({ status })
@@ -38,7 +36,7 @@ export default function MyTasks() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['all-tasks'] });
       toast.success('Estado actualizado');
     },
     onError: (error: any) => {
@@ -46,111 +44,72 @@ export default function MyTasks() {
     },
   });
 
+  const handleTaskStatusChange = (taskId: string, status: string) => {
+    updateTaskStatus.mutate({ 
+      id: taskId, 
+      status: status as 'pending' | 'in_progress' | 'in_review' | 'completed' 
+    });
+  };
+
+  // Determine page description based on role
+  const getDescription = () => {
+    if (isAdmin) return 'Vista de todas las tareas del sistema';
+    if (isAccountManager || isProjectManager) return 'Tareas de tus proyectos y clientes asignados';
+    return 'Tareas asignadas a mí';
+  };
+
   if (isLoading) {
     return (
-      <AppLayout title="Mis Tareas">
+      <AppLayout title="Mis Tareas" description={getDescription()}>
         <div className="space-y-4">
-          {[...Array(5)].map((_, i) => (
-            <Skeleton key={i} className="h-24" />
+          <Skeleton className="h-12 w-full" />
+          {[...Array(3)].map((_, i) => (
+            <Skeleton key={i} className="h-48" />
           ))}
         </div>
       </AppLayout>
     );
   }
 
-  if (!tasks || tasks.length === 0) {
-    return (
-      <AppLayout title="Mis Tareas">
-        <EmptyState
-          icon={CheckSquare}
-          title="No tienes tareas pendientes"
-          description="Las tareas asignadas a ti aparecerán aquí"
-        />
-      </AppLayout>
-    );
-  }
-
-  // Group tasks by project
-  const tasksByProject = tasks.reduce((acc, task) => {
-    const project = task.operational_request?.operational_project;
-    if (!project) return acc;
-
-    const projectKey = project.id;
-    if (!acc[projectKey]) {
-      acc[projectKey] = {
-        project,
-        tasks: [],
-      };
-    }
-    acc[projectKey].tasks.push(task);
-    return acc;
-  }, {} as Record<string, any>);
-
   return (
-    <AppLayout 
-      title="Mis Tareas" 
-      description="Tareas asignadas a mí"
-    >
-      <div className="space-y-4">
-        {Object.values(tasksByProject).map((group: any) => (
-          <Card key={group.project.id}>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg">{group.project.name}</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    {group.project.client?.name}
-                  </p>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {group.tasks.map((task: any) => (
-                  <div
-                    key={task.id}
-                    className="flex items-start gap-3 p-3 rounded-lg border"
-                  >
-                    <Checkbox
-                      checked={task.status === 'completed'}
-                      onCheckedChange={(checked) => {
-                        updateTaskStatus.mutate({
-                          id: task.id,
-                          status: checked ? 'completed' : 'in_progress',
-                        });
-                      }}
-                    />
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{task.name}</span>
-                        <Badge className={statusColors[task.status as keyof typeof statusColors]}>
-                          {statusLabels[task.status as keyof typeof statusLabels]}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {task.operational_request?.name}
-                      </p>
-                      {task.deadline && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(task.deadline).toLocaleDateString('es-ES')}
-                        </div>
-                      )}
-                      {task.context_url && (
-                        <Button variant="link" size="sm" className="h-auto p-0" asChild>
-                          <a href={task.context_url} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="h-3 w-3 mr-1" />
-                            Ver contexto
-                          </a>
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+    <AppLayout title="Mis Tareas" description={getDescription()}>
+      <div className="space-y-6">
+        {/* Filters Bar */}
+        <TaskFiltersBar
+          filters={filters}
+          updateFilter={updateFilter}
+          clearFilters={clearFilters}
+          hasActiveFilters={hasActiveFilters}
+          clients={clients}
+          specialists={specialists}
+          contracts={contracts}
+          budgets={budgets}
+          monthOptions={monthOptions}
+        />
+
+        {/* Tasks Content */}
+        {groupedTasks.length === 0 ? (
+          <EmptyState
+            icon={CheckSquare}
+            title={hasActiveFilters ? 'No hay tareas con estos filtros' : 'No hay tareas pendientes'}
+            description={
+              hasActiveFilters
+                ? 'Prueba a ajustar los filtros para ver más tareas'
+                : 'Las tareas asignadas aparecerán aquí organizadas por proyecto'
+            }
+          />
+        ) : (
+          <div className="space-y-4">
+            {groupedTasks.map((projectGroup) => (
+              <ProjectTaskGroup
+                key={projectGroup.project.id}
+                projectGroup={projectGroup}
+                onTaskStatusChange={handleTaskStatusChange}
+                isUpdating={updateTaskStatus.isPending}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </AppLayout>
   );

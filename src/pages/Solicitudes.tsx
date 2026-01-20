@@ -164,9 +164,9 @@ const Solicitudes = () => {
       .eq('id', requestId);
 
     if (error) {
-      toast.error('Error al eliminar la solicitud');
+      toast.error('Error al eliminar el request');
     } else {
-      toast.success('Solicitud eliminada correctamente');
+      toast.success('Request eliminado correctamente');
       queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
     }
     setDeleteConfirmOpen(false);
@@ -218,7 +218,7 @@ const Solicitudes = () => {
 
     if (error) {
       console.error('Clone error:', error);
-      toast.error('Error al clonar la solicitud: ' + error.message);
+      toast.error('Error al clonar el request: ' + error.message);
     } else {
       // Log the clone activity
       if (newRequest?.id) {
@@ -228,7 +228,7 @@ const Solicitudes = () => {
           changes: { from_code: code, from_id: id }
         });
       }
-      toast.success('Solicitud clonada correctamente');
+      toast.success('Request clonado correctamente');
       queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
     }
   };
@@ -241,7 +241,7 @@ const Solicitudes = () => {
       .in('financial_request_id', selectedIds);
 
     if (unlinkError) {
-      toast.error('Error al desvincular solicitudes operativas');
+      toast.error('Error al desvincular requests operativos');
       setBulkDeleteConfirmOpen(false);
       return;
     }
@@ -253,9 +253,9 @@ const Solicitudes = () => {
       .in('id', selectedIds);
 
     if (error) {
-      toast.error('Error al eliminar las solicitudes');
+      toast.error('Error al eliminar los requests');
     } else {
-      toast.success(`${selectedIds.length} solicitudes eliminadas`);
+      toast.success(`${selectedIds.length} requests eliminados`);
       setSelectedIds([]);
       queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
     }
@@ -298,14 +298,14 @@ const Solicitudes = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('Solicitudes actualizadas correctamente');
+      toast.success('Requests actualizados correctamente');
       queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
       setSelectedIds([]);
       setBulkEditConfirmOpen(false);
       setPendingBulkEdit(null);
     },
     onError: () => {
-      toast.error('Error al actualizar las solicitudes');
+      toast.error('Error al actualizar los requests');
       setBulkEditConfirmOpen(false);
       setPendingBulkEdit(null);
     },
@@ -327,7 +327,7 @@ const Solicitudes = () => {
       <AppLayout title="Requests" description="Gestión de requests de servicios">
         <Card>
           <CardContent className="flex items-center justify-center h-64">
-            <p className="text-destructive">Error al cargar solicitudes: {String(error?.message || 'Error desconocido')}</p>
+            <p className="text-destructive">Error al cargar requests: {String(error?.message || 'Error desconocido')}</p>
           </CardContent>
         </Card>
       </AppLayout>
@@ -383,7 +383,7 @@ const Solicitudes = () => {
               {!rolesLoading && canManage && (
                 <Button onClick={handleNewRequest}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Nueva Solicitud
+                  Nuevo Request
                 </Button>
               )}
             </div>
@@ -681,8 +681,8 @@ const Solicitudes = () => {
       <ConfirmDialog
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
-        title="Eliminar solicitud"
-        description={`¿Estás seguro de eliminar la solicitud "${requestToDelete?.title}"? Esta acción no se puede deshacer.`}
+        title="Eliminar request"
+        description={`¿Estás seguro de eliminar el request "${requestToDelete?.title}"? Esta acción no se puede deshacer.`}
         confirmText="Eliminar"
         onConfirm={() => requestToDelete && handleDeleteRequest(requestToDelete.id)}
         variant="destructive"
@@ -691,8 +691,8 @@ const Solicitudes = () => {
       <ConfirmDialog
         open={bulkDeleteConfirmOpen}
         onOpenChange={setBulkDeleteConfirmOpen}
-        title="Eliminar solicitudes"
-        description={`¿Estás seguro de eliminar ${selectedIds.length} solicitudes? Esta acción no se puede deshacer.`}
+        title="Eliminar requests"
+        description={`¿Estás seguro de eliminar ${selectedIds.length} requests? Esta acción no se puede deshacer.`}
         confirmText="Eliminar todas"
         onConfirm={handleBulkDelete}
         variant="destructive"
@@ -705,7 +705,7 @@ const Solicitudes = () => {
           if (!open) setPendingBulkEdit(null);
         }}
         title="Confirmar cambio masivo"
-        description={`¿Estás seguro de cambiar ${pendingBulkEdit?.field === 'status' ? 'el estado' : pendingBulkEdit?.field === 'deadline' ? 'la fecha' : 'el coste'} a "${pendingBulkEdit?.label}" en ${selectedIds.length} solicitudes?`}
+        description={`¿Estás seguro de cambiar ${pendingBulkEdit?.field === 'status' ? 'el estado' : pendingBulkEdit?.field === 'deadline' ? 'la fecha' : 'el coste'} a "${pendingBulkEdit?.label}" en ${selectedIds.length} requests?`}
         confirmText="Aplicar cambio"
         onConfirm={executeBulkEdit}
       />

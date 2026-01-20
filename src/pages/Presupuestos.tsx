@@ -13,7 +13,6 @@ import { useBudgetFilters } from '@/hooks/useBudgetFilters';
 import { BudgetCard } from '@/components/budgets/BudgetCard';
 import { BudgetTableView } from '@/components/budgets/BudgetTableView';
 import { BudgetFormModal } from '@/components/budgets/BudgetFormModal';
-import { OperationalProjectFormModal } from '@/components/operations/OperationalProjectFormModal';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -34,8 +33,6 @@ export default function Presupuestos() {
     activities: number;
   } | null>(null);
   const [isLoadingAssociatedData, setIsLoadingAssociatedData] = useState(false);
-  const [projectModalOpen, setProjectModalOpen] = useState(false);
-  const [projectBudgetData, setProjectBudgetData] = useState<any>(null);
 
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -355,11 +352,6 @@ export default function Presupuestos() {
     convertToContractMutation.mutate(budget);
   };
 
-  const handleProjectCreationRequest = (budget: any) => {
-    setProjectBudgetData(budget);
-    setProjectModalOpen(true);
-  };
-
   const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId;
 
   return (
@@ -527,24 +519,6 @@ export default function Presupuestos() {
         }}
         budget={selectedBudget}
         mode={modalMode}
-        onProjectCreationRequest={handleProjectCreationRequest}
-      />
-
-      <OperationalProjectFormModal
-        open={projectModalOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setProjectModalOpen(false);
-            setProjectBudgetData(null);
-          }
-        }}
-        mode="create"
-        initialData={{
-          name: projectBudgetData?.title,
-          client_id: projectBudgetData?.client_id,
-          budget_id: projectBudgetData?.id,
-          description: projectBudgetData?.description,
-        }}
       />
 
       <ConfirmDialog

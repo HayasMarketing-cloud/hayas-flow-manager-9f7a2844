@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, ListPlus, Trash2, CloudOff, Cloud, RefreshCw, FileDown, Users, FileSignature } from 'lucide-react';
+import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, Trash2, CloudOff, Cloud, FileDown, Users, FileSignature, ExternalLink, FolderKanban, ListChecks } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { generateBudgetPDF } from '@/utils/pdf/budgetPDFGenerator';
 import { useBudgetDetail } from '@/hooks/useBudgetDetail';
@@ -25,9 +25,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useApproveBudget } from '@/hooks/useApproveBudget';
-import { ProjectCreationModal } from '@/components/budgets/ProjectCreationModal';
 import { useCreateProjectWithActivities } from '@/hooks/useCreateProjectWithActivities';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
@@ -42,7 +41,7 @@ export default function PresupuestoDetalle() {
   const [docUrlInput, setDocUrlInput] = useState('');
   
   // Estados para flujo de aprobación
-  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
   
   // Estados para eliminación
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -186,297 +185,6 @@ export default function PresupuestoDetalle() {
       setAssociatedData(null);
     }
   };
-
-  // Mutación para generar solicitudes sin cambiar estado (para presupuestos ya aprobados)
-  const generateRequestsMutation = useMutation({
-    mutationFn: async () => {
-      if (!data?.budget || !data?.items || data.items.length === 0) {
-        throw new Error('No hay items en el presupuesto');
-      }
-
-      const itemsWithoutService = data.items.filter((item: any) => !item.service_id);
-      if (itemsWithoutService.length > 0) {
-        throw new Error('Hay líneas sin servicio asignado');
-      }
-
-      // Obtener tarifas por hora de los especialistas asignados
-      const specialistIds = data.items
-        .filter((item: any) => item.specialist_id)
-        .map((item: any) => item.specialist_id);
-
-      let specialistsMap: Record<string, number> = {};
-      if (specialistIds.length > 0) {
-        const { data: specialists } = await supabase
-          .from('specialists')
-          .select('id, hourly_rate')
-          .in('id', specialistIds);
-        
-        specialists?.forEach((s: any) => {
-          specialistsMap[s.id] = s.hourly_rate || 0;
-        });
-      }
-
-      const requestsToInsert = data.items.map((item: any) => {
-        const specialistRate = item.specialist_id 
-          ? specialistsMap[item.specialist_id] || 0 
-          : 0;
-        const hours = item.quantity || 0;
-        const costToAgency = specialistRate > 0 ? hours * specialistRate : null;
-
-        return {
-          title: item.description,
-          description: `Generado desde presupuesto: ${data.budget.title}`,
-          client_id: data.budget.client_id,
-          service_id: item.service_id,
-          specialist_id: item.specialist_id || null,
-          budget_id: data.budget.id,
-          budget_item_id: item.id,
-          quantity: item.quantity,
-          unit_price: item.unit_price || 0,
-          sale_amount: item.total || 0,
-          status: 'pending_specialist' as const,
-          code: '',
-          // Auto-calcular coste si hay especialista con tarifa por hora
-          cost_type: specialistRate > 0 ? 'hourly' as const : null,
-          hours: specialistRate > 0 ? hours : null,
-          cost_rate: specialistRate > 0 ? specialistRate : null,
-          cost_to_agency: costToAgency,
-        };
-      });
-
-      const { error } = await supabase
-        .from('financial_requests')
-        .insert(requestsToInsert);
-
-      if (error) throw error;
-      return requestsToInsert.length;
-    },
-    onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ['budget-requests', id] });
-      queryClient.invalidateQueries({ queryKey: ['budget-detail', id] });
-      queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
-      toast.success(`${count} solicitud(es) financiera(s) creada(s)`);
-      setShowProjectModal(true);
-    },
-    onError: (error: any) => {
-      toast.error('Error: ' + error.message);
-    }
-  });
-
-  // Mutación para regenerar solicitudes (elimina las existentes y crea nuevas vinculadas)
-  const regenerateRequestsMutation = useMutation({
-    mutationFn: async () => {
-      if (!data?.budget || !data?.items || data.items.length === 0) {
-        throw new Error('No hay items en el presupuesto');
-      }
-
-      const itemsWithoutService = data.items.filter((item: any) => !item.service_id);
-      if (itemsWithoutService.length > 0) {
-        throw new Error('Hay líneas sin servicio asignado');
-      }
-
-      // Verificar que no haya solicitudes con factura o liquidación
-      const { data: requestsWithAssociations } = await supabase
-        .from('financial_requests')
-        .select('id, billed_invoice_id, liquidation_id')
-        .eq('budget_id', data.budget.id)
-        .or('billed_invoice_id.not.is.null,liquidation_id.not.is.null');
-
-      if (requestsWithAssociations && requestsWithAssociations.length > 0) {
-        throw new Error('No se pueden regenerar: hay solicitudes con factura o liquidación asociada');
-      }
-
-      // Eliminar solicitudes existentes
-      const { error: deleteError } = await supabase
-        .from('financial_requests')
-        .delete()
-        .eq('budget_id', data.budget.id);
-
-      if (deleteError) throw deleteError;
-
-      // Obtener tarifas por hora de los especialistas asignados
-      const specialistIds = data.items
-        .filter((item: any) => item.specialist_id)
-        .map((item: any) => item.specialist_id);
-
-      let specialistsMap: Record<string, number> = {};
-      if (specialistIds.length > 0) {
-        const { data: specialists } = await supabase
-          .from('specialists')
-          .select('id, hourly_rate')
-          .in('id', specialistIds);
-        
-        specialists?.forEach((s: any) => {
-          specialistsMap[s.id] = s.hourly_rate || 0;
-        });
-      }
-
-      // Crear nuevas solicitudes vinculadas con coste auto-calculado
-      const requestsToInsert = data.items.map((item: any) => {
-        const specialistRate = item.specialist_id 
-          ? specialistsMap[item.specialist_id] || 0 
-          : 0;
-        const hours = item.quantity || 0;
-        const costToAgency = specialistRate > 0 ? hours * specialistRate : null;
-
-        return {
-          title: item.description,
-          description: `Generado desde presupuesto: ${data.budget.title}`,
-          client_id: data.budget.client_id,
-          service_id: item.service_id,
-          specialist_id: item.specialist_id || null,
-          budget_id: data.budget.id,
-          budget_item_id: item.id,
-          quantity: item.quantity,
-          unit_price: item.unit_price || 0,
-          sale_amount: item.total || 0,
-          status: 'pending_specialist' as const,
-          code: '',
-          // Auto-calcular coste si hay especialista con tarifa por hora
-          cost_type: specialistRate > 0 ? 'hourly' as const : null,
-          hours: specialistRate > 0 ? hours : null,
-          cost_rate: specialistRate > 0 ? specialistRate : null,
-          cost_to_agency: costToAgency,
-        };
-      });
-
-      const { error } = await supabase
-        .from('financial_requests')
-        .insert(requestsToInsert);
-
-      if (error) throw error;
-      return requestsToInsert.length;
-    },
-    onSuccess: async (count) => {
-      queryClient.invalidateQueries({ queryKey: ['budget-requests', id] });
-      queryClient.invalidateQueries({ queryKey: ['budget-detail', id] });
-      queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
-      toast.success(`${count} solicitud(es) financiera(s) regenerada(s) con vinculación correcta`);
-
-      // Auto-regenerar operational_requests si existe proyecto operativo
-      if (data?.budget) {
-        const { data: opProject } = await supabase
-          .from('operational_projects')
-          .select('id')
-          .eq('budget_id', data.budget.id)
-          .maybeSingle();
-
-        if (opProject) {
-          // Verificar si hay operational_requests con tareas
-          const { data: opRequests } = await supabase
-            .from('operational_requests')
-            .select('id')
-            .eq('operational_project_id', opProject.id);
-
-          if (opRequests && opRequests.length > 0) {
-            const { data: tasksData } = await supabase
-              .from('tasks')
-              .select('id')
-              .in('operational_request_id', opRequests.map(r => r.id));
-
-            if (tasksData && tasksData.length > 0) {
-              toast.warning('Las solicitudes operativas tienen tareas. Usa "Regenerar Solicitudes Operativas" en la pestaña Operación.', { duration: 6000 });
-            } else {
-              // Regenerar automáticamente - necesitamos refetch de financial_requests
-              const { data: newFinancialRequests } = await supabase
-                .from('financial_requests')
-                .select('id, title, description, client_id, specialist_id')
-                .eq('budget_id', data.budget.id);
-
-              if (newFinancialRequests && newFinancialRequests.length > 0) {
-                // Eliminar operational_requests existentes
-                await supabase
-                  .from('operational_requests')
-                  .delete()
-                  .eq('operational_project_id', opProject.id);
-
-                // Crear nuevas operational_requests
-                const opRequestsToInsert = newFinancialRequests.map((fr) => ({
-                  operational_project_id: opProject.id,
-                  client_id: fr.client_id,
-                  financial_request_id: fr.id,
-                  name: fr.title,
-                  description: fr.description || null,
-                  status: 'pending' as const,
-                  created_by: user?.id,
-                  assignee_specialist_id: fr.specialist_id || null,
-                }));
-
-                await supabase.from('operational_requests').insert(opRequestsToInsert);
-                queryClient.invalidateQueries({ queryKey: ['operational-projects'] });
-                toast.success(`${opRequestsToInsert.length} solicitud(es) operativa(s) sincronizadas automáticamente`);
-              }
-            }
-          }
-        }
-      }
-    },
-    onError: (error: any) => {
-      toast.error('Error: ' + error.message);
-    }
-  });
-
-  // Mutación para regenerar solicitudes operativas (sincroniza con financial_requests actuales)
-  const regenerateOperationalRequestsMutation = useMutation({
-    mutationFn: async (projectId: string) => {
-      if (!data?.budget || !data?.requests || data.requests.length === 0) {
-        throw new Error('No hay solicitudes financieras para sincronizar');
-      }
-
-      // Verificar si las operational_requests tienen tareas asociadas
-      const { data: existingOpRequests } = await supabase
-        .from('operational_requests')
-        .select('id')
-        .eq('operational_project_id', projectId);
-
-      if (existingOpRequests && existingOpRequests.length > 0) {
-        const opRequestIds = existingOpRequests.map(r => r.id);
-        const { data: tasksWithData } = await supabase
-          .from('tasks')
-          .select('id')
-          .in('operational_request_id', opRequestIds);
-
-        if (tasksWithData && tasksWithData.length > 0) {
-          throw new Error(`Hay ${tasksWithData.length} tarea(s) asociadas. Elimínalas primero para poder regenerar.`);
-        }
-      }
-
-      // Eliminar operational_requests existentes
-      const { error: deleteError } = await supabase
-        .from('operational_requests')
-        .delete()
-        .eq('operational_project_id', projectId);
-
-      if (deleteError) throw deleteError;
-
-      // Crear nuevas operational_requests basadas en financial_requests actuales
-      const opRequestsToInsert = data.requests.map((fr: any) => ({
-        operational_project_id: projectId,
-        client_id: fr.client_id,
-        financial_request_id: fr.id,
-        name: fr.title,
-        description: fr.description || null,
-        status: 'pending' as const,
-        created_by: user?.id,
-        assignee_specialist_id: fr.specialist_id || null,
-      }));
-
-      const { error: insertError } = await supabase
-        .from('operational_requests')
-        .insert(opRequestsToInsert);
-
-      if (insertError) throw insertError;
-      return opRequestsToInsert.length;
-    },
-    onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ['budget-detail', id] });
-      queryClient.invalidateQueries({ queryKey: ['operational-projects'] });
-      toast.success(`${count} solicitud(es) operativa(s) regenerada(s)`);
-    },
-    onError: (error: any) => {
-      toast.error('Error: ' + error.message);
-    }
-  });
 
   // Estados para edición inline de Resumen
   const [isEditingResumen, setIsEditingResumen] = useState(false);
@@ -712,7 +420,7 @@ export default function PresupuestoDetalle() {
     approveMutation.mutate({
       budgetId: data.budget.id,
       onSuccess: () => {
-        setShowProjectModal(true);
+        setShowApprovalModal(true);
       }
     });
   };
@@ -999,16 +707,6 @@ export default function PresupuestoDetalle() {
   }, {});
 
   const totalPresupuestado = budget.total_amount || 0;
-  const totalConSolicitudes = requests.reduce((sum: number, req: any) => {
-    return sum + (req.sale_amount || 0);
-  }, 0);
-  const totalFacturado = requests.reduce((sum: number, req: any) => {
-    if (req.billed_invoice) {
-      return sum + (req.sale_amount || 0);
-    }
-    return sum;
-  }, 0);
-  const pendienteFacturar = totalPresupuestado - totalFacturado;
 
   const handleEditDocUrl = () => {
     setDocUrlInput(budget.accepted_document_url || '');
@@ -1046,6 +744,23 @@ export default function PresupuestoDetalle() {
 
   const selectedClientName = clients?.find((c) => c.id === resumenFormData.client_id)?.name || budget.client?.name;
 
+  // Crear proyecto operativo
+  const handleCreateProject = () => {
+    setShowApprovalModal(false);
+    if (user?.id && budget.id && budget.client_id) {
+      createProjectWithActivities.mutate({
+        projectData: {
+          name: budget.title,
+          client_id: budget.client_id,
+          budget_id: budget.id,
+          description: budget.description || null,
+          status: 'pending',
+          created_by: user.id,
+        }
+      });
+    }
+  };
+
   return (
     <AppLayout 
       title={budget.code ? `${budget.code} - ${budget.title}` : budget.title} 
@@ -1073,29 +788,6 @@ export default function PresupuestoDetalle() {
                 Aprobar y Generar Solicitudes
               </Button>
             )}
-            {budget.status === 'approved' && !hasFinancialRequests && (
-              <Button 
-                onClick={() => generateRequestsMutation.mutate()}
-                disabled={generateRequestsMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {generateRequestsMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                <ListPlus className="h-4 w-4 mr-2" />
-                Generar Solicitudes y Proyecto
-              </Button>
-            )}
-            {budget.status === 'approved' && hasFinancialRequests && requests.some((r: any) => !r.budget_item_id) && (
-              <Button 
-                onClick={() => regenerateRequestsMutation.mutate()}
-                disabled={regenerateRequestsMutation.isPending}
-                variant="outline"
-                className="border-amber-500 text-amber-600 hover:bg-amber-50"
-              >
-                {regenerateRequestsMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Regenerar Solicitudes
-              </Button>
-            )}
             <Button
               variant="outline"
               onClick={() => duplicateMutation.mutate(budget)}
@@ -1116,10 +808,9 @@ export default function PresupuestoDetalle() {
         </div>
 
         <Tabs defaultValue="resumen" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="resumen">Resumen</TabsTrigger>
             <TabsTrigger value="economico">Detalle Económico</TabsTrigger>
-            <TabsTrigger value="operacion">Operación</TabsTrigger>
           </TabsList>
 
           <TabsContent value="resumen" className="space-y-6">
@@ -1332,6 +1023,87 @@ export default function PresupuestoDetalle() {
               </CardContent>
             </Card>
 
+            {/* Sección Elementos Vinculados - NUEVA */}
+            {budget.status === 'approved' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ExternalLink className="h-5 w-5" />
+                    Elementos Vinculados
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Solicitudes Financieras */}
+                    <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
+                          <ListChecks className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Solicitudes Financieras</p>
+                          <p className="text-sm text-muted-foreground">
+                            {requests.length} {requests.length === 1 ? 'solicitud generada' : 'solicitudes generadas'}
+                          </p>
+                        </div>
+                      </div>
+                      {requests.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/solicitudes?budget_id=${budget.id}`)}
+                        >
+                          Ver Solicitudes
+                          <ExternalLink className="h-4 w-4 ml-2" />
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Proyecto Operativo */}
+                    <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900/30">
+                          <FolderKanban className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Proyecto Operativo</p>
+                          <p className="text-sm text-muted-foreground">
+                            {projects.length > 0 
+                              ? `${projects.length} ${projects.length === 1 ? 'proyecto vinculado' : 'proyectos vinculados'}`
+                              : 'Sin proyecto creado'}
+                          </p>
+                        </div>
+                      </div>
+                      {projects.length > 0 ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/operaciones/proyectos/${projects[0].id}`)}
+                        >
+                          Ver Proyecto
+                          <ExternalLink className="h-4 w-4 ml-2" />
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleCreateProject}
+                          disabled={createProjectWithActivities.isPending}
+                        >
+                          {createProjectWithActivities.isPending ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <FolderKanban className="h-4 w-4 mr-2" />
+                          )}
+                          Crear Proyecto
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Sección Equipo de Trabajo */}
             <Card>
               <CardHeader>
@@ -1348,14 +1120,14 @@ export default function PresupuestoDetalle() {
                       <p className="text-sm font-medium text-muted-foreground mb-2">
                         Account Manager
                       </p>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 border border-blue-100 dark:bg-blue-950/30 dark:border-blue-900">
+                      <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">
-                          <AvatarFallback className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                            {amProfile.full_name?.charAt(0) || 'A'}
+                          <AvatarFallback>
+                            {amProfile.full_name?.charAt(0) || amProfile.email?.charAt(0) || 'A'}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium">{amProfile.full_name}</p>
+                          <p className="font-medium">{amProfile.full_name || 'Sin nombre'}</p>
                           <p className="text-sm text-muted-foreground">{amProfile.email}</p>
                         </div>
                       </div>
@@ -1368,35 +1140,15 @@ export default function PresupuestoDetalle() {
                       <p className="text-sm font-medium text-muted-foreground mb-2">
                         Project Manager
                       </p>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-purple-50 border border-purple-100 dark:bg-purple-950/30 dark:border-purple-900">
-                        <Avatar className="h-10 w-10">
-                          <AvatarFallback className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
-                            {pmProfile.full_name?.charAt(0) || 'P'}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{pmProfile.full_name}</p>
-                          <p className="text-sm text-muted-foreground">{pmProfile.email}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Fallback: Creador si no hay AM asignado */}
-                  {!amProfile && creatorProfile && (
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-2">
-                        Creado por
-                      </p>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                      <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">
                           <AvatarFallback>
-                            {creatorProfile.full_name?.charAt(0) || 'U'}
+                            {pmProfile.full_name?.charAt(0) || pmProfile.email?.charAt(0) || 'P'}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium">{creatorProfile.full_name}</p>
-                          <p className="text-sm text-muted-foreground">{creatorProfile.email}</p>
+                          <p className="font-medium">{pmProfile.full_name || 'Sin nombre'}</p>
+                          <p className="text-sm text-muted-foreground">{pmProfile.email}</p>
                         </div>
                       </div>
                     </div>
@@ -1408,28 +1160,23 @@ export default function PresupuestoDetalle() {
                       <p className="text-sm font-medium text-muted-foreground mb-2">
                         Especialistas ({teamSpecialists.length})
                       </p>
-                      <div className="grid gap-3 md:grid-cols-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {teamSpecialists.map((specialist: any) => (
-                          <div 
-                            key={specialist.id} 
-                            className="flex items-center gap-3 p-3 rounded-lg border"
+                          <div
+                            key={specialist.id}
+                            className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30"
                           >
-                            <Avatar className="h-10 w-10">
-                              <AvatarFallback>
+                            <Avatar className="h-8 w-8">
+                              <AvatarFallback className="text-xs">
                                 {specialist.name?.charAt(0) || 'E'}
                               </AvatarFallback>
                             </Avatar>
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium truncate">{specialist.name}</p>
+                              <p className="font-medium text-sm truncate">{specialist.name}</p>
                               <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-xs">
-                                  {specialist.type === 'freelance' ? 'Freelance' : 'Partner'}
+                                <Badge variant="secondary" className="text-xs">
+                                  {specialist.type || 'Especialista'}
                                 </Badge>
-                                {specialist.email && (
-                                  <span className="text-xs text-muted-foreground truncate">
-                                    {specialist.email}
-                                  </span>
-                                )}
                               </div>
                             </div>
                           </div>
@@ -1438,10 +1185,10 @@ export default function PresupuestoDetalle() {
                     </div>
                   )}
 
-                  {/* Estado vacío */}
-                  {!amProfile && !pmProfile && !creatorProfile && teamSpecialists.length === 0 && (
-                    <p className="text-muted-foreground text-center py-4">
-                      No hay miembros del equipo asignados a este presupuesto
+                  {/* Si no hay nadie asignado */}
+                  {!amProfile && !pmProfile && teamSpecialists.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      No hay miembros del equipo asignados a este presupuesto.
                     </p>
                   )}
                 </div>
@@ -1499,21 +1246,6 @@ export default function PresupuestoDetalle() {
                       Editar Líneas
                     </Button>
                   )}
-                  {budget.status === 'approved' && requests.length > 0 && !isEditingEconomico && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => regenerateRequestsMutation.mutate()}
-                      disabled={regenerateRequestsMutation.isPending}
-                    >
-                      {regenerateRequestsMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                      )}
-                      Regenerar Solicitudes
-                    </Button>
-                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -1566,6 +1298,7 @@ export default function PresupuestoDetalle() {
                             <TableRow>
                               <TableHead>Servicio</TableHead>
                               <TableHead>Descripción</TableHead>
+                              <TableHead>Especialista</TableHead>
                               <TableHead className="text-center">Cantidad</TableHead>
                               <TableHead className="text-right">Precio Unit.</TableHead>
                               <TableHead className="text-right">Total</TableHead>
@@ -1578,6 +1311,9 @@ export default function PresupuestoDetalle() {
                                   {item.service?.name || 'Sin servicio'}
                                 </TableCell>
                                 <TableCell>{item.description}</TableCell>
+                                <TableCell>
+                                  {item.specialist?.name || '-'}
+                                </TableCell>
                                 <TableCell className="text-center">{item.quantity}</TableCell>
                                 <TableCell className="text-right">
                                   {formatCurrency(item.unit_price)}
@@ -1598,198 +1334,21 @@ export default function PresupuestoDetalle() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Métricas Económicas</CardTitle>
+                <CardTitle>Resumen Económico</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <div className="space-y-2">
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                  <div>
                     <p className="text-sm text-muted-foreground">Total Presupuestado</p>
-                    <p className="text-2xl font-bold">{formatCurrency(totalPresupuestado)}</p>
+                    <p className="text-3xl font-bold text-primary">{formatCurrency(totalPresupuestado)}</p>
                   </div>
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">Con Solicitudes Creadas</p>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {formatCurrency(totalConSolicitudes)}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">Total Facturado</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      {formatCurrency(totalFacturado)}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">Pendiente de Facturar</p>
-                    <p className="text-2xl font-bold text-orange-600">
-                      {formatCurrency(pendienteFacturar)}
-                    </p>
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground">Líneas</p>
+                    <p className="text-2xl font-semibold">{items.length}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  {requests.length > 0 ? 'Solicitudes Financieras Generadas' : 'Items del Presupuesto (Sin solicitudes generadas)'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {requests.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Código</TableHead>
-                        <TableHead>Título</TableHead>
-                        <TableHead>Servicio</TableHead>
-                        <TableHead>Especialista</TableHead>
-                        <TableHead>Estado</TableHead>
-                        <TableHead className="text-right">Monto</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {requests.map((request: any) => (
-                        <TableRow key={request.id}>
-                          <TableCell className="font-mono text-sm">{request.code}</TableCell>
-                          <TableCell>{request.title}</TableCell>
-                          <TableCell>{request.service?.name}</TableCell>
-                          <TableCell>{request.specialist?.name || '-'}</TableCell>
-                          <TableCell>
-                            <Badge variant={request.status === 'active' ? 'default' : 'secondary'}>
-                              {request.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {formatCurrency(request.sale_amount || 0)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Descripción</TableHead>
-                        <TableHead>Servicio</TableHead>
-                        <TableHead className="text-center">Cantidad</TableHead>
-                        <TableHead className="text-right">Precio Unit.</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {items.map((item: any) => (
-                        <TableRow key={item.id}>
-                          <TableCell>{item.description}</TableCell>
-                          <TableCell>{item.service?.name || 'Sin servicio'}</TableCell>
-                          <TableCell className="text-center">{item.quantity}</TableCell>
-                          <TableCell className="text-right">
-                            {formatCurrency(item.unit_price)}
-                          </TableCell>
-                          <TableCell className="text-right font-semibold">
-                            {formatCurrency(item.total)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="operacion" className="space-y-6">
-            {projects.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">
-                    No hay proyectos operativos vinculados a este presupuesto
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              projects.map((project: any) => (
-                <Card key={project.id}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <CardTitle>{project.name}</CardTitle>
-                        <Badge>{project.status}</Badge>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => regenerateOperationalRequestsMutation.mutate(project.id)}
-                          disabled={regenerateOperationalRequestsMutation.isPending || requests.length === 0}
-                        >
-                          {regenerateOperationalRequestsMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                          )}
-                          Regenerar Solicitudes Operativas
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/operaciones/proyectos/${project.id}`)}
-                        >
-                          Ver Proyecto
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {project.description && (
-                      <p className="text-sm text-muted-foreground mb-4">{project.description}</p>
-                    )}
-                    {requests.length === 0 && (
-                      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800">
-                        <strong>Nota:</strong> No hay solicitudes financieras generadas. Regenera primero las solicitudes financieras en la pestaña "Detalle Económico" antes de sincronizar las operativas.
-                      </div>
-                    )}
-                    {project.operational_requests && project.operational_requests.length > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-semibold">Solicitudes Operativas ({project.operational_requests.length})</h4>
-                          {project.operational_requests.length !== requests.length && requests.length > 0 && (
-                            <span className="text-sm text-amber-600">
-                              ⚠️ Desincronizado: {project.operational_requests.length} operativas vs {requests.length} financieras
-                            </span>
-                          )}
-                        </div>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Nombre</TableHead>
-                              <TableHead>Estado</TableHead>
-                              <TableHead>Deadline</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {project.operational_requests.map((req: any) => (
-                              <TableRow key={req.id}>
-                                <TableCell>{req.name}</TableCell>
-                                <TableCell>
-                                  <Badge variant="outline">{req.status}</Badge>
-                                </TableCell>
-                                <TableCell>
-                                  {req.deadline
-                                    ? format(new Date(req.deadline), 'dd/MM/yyyy', { locale: es })
-                                    : '-'}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))
-            )}
           </TabsContent>
         </Tabs>
       </div>
@@ -1836,28 +1395,74 @@ export default function PresupuestoDetalle() {
         mode="edit"
       />
 
-      {/* Modal de confirmación post-aprobación */}
-      <ProjectCreationModal
-        isOpen={showProjectModal}
-        onClose={() => setShowProjectModal(false)}
-        budget={{ ...budget, budget_items: items }}
-        onCreateProject={() => {
-          setShowProjectModal(false);
-          // Crear proyecto con actividades automáticamente
-          if (user?.id && budget.id && budget.client_id) {
-            createProjectWithActivities.mutate({
-              projectData: {
-                name: budget.title,
-                client_id: budget.client_id,
-                budget_id: budget.id,
-                description: budget.description || null,
-                status: 'pending',
-                created_by: user.id,
-              }
-            });
-          }
-        }}
-      />
+      {/* Modal de confirmación post-aprobación simplificado */}
+      <Dialog open={showApprovalModal} onOpenChange={setShowApprovalModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle className="h-6 w-6 text-green-600" />
+              <DialogTitle>Presupuesto Aprobado</DialogTitle>
+            </div>
+            <DialogDescription>
+              El presupuesto <strong>{budget.title}</strong> ha sido aprobado exitosamente.
+              Se han generado las solicitudes financieras automáticamente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Cliente:</span>
+                <span className="font-medium">{budget.client?.name}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Monto Total:</span>
+                <span className="font-medium">{formatCurrency(budget.total_amount || 0)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Solicitudes creadas:</span>
+                <Badge variant="secondary">{items.length}</Badge>
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <div className="flex items-start gap-3">
+                <FolderKanban className="h-5 w-5 text-primary mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <h4 className="text-sm font-medium">¿Deseas crear un proyecto operativo?</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Puedes crear un proyecto operativo para organizar los milestones y tareas
+                    asociados a este presupuesto.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => navigate(`/solicitudes?budget_id=${budget.id}`)}
+              className="flex-1"
+            >
+              <ListChecks className="h-4 w-4 mr-2" />
+              Ver Solicitudes
+            </Button>
+            <Button 
+              onClick={handleCreateProject}
+              disabled={createProjectWithActivities.isPending}
+              className="flex-1"
+            >
+              {createProjectWithActivities.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <FolderKanban className="h-4 w-4 mr-2" />
+              )}
+              Crear Proyecto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal de confirmación de eliminación */}
       <ConfirmDialog

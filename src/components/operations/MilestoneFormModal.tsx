@@ -166,6 +166,8 @@ export function MilestoneFormModal({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["milestones"] });
       queryClient.invalidateQueries({ queryKey: ["my-milestones"] });
+      queryClient.invalidateQueries({ queryKey: ["milestones-with-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["project-milestone-counts"] });
       toast.success("Milestone creado");
       onOpenChange(false);
       reset();
@@ -200,6 +202,8 @@ export function MilestoneFormModal({
       queryClient.invalidateQueries({ queryKey: ["milestones"] });
       queryClient.invalidateQueries({ queryKey: ["milestone", milestoneId] });
       queryClient.invalidateQueries({ queryKey: ["my-milestones"] });
+      queryClient.invalidateQueries({ queryKey: ["milestones-with-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["project-milestone-counts"] });
       toast.success("Milestone actualizado");
       onOpenChange(false);
     },

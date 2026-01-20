@@ -12,12 +12,17 @@ import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, ExternalLink, Edit2, Calendar, User, Briefcase, MoreHorizontal, Trash2, X } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ArrowLeft, ExternalLink, Edit2, Calendar, User, Briefcase, MoreHorizontal, Trash2, X, ChevronDown, ChevronRight, ListTodo } from 'lucide-react';
 import { useOperationalProject } from '@/hooks/useOperationalProjects';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { OperationalProjectFormModal } from '@/components/operations/OperationalProjectFormModal';
 import { OperationalRequestFormModal } from '@/components/operations/OperationalRequestFormModal';
+import { MilestoneFormModal } from '@/components/operations/MilestoneFormModal';
+import { TaskFormModal } from '@/components/operations/TaskFormModal';
+import { MilestonesList } from '@/components/operations/MilestonesList';
+import { useMilestonesWithTasks } from '@/hooks/useMilestonesWithTasks';
 import { toast } from 'sonner';
 import GoogleDriveIcon from '@/assets/icons8-google-drive.svg';
 
@@ -44,12 +49,34 @@ export default function OperationalProjectDetail() {
   const [deleteRequestId, setDeleteRequestId] = useState<string | null>(null);
   const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
   
+  // Milestone & Task modal states
+  const [createMilestoneForRequestId, setCreateMilestoneForRequestId] = useState<string | null>(null);
+  const [editMilestoneId, setEditMilestoneId] = useState<string | null>(null);
+  const [deleteMilestoneId, setDeleteMilestoneId] = useState<string | null>(null);
+  const [createTaskForMilestoneId, setCreateTaskForMilestoneId] = useState<string | null>(null);
+  const [editTaskId, setEditTaskId] = useState<string | null>(null);
+  const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
+  
+  // Expanded requests in milestones tab
+  const [expandedRequests, setExpandedRequests] = useState<Set<string>>(new Set());
+  
   // Filter states
   const [filterSpecialist, setFilterSpecialist] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterService, setFilterService] = useState<string>('all');
 
   const { data: project, isLoading } = useOperationalProject(id || null);
+  
+  // Fetch milestones with tasks
+  const {
+    data: requestsWithMilestones,
+    isLoading: loadingMilestones,
+    reorderMilestones,
+    reorderTasks,
+    deleteMilestone,
+    deleteTask,
+    updateTaskStatus,
+  } = useMilestonesWithTasks(id || null);
 
   // Fetch specialists list
   const { data: specialists = [] } = useQuery({
@@ -372,6 +399,10 @@ export default function OperationalProjectDetail() {
             <TabsTrigger value="requests">
               Solicitudes Operativas ({filteredRequests.length}{filteredRequests.length !== (operationalRequests?.length || 0) ? ` de ${operationalRequests?.length || 0}` : ''})
             </TabsTrigger>
+            <TabsTrigger value="milestones" className="flex items-center gap-2">
+              <ListTodo className="h-4 w-4" />
+              Milestones y Tareas
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="requests">
@@ -656,6 +687,112 @@ export default function OperationalProjectDetail() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Tab: Milestones y Tareas */}
+          <TabsContent value="milestones">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ListTodo className="h-5 w-5" />
+                  Milestones y Tareas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loadingMilestones ? (
+                  <div className="space-y-4">
+                    {[...Array(3)].map((_, i) => (
+                      <Skeleton key={i} className="h-24" />
+                    ))}
+                  </div>
+                ) : !requestsWithMilestones || requestsWithMilestones.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No hay solicitudes operativas en este proyecto
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {requestsWithMilestones.map((request) => {
+                      const isExpanded = expandedRequests.has(request.id);
+                      const totalMilestones = request.milestones.length;
+                      const completedMilestones = request.milestones.filter(m => m.status === 'completed').length;
+                      const totalTasks = request.milestones.reduce((sum, m) => sum + m.tasks.length, 0);
+                      const completedTasks = request.milestones.reduce(
+                        (sum, m) => sum + m.tasks.filter(t => t.status === 'completed').length,
+                        0
+                      );
+
+                      return (
+                        <Collapsible
+                          key={request.id}
+                          open={isExpanded}
+                          onOpenChange={(open) => {
+                            setExpandedRequests(prev => {
+                              const newSet = new Set(prev);
+                              if (open) {
+                                newSet.add(request.id);
+                              } else {
+                                newSet.delete(request.id);
+                              }
+                              return newSet;
+                            });
+                          }}
+                        >
+                          <div className="border rounded-lg">
+                            <CollapsibleTrigger asChild>
+                              <div className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium">{request.name}</div>
+                                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                                    <span>{totalMilestones} milestones ({completedMilestones} completados)</span>
+                                    <span>{totalTasks} tareas ({completedTasks} completadas)</span>
+                                    {request.assignee_specialist && (
+                                      <span className="flex items-center gap-1">
+                                        <User className="h-3 w-3" />
+                                        {request.assignee_specialist.name}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <Badge className={statusColors[request.status || 'pending']}>
+                                  {statusLabels[(request.status || 'pending') as keyof typeof statusLabels]}
+                                </Badge>
+                              </div>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <div className="px-3 pb-3 border-t pt-3">
+                                <MilestonesList
+                                  milestones={request.milestones}
+                                  requestId={request.id}
+                                  onAddMilestone={() => setCreateMilestoneForRequestId(request.id)}
+                                  onEditMilestone={(milestoneId) => setEditMilestoneId(milestoneId)}
+                                  onDeleteMilestone={(milestoneId) => setDeleteMilestoneId(milestoneId)}
+                                  onAddTask={(milestoneId) => setCreateTaskForMilestoneId(milestoneId)}
+                                  onEditTask={(taskId) => setEditTaskId(taskId)}
+                                  onDeleteTask={(taskId) => setDeleteTaskId(taskId)}
+                                  onToggleTaskComplete={(taskId, completed) => {
+                                    updateTaskStatus({
+                                      taskId,
+                                      status: completed ? 'completed' : 'pending'
+                                    });
+                                  }}
+                                  onReorderMilestones={(milestoneIds) => reorderMilestones({ milestoneIds })}
+                                  onReorderTasks={(taskIds) => reorderTasks({ taskIds })}
+                                />
+                              </div>
+                            </CollapsibleContent>
+                          </div>
+                        </Collapsible>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
 
@@ -676,7 +813,7 @@ export default function OperationalProjectDetail() {
         mode="edit"
       />
 
-      {/* Confirmación eliminación */}
+      {/* Confirmación eliminación solicitud */}
       <AlertDialog open={!!deleteRequestId} onOpenChange={(open) => !open && setDeleteRequestId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -689,6 +826,80 @@ export default function OperationalProjectDetail() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction 
               onClick={() => deleteRequestId && deleteRequestMutation.mutate(deleteRequestId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Modal crear milestone */}
+      <MilestoneFormModal
+        open={!!createMilestoneForRequestId}
+        onOpenChange={(open) => !open && setCreateMilestoneForRequestId(null)}
+        requestId={createMilestoneForRequestId || undefined}
+        mode="create"
+      />
+
+      {/* Modal editar milestone */}
+      <MilestoneFormModal
+        open={!!editMilestoneId}
+        onOpenChange={(open) => !open && setEditMilestoneId(null)}
+        milestoneId={editMilestoneId}
+        mode="edit"
+      />
+
+      {/* Confirmación eliminar milestone */}
+      <AlertDialog open={!!deleteMilestoneId} onOpenChange={(open) => !open && setDeleteMilestoneId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar milestone?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminarán también todas las tareas asociadas. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => deleteMilestoneId && deleteMilestone(deleteMilestoneId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Modal crear tarea */}
+      <TaskFormModal
+        open={!!createTaskForMilestoneId}
+        onOpenChange={(open) => !open && setCreateTaskForMilestoneId(null)}
+        milestoneId={createTaskForMilestoneId || undefined}
+        mode="create"
+      />
+
+      {/* Modal editar tarea */}
+      <TaskFormModal
+        open={!!editTaskId}
+        onOpenChange={(open) => !open && setEditTaskId(null)}
+        taskId={editTaskId}
+        mode="edit"
+      />
+
+      {/* Confirmación eliminar tarea */}
+      <AlertDialog open={!!deleteTaskId} onOpenChange={(open) => !open && setDeleteTaskId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar tarea?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => deleteTaskId && deleteTask(deleteTaskId)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Eliminar

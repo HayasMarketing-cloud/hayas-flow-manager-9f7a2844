@@ -328,8 +328,12 @@ export function CommissionFormModal({
               <Input
                 type="number"
                 step="0.01"
-                value={formData.base_amount}
-                onChange={(e) => setFormData(prev => ({ ...prev, base_amount: parseFloat(e.target.value) || 0 }))}
+                placeholder="0"
+                value={formData.base_amount || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData(prev => ({ ...prev, base_amount: val === '' ? 0 : parseFloat(val) || 0 }));
+                }}
                 disabled={isViewMode}
               />
             </div>
@@ -340,8 +344,12 @@ export function CommissionFormModal({
                 step="0.01"
                 min="0"
                 max="100"
-                value={formData.commission_percentage}
-                onChange={(e) => setFormData(prev => ({ ...prev, commission_percentage: parseFloat(e.target.value) || 0 }))}
+                placeholder="0"
+                value={formData.commission_percentage || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData(prev => ({ ...prev, commission_percentage: val === '' ? 0 : parseFloat(val) || 0 }));
+                }}
                 disabled={isViewMode}
               />
             </div>

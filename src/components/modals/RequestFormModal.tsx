@@ -813,7 +813,12 @@ export const RequestFormModal = ({
                         type="number"
                         step="0.01"
                         min="0"
-                        {...field}
+                        placeholder="0"
+                        value={field.value || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          field.onChange(val === '' ? 0 : parseFloat(val) || 0);
+                        }}
                         disabled={isViewMode}
                       />
                     </FormControl>

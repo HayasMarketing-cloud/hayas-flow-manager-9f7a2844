@@ -1,134 +1,187 @@
 
-# Plan: Filtrar Facturas por Clientes Asignados para Account Manager
+# Plan: Boton "Crear Proyecto" en Vista de Contrato
+
+## Resumen
+Agregar un boton "Crear Proyecto" en el modal de visualizacion de contrato que permita generar automaticamente un proyecto operativo con milestones (operational_requests) desde las solicitudes financieras asociadas al contrato.
 
 ## Situacion Actual
 
-La seccion de Facturas esta accesible para Account Managers (AM), pero actualmente muestra **todas las facturas de todos los clientes** en lugar de solo las facturas de los clientes a los que el AM esta asignado.
+```text
+FLUJO EXISTENTE (Presupuestos):
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
+│   Presupuesto   │ --> │ financial_       │ --> │ operational_project │
+│   (budget)      │     │ requests         │     │ + milestones        │
+│                 │     │ (via budget_id)  │     │ (via budget_id)     │
+└─────────────────┘     └──────────────────┘     └─────────────────────┘
 
-Esto es inconsistente con las otras secciones (Clientes, Contratos, Presupuestos, Proyectos) donde ya se implemento el filtrado por asignacion.
+FLUJO NUEVO (Contratos):
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
+│   Contrato      │ --> │ financial_       │ --> │ operational_project │
+│   (contract)    │     │ requests         │     │ + milestones        │
+│                 │     │ (via contract_id)│     │ (via contract_id)   │
+└─────────────────┘     └──────────────────┘     └─────────────────────┘
+```
 
-## Cambios Propuestos
+### Datos Verificados
+- La tabla `financial_requests` tiene columna `contract_id` para vincular requests a contratos
+- La tabla `operational_projects` tiene columna `contract_id` para vincular proyectos a contratos
+- Ya existen financial_requests vinculados directamente a contratos (sin budget_id)
 
-### Archivo: `src/pages/Facturas.tsx`
+## Componentes a Crear/Modificar
 
-1. **Importar hooks necesarios**:
-   - `useAssignedClients` para obtener los IDs de clientes asignados
-   - Funciones adicionales de `useUserRole` (`shouldFilterByAssignment`, `isAccountManager`)
+### 1. Nuevo Hook: `useCreateProjectFromContract.tsx`
 
-2. **Filtrar consulta de clientes**:
-   - Para el dropdown de filtro de clientes, mostrar solo clientes asignados si `needsFiltering` es true
+Similar a `useCreateProjectWithActivities` pero para contratos:
 
-3. **Filtrar consulta de facturas**:
-   - Agregar condicion `.in('client_id', assignedClientIds)` cuando `needsFiltering` sea true
-   - Mantener la consulta sin filtro para admin/finanzas
+```typescript
+// src/hooks/useCreateProjectFromContract.tsx
 
-4. **Actualizar query keys**:
-   - Incluir `assignedClientIds` y `needsFiltering` en las claves de cache
+interface CreateProjectFromContractParams {
+  projectData: {
+    name: string;
+    client_id: string;
+    contract_id: string;  // En lugar de budget_id
+    description?: string | null;
+    deadline?: string | null;
+    status?: 'pending' | 'in_progress' | 'in_review' | 'completed';
+    owner_user_id?: string | null;
+    created_by: string;
+  };
+}
+```
 
-## Flujo de Datos
+**Logica del hook:**
+1. Crear el proyecto operativo con `contract_id`
+2. Obtener los `financial_requests` donde `contract_id` = contrato seleccionado
+3. Crear `operational_requests` (milestones) por cada financial_request
+
+### 2. Modificar: `ContractFormModal.tsx`
+
+Agregar:
+- Query para verificar si ya existe un proyecto operativo para este contrato
+- Estado para el modal de confirmacion
+- Boton "Crear Proyecto" visible cuando:
+  - El contrato esta en modo vista (`mode === 'view'`)
+  - El contrato esta activo (`status === 'active'`)
+  - No existe ya un proyecto operativo asociado
+  - Hay financial_requests asociados al contrato
+
+### 3. Nuevo Componente: `ContractProjectCreationModal.tsx`
+
+Modal de confirmacion similar a `ProjectCreationModal` pero adaptado para contratos:
+- Muestra resumen del contrato
+- Cuenta de financial_requests que se convertiran en milestones
+- Botones "Ahora No" y "Crear Proyecto"
+
+## Flujo de Usuario
 
 ```text
-Account Manager accede a /facturas
-           │
-           ▼
-┌─────────────────────────┐
-│ shouldFilterByAssignment│ → true (solo AM sin admin/finanzas)
-└─────────────────────────┘
-           │
-           ▼
-┌─────────────────────────┐
-│ useAssignedClients()    │ → [client_id_1, client_id_2, ...]
-└─────────────────────────┘
-           │
-           ▼
-┌─────────────────────────┐
-│ Query facturas con      │
-│ .in('client_id', [...]) │
-└─────────────────────────┘
-           │
-           ▼
-    Solo facturas de
-    clientes asignados
+1. Usuario abre un contrato en modo vista
+                    │
+                    ▼
+2. Si contrato está activo Y tiene requests 
+   Y no tiene proyecto existente
+                    │
+                    ▼
+    ┌───────────────────────────────┐
+    │     Botón "Crear Proyecto"    │
+    │     visible en el modal       │
+    └───────────────────────────────┘
+                    │
+                    ▼ (click)
+    ┌───────────────────────────────┐
+    │ Modal de confirmación:        │
+    │ - Nombre del contrato         │
+    │ - Cliente                     │
+    │ - Requests a convertir: N     │
+    │ [Ahora No] [Crear Proyecto]   │
+    └───────────────────────────────┘
+                    │
+                    ▼ (confirmar)
+    ┌───────────────────────────────┐
+    │ Se crea:                      │
+    │ - 1 operational_project       │
+    │ - N operational_requests      │
+    │   (milestones)                │
+    └───────────────────────────────┘
+                    │
+                    ▼
+       Toast: "Proyecto creado con N milestones"
+       Redirige a detalle del proyecto
 ```
+
+## Archivos a Crear/Modificar
+
+| Archivo | Accion | Descripcion |
+|---------|--------|-------------|
+| `src/hooks/useCreateProjectFromContract.tsx` | Crear | Hook para crear proyecto desde contrato |
+| `src/components/contracts/ContractProjectCreationModal.tsx` | Crear | Modal de confirmacion |
+| `src/components/contracts/ContractFormModal.tsx` | Modificar | Agregar boton y logica |
 
 ## Detalles Tecnicos
 
-### Codigo a agregar en imports:
-
+### Query para verificar proyecto existente:
 ```typescript
-import { useAssignedClients } from '@/hooks/useAssignedClients';
-```
-
-### Codigo a agregar despues de useUserRole:
-
-```typescript
-const { shouldFilterByAssignment, isAccountManager } = useUserRole();
-const { assignedClientIds, isLoading: assignedClientsLoading, needsFiltering } = useAssignedClients();
-```
-
-### Modificacion en query de clientes (dropdown):
-
-```typescript
-const { data: clients } = useQuery({
-  queryKey: ['clients-for-invoices', needsFiltering, assignedClientIds],
+const { data: existingProject } = useQuery({
+  queryKey: ['contract-operational-project', contract?.id],
   queryFn: async () => {
-    let query = supabase
-      .from('clients')
+    const { data, error } = await supabase
+      .from('operational_projects')
       .select('id, name')
-      .eq('status', 'active')
-      .order('name');
+      .eq('contract_id', contract.id)
+      .single();
     
-    // Filtrar por clientes asignados si es AM
-    if (needsFiltering && assignedClientIds.length > 0) {
-      query = query.in('id', assignedClientIds);
-    }
-    
-    const { data, error } = await query;
-    if (error) throw error;
+    if (error && error.code !== 'PGRST116') throw error;
     return data;
   },
-  enabled: !needsFiltering || assignedClientIds.length > 0,
+  enabled: !!contract?.id && isOpen,
 });
 ```
 
-### Modificacion en query de facturas:
-
+### Query para contar financial_requests del contrato:
 ```typescript
-const { data: invoices, isLoading } = useQuery({
-  queryKey: ['invoices', filters, needsFiltering, assignedClientIds],
+const { data: contractRequests } = useQuery({
+  queryKey: ['contract-financial-requests-count', contract?.id],
   queryFn: async () => {
-    // ... codigo existente ...
+    const { data, error, count } = await supabase
+      .from('financial_requests')
+      .select('id, title', { count: 'exact' })
+      .eq('contract_id', contract.id);
     
-    // Agregar filtro por clientes asignados
-    if (needsFiltering && assignedClientIds.length > 0) {
-      query = query.in('client_id', assignedClientIds);
-    }
-    
-    const { data, error } = await query;
     if (error) throw error;
-    return data;
+    return { requests: data, count };
   },
-  enabled: !needsFiltering || assignedClientIds.length > 0,
+  enabled: !!contract?.id && isOpen,
 });
 ```
 
-## Archivos a Modificar
+### Boton en el DialogFooter:
+```typescript
+{isViewMode && contract?.status === 'active' && !existingProject && contractRequests?.count > 0 && (
+  <Button 
+    variant="outline" 
+    onClick={() => setShowProjectModal(true)}
+  >
+    <FolderKanban className="h-4 w-4 mr-2" />
+    Crear Proyecto
+  </Button>
+)}
 
-| Archivo | Cambio |
-|---------|--------|
-| `src/pages/Facturas.tsx` | Agregar filtrado por clientes asignados para AM |
+{existingProject && (
+  <Button 
+    variant="outline" 
+    onClick={() => navigate(`/proyectos-operativos/${existingProject.id}`)}
+  >
+    <ExternalLink className="h-4 w-4 mr-2" />
+    Ver Proyecto
+  </Button>
+)}
+```
 
-## Resultado Esperado
+## Consideraciones
 
-- **Admin/Finanzas**: Ven todas las facturas (sin cambios)
-- **Account Manager**: Ve solo facturas de clientes donde es AM o PM en contratos/presupuestos
-- **Project Manager**: No tiene acceso a Facturas (ya bloqueado en sidebar)
-- **Especialista**: No tiene acceso a Facturas (ya bloqueado en sidebar)
-
-## Consistencia con Otras Secciones
-
-Este cambio alineara Facturas con el comportamiento ya implementado en:
-- Clientes
-- Contratos  
-- Presupuestos
-- Proyectos Operativos
+- Si el contrato ya tiene un proyecto, mostrar enlace "Ver Proyecto" en lugar de "Crear Proyecto"
+- El nombre del proyecto se generara automaticamente desde el titulo del contrato
+- El owner_user_id sera el PM del contrato si existe, si no el AM, si no el usuario actual
+- Se heredara el client_id del contrato
+- Los milestones heredaran el specialist_id de cada financial_request

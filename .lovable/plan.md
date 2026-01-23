@@ -1,187 +1,41 @@
 
-# Plan: Boton "Crear Proyecto" en Vista de Contrato
+# Plan: Eliminar información de costes y precios de la lista de requests
 
-## Resumen
-Agregar un boton "Crear Proyecto" en el modal de visualizacion de contrato que permita generar automaticamente un proyecto operativo con milestones (operational_requests) desde las solicitudes financieras asociadas al contrato.
+## Objetivo
+Ocultar los datos financieros (coste de especialista y precio de venta) de las vistas de lista de solicitudes, tanto en la vista de tarjetas como en la vista de tabla, manteniendo esta información disponible en el detalle individual y en los formularios de alta/edición.
 
-## Situacion Actual
+## Cambios a realizar
 
-```text
-FLUJO EXISTENTE (Presupuestos):
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
-│   Presupuesto   │ --> │ financial_       │ --> │ operational_project │
-│   (budget)      │     │ requests         │     │ + milestones        │
-│                 │     │ (via budget_id)  │     │ (via budget_id)     │
-└─────────────────┘     └──────────────────┘     └─────────────────────┘
+### 1. Modificar RequestCard.tsx
+Eliminar la sección que muestra coste y venta (líneas 72-87):
+- Icono Euro con el coste del especialista
+- Icono TrendingUp con el precio de venta al cliente
+- Las variables de cálculo `costAmount` y `saleAmount` también se eliminarán ya que no se usarán
+- Se eliminarán los imports de `Euro` y `TrendingUp` que ya no serán necesarios
 
-FLUJO NUEVO (Contratos):
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
-│   Contrato      │ --> │ financial_       │ --> │ operational_project │
-│   (contract)    │     │ requests         │     │ + milestones        │
-│                 │     │ (via contract_id)│     │ (via contract_id)   │
-└─────────────────┘     └──────────────────┘     └─────────────────────┘
-```
+### 2. Modificar RequestTableView.tsx
+Eliminar las columnas de coste y venta:
+- Quitar las cabeceras "Coste (€)" y "Venta (€)" del header de la tabla
+- Quitar las celdas que muestran `formatCurrency(costAmount)` y `formatCurrency(saleAmount)`
+- Eliminar las variables de cálculo `costAmount`, `saleAmount`, `costHours` y `saleHours` del map de requests
+- Ajustar el `colSpan` del mensaje de "No se encontraron solicitudes" de 14 a 12
 
-### Datos Verificados
-- La tabla `financial_requests` tiene columna `contract_id` para vincular requests a contratos
-- La tabla `operational_projects` tiene columna `contract_id` para vincular proyectos a contratos
-- Ya existen financial_requests vinculados directamente a contratos (sin budget_id)
+### 3. Limpiar imports no utilizados
+- En `RequestCard.tsx`: eliminar `Euro` y `TrendingUp` de los imports de lucide-react
+- En `RequestTableView.tsx`: eliminar `formatCurrency` del import de request-utils
 
-## Componentes a Crear/Modificar
+---
 
-### 1. Nuevo Hook: `useCreateProjectFromContract.tsx`
+## Resumen de archivos a modificar
 
-Similar a `useCreateProjectWithActivities` pero para contratos:
+| Archivo | Cambio |
+|---------|--------|
+| `src/components/requests/RequestCard.tsx` | Eliminar sección de coste/venta y limpiar código no usado |
+| `src/components/requests/RequestTableView.tsx` | Eliminar columnas de coste/venta y limpiar código no usado |
 
-```typescript
-// src/hooks/useCreateProjectFromContract.tsx
+---
 
-interface CreateProjectFromContractParams {
-  projectData: {
-    name: string;
-    client_id: string;
-    contract_id: string;  // En lugar de budget_id
-    description?: string | null;
-    deadline?: string | null;
-    status?: 'pending' | 'in_progress' | 'in_review' | 'completed';
-    owner_user_id?: string | null;
-    created_by: string;
-  };
-}
-```
-
-**Logica del hook:**
-1. Crear el proyecto operativo con `contract_id`
-2. Obtener los `financial_requests` donde `contract_id` = contrato seleccionado
-3. Crear `operational_requests` (milestones) por cada financial_request
-
-### 2. Modificar: `ContractFormModal.tsx`
-
-Agregar:
-- Query para verificar si ya existe un proyecto operativo para este contrato
-- Estado para el modal de confirmacion
-- Boton "Crear Proyecto" visible cuando:
-  - El contrato esta en modo vista (`mode === 'view'`)
-  - El contrato esta activo (`status === 'active'`)
-  - No existe ya un proyecto operativo asociado
-  - Hay financial_requests asociados al contrato
-
-### 3. Nuevo Componente: `ContractProjectCreationModal.tsx`
-
-Modal de confirmacion similar a `ProjectCreationModal` pero adaptado para contratos:
-- Muestra resumen del contrato
-- Cuenta de financial_requests que se convertiran en milestones
-- Botones "Ahora No" y "Crear Proyecto"
-
-## Flujo de Usuario
-
-```text
-1. Usuario abre un contrato en modo vista
-                    │
-                    ▼
-2. Si contrato está activo Y tiene requests 
-   Y no tiene proyecto existente
-                    │
-                    ▼
-    ┌───────────────────────────────┐
-    │     Botón "Crear Proyecto"    │
-    │     visible en el modal       │
-    └───────────────────────────────┘
-                    │
-                    ▼ (click)
-    ┌───────────────────────────────┐
-    │ Modal de confirmación:        │
-    │ - Nombre del contrato         │
-    │ - Cliente                     │
-    │ - Requests a convertir: N     │
-    │ [Ahora No] [Crear Proyecto]   │
-    └───────────────────────────────┘
-                    │
-                    ▼ (confirmar)
-    ┌───────────────────────────────┐
-    │ Se crea:                      │
-    │ - 1 operational_project       │
-    │ - N operational_requests      │
-    │   (milestones)                │
-    └───────────────────────────────┘
-                    │
-                    ▼
-       Toast: "Proyecto creado con N milestones"
-       Redirige a detalle del proyecto
-```
-
-## Archivos a Crear/Modificar
-
-| Archivo | Accion | Descripcion |
-|---------|--------|-------------|
-| `src/hooks/useCreateProjectFromContract.tsx` | Crear | Hook para crear proyecto desde contrato |
-| `src/components/contracts/ContractProjectCreationModal.tsx` | Crear | Modal de confirmacion |
-| `src/components/contracts/ContractFormModal.tsx` | Modificar | Agregar boton y logica |
-
-## Detalles Tecnicos
-
-### Query para verificar proyecto existente:
-```typescript
-const { data: existingProject } = useQuery({
-  queryKey: ['contract-operational-project', contract?.id],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from('operational_projects')
-      .select('id, name')
-      .eq('contract_id', contract.id)
-      .single();
-    
-    if (error && error.code !== 'PGRST116') throw error;
-    return data;
-  },
-  enabled: !!contract?.id && isOpen,
-});
-```
-
-### Query para contar financial_requests del contrato:
-```typescript
-const { data: contractRequests } = useQuery({
-  queryKey: ['contract-financial-requests-count', contract?.id],
-  queryFn: async () => {
-    const { data, error, count } = await supabase
-      .from('financial_requests')
-      .select('id, title', { count: 'exact' })
-      .eq('contract_id', contract.id);
-    
-    if (error) throw error;
-    return { requests: data, count };
-  },
-  enabled: !!contract?.id && isOpen,
-});
-```
-
-### Boton en el DialogFooter:
-```typescript
-{isViewMode && contract?.status === 'active' && !existingProject && contractRequests?.count > 0 && (
-  <Button 
-    variant="outline" 
-    onClick={() => setShowProjectModal(true)}
-  >
-    <FolderKanban className="h-4 w-4 mr-2" />
-    Crear Proyecto
-  </Button>
-)}
-
-{existingProject && (
-  <Button 
-    variant="outline" 
-    onClick={() => navigate(`/proyectos-operativos/${existingProject.id}`)}
-  >
-    <ExternalLink className="h-4 w-4 mr-2" />
-    Ver Proyecto
-  </Button>
-)}
-```
-
-## Consideraciones
-
-- Si el contrato ya tiene un proyecto, mostrar enlace "Ver Proyecto" en lugar de "Crear Proyecto"
-- El nombre del proyecto se generara automaticamente desde el titulo del contrato
-- El owner_user_id sera el PM del contrato si existe, si no el AM, si no el usuario actual
-- Se heredara el client_id del contrato
-- Los milestones heredaran el specialist_id de cada financial_request
+## Lo que NO se modifica (según lo solicitado)
+- `src/pages/SolicitudDetalle.tsx` - El detalle del request mantiene la información financiera
+- `src/components/modals/RequestFormModal.tsx` - El formulario de alta/edición mantiene todos los campos
+- `src/utils/excel/requestsExporter.ts` - La exportación a Excel mantiene los datos financieros

@@ -1,75 +1,55 @@
 
-# Plan: Permitir edición de subtotal en facturas sin líneas de factura
+# Plan: Corregir recálculo de total al modificar el IVA
 
-## Problema identificado
+## Problema detectado
 
-Cuando se edita una factura importada desde PDF:
-- El subtotal muestra 0,00 € aunque la factura tiene un valor real (106.28 € en el ejemplo)
-- Las facturas importadas guardan el `subtotal` directamente en la tabla `invoices`, pero no crean registros en `invoice_items`
-- El modal calcula el subtotal únicamente sumando los items de la lista, que está vacía para facturas importadas
+Al modificar el porcentaje de IVA en el editor de facturas, el total no se recalcula automáticamente en tiempo real.
 
-## Solución propuesta
+**Causa raíz:** El campo de IVA usa `register('tax_rate', { valueAsNumber: true })` junto con `watch('tax_rate')` para el cálculo. Sin embargo, hay un problema de sincronización donde:
+1. `register` con `valueAsNumber` a veces no actualiza el estado inmediatamente
+2. El re-render no se dispara correctamente hasta que el campo pierde el foco
 
-Añadir un campo editable de "Subtotal manual" que permita:
-1. Cargar el subtotal existente de la factura cuando se edita
-2. Permitir modificar el subtotal directamente cuando no hay líneas de factura
-3. El IVA y total se recalcularán automáticamente basándose en este subtotal
+## Solución
 
-## Cambios a realizar
+Cambiar el campo de IVA de un input "no controlado" (con `register`) a un input "controlado" (con `value` y `onChange` + `setValue`), similar a como se maneja el campo `manualSubtotal`.
 
-### 1. Modificar InvoiceFormModal.tsx
+## Cambio a realizar
 
-**Nuevo estado para subtotal manual:**
-- Añadir estado `manualSubtotal` para almacenar el subtotal directo
-- Cargar el valor de `invoice.subtotal` al editar una factura existente
+### Archivo: `src/components/modals/InvoiceFormModal.tsx`
 
-**Lógica de cálculo híbrida:**
-- Si hay líneas de factura: usar la suma de los items (comportamiento actual)
-- Si no hay líneas: usar el subtotal manual
+**Modificar el input de IVA (líneas 627-632):**
 
-**UI para editar subtotal:**
-- Añadir un campo de entrada numérico para el subtotal
-- Mostrarlo solo cuando no hay líneas de factura (para facturas importadas)
-- O mostrarlo siempre como alternativa para edición directa
+```typescript
+// Antes - Input no controlado
+<Input
+  type="number"
+  step="0.01"
+  {...register('tax_rate', { valueAsNumber: true })}
+  disabled={disabled}
+/>
 
-**Actualizar la mutación de guardado:**
-- Usar el subtotal correcto (calculado o manual) al guardar
+// Después - Input controlado
+<Input
+  type="number"
+  step="0.01"
+  value={watch('tax_rate') ?? ''}
+  onChange={(e) => {
+    const val = e.target.value;
+    setValue('tax_rate', val === '' ? 0 : parseFloat(val) || 0);
+  }}
+  disabled={disabled}
+/>
+```
 
----
+## Beneficio
 
-## Resumen de archivos a modificar
+Con este cambio:
+- Al escribir cualquier número en el campo de IVA, se llamará a `setValue` que actualiza el estado del formulario
+- El `watch('tax_rate')` en las líneas de cálculo detectará el cambio inmediatamente
+- El componente se re-renderizará y mostrará el IVA y Total actualizados en tiempo real
+
+## Resumen
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/components/modals/InvoiceFormModal.tsx` | Añadir estado y campo editable para subtotal manual, modificar lógica de cálculo |
-
----
-
-## Detalles técnicos
-
-**Nuevo estado:**
-```typescript
-const [manualSubtotal, setManualSubtotal] = useState<number>(0);
-```
-
-**Cálculo del subtotal efectivo:**
-```typescript
-// Si hay items, usar la suma de items; si no, usar el subtotal manual
-const effectiveSubtotal = invoiceItems.length > 0 
-  ? invoiceItems.reduce((sum, item) => sum + item.total, 0)
-  : manualSubtotal;
-```
-
-**Cargar subtotal al editar:**
-```typescript
-useEffect(() => {
-  if (invoice && mode !== 'create') {
-    setManualSubtotal(invoice.subtotal || 0);
-    // ... resto del reset
-  }
-}, [invoice, mode]);
-```
-
-**Campo editable en el formulario:**
-- Se mostrará un input de subtotal cuando `invoiceItems.length === 0`
-- Permitirá al usuario ingresar/modificar el importe base
+| `src/components/modals/InvoiceFormModal.tsx` | Convertir el input de IVA a controlado con `value` y `onChange` |

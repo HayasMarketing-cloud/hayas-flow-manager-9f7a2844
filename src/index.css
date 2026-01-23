@@ -2,95 +2,103 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
+/* Flow Manager - Tranquil Gradient Design System
+   Paleta cromática corporativa basada en naturaleza y flujo
+   All colors MUST be HSL.
 */
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
-    --foreground: 222 47% 11%;
+    /* Tofu Digital - Background principal */
+    --background: 150 18% 96%;
+    /* Charcoal - Texto principal */
+    --foreground: 209 26% 16%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 209 26% 16%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 209 26% 16%;
 
-    --primary: 217 91% 60%;
+    /* Hayas Green - Color primario */
+    --primary: 149 55% 41%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
+    /* Deep Teal - Color secundario */
+    --secondary: 185 77% 26%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    /* Muted - Variante suave del Tofu Digital */
+    --muted: 150 10% 92%;
+    /* Stone Grey - Texto secundario */
+    --muted-foreground: 220 9% 46%;
 
-    --accent: 24 95% 53%;
+    /* Accent - Deep Teal */
+    --accent: 185 77% 26%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 217 91% 60%;
+    /* Bordes sutiles */
+    --border: 150 10% 88%;
+    --input: 150 10% 88%;
+    --ring: 149 55% 41%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar - Deep Blue */
+    --sidebar-background: 203 80% 20%;
+    --sidebar-foreground: 150 18% 96%;
+    --sidebar-primary: 149 55% 41%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 185 77% 30%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 203 60% 25%;
+    --sidebar-ring: 149 55% 41%;
   }
 
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
+    /* Deep Blue - Background oscuro */
+    --background: 203 80% 12%;
+    --foreground: 150 18% 96%;
 
-    --card: 217 33% 17%;
-    --card-foreground: 210 40% 98%;
+    --card: 203 70% 15%;
+    --card-foreground: 150 18% 96%;
 
-    --popover: 217 33% 17%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 203 70% 15%;
+    --popover-foreground: 150 18% 96%;
 
-    --primary: 217 91% 60%;
+    /* Hayas Green - Mantener en modo oscuro */
+    --primary: 149 55% 45%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
+    /* Deep Teal - Ligeramente más claro */
+    --secondary: 185 70% 30%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 203 60% 18%;
+    --muted-foreground: 150 15% 70%;
 
-    --accent: 24 95% 53%;
+    --accent: 185 70% 35%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 150 18% 96%;
 
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 217 91% 60%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --border: 203 50% 22%;
+    --input: 203 50% 22%;
+    --ring: 149 55% 45%;
+
+    /* Sidebar oscuro mantiene Deep Blue */
+    --sidebar-background: 203 80% 15%;
+    --sidebar-foreground: 150 18% 96%;
+    --sidebar-primary: 149 55% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 185 70% 28%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 203 60% 20%;
+    --sidebar-ring: 149 55% 45%;
   }
 }
 
@@ -106,8 +114,13 @@ All colors MUST be HSL.
 }
 
 @layer utilities {
+  /* Gradiente corporativo Flow Manager */
+  .gradient-flow {
+    background: linear-gradient(135deg, hsl(149 55% 41%) 0%, hsl(185 77% 26%) 50%, hsl(203 80% 20%) 100%);
+  }
+  
   .text-gradient {
-    @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent;
   }
   
   .shadow-glow {

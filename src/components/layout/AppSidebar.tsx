@@ -92,8 +92,8 @@ export function AppSidebar() {
                       <NavLink
                         to={item.url}
                         end
-                        className="hover:bg-muted/50"
-                        activeClassName="bg-muted text-primary font-medium"
+                        className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        activeClassName="bg-sidebar-primary text-sidebar-primary-foreground font-medium"
                       >
                         <item.icon className="h-4 w-4" />
                         {state !== 'collapsed' && <span className="ml-2">{item.title}</span>}
@@ -118,8 +118,8 @@ export function AppSidebar() {
                       <NavLink
                         to={item.url}
                         end
-                        className="hover:bg-muted/50"
-                        activeClassName="bg-muted text-primary font-medium"
+                        className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        activeClassName="bg-sidebar-primary text-sidebar-primary-foreground font-medium"
                       >
                         <item.icon className="h-4 w-4" />
                         {state !== 'collapsed' && <span className="ml-2">{item.title}</span>}
@@ -144,8 +144,8 @@ export function AppSidebar() {
                       <NavLink
                         to={item.url}
                         end
-                        className="hover:bg-muted/50"
-                        activeClassName="bg-muted text-primary font-medium"
+                        className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        activeClassName="bg-sidebar-primary text-sidebar-primary-foreground font-medium"
                       >
                         <item.icon className="h-4 w-4" />
                         {state !== 'collapsed' && <span className="ml-2">{item.title}</span>}

@@ -13,7 +13,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { useUserRole } from '@/hooks/useUserRole';
-import flowManagerLogo from '@/assets/flow-manager-logo.png';
+import flowManagerLogo from '@/assets/flowmanager-logo.png';
 
 interface NavItem {
   title: string;
@@ -77,7 +77,7 @@ export function AppSidebar() {
         <img 
           src={flowManagerLogo} 
           alt="Flow Manager" 
-          className={state === 'collapsed' ? 'h-10 w-10 object-contain rounded' : 'h-16 object-contain mix-blend-lighten'}
+          className={state === 'collapsed' ? 'h-10 w-10 object-contain brightness-0 invert' : 'h-16 object-contain brightness-0 invert'}
         />
       </SidebarHeader>
       <SidebarContent>

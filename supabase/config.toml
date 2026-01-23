@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.send-project-completed-notification]
 verify_jwt = false
+
+[functions.extract-invoice-data]
+verify_jwt = false

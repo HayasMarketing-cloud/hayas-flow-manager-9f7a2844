@@ -1,69 +1,54 @@
 
-# Plan: Mejorar el contraste del icono de la app móvil
+# Plan: Actualizar el icono de la app con la nueva imagen
 
-## Problema identificado
-En la captura de pantalla se ve que el icono de Flow Manager tiene fondo oscuro (`#0A1628`), lo que hace que no contraste bien con los demás iconos del dispositivo que típicamente tienen fondos claros.
+## Resumen
+Usaremos la imagen que has subido como el nuevo icono de la aplicación para todas las plataformas (iOS, Android y favicon del navegador).
 
-## Solución propuesta
-Cambiar el `background_color` del manifest PWA a blanco o un color claro corporativo, para que el área detrás del icono sea clara y contraste mejor.
-
-## Opciones de color
-
-| Opción | Color | Resultado |
-|--------|-------|-----------|
-| **Blanco puro** | `#FFFFFF` | Máximo contraste, limpio y profesional |
-| **Tofu Digital** | `#F4F7F6` | Color corporativo claro, sutil tinte verde |
-| **Hayas Green** | `#2FA36B` | Color primario corporativo, más distintivo |
-
-**Recomendación**: Usar **blanco puro** (`#FFFFFF`) como la mayoría de apps profesionales (como se ve en Keepango en tu captura), ya que proporciona el mejor contraste y apariencia limpia.
+## Imagen proporcionada
+El icono tiene un hermoso degradado de los colores corporativos (verde Hayas a azul profundo) con el símbolo "f" de Flow Manager en blanco. Las esquinas ya están redondeadas, lo cual es perfecto para dispositivos móviles.
 
 ---
 
-## Cambios a realizar
+## Archivos a actualizar
 
-### 1. Actualizar manifest.webmanifest
-**Archivo:** `public/manifest.webmanifest`
+### 1. Copiar la imagen a los iconos PWA
+Reemplazar los iconos existentes con la nueva imagen:
 
-- Cambiar `background_color` de `#0A1628` a `#FFFFFF`
-- Opcionalmente cambiar `theme_color` para mantener coherencia (o dejarlo oscuro para la barra de estado)
+| Archivo destino | Uso |
+|-----------------|-----|
+| `public/icons/icon-180x180.png` | Apple Touch Icon (iPhone) |
+| `public/icons/icon-192x192.png` | Android PWA |
+| `public/icons/icon-512x512.png` | Android PWA (alta resolución) |
+| `public/favicon.png` | Favicon del navegador |
 
-```json
-{
-  "background_color": "#FFFFFF",
-  "theme_color": "#0A1628"
-}
-```
+### 2. Actualizar manifest.webmanifest
+Dado que el nuevo icono ya tiene su propio fondo con degradado, podemos revertir el `background_color` al color oscuro corporativo o mantenerlo blanco (el fondo del icono ya no dependerá de esta configuración).
 
-### 2. Crear nuevos iconos con fondo blanco (Recomendado)
-Para un mejor resultado, los iconos PNG deberían tener fondo blanco incorporado en lugar de transparente:
-
-**Archivos a actualizar:**
-- `public/icons/icon-180x180.png` (Apple Touch Icon)
-- `public/icons/icon-192x192.png`
-- `public/icons/icon-512x512.png`
-
-**Nota:** Si no tienes los iconos con fondo blanco, al menos cambiar el `background_color` del manifest mejorará significativamente la apariencia en la mayoría de dispositivos.
+**Recomendacion**: Mantener `background_color: "#FFFFFF"` para que la splash screen al abrir la app tenga fondo blanco, lo cual combina bien con el icono.
 
 ---
 
-## Sección técnica
+## Secciones tecnicas
 
-### Cambio en manifest.webmanifest (líneas 5-6)
-```json
-{
-  "name": "Flow Manager",
-  "short_name": "Flow Manager",
-  "description": "ERP de hayas para la preparación de presupuestos, gestión de proyectos, liquidaciones a especialistas y facturación a clientes.",
-  "theme_color": "#0A1628",
-  "background_color": "#FFFFFF",
-  ...
-}
+### Archivos a copiar
+```text
+user-uploads://Untitled_design_-_3.png -> public/icons/icon-180x180.png
+user-uploads://Untitled_design_-_3.png -> public/icons/icon-192x192.png
+user-uploads://Untitled_design_-_3.png -> public/icons/icon-512x512.png
+user-uploads://Untitled_design_-_3.png -> public/favicon.png
 ```
 
-### Consideración sobre Apple Touch Icon
-Para iOS específicamente, el sistema usa el Apple Touch Icon (`icon-180x180.png`) referenciado en `index.html`. Si el icono tiene fondo transparente, iOS aplicará su propio fondo. Con el cambio del `background_color`, debería mejorar.
+### Nota sobre tamaños
+La imagen original se usara para todos los tamaños. Los navegadores y sistemas operativos se encargan de escalar automaticamente. Para una optimizacion perfecta se podrian generar versiones redimensionadas, pero usar la imagen original funcionara bien en la practica.
 
 ---
 
 ## Resultado esperado
-El icono de Flow Manager en la pantalla de inicio del móvil aparecerá con fondo blanco, similar al icono de Keepango en la captura, proporcionando mejor contraste y una apariencia más profesional.
+- El icono de la app en la pantalla de inicio mostrara el nuevo diseño con degradado verde-azul
+- El favicon en la pestana del navegador mostrara el nuevo icono
+- Las tarjetas de redes sociales (Open Graph) usaran el nuevo icono
+
+## Accion requerida despues
+Para ver los cambios en el movil, deberas:
+1. Eliminar la app de la pantalla de inicio
+2. Volver a "Anadir a pantalla de inicio" desde el navegador

@@ -1,110 +1,134 @@
 
+# Plan: Filtrar Facturas por Clientes Asignados para Account Manager
 
-# Plan: Ocultar Secciones del Menu Segun Permisos de Rol
+## Situacion Actual
 
-## Resumen
-Actualizar el sidebar para que solo muestre las secciones del menu a las que cada rol tiene acceso real, basandose en la matriz de permisos definida.
+La seccion de Facturas esta accesible para Account Managers (AM), pero actualmente muestra **todas las facturas de todos los clientes** en lugar de solo las facturas de los clientes a los que el AM esta asignado.
 
-## Analisis de la Matriz de Permisos
-
-Segun el archivo `matriz-permisos-roles.csv`, estos son los accesos por modulo:
-
-| Modulo | admin | finanzas | project_manager | account_manager | especialista |
-|--------|-------|----------|-----------------|-----------------|--------------|
-| Dashboard | Full | Finanzas | Operaciones | Cuentas | Mis tareas |
-| Clientes | CRUD | Ver | Ver | Ver sus clientes | Ver sus clientes |
-| Presupuestos | CRUD | Ver | Ver | Ver sus clientes | Ver |
-| Contratos | CRUD | Ver | Ver | Ver sus clientes | Ver |
-| Solicitudes | CRUD | CRUD | CRUD | Ver sus clientes | Ver propias |
-| Facturas | CRUD | CRUD | **No** | Ver sus clientes | **No** |
-| Liquidaciones | CRUD | CRUD | **No** | Ver especialistas | Ver propias |
-| Proyectos | CRUD | Ver | CRUD | Ver sus clientes | Ver proyectos |
-| Mis Tareas | Si | No | Si | Ver sus clientes | Actualizar |
-| Especialistas | CRUD | Ver | Ver | Ver | Ver |
-| Servicios | CRUD | Ver | Ver | Ver | Ver |
-| Usuarios | CRUD | No | No | No | No |
-| Comisiones | CRUD | CRUD | No | No | No |
-| Reportes | CRUD | CRUD | No | No | No |
-
-## Problemas Actuales en el Sidebar
-
-El archivo `AppSidebar.tsx` tiene varios items sin restriccion de roles:
-
-1. **Presupuestos** - Visible para todos, deberia ser para todos los roles (ok segun matriz)
-2. **Dashboard** - Visible para todos (ok, pero redirige segun rol)
-3. **Contratos** - Visible para todos (ok segun matriz - todos pueden ver)
-4. **Clientes** - Visible para todos (ok segun matriz - todos pueden ver, aunque limitado)
-5. **Facturas** - Tiene `requiredRoles` pero incluye `account_manager` pero NO project_manager (correcto)
-6. **Liquidaciones** - Incluye `especialista` y `account_manager` pero NO project_manager (correcto)
-7. **Comisiones** - Solo admin y finanzas (correcto)
-8. **Reportes** - Solo admin y finanzas (correcto)
-9. **Usuarios** - Solo admin (correcto)
-
-### Items que NECESITAN correccion:
-
-| Item | Actual | Deberia Ser |
-|------|--------|-------------|
-| Facturas | admin, finanzas, account_manager | Correcto (PM no tiene acceso) |
-| Liquidaciones | admin, finanzas, account_manager, especialista | Correcto |
-| Requests | admin, finanzas, project_manager, account_manager | Falta especialista (puede ver propias) |
-| Mis Tareas | Sin restriccion | Excluir finanzas (matriz dice "No") |
+Esto es inconsistente con las otras secciones (Clientes, Contratos, Presupuestos, Proyectos) donde ya se implemento el filtrado por asignacion.
 
 ## Cambios Propuestos
 
-### Archivo: `src/components/layout/AppSidebar.tsx`
+### Archivo: `src/pages/Facturas.tsx`
 
-Actualizar las definiciones de `requiredRoles` para cada item:
+1. **Importar hooks necesarios**:
+   - `useAssignedClients` para obtener los IDs de clientes asignados
+   - Funciones adicionales de `useUserRole` (`shouldFilterByAssignment`, `isAccountManager`)
+
+2. **Filtrar consulta de clientes**:
+   - Para el dropdown de filtro de clientes, mostrar solo clientes asignados si `needsFiltering` es true
+
+3. **Filtrar consulta de facturas**:
+   - Agregar condicion `.in('client_id', assignedClientIds)` cuando `needsFiltering` sea true
+   - Mantener la consulta sin filtro para admin/finanzas
+
+4. **Actualizar query keys**:
+   - Incluir `assignedClientIds` y `needsFiltering` en las claves de cache
+
+## Flujo de Datos
 
 ```text
-OPERATIONS:
-- Requests: ['admin', 'finanzas', 'project_manager', 'account_manager', 'especialista']
-- Presupuestos: todos (sin cambio)
-- Proyectos: ['admin', 'project_manager', 'especialista', 'account_manager'] (sin cambio)
-- Mis Tareas: ['admin', 'project_manager', 'account_manager', 'especialista'] (excluir finanzas)
-- Notificaciones: todos (sin cambio)
-
-FINANCE:
-- Dashboard: todos (sin cambio)  
-- Contratos: todos (sin cambio - todos pueden ver)
-- Facturas: ['admin', 'finanzas', 'account_manager'] (sin cambio - PM no)
-- Liquidaciones: ['admin', 'finanzas', 'account_manager', 'especialista'] (sin cambio)
-- Comisiones: ['admin', 'finanzas'] (sin cambio)
-- Reportes: ['admin', 'finanzas'] (sin cambio)
-
-ADMIN:
-- Clientes: todos (sin cambio - filtrado se hace en pagina)
-- Servicios: todos (sin cambio)
-- Especialistas: todos (sin cambio)
-- Usuarios: ['admin'] (sin cambio)
+Account Manager accede a /facturas
+           │
+           ▼
+┌─────────────────────────┐
+│ shouldFilterByAssignment│ → true (solo AM sin admin/finanzas)
+└─────────────────────────┘
+           │
+           ▼
+┌─────────────────────────┐
+│ useAssignedClients()    │ → [client_id_1, client_id_2, ...]
+└─────────────────────────┘
+           │
+           ▼
+┌─────────────────────────┐
+│ Query facturas con      │
+│ .in('client_id', [...]) │
+└─────────────────────────┘
+           │
+           ▼
+    Solo facturas de
+    clientes asignados
 ```
 
-## Cambios Especificos
+## Detalles Tecnicos
 
-### 1. Requests - Agregar especialista
-Actualmente: `['admin', 'finanzas', 'project_manager', 'account_manager']`
-Nuevo: `['admin', 'finanzas', 'project_manager', 'account_manager', 'especialista']`
+### Codigo a agregar en imports:
 
-El especialista puede ver sus propias solicitudes segun la matriz.
+```typescript
+import { useAssignedClients } from '@/hooks/useAssignedClients';
+```
 
-### 2. Mis Tareas - Excluir finanzas
-Actualmente: Sin restriccion (visible para todos)
-Nuevo: `['admin', 'project_manager', 'account_manager', 'especialista']`
+### Codigo a agregar despues de useUserRole:
 
-Finanzas no tiene acceso a tareas segun la matriz.
+```typescript
+const { shouldFilterByAssignment, isAccountManager } = useUserRole();
+const { assignedClientIds, isLoading: assignedClientsLoading, needsFiltering } = useAssignedClients();
+```
 
-## Resumen de Cambios
+### Modificacion en query de clientes (dropdown):
+
+```typescript
+const { data: clients } = useQuery({
+  queryKey: ['clients-for-invoices', needsFiltering, assignedClientIds],
+  queryFn: async () => {
+    let query = supabase
+      .from('clients')
+      .select('id, name')
+      .eq('status', 'active')
+      .order('name');
+    
+    // Filtrar por clientes asignados si es AM
+    if (needsFiltering && assignedClientIds.length > 0) {
+      query = query.in('id', assignedClientIds);
+    }
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    return data;
+  },
+  enabled: !needsFiltering || assignedClientIds.length > 0,
+});
+```
+
+### Modificacion en query de facturas:
+
+```typescript
+const { data: invoices, isLoading } = useQuery({
+  queryKey: ['invoices', filters, needsFiltering, assignedClientIds],
+  queryFn: async () => {
+    // ... codigo existente ...
+    
+    // Agregar filtro por clientes asignados
+    if (needsFiltering && assignedClientIds.length > 0) {
+      query = query.in('client_id', assignedClientIds);
+    }
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    return data;
+  },
+  enabled: !needsFiltering || assignedClientIds.length > 0,
+});
+```
+
+## Archivos a Modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/components/layout/AppSidebar.tsx` | Actualizar requiredRoles de Requests y Mis Tareas |
+| `src/pages/Facturas.tsx` | Agregar filtrado por clientes asignados para AM |
 
-## Verificacion Post-Implementacion
+## Resultado Esperado
 
-Para cada rol, el menu deberia mostrar:
+- **Admin/Finanzas**: Ven todas las facturas (sin cambios)
+- **Account Manager**: Ve solo facturas de clientes donde es AM o PM en contratos/presupuestos
+- **Project Manager**: No tiene acceso a Facturas (ya bloqueado en sidebar)
+- **Especialista**: No tiene acceso a Facturas (ya bloqueado en sidebar)
 
-**admin**: Todo visible
-**finanzas**: Todo excepto Mis Tareas, Proyectos, Usuarios
-**project_manager**: Todo excepto Facturas, Liquidaciones, Comisiones, Reportes, Usuarios
-**account_manager**: Todo excepto Comisiones, Reportes, Usuarios
-**especialista**: Requests, Presupuestos, Proyectos, Mis Tareas, Notificaciones, Dashboard, Contratos, Liquidaciones, Clientes, Servicios, Especialistas
+## Consistencia con Otras Secciones
 
+Este cambio alineara Facturas con el comportamiento ya implementado en:
+- Clientes
+- Contratos  
+- Presupuestos
+- Proyectos Operativos

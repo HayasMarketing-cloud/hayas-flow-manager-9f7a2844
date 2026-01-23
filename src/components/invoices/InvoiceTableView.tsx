@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InvoiceStatusBadge } from './InvoiceStatusBadge';
 import { InvoiceStatusActions } from './InvoiceStatusActions';
-import { Edit, Eye, FileText, AlertCircle } from 'lucide-react';
+import { Edit, Eye, FileText, AlertCircle, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/invoice-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -13,6 +13,7 @@ interface InvoiceTableViewProps {
   invoices: any[];
   onView: (invoice: any) => void;
   onEdit: (invoice: any) => void;
+  onDelete?: (invoice: any) => void;
   canManage: boolean;
   selectedIds: string[];
   onSelectAll: (checked: boolean) => void;
@@ -26,6 +27,7 @@ export const InvoiceTableView = ({
   invoices, 
   onView, 
   onEdit, 
+  onDelete,
   canManage,
   selectedIds,
   onSelectAll,
@@ -136,6 +138,16 @@ export const InvoiceTableView = ({
                       {canManage && (
                         <Button variant="ghost" size="sm" onClick={() => onEdit(invoice)}>
                           <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {canManage && onDelete && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => onDelete(invoice)}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
                       {canManage && <InvoiceStatusActions invoiceId={invoice.id} currentStatus={invoice.status} compact />}

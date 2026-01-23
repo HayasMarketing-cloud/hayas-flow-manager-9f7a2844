@@ -7,7 +7,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Plus, LayoutGrid, Table as TableIcon, X, Download, Upload, CreditCard } from 'lucide-react';
 import { exportInvoicesToExcel } from '@/utils/excel/invoicesExporter';
 import { toast } from 'sonner';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAssignedClients } from '@/hooks/useAssignedClients';
@@ -27,7 +28,10 @@ export default function Facturas() {
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<any>(null);
 
+  const queryClient = useQueryClient();
   const { canAccessFinance, loading: rolesLoading } = useUserRole();
   const { assignedClientIds, isLoading: assignedClientsLoading, needsFiltering } = useAssignedClients();
   const { filters, updateFilter, resetFilters, getDateRange } = useInvoiceFilters();
@@ -139,6 +143,36 @@ export default function Facturas() {
 
   const handleBulkPaymentSuccess = () => {
     setSelectedIds([]);
+  };
+
+  const deleteMutation = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      const { error } = await supabase
+        .from('invoices')
+        .delete()
+        .eq('id', invoiceId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      toast.success('Factura eliminada correctamente');
+      setDeleteDialogOpen(false);
+      setInvoiceToDelete(null);
+    },
+    onError: (error: any) => {
+      toast.error('Error al eliminar: ' + error.message);
+    }
+  });
+
+  const handleDelete = (invoice: any) => {
+    setInvoiceToDelete(invoice);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (invoiceToDelete) {
+      deleteMutation.mutate(invoiceToDelete.id);
+    }
   };
 
   const canFinance = canAccessFinance();
@@ -356,6 +390,7 @@ export default function Facturas() {
                   key={invoice.id}
                   invoice={invoice}
                   onEdit={handleEdit}
+                  onDelete={handleDelete}
                   canManage={canAccessFinance()}
                 />
               ))
@@ -372,6 +407,7 @@ export default function Facturas() {
             invoices={invoices || []}
             onView={handleView}
             onEdit={handleEdit}
+            onDelete={handleDelete}
             canManage={canFinance}
             selectedIds={selectedIds}
             onSelectAll={handleSelectAll}
@@ -425,6 +461,17 @@ export default function Facturas() {
         onClose={() => setBulkPaymentModalOpen(false)}
         invoices={selectedInvoices}
         onSuccess={handleBulkPaymentSuccess}
+      />
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title={`¿Eliminar factura ${invoiceToDelete?.code || ''}?`}
+        description="Esta acción no se puede deshacer. Si la factura tiene solicitudes asociadas, estas quedarán sin factura asignada."
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        onConfirm={confirmDelete}
+        variant="destructive"
       />
     </AppLayout>
   );

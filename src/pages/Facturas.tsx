@@ -4,9 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, LayoutGrid, Table as TableIcon, X, Download, FileDown } from 'lucide-react';
+import { Plus, LayoutGrid, Table as TableIcon, X, Download, Upload } from 'lucide-react';
 import { exportInvoicesToExcel } from '@/utils/excel/invoicesExporter';
-import { generateInvoicePDF } from '@/utils/pdf/invoicePDFGenerator';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,11 +13,13 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { InvoiceCard } from '@/components/invoices/InvoiceCard';
 import { InvoiceTableView } from '@/components/invoices/InvoiceTableView';
 import { InvoiceFormModal } from '@/components/modals/InvoiceFormModal';
+import { InvoiceUploadModal } from '@/components/invoices/InvoiceUploadModal';
 import { useInvoiceFilters, PeriodType } from '@/hooks/useInvoiceFilters';
 
 export default function Facturas() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [modalOpen, setModalOpen] = useState(false);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
 
@@ -105,6 +106,10 @@ export default function Facturas() {
     setModalOpen(true);
   };
 
+  const handleUpload = () => {
+    setUploadModalOpen(true);
+  };
+
   const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId;
 
   return (
@@ -112,10 +117,16 @@ export default function Facturas() {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">Facturas</h2>
-          <Button onClick={handleCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nueva Factura
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleUpload}>
+              <Upload className="h-4 w-4 mr-2" />
+              Importar Factura
+            </Button>
+            <Button onClick={handleCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nueva Factura
+            </Button>
+          </div>
         </div>
         <Card>
           <CardContent className="pt-6">
@@ -296,6 +307,11 @@ export default function Facturas() {
         onClose={() => setModalOpen(false)}
         invoice={selectedInvoice}
         mode={modalMode}
+      />
+
+      <InvoiceUploadModal
+        isOpen={uploadModalOpen}
+        onClose={() => setUploadModalOpen(false)}
       />
     </AppLayout>
   );

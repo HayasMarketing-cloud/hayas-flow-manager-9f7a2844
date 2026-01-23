@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { InvoiceStatusBadge } from './InvoiceStatusBadge';
-import { Edit, Calendar, DollarSign, AlertCircle } from 'lucide-react';
+import { InvoiceStatusActions } from './InvoiceStatusActions';
+import { Edit, Calendar, DollarSign, AlertCircle, FileText } from 'lucide-react';
 import { formatCurrency, getDaysUntilDue } from '@/lib/invoice-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -59,8 +60,25 @@ export const InvoiceCard = ({ invoice, onEdit, canManage }: InvoiceCardProps) =>
           </span>
         </div>
 
-        {canManage && invoice.status === 'draft' && (
-          <div className="pt-2">
+        {invoice.pdf_url ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(invoice.pdf_url, '_blank')}
+            className="w-full"
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Ver Copia PDF
+          </Button>
+        ) : (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <span>Sin copia adjunta</span>
+          </div>
+        )}
+
+        <div className="pt-2 space-y-2">
+          {canManage && invoice.status === 'draft' && (
             <Button
               variant="outline"
               size="sm"
@@ -70,8 +88,11 @@ export const InvoiceCard = ({ invoice, onEdit, canManage }: InvoiceCardProps) =>
               <Edit className="h-4 w-4 mr-2" />
               Editar
             </Button>
-          </div>
-        )}
+          )}
+          {canManage && (
+            <InvoiceStatusActions invoiceId={invoice.id} currentStatus={invoice.status} />
+          )}
+        </div>
       </CardContent>
     </Card>
   );

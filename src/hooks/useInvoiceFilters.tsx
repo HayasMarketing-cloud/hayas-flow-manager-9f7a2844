@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export type PeriodType = 'this_month' | 'last_month' | 'this_year' | 'custom';
+export type PeriodType = 'all' | 'this_month' | 'last_month' | 'this_year' | 'custom';
 
 // Simplified status filter: 'paid' or 'pending' (all non-paid)
 export type InvoiceStatusFilter = 'paid' | 'pending' | null;
@@ -19,7 +19,7 @@ const getDefaultFilters = (): InvoiceFilters => {
     searchTerm: '',
     status: null,
     clientId: null,
-    periodType: 'this_month',
+    periodType: 'all',
     startDate: null,
     endDate: null,
   };

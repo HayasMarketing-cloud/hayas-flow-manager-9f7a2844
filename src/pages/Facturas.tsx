@@ -20,7 +20,7 @@ import { useInvoiceFilters, PeriodType, InvoiceStatusFilter } from '@/hooks/useI
 import { formatCurrency } from '@/lib/invoice-utils';
 
 export default function Facturas() {
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
   const [modalOpen, setModalOpen] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [bulkPaymentModalOpen, setBulkPaymentModalOpen] = useState(false);
@@ -88,10 +88,13 @@ export default function Facturas() {
         query = query.or(`code.ilike.%${filters.searchTerm}%`);
       }
 
-      if (filters.periodType !== 'custom' || (startDate && endDate)) {
-        query = query
-          .gte('invoice_date', startDate)
-          .lte('invoice_date', endDate);
+      // Only apply date filter if not 'all'
+      if (filters.periodType !== 'all') {
+        if (filters.periodType !== 'custom' || (startDate && endDate)) {
+          query = query
+            .gte('invoice_date', startDate)
+            .lte('invoice_date', endDate);
+        }
       }
 
       const { data, error } = await query;
@@ -264,6 +267,7 @@ export default function Facturas() {
                     <SelectValue placeholder="Período" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
                     <SelectItem value="this_month">Este mes</SelectItem>
                     <SelectItem value="last_month">Mes pasado</SelectItem>
                     <SelectItem value="this_year">Este año</SelectItem>

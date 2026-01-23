@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import flowManagerLogo from "@/assets/flow-manager-logo.png";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export default function Auth() {
@@ -45,11 +46,10 @@ export default function Auth() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <img 
-            src="/images/hayas-logo.png" 
-            alt="Hayas" 
-            className="h-12 mx-auto mb-4"
+            src={flowManagerLogo} 
+            alt="Flow Manager" 
+            className="h-16 mx-auto mb-4"
           />
-          <CardTitle className="text-2xl">Flow Manager</CardTitle>
           <CardDescription>Sistema de gestión empresarial</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

@@ -14,7 +14,6 @@ import { RequestFlowActions } from './RequestFlowActions';
 import { FlowStatusCell } from './FlowStatusCell';
 import { RequestStatusBadge } from './RequestStatusBadge';
 import { Edit, Eye, Copy, Trash2, User } from 'lucide-react';
-import { formatCurrency } from '@/lib/request-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
@@ -68,8 +67,6 @@ export const RequestTableView = ({
             <TableHead>Siguiente Acción</TableHead>
             <TableHead>Factura</TableHead>
             <TableHead>Liquidación</TableHead>
-            <TableHead className="text-right">Coste (€)</TableHead>
-            <TableHead className="text-right">Venta (€)</TableHead>
             <TableHead>Fecha</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
@@ -77,28 +74,12 @@ export const RequestTableView = ({
         <TableBody>
           {requests.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={14} className="text-center text-muted-foreground">
+              <TableCell colSpan={12} className="text-center text-muted-foreground">
                 No se encontraron solicitudes
               </TableCell>
             </TableRow>
           ) : (
-            requests.map((request) => {
-              const costHours = request.hours ?? request.quantity ?? 0;
-              const saleHours = request.sale_hours ?? request.hours ?? request.quantity ?? 0;
-
-              // Calculate cost: prefer stored total, fallback to rate * hours or fixed
-              const costAmount = request.cost_to_agency ??
-                (request.cost_type === 'hourly'
-                  ? costHours * (request.cost_rate ?? 0)
-                  : (request.fixed_cost ?? 0));
-
-              // Calculate sale: prefer stored total, fallback to rate * hours or unit_price * qty
-              const saleAmount = request.sale_amount ??
-                (request.sale_type === 'hourly'
-                  ? saleHours * (request.sale_rate ?? 0)
-                  : (request.unit_price ?? 0) * (request.quantity ?? 1));
-              
-              return (
+            requests.map((request) => (
                 <TableRow key={request.id}>
                   <TableCell>
                     <Checkbox
@@ -164,12 +145,6 @@ export const RequestTableView = ({
                       linkedStatus={request.liquidation?.status}
                     />
                   </TableCell>
-                  <TableCell className="text-right font-semibold">
-                    {formatCurrency(costAmount)}
-                  </TableCell>
-                  <TableCell className="text-right font-semibold text-primary">
-                    {formatCurrency(saleAmount)}
-                  </TableCell>
                   <TableCell>
                     {format(new Date(request.created_at), 'dd/MM/yyyy', { locale: es })}
                   </TableCell>
@@ -206,8 +181,7 @@ export const RequestTableView = ({
                     </div>
                   </TableCell>
                 </TableRow>
-              );
-            })
+            ))
           )}
         </TableBody>
       </Table>

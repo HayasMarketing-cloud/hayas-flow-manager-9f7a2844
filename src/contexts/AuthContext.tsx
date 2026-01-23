@@ -3,6 +3,9 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
+import type { Database } from '@/integrations/supabase/types';
+
+type AppRole = Database['public']['Enums']['app_role'];
 
 interface AuthContextType {
   user: User | null;
@@ -25,7 +28,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let isMounted = true;
 
-    // Helper function to validate user access
+    // Helper function to validate user access and create profile if invited
     const validateUserAccess = async (session: Session | null): Promise<boolean> => {
       if (!session?.user) return true; // No session, no validation needed
       
@@ -44,23 +47,87 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
 
-      // Verify user has a profile (was invited)
-      const { data: profile, error: profileError } = await supabase
+      // Check if user has a profile
+      const { data: profile } = await supabase
         .from('profiles')
         .select('id')
         .eq('id', session.user.id)
         .single();
 
-      if (profileError || !profile) {
-        await supabase.auth.signOut();
+      // If no profile, check for invitation and create profile
+      if (!profile) {
+        const { data: invitation } = await supabase
+          .from('user_invitations')
+          .select('id, roles, status')
+          .eq('email', email)
+          .single();
+
+        if (!invitation || invitation.status === 'expired') {
+          await supabase.auth.signOut();
+          if (isMounted) {
+            toast({
+              title: "Acceso denegado",
+              description: "No tienes una invitación válida. Contacta con un administrador.",
+              variant: "destructive",
+            });
+          }
+          return false;
+        }
+
+        // Create profile for invited user
+        const { error: profileCreateError } = await supabase
+          .from('profiles')
+          .insert({
+            id: session.user.id,
+            email: email,
+            full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || email.split('@')[0],
+            avatar_url: session.user.user_metadata?.avatar_url || null
+          });
+
+        if (profileCreateError) {
+          console.error('[Auth] Error creating profile:', profileCreateError);
+          await supabase.auth.signOut();
+          if (isMounted) {
+            toast({
+              title: "Error",
+              description: "Error al crear tu perfil. Contacta con un administrador.",
+              variant: "destructive",
+            });
+          }
+          return false;
+        }
+
+        // Assign roles from invitation
+        if (invitation.roles && invitation.roles.length > 0) {
+          const roleInserts = invitation.roles.map((role: AppRole) => ({
+            user_id: session.user.id,
+            role: role
+          }));
+          
+          const { error: rolesError } = await supabase
+            .from('user_roles')
+            .insert(roleInserts);
+          
+          if (rolesError) {
+            console.error('[Auth] Error assigning roles:', rolesError);
+          }
+        }
+
+        // Update invitation status
+        await supabase
+          .from('user_invitations')
+          .update({ 
+            status: 'accepted', 
+            accepted_at: new Date().toISOString() 
+          })
+          .eq('id', invitation.id);
+
         if (isMounted) {
           toast({
-            title: "Acceso denegado",
-            description: "No tienes una invitación válida. Contacta con un administrador.",
-            variant: "destructive",
+            title: "¡Bienvenido!",
+            description: "Tu cuenta ha sido activada correctamente.",
           });
         }
-        return false;
       }
 
       return true;

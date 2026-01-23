@@ -1,119 +1,93 @@
 
-# Plan: Pago masivo de facturas
+# Plan: Agregar funcionalidad de eliminar facturas
 
 ## Resumen
 
-Agregar la funcionalidad para seleccionar varias facturas desde el listado y marcarlas como pagadas en un solo pago, incluyendo la fecha de pago y el importe total. Esta funcionalidad es especialmente util para clientes como Asendia que pagan multiples facturas en un unico pago.
+Implementar la capacidad de eliminar registros de facturas desde la vista de tabla y tarjetas, con un dialogo de confirmacion para evitar eliminaciones accidentales.
 
-## Flujo de usuario
+## Cambios a implementar
 
-1. El usuario entra en la pagina de Facturas
-2. Cambia a vista de tabla (donde hay checkboxes)
-3. Selecciona las facturas que quiere marcar como pagadas
-4. Aparece una barra flotante con la accion "Marcar como Pagadas"
-5. Al hacer clic, se abre un modal con:
-   - Resumen de facturas seleccionadas (codigos y totales)
-   - Campo para fecha de pago (por defecto hoy)
-   - Campo opcional para importe total recibido (informativo)
-   - Campo opcional para notas del pago
-6. Al confirmar, todas las facturas se marcan como pagadas con la misma fecha
+### 1. Modificar la vista de tabla (InvoiceTableView.tsx)
 
-## Cambios tecnicos
+Agregar un boton de eliminar en la columna de acciones:
+- Icono de papelera (Trash2) junto a los botones de ver/editar
+- Solo visible para usuarios con permisos de finanzas
+- Llamara a una funcion `onDelete` pasada como prop
+
+### 2. Modificar la vista de tarjetas (InvoiceCard.tsx)
+
+Agregar un boton de eliminar:
+- Boton con estilo destructivo
+- Solo visible para usuarios con permisos
+
+### 3. Modificar la pagina principal (Facturas.tsx)
+
+Agregar la logica de eliminacion:
+- Estado para controlar el dialogo de confirmacion (`deleteDialogOpen`)
+- Estado para la factura a eliminar (`invoiceToDelete`)
+- Mutation de React Query para ejecutar el DELETE en la base de datos
+- Dialogo de confirmacion usando `ConfirmDialog` existente
+- Invalidar la query de facturas tras eliminar exitosamente
+- Mostrar toast de exito o error
+
+### 4. Comportamiento esperado
+
+1. Usuario hace clic en el icono de papelera
+2. Se abre dialogo: "¿Eliminar factura FAC-2025-0001?"
+3. Descripcion: "Esta accion no se puede deshacer. Si la factura tiene solicitudes asociadas, estas quedaran sin factura asignada."
+4. Boton "Eliminar" en rojo, boton "Cancelar"
+5. Al confirmar: DELETE en base de datos, cierre de dialogo, toast de exito
+6. Lista se refresca automaticamente
+
+## Consideraciones de seguridad
+
+- La eliminacion solo estara disponible para usuarios con rol de finanzas o admin
+- Las restricciones de base de datos ya estan configuradas:
+  - `invoice_items` se eliminan automaticamente (CASCADE)
+  - `requests.billed_invoice_id` se pone a NULL automaticamente (SET NULL)
+
+## Archivos a modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/pages/Facturas.tsx` | Agregar estado `selectedIds`, handlers de seleccion, y barra de acciones masivas |
-| `src/components/invoices/InvoiceTableView.tsx` | Agregar columna de checkboxes y props de seleccion |
-| `src/components/invoices/BulkPaymentModal.tsx` | **Nuevo archivo** - Modal para configurar el pago masivo |
+| `src/pages/Facturas.tsx` | Agregar estado, mutation y dialogo de confirmacion |
+| `src/components/invoices/InvoiceTableView.tsx` | Agregar boton eliminar y prop onDelete |
+| `src/components/invoices/InvoiceCard.tsx` | Agregar boton eliminar |
 
-### 1. Modificar InvoiceTableView.tsx
+## Detalles tecnicos
 
-Agregar checkboxes igual que en `RequestTableView`:
-- Nueva columna de checkbox en el header
-- Checkbox en cada fila para facturas con estado `sent` u `overdue`
-- Props nuevas: `selectedIds`, `onSelectAll`, `onSelectOne`
+### Mutation de eliminacion
 
-### 2. Modificar Facturas.tsx
-
-```text
-Nuevos estados:
-- selectedIds: string[] - IDs de facturas seleccionadas
-- bulkPaymentModalOpen: boolean - Controla visibilidad del modal
-
-Nuevos handlers:
-- handleSelectAll(checked)
-- handleSelectOne(id, checked)
-- handleBulkPayment() - Abre el modal
-
-UI adicional:
-- Barra flotante cuando hay seleccion activa mostrando:
-  - "X facturas seleccionadas"
-  - Total acumulado de las facturas
-  - Boton "Marcar como Pagadas"
+```typescript
+const deleteMutation = useMutation({
+  mutationFn: async (invoiceId: string) => {
+    const { error } = await supabase
+      .from('invoices')
+      .delete()
+      .eq('id', invoiceId);
+    if (error) throw error;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    toast.success('Factura eliminada correctamente');
+    setDeleteDialogOpen(false);
+    setInvoiceToDelete(null);
+  },
+  onError: (error) => {
+    toast.error('Error al eliminar: ' + error.message);
+  }
+});
 ```
 
-### 3. Nuevo componente BulkPaymentModal.tsx
+### Props adicionales en InvoiceTableView
 
-```text
-Props:
-- isOpen: boolean
-- onClose: () => void
-- invoiceIds: string[]
-- invoices: any[] (para mostrar resumen)
-
-Campos del formulario:
-- Fecha de pago (date input, default: hoy)
-- Importe total recibido (number input, opcional/informativo)
-- Notas (textarea, opcional)
-
-Al confirmar:
-- Actualiza todas las facturas seleccionadas a status='paid'
-- Guarda paid_at con la fecha indicada
-- Muestra toast de exito
-- Invalida query de facturas
-- Limpia seleccion
+```typescript
+interface InvoiceTableViewProps {
+  // ... props existentes
+  onDelete?: (invoice: any) => void;
+}
 ```
 
-## Logica de seleccion
+### Dialogo de confirmacion
 
-Solo se podran seleccionar facturas con estado:
-- `sent` (Enviada)
-- `overdue` (Vencida)
-
-Las facturas en `draft`, `paid` o `cancelled` no tendran checkbox activo ya que no tiene sentido marcarlas como pagadas.
-
-## Estructura del modal de pago masivo
-
-```text
-+------------------------------------------+
-|  Registrar Pago Masivo              [X]  |
-+------------------------------------------+
-|                                          |
-|  Facturas a marcar como pagadas:         |
-|  +------------------------------------+  |
-|  | FAC-2025-0001  |  1.500,00 EUR    |  |
-|  | FAC-2025-0002  |  2.300,00 EUR    |  |
-|  | FAC-2025-0003  |    850,00 EUR    |  |
-|  +------------------------------------+  |
-|  Total facturas: 4.650,00 EUR            |
-|                                          |
-|  Fecha de pago:                          |
-|  [ 23/01/2026        ] (calendario)      |
-|                                          |
-|  Importe recibido (opcional):            |
-|  [ 4.650,00          ] EUR               |
-|                                          |
-|  Notas (opcional):                       |
-|  [                                   ]   |
-|  [                                   ]   |
-|                                          |
-|           [Cancelar]  [Registrar Pago]   |
-+------------------------------------------+
-```
-
-## Consideraciones
-
-- El importe recibido es informativo, no se almacena (a menos que se quiera agregar un campo en la tabla de facturas)
-- La fecha de pago se aplicara a todas las facturas seleccionadas
-- Se limpiara la seleccion despues de completar el pago
-- Solo funciona en vista de tabla (la vista de cards no tiene checkboxes)
+Usara el componente `ConfirmDialog` existente con `variant="destructive"`.

@@ -28,7 +28,7 @@ export default function Facturas() {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const { canAccessFinance } = useUserRole();
+  const { canAccessFinance, loading: rolesLoading } = useUserRole();
   const { assignedClientIds, isLoading: assignedClientsLoading, needsFiltering } = useAssignedClients();
   const { filters, updateFilter, resetFilters, getDateRange } = useInvoiceFilters();
 
@@ -96,7 +96,55 @@ export default function Facturas() {
     enabled: !needsFiltering || assignedClientIds.length > 0,
   });
 
-  if (!canAccessFinance()) {
+  // Selection derived state (must be above any conditional return to avoid hook-order issues)
+  const selectableInvoices = useMemo(
+    () => (invoices || []).filter((inv) => inv.status === 'sent' || inv.status === 'overdue'),
+    [invoices]
+  );
+
+  const selectedInvoices = useMemo(
+    () => (invoices || []).filter((inv) => selectedIds.includes(inv.id)),
+    [invoices, selectedIds]
+  );
+
+  const selectedTotal = useMemo(
+    () => selectedInvoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0),
+    [selectedInvoices]
+  );
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(selectableInvoices.map((inv) => inv.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds((prev) => [...prev, id]);
+    } else {
+      setSelectedIds((prev) => prev.filter((i) => i !== id));
+    }
+  };
+
+  const handleBulkPaymentSuccess = () => {
+    setSelectedIds([]);
+  };
+
+  const canFinance = canAccessFinance();
+
+  if (rolesLoading) {
+    return (
+      <AppLayout title="Facturas">
+        <div className="flex items-center justify-center h-64">
+          <p className="text-muted-foreground">Cargando permisos...</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!canFinance) {
     return (
       <AppLayout title="Facturas">
         <Card>
@@ -128,42 +176,6 @@ export default function Facturas() {
 
   const handleUpload = () => {
     setUploadModalOpen(true);
-  };
-
-  // Selection handlers for bulk actions
-  const selectableInvoices = useMemo(() => 
-    (invoices || []).filter(inv => inv.status === 'sent' || inv.status === 'overdue'),
-    [invoices]
-  );
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedIds(selectableInvoices.map(inv => inv.id));
-    } else {
-      setSelectedIds([]);
-    }
-  };
-
-  const handleSelectOne = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedIds(prev => [...prev, id]);
-    } else {
-      setSelectedIds(prev => prev.filter(i => i !== id));
-    }
-  };
-
-  const selectedInvoices = useMemo(() => 
-    (invoices || []).filter(inv => selectedIds.includes(inv.id)),
-    [invoices, selectedIds]
-  );
-
-  const selectedTotal = useMemo(() => 
-    selectedInvoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0),
-    [selectedInvoices]
-  );
-
-  const handleBulkPaymentSuccess = () => {
-    setSelectedIds([]);
   };
 
   const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId;
@@ -353,7 +365,7 @@ export default function Facturas() {
             invoices={invoices || []}
             onView={handleView}
             onEdit={handleEdit}
-            canManage={canAccessFinance()}
+            canManage={canFinance}
             selectedIds={selectedIds}
             onSelectAll={handleSelectAll}
             onSelectOne={handleSelectOne}

@@ -88,8 +88,8 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
 
   // Calculate totals - use items sum if available, otherwise manual subtotal
   const itemsSubtotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
-  const subtotal = invoiceItems.length > 0 ? itemsSubtotal : manualSubtotal;
-  const taxRate = watch('tax_rate') || 21;
+  const subtotal = itemsSubtotal > 0 ? itemsSubtotal : manualSubtotal;
+  const taxRate = watch('tax_rate') ?? 21;
   const taxAmount = (subtotal * taxRate) / 100;
   const totalAmount = subtotal + taxAmount;
 

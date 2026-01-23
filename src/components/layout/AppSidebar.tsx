@@ -21,10 +21,10 @@ interface NavItem {
 }
 
 const operationsItems: NavItem[] = [
-  { title: 'Requests', url: '/solicitudes', icon: FileCheck, requiredRoles: ['admin', 'finanzas', 'project_manager', 'account_manager'] },
+  { title: 'Requests', url: '/solicitudes', icon: FileCheck, requiredRoles: ['admin', 'finanzas', 'project_manager', 'account_manager', 'especialista'] },
   { title: 'Presupuestos', url: '/presupuestos', icon: Calculator },
   { title: 'Proyectos', url: '/proyectos-operativos', icon: Briefcase, requiredRoles: ['admin', 'project_manager', 'especialista', 'account_manager'] },
-  { title: 'Mis Tareas', url: '/mis-tareas', icon: CheckSquare },
+  { title: 'Mis Tareas', url: '/mis-tareas', icon: CheckSquare, requiredRoles: ['admin', 'project_manager', 'account_manager', 'especialista'] },
   { title: 'Notificaciones', url: '/notificaciones', icon: Bell },
 ];
 

@@ -1,219 +1,230 @@
 
-# Plan: Carga y Control de Facturas Emitidas
 
-## Resumen
+# Plan: Carga Automática de Facturas mediante IA
 
-Vamos a implementar un sistema de control de facturas emitidas que permita:
-1. Cargar las 19 facturas históricas desde diciembre
-2. Visualizar y descargar copias de cada factura (PDF)
-3. Cambiar estados de factura (enviada, pagada, vencida, etc.)
-4. Seguimiento completo de cobros
+## Objetivo
+Reemplazar el formulario manual por un sistema que extraiga automáticamente los datos de las facturas al subir los PDFs, usando inteligencia artificial.
 
 ---
 
-## 1. Configurar Storage para Copias de Facturas
+## Flujo de Usuario Propuesto
 
-### Backend - Crear Bucket de Storage
-
-Se creará un bucket llamado `invoice-files` para almacenar copias de facturas (PDFs).
-
-```sql
--- Crear bucket para archivos de facturas
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('invoice-files', 'invoice-files', true);
-
--- Política para que roles finanzas/admin puedan subir
-CREATE POLICY "Finance and admin can upload invoice files"
-ON storage.objects FOR INSERT
-WITH CHECK (
-  bucket_id = 'invoice-files'
-  AND (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'finanzas'))
-);
-
--- Política para ver archivos
-CREATE POLICY "Authenticated users can view invoice files"
-ON storage.objects FOR SELECT
-USING (bucket_id = 'invoice-files' AND auth.uid() IS NOT NULL);
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  1. Usuario sube PDF(s) de factura(s)                           │
+├─────────────────────────────────────────────────────────────────┤
+│  2. Sistema procesa PDF con IA y extrae:                        │
+│     • Número de factura                                         │
+│     • Nombre del cliente → Match con clientes existentes        │
+│     • Fecha de emisión y vencimiento                            │
+│     • Subtotal, IVA, Total                                      │
+├─────────────────────────────────────────────────────────────────┤
+│  3. Usuario revisa datos extraídos en una tabla                 │
+│     • Puede corregir cliente si no hizo match                   │
+│     • Puede ajustar importes si hay errores                     │
+├─────────────────────────────────────────────────────────────────┤
+│  4. Usuario confirma y se guardan las facturas                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Crear Modal de Carga de Factura Histórica
+## Arquitectura Técnica
 
-### Nuevo Componente: `InvoiceUploadModal.tsx`
+### 1. Nueva Edge Function: `extract-invoice-data`
 
-Un formulario simplificado para cargar facturas ya emitidas:
+Procesa PDFs y extrae datos usando Gemini (modelo multimodal que puede leer PDFs/imágenes).
 
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| Código | Texto | Número de factura emitida (ej: FAC-2024-001) |
-| Cliente | Select | Selector de cliente existente |
-| Fecha factura | Date | Fecha de emisión |
-| Fecha vencimiento | Date | Fecha límite de pago |
-| Subtotal | Número | Importe base sin IVA |
-| % IVA | Número | Porcentaje de IVA (default 21%) |
-| Estado | Select | draft/sent/paid/overdue |
-| Copia factura | File | PDF de la factura emitida |
-| Notas | Texto | Observaciones adicionales |
+**Entrada:**
+- PDF en base64 o URL de storage
 
-**Cálculos automáticos:**
-- IVA = Subtotal × (% IVA / 100)
-- Total = Subtotal + IVA
+**Proceso:**
+1. Convertir PDF a imagen o extraer texto
+2. Enviar a Gemini con prompt estructurado
+3. Recibir JSON con datos extraídos
+4. Intentar match automático de cliente
 
----
-
-## 3. Modificar Vista de Facturas
-
-### Cambios en `InvoiceTableView.tsx`
-
-Añadir columna para ver/descargar copia de factura:
-
+**Salida:**
+```json
+{
+  "invoice_code": "FAC-2024-019",
+  "client_name": "Asendia Spain",
+  "client_id": "18366e37-01ca-4bce-bea9-78b63452d703",
+  "client_matched": true,
+  "invoice_date": "2025-01-15",
+  "due_date": "2025-02-15",
+  "subtotal": 1500.00,
+  "tax_rate": 21,
+  "tax_amount": 315.00,
+  "total_amount": 1815.00,
+  "line_items": [
+    {"description": "Consultoría SEO", "quantity": 1, "unit_price": 1500}
+  ]
+}
 ```
-| Código | Cliente | Fecha | Venc. | Subtotal | IVA | Total | Estado | [📎 PDF] | Acciones |
-```
 
-- Icono de PDF que abre la copia en nueva pestaña
-- Badge visual si no tiene copia adjunta
+### 2. Nuevo Componente: `InvoiceUploadModal.tsx` (Rediseñado)
 
-### Cambios en `InvoiceCard.tsx`
+**Fase 1: Subida de archivos**
+- Zona de arrastrar y soltar para múltiples PDFs
+- Barra de progreso para cada archivo
+- Indicador de procesamiento con IA
 
-- Añadir botón "Ver Copia" si `pdf_url` existe
-- Mostrar icono de advertencia si no tiene copia
+**Fase 2: Revisión de datos extraídos**
+- Tabla con todos los datos extraídos
+- Indicadores visuales:
+  - ✅ Verde: Cliente identificado automáticamente
+  - ⚠️ Amarillo: Requiere selección manual de cliente
+  - ❌ Rojo: Error en extracción
+- Campos editables para correcciones
+- Selector de estado para cada factura
 
----
-
-## 4. Implementar Cambio de Estado de Factura
-
-### Nueva Funcionalidad
-
-Permitir cambiar el estado de las facturas directamente:
-
-| Estado actual | Acciones disponibles |
-|---------------|----------------------|
-| draft | → sent, cancelled |
-| sent | → paid, overdue, cancelled |
-| paid | (sin cambios, estado final) |
-| overdue | → paid, cancelled |
-| cancelled | (sin cambios, estado final) |
-
-### UI para Cambio de Estado
-
-- Dropdown de acciones en cada factura
-- Botón "Marcar como Pagada" destacado para facturas `sent`
-- Al marcar como `paid`, se guarda `paid_at` automáticamente
+**Fase 3: Confirmación**
+- Resumen de facturas a importar
+- Botón para guardar todas
 
 ---
 
-## 5. Mejorar Modal de Visualización
-
-### Modo "view" en `InvoiceFormModal.tsx`
-
-Cuando se abre en modo vista, mostrar:
-- Todos los datos de la factura (readonly)
-- Botón para ver/descargar copia PDF
-- Dropdown para cambiar estado
-- Historial de fechas (`created_at`, `sent_at`, `paid_at`)
-
----
-
-## 6. Flujo para Cargar las 19 Facturas
-
-### Opción A: Carga Manual (Recomendada)
-
-1. Usuario accede a Facturas
-2. Clic en "Nueva Factura" o "Importar Factura"
-3. Completa datos y sube PDF
-4. Guarda factura
-
-### Opción B: Carga Masiva
-
-Si tienes los datos en Excel/CSV, podría implementarse un importador. 
-
-**¿Qué formato tienes los datos de las 19 facturas?**
-- ¿Excel/CSV?
-- ¿PDFs individuales?
-- ¿Datos estructurados o solo las copias?
-
----
-
-## Archivos a Crear/Modificar
+## Componentes a Crear/Modificar
 
 | Archivo | Acción | Descripción |
 |---------|--------|-------------|
-| Migración SQL | Crear | Storage bucket + políticas |
-| `InvoiceUploadModal.tsx` | Crear | Modal simplificado para facturas históricas |
-| `InvoiceTableView.tsx` | Modificar | Añadir columna PDF y acciones de estado |
-| `InvoiceCard.tsx` | Modificar | Añadir botón ver PDF y cambio de estado |
-| `InvoiceFormModal.tsx` | Modificar | Mejorar modo vista con acciones |
-| `InvoiceStatusActions.tsx` | Crear | Componente para cambiar estado de factura |
-| `Facturas.tsx` | Modificar | Añadir botón "Importar Factura" |
+| `supabase/functions/extract-invoice-data/index.ts` | Crear | Edge function con IA para extraer datos de PDF |
+| `src/components/invoices/InvoiceUploadModal.tsx` | Rediseñar | Nuevo flujo: subir → procesar → revisar → guardar |
+| `src/components/invoices/ExtractedInvoiceRow.tsx` | Crear | Fila editable para cada factura extraída |
+| `src/components/invoices/InvoiceUploadProgress.tsx` | Crear | Indicador de progreso de procesamiento |
 
 ---
 
-## Resultado Esperado
+## Detalles de la Edge Function
 
-1. **Control total** de las 19 facturas emitidas
-2. **Acceso rápido** a copias PDF de cada factura
-3. **Seguimiento** de estados: enviada → pagada
-4. **Alertas** para facturas vencidas
-5. **Búsqueda y filtros** por cliente, estado, período
-6. **Exportación Excel** para contabilidad
+### Prompt para Gemini
 
----
+```text
+Analiza esta factura y extrae los siguientes datos en formato JSON:
+- invoice_code: número o código de la factura
+- client_name: nombre del cliente facturado
+- invoice_date: fecha de emisión (formato YYYY-MM-DD)
+- due_date: fecha de vencimiento si aparece (formato YYYY-MM-DD)
+- subtotal: importe base imponible (sin IVA)
+- tax_rate: porcentaje de IVA aplicado
+- tax_amount: importe del IVA
+- total_amount: importe total con IVA
+- line_items: array de líneas de factura con description, quantity, unit_price
 
-## Sección Técnica
-
-### Estructura de Storage
-
-```
-invoice-files/
-├── {invoice_id}/
-│   └── factura.pdf
+Responde SOLO con el JSON, sin explicaciones.
 ```
 
-### Upload de Archivo
+### Matching de Cliente
 
 ```typescript
-const uploadInvoicePDF = async (invoiceId: string, file: File) => {
-  const filePath = `${invoiceId}/${file.name}`;
+const matchClient = (extractedName: string, clients: Client[]) => {
+  // Normalizar nombres
+  const normalize = (s: string) => s.toLowerCase()
+    .replace(/[.,\s]+/g, ' ')
+    .trim();
   
-  const { data, error } = await supabase.storage
-    .from('invoice-files')
-    .upload(filePath, file, { upsert: true });
+  const normalizedExtracted = normalize(extractedName);
   
-  if (!error) {
-    const { data: { publicUrl } } = supabase.storage
-      .from('invoice-files')
-      .getPublicUrl(filePath);
-    
-    // Actualizar factura con URL del PDF
-    await supabase
-      .from('invoices')
-      .update({ pdf_url: publicUrl })
-      .eq('id', invoiceId);
+  // Buscar coincidencia exacta o parcial
+  for (const client of clients) {
+    if (normalize(client.name).includes(normalizedExtracted) || 
+        normalizedExtracted.includes(normalize(client.name))) {
+      return { client_id: client.id, confidence: 'high' };
+    }
   }
+  
+  // Sin match
+  return { client_id: null, confidence: 'none' };
 };
 ```
 
-### Mutación para Cambiar Estado
+---
 
-```typescript
-const updateStatus = useMutation({
-  mutationFn: async ({ id, status }: { id: string; status: InvoiceStatus }) => {
-    const updates: any = { status };
-    
-    if (status === 'sent') {
-      updates.sent_at = new Date().toISOString();
-    } else if (status === 'paid') {
-      updates.paid_at = new Date().toISOString();
-    }
-    
-    const { error } = await supabase
-      .from('invoices')
-      .update(updates)
-      .eq('id', id);
-    
-    if (error) throw error;
-  }
-});
+## UI del Modal Rediseñado
+
+### Estado 1: Subida de PDFs
+
+```text
+┌────────────────────────────────────────────────────┐
+│  Importar Facturas                           [X]   │
+├────────────────────────────────────────────────────┤
+│                                                    │
+│    ┌──────────────────────────────────────────┐    │
+│    │     📄                                   │    │
+│    │     Arrastra tus facturas aquí           │    │
+│    │     o haz clic para seleccionar          │    │
+│    │     (PDF, hasta 10 archivos)             │    │
+│    └──────────────────────────────────────────┘    │
+│                                                    │
+│  Archivos seleccionados:                           │
+│  ├─ factura-001.pdf  [Procesando... ⏳]            │
+│  ├─ factura-002.pdf  [En cola]                     │
+│  └─ factura-003.pdf  [En cola]                     │
+│                                                    │
+└────────────────────────────────────────────────────┘
 ```
+
+### Estado 2: Revisión de Datos
+
+```text
+┌────────────────────────────────────────────────────────────────────┐
+│  Revisar Datos Extraídos                                     [X]   │
+├────────────────────────────────────────────────────────────────────┤
+│  Se extrajeron 3 facturas. Revisa los datos antes de guardar.     │
+│                                                                    │
+│ ┌────────────────────────────────────────────────────────────────┐ │
+│ │ Código     │ Cliente         │ Fecha   │ Subtotal │ Total     │ │
+│ ├────────────┼─────────────────┼─────────┼──────────┼───────────┤ │
+│ │ FAC-001 ✅ │ Asendia Spain ▼│ 15/01/25│  1.500 € │  1.815 €  │ │
+│ │ FAC-002 ✅ │ ASENDIA HQ    ▼│ 18/01/25│  2.000 € │  2.420 €  │ │
+│ │ FAC-003 ⚠️ │ [Seleccionar] ▼│ 20/01/25│  3.500 € │  4.235 €  │ │
+│ └────────────────────────────────────────────────────────────────┘ │
+│                                                                    │
+│  ⚠️ 1 factura requiere selección manual de cliente                │
+│                                                                    │
+│                              [Cancelar]  [Importar 3 Facturas]     │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Pasos de Implementación
+
+### Paso 1: Crear Edge Function
+- Recibe PDF en base64
+- Usa Lovable AI (Gemini) para extraer datos
+- Retorna JSON estructurado
+
+### Paso 2: Actualizar Modal
+- Zona de drag & drop para múltiples archivos
+- Llamar a edge function por cada PDF
+- Mostrar progreso de procesamiento
+
+### Paso 3: Vista de Revisión
+- Tabla con datos extraídos
+- Selectores de cliente para facturas sin match
+- Campos editables para correcciones
+
+### Paso 4: Guardado Masivo
+- Crear todas las facturas en una transacción
+- Subir PDFs a storage
+- Asociar pdf_url a cada factura
+
+---
+
+## Consideraciones Técnicas
+
+### Límites y Validaciones
+- Máximo 10 PDFs por lote
+- Tamaño máximo: 10MB por archivo
+- Timeout de edge function: 30 segundos por PDF
+
+### Manejo de Errores
+- Si la IA no puede extraer datos → Mostrar error y permitir entrada manual
+- Si no hace match de cliente → Requerir selección manual
+- Validar importes antes de guardar
+
+### Secrets Requeridos
+El proyecto ya tiene configurado Lovable AI, por lo que no se necesitan secrets adicionales para acceder a Gemini.
+

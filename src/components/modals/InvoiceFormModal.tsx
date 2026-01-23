@@ -627,7 +627,11 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
               <Input
                 type="number"
                 step="0.01"
-                {...register('tax_rate', { valueAsNumber: true })}
+                value={watch('tax_rate') ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setValue('tax_rate', val === '' ? 0 : parseFloat(val) || 0);
+                }}
                 disabled={disabled}
               />
             </div>

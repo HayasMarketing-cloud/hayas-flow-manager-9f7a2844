@@ -78,7 +78,7 @@ export const InvoiceCard = ({ invoice, onEdit, canManage }: InvoiceCardProps) =>
         )}
 
         <div className="pt-2 space-y-2">
-          {canManage && invoice.status === 'draft' && (
+          {canManage && (
             <Button
               variant="outline"
               size="sm"

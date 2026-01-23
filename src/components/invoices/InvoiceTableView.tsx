@@ -91,7 +91,7 @@ export const InvoiceTableView = ({ invoices, onView, onEdit, canManage }: Invoic
                     <Button variant="ghost" size="sm" onClick={() => onView(invoice)}>
                       <Eye className="h-4 w-4" />
                     </Button>
-                    {canManage && invoice.status === 'draft' && (
+                    {canManage && (
                       <Button variant="ghost" size="sm" onClick={() => onEdit(invoice)}>
                         <Edit className="h-4 w-4" />
                       </Button>

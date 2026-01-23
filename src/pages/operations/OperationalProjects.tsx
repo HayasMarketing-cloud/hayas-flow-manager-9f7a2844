@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import GoogleDriveIcon from '@/assets/icons8-google-drive.svg';
+import { useAssignedClients } from '@/hooks/useAssignedClients';
 
 const statusColors = {
   pending: 'bg-yellow-500',
@@ -56,17 +57,39 @@ export default function OperationalProjects() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<any>(null);
 
+  const { assignedClientIds, isLoading: assignedLoading, needsFiltering } = useAssignedClients();
+
   const { data: projects, isLoading } = useOperationalProjects({
     clientId: clientFilter === 'all' ? undefined : clientFilter,
     status: statusFilter === 'all' ? undefined : statusFilter,
     searchTerm: searchTerm || undefined,
+    assignedClientIds: needsFiltering ? assignedClientIds : undefined,
+    needsFiltering,
   });
 
   const deleteMutation = useDeleteOperationalProject();
 
   const { data: clients } = useQuery({
-    queryKey: ['clients-active'],
+    queryKey: ['clients-active', needsFiltering, assignedClientIds],
     queryFn: async () => {
+      // For AM/PM, only show assigned clients
+      if (needsFiltering && assignedClientIds.length > 0) {
+        const { data, error } = await supabase
+          .from('clients')
+          .select('id, name')
+          .in('id', assignedClientIds)
+          .eq('status', 'active')
+          .order('name');
+        if (error) throw error;
+        return data;
+      }
+      
+      // AM/PM with no assignments
+      if (needsFiltering && assignedClientIds.length === 0) {
+        return [];
+      }
+      
+      // Default: all clients for admin/finanzas
       const { data, error } = await supabase
         .from('clients')
         .select('id, name')
@@ -75,6 +98,7 @@ export default function OperationalProjects() {
       if (error) throw error;
       return data;
     },
+    enabled: !assignedLoading,
   });
 
   // Fetch request counts for all projects

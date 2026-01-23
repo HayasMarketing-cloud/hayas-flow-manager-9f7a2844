@@ -18,6 +18,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useCurrentSpecialist } from '@/hooks/useCurrentSpecialist';
+import { useUserContractIds } from '@/hooks/useAssignedClients';
 
 export default function Contratos() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -30,17 +31,18 @@ export default function Contratos() {
   const { user } = useAuth();
   const { filters, updateFilter, resetFilters } = useContractFilters();
   const queryClient = useQueryClient();
-  const { isSpecialist, isAdmin, canAccessFinance, isProjectManager, loading: rolesLoading } = useUserRole();
+  const { isSpecialist, isAdmin, canAccessFinance, isProjectManager, shouldFilterByAssignment, loading: rolesLoading } = useUserRole();
   const { specialistId, isLoading: specialistLoading } = useCurrentSpecialist();
+  const { assignedContractIds, isLoading: assignedLoading, needsFiltering } = useUserContractIds();
   
   // Check if user is only specialist (no other management roles)
-  const isOnlySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && !isProjectManager();
+  const isOnlySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && !isProjectManager() && !shouldFilterByAssignment();
 
   const { data: contracts, isLoading } = useQuery({
-    queryKey: ['contracts', filters, isOnlySpecialist, specialistId],
+    queryKey: ['contracts', filters, isOnlySpecialist, specialistId, needsFiltering, assignedContractIds],
     queryFn: async () => {
+      // Specialist filtering: get contracts from their services
       if (isOnlySpecialist && specialistId) {
-        // Get contracts where specialist is in specialists_default or has contract_services
         const { data: contractServices, error: csError } = await supabase
           .from('contract_services')
           .select('contract_id')
@@ -50,7 +52,6 @@ export default function Contratos() {
         
         const contractIdsFromServices = contractServices?.map(cs => cs.contract_id) || [];
         
-        // Also get contracts where specialist is in specialists_default array
         const { data: allContracts, error: cError } = await supabase
           .from('contracts')
           .select(`*, client:clients(id, name)`)
@@ -58,13 +59,11 @@ export default function Contratos() {
         
         if (cError) throw cError;
         
-        // Filter contracts where specialist is in specialists_default or has services
         const filteredContracts = allContracts?.filter(c => 
           contractIdsFromServices.includes(c.id) || 
           (c.specialists_default && c.specialists_default.includes(specialistId))
         ) || [];
         
-        // Apply additional filters
         let result = filteredContracts;
         if (filters.status) {
           result = result.filter(c => c.status === filters.status);
@@ -79,7 +78,32 @@ export default function Contratos() {
         return result;
       }
       
-      // Default query for non-specialists
+      // AM/PM filtering: show only assigned contracts
+      if (needsFiltering) {
+        if (assignedContractIds.length === 0) return [];
+        
+        let query = supabase
+          .from('contracts')
+          .select(`*, client:clients(id, name)`)
+          .in('id', assignedContractIds)
+          .order('created_at', { ascending: false });
+
+        if (filters.status) {
+          query = query.eq('status', filters.status);
+        }
+        if (filters.clientId) {
+          query = query.eq('client_id', filters.clientId);
+        }
+        if (filters.searchTerm) {
+          query = query.or(`title.ilike.%${filters.searchTerm}%`);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return data;
+      }
+      
+      // Default query for admin/finanzas
       let query = supabase
         .from('contracts')
         .select(`
@@ -102,7 +126,7 @@ export default function Contratos() {
       if (error) throw error;
       return data;
     },
-    enabled: !!user && !rolesLoading && (!isOnlySpecialist || !specialistLoading),
+    enabled: !!user && !rolesLoading && (!isOnlySpecialist || !specialistLoading) && (!needsFiltering || !assignedLoading),
   });
 
   const { data: clients } = useQuery({

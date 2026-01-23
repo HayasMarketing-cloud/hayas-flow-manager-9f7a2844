@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ClientFormModal } from '@/components/modals/ClientFormModal';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useCurrentSpecialist } from '@/hooks/useCurrentSpecialist';
+import { useAssignedClients } from '@/hooks/useAssignedClients';
 import GoogleDriveIcon from '@/assets/icons8-google-drive.svg';
 
 const Clientes = () => {
@@ -20,18 +21,19 @@ const Clientes = () => {
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canManageClients, isSpecialist, isAdmin, canAccessFinance, isProjectManager, loading: rolesLoading } = useUserRole();
+  const { canManageClients, isSpecialist, isAdmin, canAccessFinance, isProjectManager, shouldFilterByAssignment, loading: rolesLoading } = useUserRole();
   const { specialistId, isLoading: specialistLoading } = useCurrentSpecialist();
+  const { assignedClientIds, isLoading: assignedLoading, needsFiltering } = useAssignedClients();
   const canManage = canManageClients();
   
   // Check if user is only specialist (no other management roles)
-  const isOnlySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && !isProjectManager();
+  const isOnlySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && !isProjectManager() && !shouldFilterByAssignment();
 
   const { data: clients, isLoading, error } = useQuery({
-    queryKey: ['clients', isOnlySpecialist, specialistId],
+    queryKey: ['clients', isOnlySpecialist, specialistId, needsFiltering, assignedClientIds],
     queryFn: async () => {
+      // Specialist filtering: get clients from their requests
       if (isOnlySpecialist && specialistId) {
-        // Get unique client IDs from requests where this specialist is assigned
         const { data: requests, error: reqError } = await supabase
           .from('financial_requests')
           .select('client_id')
@@ -54,7 +56,25 @@ const Clientes = () => {
         return data;
       }
       
-      // Default: show all clients
+      // AM/PM filtering: show only assigned clients
+      if (needsFiltering && assignedClientIds.length > 0) {
+        const { data, error } = await supabase
+          .from('clients')
+          .select('*')
+          .in('id', assignedClientIds)
+          .eq('status', 'active')
+          .order('name');
+
+        if (error) throw error;
+        return data;
+      }
+      
+      // AM/PM with no assignments yet
+      if (needsFiltering && assignedClientIds.length === 0) {
+        return [];
+      }
+      
+      // Default: show all clients (admin, finanzas)
       const { data, error } = await supabase
         .from('clients')
         .select('*')
@@ -64,7 +84,7 @@ const Clientes = () => {
       if (error) throw error;
       return data;
     },
-    enabled: !rolesLoading && (!isOnlySpecialist || !specialistLoading),
+    enabled: !rolesLoading && (!isOnlySpecialist || !specialistLoading) && (!needsFiltering || !assignedLoading),
   });
 
   const filteredClients = clients?.filter(

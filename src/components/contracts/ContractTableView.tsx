@@ -1,10 +1,12 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Eye, Edit, Play, Pause, RotateCw, RefreshCw } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Eye, Edit, Play, Pause, RotateCw, RefreshCw, FolderKanban } from 'lucide-react';
 import { ContractStatusBadge } from './ContractStatusBadge';
 import { formatCurrency } from '@/lib/contract-utils';
 import { format } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 interface ContractTableViewProps {
   contracts: any[];
@@ -25,6 +27,8 @@ export const ContractTableView = ({
   onResume,
   onGenerateRequests,
 }: ContractTableViewProps) => {
+  const navigate = useNavigate();
+
   return (
     <div className="rounded-md border">
       <Table>
@@ -35,6 +39,7 @@ export const ContractTableView = ({
             <TableHead>Cliente</TableHead>
             <TableHead>Monto Total</TableHead>
             <TableHead>Estado</TableHead>
+            <TableHead>Proyecto</TableHead>
             <TableHead>Inicio - Fin</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
@@ -42,7 +47,7 @@ export const ContractTableView = ({
         <TableBody>
           {contracts.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-muted-foreground">
+              <TableCell colSpan={8} className="text-center text-muted-foreground">
                 No se encontraron contratos
               </TableCell>
             </TableRow>
@@ -66,6 +71,28 @@ export const ContractTableView = ({
                 <TableCell>{formatCurrency(contract.total_amount || 0)}</TableCell>
                 <TableCell>
                   <ContractStatusBadge status={contract.status} />
+                </TableCell>
+                <TableCell>
+                  {contract.operationalProject ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                          onClick={() => navigate(`/proyectos-operativos/${contract.operationalProject.id}`)}
+                        >
+                          <FolderKanban className="h-4 w-4 mr-1" />
+                          Ver
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{contract.operationalProject.name}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">-</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   {contract.start_date && contract.end_date

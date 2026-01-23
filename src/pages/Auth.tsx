@@ -50,7 +50,7 @@ export default function Auth() {
             alt="Flow Manager" 
             className="h-32 mx-auto mb-6"
           />
-          <CardDescription>Sistema de gestión empresarial</CardDescription>
+          <CardDescription>Sistema de gestión de proyectos de Hayas</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Botón principal de Google */}

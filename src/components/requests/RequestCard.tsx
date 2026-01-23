@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { RequestStatusBadge } from './RequestStatusBadge';
 import { RequestFlowIndicator } from './RequestFlowIndicator';
 import { RequestFlowActions } from './RequestFlowActions';
@@ -40,10 +41,13 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
         </div>
 
         {request.client && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Building2 className="h-4 w-4 flex-shrink-0" />
+          <Badge 
+            variant="outline" 
+            className="bg-slate-50 text-slate-700 border-slate-200 font-medium text-sm py-1 px-2.5 max-w-full"
+          >
+            <Building2 className="h-3.5 w-3.5 mr-1.5 flex-shrink-0" />
             <span className="truncate">{request.client.name}</span>
-          </div>
+          </Badge>
         )}
         
         {request.specialist && (

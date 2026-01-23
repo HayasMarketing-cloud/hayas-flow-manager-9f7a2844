@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, LayoutGrid, Table as TableIcon, X, Download, Upload } from 'lucide-react';
+import { Plus, LayoutGrid, Table as TableIcon, X, Download, Upload, CreditCard } from 'lucide-react';
 import { exportInvoicesToExcel } from '@/utils/excel/invoicesExporter';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
@@ -15,14 +15,18 @@ import { InvoiceCard } from '@/components/invoices/InvoiceCard';
 import { InvoiceTableView } from '@/components/invoices/InvoiceTableView';
 import { InvoiceFormModal } from '@/components/modals/InvoiceFormModal';
 import { InvoiceUploadModal } from '@/components/invoices/InvoiceUploadModal';
+import { BulkPaymentModal } from '@/components/invoices/BulkPaymentModal';
 import { useInvoiceFilters, PeriodType } from '@/hooks/useInvoiceFilters';
+import { formatCurrency } from '@/lib/invoice-utils';
 
 export default function Facturas() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [modalOpen, setModalOpen] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [bulkPaymentModalOpen, setBulkPaymentModalOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const { canAccessFinance } = useUserRole();
   const { assignedClientIds, isLoading: assignedClientsLoading, needsFiltering } = useAssignedClients();
@@ -124,6 +128,42 @@ export default function Facturas() {
 
   const handleUpload = () => {
     setUploadModalOpen(true);
+  };
+
+  // Selection handlers for bulk actions
+  const selectableInvoices = useMemo(() => 
+    (invoices || []).filter(inv => inv.status === 'sent' || inv.status === 'overdue'),
+    [invoices]
+  );
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(selectableInvoices.map(inv => inv.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds(prev => [...prev, id]);
+    } else {
+      setSelectedIds(prev => prev.filter(i => i !== id));
+    }
+  };
+
+  const selectedInvoices = useMemo(() => 
+    (invoices || []).filter(inv => selectedIds.includes(inv.id)),
+    [invoices, selectedIds]
+  );
+
+  const selectedTotal = useMemo(() => 
+    selectedInvoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0),
+    [selectedInvoices]
+  );
+
+  const handleBulkPaymentSuccess = () => {
+    setSelectedIds([]);
   };
 
   const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId;
@@ -314,7 +354,38 @@ export default function Facturas() {
             onView={handleView}
             onEdit={handleEdit}
             canManage={canAccessFinance()}
+            selectedIds={selectedIds}
+            onSelectAll={handleSelectAll}
+            onSelectOne={handleSelectOne}
           />
+        )}
+
+        {/* Bulk Actions Bar */}
+        {selectedIds.length > 0 && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground px-6 py-3 rounded-lg shadow-lg flex items-center gap-4 z-50">
+            <span className="font-medium">
+              {selectedIds.length} factura{selectedIds.length > 1 ? 's' : ''} seleccionada{selectedIds.length > 1 ? 's' : ''}
+            </span>
+            <span className="text-primary-foreground/80">|</span>
+            <span>{formatCurrency(selectedTotal)}</span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setBulkPaymentModalOpen(true)}
+              className="ml-2"
+            >
+              <CreditCard className="h-4 w-4 mr-2" />
+              Marcar como Pagadas
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedIds([])}
+              className="text-primary-foreground hover:text-primary-foreground/80 hover:bg-primary-foreground/10"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         )}
       </div>
 
@@ -328,6 +399,13 @@ export default function Facturas() {
       <InvoiceUploadModal
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
+      />
+
+      <BulkPaymentModal
+        isOpen={bulkPaymentModalOpen}
+        onClose={() => setBulkPaymentModalOpen(false)}
+        invoices={selectedInvoices}
+        onSuccess={handleBulkPaymentSuccess}
       />
     </AppLayout>
   );

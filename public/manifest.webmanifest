@@ -1,0 +1,25 @@
+{
+  "name": "Flow Manager",
+  "short_name": "Flow Manager",
+  "description": "ERP de hayas para la preparación de presupuestos, gestión de proyectos, liquidaciones a especialistas y facturación a clientes.",
+  "theme_color": "#0A1628",
+  "background_color": "#0A1628",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

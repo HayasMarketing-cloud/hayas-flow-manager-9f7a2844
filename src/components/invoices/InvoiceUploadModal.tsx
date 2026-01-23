@@ -1,336 +1,488 @@
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useState, useCallback, useRef } from 'react';
+import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
+import { Upload, FileText, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Table,
+  TableBody,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Upload, FileText, Loader2 } from 'lucide-react';
-import { formatCurrency } from '@/lib/invoice-utils';
-
-const uploadSchema = z.object({
-  code: z.string().min(1, 'El código es obligatorio'),
-  client_id: z.string().min(1, 'El cliente es obligatorio'),
-  invoice_date: z.string().min(1, 'La fecha es obligatoria'),
-  due_date: z.string().optional(),
-  subtotal: z.number().min(0, 'El subtotal debe ser positivo'),
-  tax_rate: z.number().min(0).max(100),
-  status: z.enum(['draft', 'sent', 'paid', 'overdue', 'cancelled']),
-  notes: z.string().optional(),
-});
-
-type UploadFormData = z.infer<typeof uploadSchema>;
+import { ExtractedInvoiceRow, ExtractedInvoice } from './ExtractedInvoiceRow';
 
 interface InvoiceUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+type UploadPhase = 'upload' | 'processing' | 'review';
+
 export function InvoiceUploadModal({ isOpen, onClose }: InvoiceUploadModalProps) {
   const queryClient = useQueryClient();
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [phase, setPhase] = useState<UploadPhase>('upload');
+  const [extractedInvoices, setExtractedInvoices] = useState<ExtractedInvoice[]>([]);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    reset,
-    formState: { errors },
-  } = useForm<UploadFormData>({
-    resolver: zodResolver(uploadSchema),
-    defaultValues: {
-      tax_rate: 21,
-      invoice_date: new Date().toISOString().split('T')[0],
-      status: 'sent',
-    },
-  });
-
-  const { data: clients } = useQuery({
+  // Fetch active clients for matching
+  const { data: clients = [] } = useQuery({
     queryKey: ['clients-active'],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('clients')
-        .select('*')
+        .select('id, name')
         .eq('status', 'active')
         .order('name');
-      return data || [];
+      if (error) throw error;
+      return data;
     },
   });
 
-  const subtotal = watch('subtotal') || 0;
-  const taxRate = watch('tax_rate') || 21;
-  const taxAmount = (subtotal * taxRate) / 100;
-  const totalAmount = subtotal + taxAmount;
+  const resetState = () => {
+    setPhase('upload');
+    setExtractedInvoices([]);
+    setProcessingProgress(0);
+    setIsDragging(false);
+  };
 
-  const uploadMutation = useMutation({
-    mutationFn: async (data: UploadFormData) => {
-      setUploading(true);
-      
-      // Create invoice record
-      const { data: newInvoice, error: invoiceError } = await supabase
-        .from('invoices')
-        .insert({
-          code: data.code,
-          client_id: data.client_id,
-          invoice_date: data.invoice_date,
-          due_date: data.due_date || null,
-          tax_rate: data.tax_rate,
-          subtotal: data.subtotal,
-          tax_amount: taxAmount,
-          total_amount: totalAmount,
-          notes: data.notes || null,
-          status: data.status,
-          sent_at: data.status === 'sent' || data.status === 'paid' || data.status === 'overdue' 
-            ? new Date().toISOString() 
-            : null,
-          paid_at: data.status === 'paid' ? new Date().toISOString() : null,
-        })
-        .select()
-        .single();
+  const handleClose = () => {
+    resetState();
+    onClose();
+  };
 
-      if (invoiceError) throw invoiceError;
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove the data:application/pdf;base64, prefix
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
 
-      // Upload PDF if provided
-      if (pdfFile && newInvoice) {
-        const filePath = `${newInvoice.id}/${pdfFile.name}`;
+  const processFiles = async (files: File[]) => {
+    // Filter only PDFs and limit to 10
+    const pdfFiles = files
+      .filter((f) => f.type === 'application/pdf')
+      .slice(0, 10);
+
+    if (pdfFiles.length === 0) {
+      toast.error('Solo se permiten archivos PDF');
+      return;
+    }
+
+    if (pdfFiles.length < files.length) {
+      toast.warning(
+        `Se ignoraron ${files.length - pdfFiles.length} archivos que no son PDF`
+      );
+    }
+
+    // Initialize invoices with processing status
+    const initialInvoices: ExtractedInvoice[] = pdfFiles.map((file) => ({
+      id: crypto.randomUUID(),
+      fileName: file.name,
+      pdfBase64: '',
+      status: 'processing' as const,
+    }));
+
+    setExtractedInvoices(initialInvoices);
+    setPhase('processing');
+    setProcessingProgress(0);
+
+    // Process each file
+    for (let i = 0; i < pdfFiles.length; i++) {
+      const file = pdfFiles[i];
+      const invoiceId = initialInvoices[i].id;
+
+      try {
+        // Convert to base64
+        const base64 = await fileToBase64(file);
+
+        // Call edge function
+        const { data, error } = await supabase.functions.invoke('extract-invoice-data', {
+          body: { pdf_base64: base64, clients },
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Error al procesar');
+        }
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        // Update invoice with extracted data
+        setExtractedInvoices((prev) =>
+          prev.map((inv) =>
+            inv.id === invoiceId
+              ? {
+                  ...inv,
+                  pdfBase64: base64,
+                  status: 'success' as const,
+                  data: {
+                    invoice_code: data.invoice_code || '',
+                    client_name: data.client_name || '',
+                    client_id: data.client_id || null,
+                    client_matched: data.client_matched || false,
+                    invoice_date: data.invoice_date || new Date().toISOString().split('T')[0],
+                    due_date: data.due_date || null,
+                    subtotal: data.subtotal || 0,
+                    tax_rate: data.tax_rate || 21,
+                    tax_amount: data.tax_amount || 0,
+                    total_amount: data.total_amount || 0,
+                    line_items: data.line_items || [],
+                  },
+                }
+              : inv
+          )
+        );
+      } catch (error) {
+        console.error('Error processing invoice:', error);
+        setExtractedInvoices((prev) =>
+          prev.map((inv) =>
+            inv.id === invoiceId
+              ? {
+                  ...inv,
+                  status: 'error' as const,
+                  error: error instanceof Error ? error.message : 'Error desconocido',
+                }
+              : inv
+          )
+        );
+      }
+
+      // Update progress
+      setProcessingProgress(((i + 1) / pdfFiles.length) * 100);
+    }
+
+    setPhase('review');
+  };
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      const files = Array.from(e.dataTransfer.files);
+      processFiles(files);
+    },
+    [clients]
+  );
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      processFiles(files);
+    }
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleUpdateInvoice = (id: string, updates: Partial<ExtractedInvoice>) => {
+    setExtractedInvoices((prev) =>
+      prev.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv))
+    );
+  };
+
+  const handleRemoveInvoice = (id: string) => {
+    setExtractedInvoices((prev) => prev.filter((inv) => inv.id !== id));
+  };
+
+  // Save all invoices mutation
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const successInvoices = extractedInvoices.filter(
+        (inv) => inv.status === 'success' && inv.data
+      );
+
+      // Validate all have client selected
+      const missingClient = successInvoices.find(
+        (inv) => !(inv.editedClientId ?? inv.data?.client_id)
+      );
+      if (missingClient) {
+        throw new Error(
+          `La factura ${missingClient.editedCode ?? missingClient.data?.invoice_code} no tiene cliente seleccionado`
+        );
+      }
+
+      const results = [];
+
+      for (const invoice of successInvoices) {
+        const data = invoice.data!;
+        const clientId = invoice.editedClientId ?? data.client_id;
+        const code = invoice.editedCode ?? data.invoice_code;
+        const subtotal = invoice.editedSubtotal ?? data.subtotal;
+        const taxRate = invoice.editedTaxRate ?? data.tax_rate;
+        const invoiceStatus = invoice.editedInvoiceStatus ?? 'sent';
+
+        const taxAmount = subtotal * (taxRate / 100);
+        const total = subtotal + taxAmount;
+
+        // Create invoice
+        const { data: createdInvoice, error: invoiceError } = await supabase
+          .from('invoices')
+          .insert({
+            code,
+            client_id: clientId!,
+            invoice_date: data.invoice_date,
+            due_date: data.due_date,
+            subtotal,
+            tax_rate: taxRate,
+            tax_amount: taxAmount,
+            total_amount: total,
+            status: invoiceStatus,
+            notes: `Importada automáticamente desde PDF: ${invoice.fileName}`,
+            sent_at: invoiceStatus === 'sent' || invoiceStatus === 'paid' || invoiceStatus === 'overdue' 
+              ? new Date().toISOString() 
+              : null,
+            paid_at: invoiceStatus === 'paid' ? new Date().toISOString() : null,
+          })
+          .select()
+          .single();
+
+        if (invoiceError) {
+          throw new Error(`Error guardando ${code}: ${invoiceError.message}`);
+        }
+
+        // Upload PDF to storage
+        const fileName = `${createdInvoice.id}/factura.pdf`;
         
+        // Convert base64 back to blob
+        const byteCharacters = atob(invoice.pdfBase64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/pdf' });
+
         const { error: uploadError } = await supabase.storage
           .from('invoice-files')
-          .upload(filePath, pdfFile, { upsert: true });
+          .upload(fileName, blob, { upsert: true });
 
         if (uploadError) {
           console.error('Error uploading PDF:', uploadError);
-          toast.error('Error al subir el PDF, pero la factura fue creada');
         } else {
+          // Get public URL and update invoice
           const { data: urlData } = supabase.storage
             .from('invoice-files')
-            .getPublicUrl(filePath);
+            .getPublicUrl(fileName);
 
           await supabase
             .from('invoices')
             .update({ pdf_url: urlData.publicUrl })
-            .eq('id', newInvoice.id);
+            .eq('id', createdInvoice.id);
         }
+
+        results.push(createdInvoice);
       }
 
-      return newInvoice;
+      return results;
     },
-    onSuccess: () => {
-      toast.success('Factura importada correctamente');
+    onSuccess: (results) => {
+      toast.success(`${results.length} factura(s) importada(s) correctamente`);
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      reset();
-      setPdfFile(null);
-      onClose();
+      handleClose();
     },
     onError: (error) => {
-      console.error('Error uploading invoice:', error);
-      toast.error('Error al importar la factura');
-    },
-    onSettled: () => {
-      setUploading(false);
+      toast.error(error instanceof Error ? error.message : 'Error al guardar facturas');
     },
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.type !== 'application/pdf') {
-        toast.error('Solo se permiten archivos PDF');
-        return;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error('El archivo no puede superar 10MB');
-        return;
-      }
-      setPdfFile(file);
-    }
-  };
-
-  const onSubmit = (data: UploadFormData) => {
-    uploadMutation.mutate(data);
-  };
+  const successCount = extractedInvoices.filter((inv) => inv.status === 'success').length;
+  const errorCount = extractedInvoices.filter((inv) => inv.status === 'error').length;
+  const processingCount = extractedInvoices.filter((inv) => inv.status === 'processing').length;
+  const missingClientCount = extractedInvoices.filter(
+    (inv) => inv.status === 'success' && !(inv.editedClientId ?? inv.data?.client_id)
+  ).length;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className={phase === 'review' ? 'max-w-5xl' : 'max-w-lg'}>
         <DialogHeader>
-          <DialogTitle>Importar Factura Emitida</DialogTitle>
+          <DialogTitle>
+            {phase === 'upload' && 'Importar Facturas'}
+            {phase === 'processing' && 'Procesando Facturas'}
+            {phase === 'review' && 'Revisar Datos Extraídos'}
+          </DialogTitle>
+          <DialogDescription>
+            {phase === 'upload' &&
+              'Sube los PDFs de las facturas y extraeremos los datos automáticamente'}
+            {phase === 'processing' &&
+              'Analizando las facturas con inteligencia artificial...'}
+            {phase === 'review' &&
+              `Se extrajeron ${successCount} factura(s). Revisa los datos antes de guardar.`}
+          </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Código de Factura *</Label>
-              <Input
-                {...register('code')}
-                placeholder="Ej: FAC-2024-001"
-              />
-              {errors.code && (
-                <p className="text-sm text-destructive">{errors.code.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>Cliente *</Label>
-              <Select
-                value={watch('client_id')}
-                onValueChange={(value) => setValue('client_id', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients?.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.client_id && (
-                <p className="text-sm text-destructive">{errors.client_id.message}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Fecha de Factura *</Label>
-              <Input type="date" {...register('invoice_date')} />
-              {errors.invoice_date && (
-                <p className="text-sm text-destructive">{errors.invoice_date.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>Fecha de Vencimiento</Label>
-              <Input type="date" {...register('due_date')} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Subtotal (sin IVA) *</Label>
-              <Input
-                type="number"
-                step="0.01"
-                {...register('subtotal', { valueAsNumber: true })}
-                placeholder="0.00"
-              />
-              {errors.subtotal && (
-                <p className="text-sm text-destructive">{errors.subtotal.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>% IVA</Label>
-              <Input
-                type="number"
-                step="1"
-                {...register('tax_rate', { valueAsNumber: true })}
+        {/* Upload Phase */}
+        {phase === 'upload' && (
+          <div className="space-y-4">
+            <div
+              className={`
+                flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8
+                transition-colors cursor-pointer
+                ${isDragging 
+                  ? 'border-primary bg-primary/5' 
+                  : 'border-muted-foreground/25 hover:border-primary/50'
+                }
+              `}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="mb-4 h-10 w-10 text-muted-foreground" />
+              <p className="mb-1 text-sm font-medium">
+                Arrastra tus facturas aquí
+              </p>
+              <p className="text-xs text-muted-foreground">
+                o haz clic para seleccionar (PDF, hasta 10 archivos)
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf"
+                multiple
+                className="hidden"
+                onChange={handleFileSelect}
               />
             </div>
+          </div>
+        )}
 
+        {/* Processing Phase */}
+        {phase === 'processing' && (
+          <div className="space-y-4">
+            <Progress value={processingProgress} className="h-2" />
             <div className="space-y-2">
-              <Label>Estado</Label>
-              <Select
-                value={watch('status')}
-                onValueChange={(value: any) => setValue('status', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Borrador</SelectItem>
-                  <SelectItem value="sent">Enviada</SelectItem>
-                  <SelectItem value="paid">Pagada</SelectItem>
-                  <SelectItem value="overdue">Vencida</SelectItem>
-                  <SelectItem value="cancelled">Cancelada</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="bg-muted p-4 rounded-lg space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Subtotal:</span>
-              <span>{formatCurrency(subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>IVA ({taxRate}%):</span>
-              <span>{formatCurrency(taxAmount)}</span>
-            </div>
-            <div className="flex justify-between font-bold">
-              <span>Total:</span>
-              <span>{formatCurrency(totalAmount)}</span>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Copia de la Factura (PDF)</Label>
-            <div className="border-2 border-dashed rounded-lg p-4">
-              {pdfFile ? (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-primary" />
-                    <span className="text-sm">{pdfFile.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      ({(pdfFile.size / 1024).toFixed(1)} KB)
-                    </span>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setPdfFile(null)}
-                  >
-                    Eliminar
-                  </Button>
-                </div>
-              ) : (
-                <label className="flex flex-col items-center cursor-pointer">
-                  <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                  <span className="text-sm text-muted-foreground">
-                    Arrastra un PDF o haz clic para seleccionar
+              {extractedInvoices.map((inv) => (
+                <div
+                  key={inv.id}
+                  className="flex items-center gap-2 text-sm"
+                >
+                  {inv.status === 'processing' && (
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  )}
+                  {inv.status === 'success' && (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  )}
+                  {inv.status === 'error' && (
+                    <AlertCircle className="h-4 w-4 text-destructive" />
+                  )}
+                  <span className={inv.status === 'error' ? 'text-destructive' : ''}>
+                    {inv.fileName}
+                    {inv.status === 'error' && `: ${inv.error}`}
                   </span>
-                  <input
-                    type="file"
-                    accept="application/pdf"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                </label>
-              )}
+                </div>
+              ))}
+            </div>
+            {processingCount === 0 && (
+              <Button onClick={() => setPhase('review')} className="w-full">
+                Continuar
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Review Phase */}
+        {phase === 'review' && (
+          <div className="space-y-4">
+            {errorCount > 0 && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {errorCount} factura(s) no pudieron ser procesadas
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {missingClientCount > 0 && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {missingClientCount} factura(s) requieren selección manual de cliente
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="max-h-[400px] overflow-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Código</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Subtotal</TableHead>
+                    <TableHead>IVA</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="w-20"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {extractedInvoices.map((invoice) => (
+                    <ExtractedInvoiceRow
+                      key={invoice.id}
+                      invoice={invoice}
+                      clients={clients}
+                      onUpdate={handleUpdateInvoice}
+                      onRemove={handleRemoveInvoice}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={handleClose}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => saveMutation.mutate()}
+                disabled={successCount === 0 || missingClientCount > 0 || saveMutation.isPending}
+              >
+                {saveMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  `Importar ${successCount} Factura(s)`
+                )}
+              </Button>
             </div>
           </div>
-
-          <div className="space-y-2">
-            <Label>Notas</Label>
-            <Textarea
-              {...register('notes')}
-              placeholder="Observaciones adicionales..."
-              rows={2}
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={uploading}>
-              {uploading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Importar Factura
-            </Button>
-          </div>
-        </form>
+        )}
       </DialogContent>
     </Dialog>
   );

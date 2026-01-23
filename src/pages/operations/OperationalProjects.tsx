@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Search, Briefcase, Edit, Trash2, Eye, MoreVertical } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { useOperationalProjects, useDeleteOperationalProject } from '@/hooks/useOperationalProjects';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -101,22 +102,28 @@ export default function OperationalProjects() {
     enabled: !assignedLoading,
   });
 
-  // Fetch request counts for all projects
-  const { data: requestCounts } = useQuery({
-    queryKey: ['operational-request-counts', projects?.map(p => p.id)],
+  // Fetch request stats for all projects (counts + progress)
+  const { data: requestStats } = useQuery({
+    queryKey: ['operational-request-stats', projects?.map(p => p.id)],
     queryFn: async () => {
       if (!projects || projects.length === 0) return {};
       const { data, error } = await supabase
         .from('operational_requests')
-        .select('id, operational_project_id')
+        .select('id, operational_project_id, status')
         .in('operational_project_id', projects.map(p => p.id));
       if (error) throw error;
       
-      const counts: Record<string, number> = {};
+      const stats: Record<string, { total: number; completed: number }> = {};
       data?.forEach(r => {
-        counts[r.operational_project_id] = (counts[r.operational_project_id] || 0) + 1;
+        if (!stats[r.operational_project_id]) {
+          stats[r.operational_project_id] = { total: 0, completed: 0 };
+        }
+        stats[r.operational_project_id].total++;
+        if (r.status === 'completed') {
+          stats[r.operational_project_id].completed++;
+        }
       });
-      return counts;
+      return stats;
     },
     enabled: !!projects && projects.length > 0,
   });
@@ -242,7 +249,10 @@ export default function OperationalProjects() {
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {projects.map((project) => {
-              const reqCount = requestCounts?.[project.id] || 0;
+              const stats = requestStats?.[project.id] || { total: 0, completed: 0 };
+              const progressPercent = stats.total > 0 
+                ? Math.round((stats.completed / stats.total) * 100) 
+                : 0;
               return (
                 <Card 
                   key={project.id} 
@@ -295,20 +305,33 @@ export default function OperationalProjects() {
                         </p>
                       )}
 
+                      {/* Progress section */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Progreso</span>
+                          <span className="font-medium">{progressPercent}%</span>
+                        </div>
+                        <Progress value={progressPercent} className="h-2" />
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">
+                            {stats.completed} de {stats.total} requests
+                          </span>
+                          <Badge variant="outline">
+                            {stats.total} requests
+                          </Badge>
+                        </div>
+                      </div>
+
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">
                           Owner: {project.owner?.full_name || '-'}
                         </span>
-                        <Badge variant="outline">
-                          {reqCount} solicitudes
-                        </Badge>
+                        {project.deadline && (
+                          <span className="text-muted-foreground">
+                            Deadline: {new Date(project.deadline).toLocaleDateString('es-ES')}
+                          </span>
+                        )}
                       </div>
-
-                      {project.deadline && (
-                        <div className="text-sm text-muted-foreground">
-                          Deadline: {new Date(project.deadline).toLocaleDateString('es-ES')}
-                        </div>
-                      )}
 
                       <div className="flex flex-wrap gap-2">
                         {project.client?.hub_client_url && (

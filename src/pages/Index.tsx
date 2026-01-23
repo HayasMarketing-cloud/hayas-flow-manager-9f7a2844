@@ -9,7 +9,7 @@ const Index = () => {
   useEffect(() => {
     if (!loading) {
       // Redirigir automáticamente según estado de autenticación
-      navigate(user ? '/dashboard-mensual' : '/auth', { replace: true });
+      navigate(user ? '/proyectos-operativos' : '/auth', { replace: true });
     }
   }, [user, loading, navigate]);
 

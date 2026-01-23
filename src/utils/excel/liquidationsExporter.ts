@@ -1,6 +1,6 @@
-import { downloadExcel, formatDate, formatCurrency } from './excelExporter';
+import { downloadCSV, formatDate, formatCurrency } from './excelExporter';
 
-export const exportLiquidationsToExcel = (liquidations: any[], filters?: any) => {
+export const exportLiquidationsToCSV = (liquidations: any[], filters?: any) => {
   const headers = [
     'Código',
     'Especialista',
@@ -57,5 +57,8 @@ export const exportLiquidationsToExcel = (liquidations: any[], filters?: any) =>
   const data = [headers, ...rows];
 
   const fileName = `liquidaciones_${new Date().toISOString().split('T')[0]}`;
-  downloadExcel(data, fileName, 'Liquidaciones');
+  downloadCSV(data, fileName, 'Liquidaciones');
 };
+
+// Keep old name as alias for backwards compatibility
+export const exportLiquidationsToExcel = exportLiquidationsToCSV;

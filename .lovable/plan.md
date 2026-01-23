@@ -1,122 +1,219 @@
 
+# Plan: Carga y Control de Facturas Emitidas
 
-# Plan: Corregir Visibilidad de Tareas para Admin
+## Resumen
 
-## Problema Principal
-Las funciones de rol (`isAdmin`, `isAccountManager`, `isProjectManager`) en `useUserRole.ts` retornan funciones, pero en `useAllTasks.tsx` se usan como si fueran valores booleanos. Esto causa que el admin no vea todas las tareas.
+Vamos a implementar un sistema de control de facturas emitidas que permita:
+1. Cargar las 19 facturas históricas desde diciembre
+2. Visualizar y descargar copias de cada factura (PDF)
+3. Cambiar estados de factura (enviada, pagada, vencida, etc.)
+4. Seguimiento completo de cobros
 
 ---
 
-## Cambios a Implementar
+## 1. Configurar Storage para Copias de Facturas
 
-### 1. Modificar `useAllTasks.tsx` - Ejecutar las funciones de rol correctamente
+### Backend - Crear Bucket de Storage
 
-**Archivo:** `src/hooks/useAllTasks.tsx`
+Se creará un bucket llamado `invoice-files` para almacenar copias de facturas (PDFs).
 
-Cambiar de:
-```typescript
-const { isAdmin, isAccountManager, isProjectManager, loading: rolesLoading } = useUserRole();
-```
+```sql
+-- Crear bucket para archivos de facturas
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('invoice-files', 'invoice-files', true);
 
-A:
-```typescript
-const { isAdmin, isAccountManager, isProjectManager, loading: rolesLoading } = useUserRole();
+-- Política para que roles finanzas/admin puedan subir
+CREATE POLICY "Finance and admin can upload invoice files"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'invoice-files'
+  AND (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'finanzas'))
+);
 
-// Ejecutar las funciones para obtener booleanos
-const isAdminUser = isAdmin();
-const isAMUser = isAccountManager();
-const isPMUser = isProjectManager();
-```
-
-Y actualizar todas las referencias:
-- Línea 106: `enabled: !!user?.id && (isAMUser || isPMUser) && !isAdminUser`
-- Línea 111: Actualizar queryKey
-- Línea 136: `if (!isAdminUser) {`
-- Línea 137: `if (isAMUser || isPMUser) {`
-- Línea 179: `if (!isAdminUser && (isAMUser || isPMUser) && ...)`
-- Línea 217: Actualizar condición de enabled
-
-### 2. Modificar `useAllTasks.tsx` - Permitir ver proyectos finalizados
-
-**Opción A: Mostrar todas las tareas (incluyendo completadas)**
-
-Eliminar el filtro:
-```typescript
-// ANTES
-.neq('status', 'completed')
-
-// DESPUÉS - Remover esta línea para ver todas
-```
-
-**Opción B: Añadir filtro de estado configurable**
-
-Añadir un nuevo filtro `showCompleted` en los filtros:
-```typescript
-// En TaskFilters
-showCompleted: boolean;
-
-// En la query
-if (!filters.showCompleted) {
-  query = query.neq('status', 'completed');
-}
-```
-
-**Recomendación**: Implementar Opción B para dar flexibilidad - por defecto ocultar completadas pero permitir verlas.
-
-### 3. Modificar `useTaskFilters.tsx` - Añadir filtro "Mostrar completadas"
-
-Añadir nuevo estado:
-```typescript
-interface TaskFilters {
-  // ... filtros existentes
-  showCompleted: boolean;
-}
-
-// Estado inicial
-showCompleted: false,
-```
-
-### 4. Modificar `TaskFiltersBar.tsx` - Añadir toggle para completadas
-
-Añadir un checkbox o switch:
-```tsx
-<div className="flex items-center gap-2">
-  <Checkbox 
-    checked={filters.showCompleted} 
-    onCheckedChange={(checked) => updateFilter('showCompleted', !!checked)} 
-  />
-  <Label>Mostrar completadas</Label>
-</div>
-```
-
-### 5. Corregir MyTasks.tsx - Ejecutar funciones de rol
-
-```typescript
-// ANTES
-if (isAdmin) return 'Vista de todas las tareas...';
-
-// DESPUÉS
-if (isAdmin()) return 'Vista de todas las tareas...';
+-- Política para ver archivos
+CREATE POLICY "Authenticated users can view invoice files"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'invoice-files' AND auth.uid() IS NOT NULL);
 ```
 
 ---
 
-## Archivos a Modificar
+## 2. Crear Modal de Carga de Factura Histórica
 
-| Archivo | Cambio |
-|---------|--------|
-| `src/hooks/useAllTasks.tsx` | Ejecutar funciones de rol correctamente; añadir lógica para filtro showCompleted |
-| `src/hooks/useTaskFilters.tsx` | Añadir estado `showCompleted` |
-| `src/components/tasks/TaskFiltersBar.tsx` | Añadir checkbox "Mostrar completadas" |
-| `src/pages/operations/MyTasks.tsx` | Ejecutar funciones de rol en getDescription() |
+### Nuevo Componente: `InvoiceUploadModal.tsx`
+
+Un formulario simplificado para cargar facturas ya emitidas:
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| Código | Texto | Número de factura emitida (ej: FAC-2024-001) |
+| Cliente | Select | Selector de cliente existente |
+| Fecha factura | Date | Fecha de emisión |
+| Fecha vencimiento | Date | Fecha límite de pago |
+| Subtotal | Número | Importe base sin IVA |
+| % IVA | Número | Porcentaje de IVA (default 21%) |
+| Estado | Select | draft/sent/paid/overdue |
+| Copia factura | File | PDF de la factura emitida |
+| Notas | Texto | Observaciones adicionales |
+
+**Cálculos automáticos:**
+- IVA = Subtotal × (% IVA / 100)
+- Total = Subtotal + IVA
+
+---
+
+## 3. Modificar Vista de Facturas
+
+### Cambios en `InvoiceTableView.tsx`
+
+Añadir columna para ver/descargar copia de factura:
+
+```
+| Código | Cliente | Fecha | Venc. | Subtotal | IVA | Total | Estado | [📎 PDF] | Acciones |
+```
+
+- Icono de PDF que abre la copia en nueva pestaña
+- Badge visual si no tiene copia adjunta
+
+### Cambios en `InvoiceCard.tsx`
+
+- Añadir botón "Ver Copia" si `pdf_url` existe
+- Mostrar icono de advertencia si no tiene copia
+
+---
+
+## 4. Implementar Cambio de Estado de Factura
+
+### Nueva Funcionalidad
+
+Permitir cambiar el estado de las facturas directamente:
+
+| Estado actual | Acciones disponibles |
+|---------------|----------------------|
+| draft | → sent, cancelled |
+| sent | → paid, overdue, cancelled |
+| paid | (sin cambios, estado final) |
+| overdue | → paid, cancelled |
+| cancelled | (sin cambios, estado final) |
+
+### UI para Cambio de Estado
+
+- Dropdown de acciones en cada factura
+- Botón "Marcar como Pagada" destacado para facturas `sent`
+- Al marcar como `paid`, se guarda `paid_at` automáticamente
+
+---
+
+## 5. Mejorar Modal de Visualización
+
+### Modo "view" en `InvoiceFormModal.tsx`
+
+Cuando se abre en modo vista, mostrar:
+- Todos los datos de la factura (readonly)
+- Botón para ver/descargar copia PDF
+- Dropdown para cambiar estado
+- Historial de fechas (`created_at`, `sent_at`, `paid_at`)
+
+---
+
+## 6. Flujo para Cargar las 19 Facturas
+
+### Opción A: Carga Manual (Recomendada)
+
+1. Usuario accede a Facturas
+2. Clic en "Nueva Factura" o "Importar Factura"
+3. Completa datos y sube PDF
+4. Guarda factura
+
+### Opción B: Carga Masiva
+
+Si tienes los datos en Excel/CSV, podría implementarse un importador. 
+
+**¿Qué formato tienes los datos de las 19 facturas?**
+- ¿Excel/CSV?
+- ¿PDFs individuales?
+- ¿Datos estructurados o solo las copias?
+
+---
+
+## Archivos a Crear/Modificar
+
+| Archivo | Acción | Descripción |
+|---------|--------|-------------|
+| Migración SQL | Crear | Storage bucket + políticas |
+| `InvoiceUploadModal.tsx` | Crear | Modal simplificado para facturas históricas |
+| `InvoiceTableView.tsx` | Modificar | Añadir columna PDF y acciones de estado |
+| `InvoiceCard.tsx` | Modificar | Añadir botón ver PDF y cambio de estado |
+| `InvoiceFormModal.tsx` | Modificar | Mejorar modo vista con acciones |
+| `InvoiceStatusActions.tsx` | Crear | Componente para cambiar estado de factura |
+| `Facturas.tsx` | Modificar | Añadir botón "Importar Factura" |
 
 ---
 
 ## Resultado Esperado
 
-1. **Admin** verá todos los proyectos y tareas del sistema
-2. **AM/PM** verán las tareas de sus clientes asignados
-3. **Especialista** verá solo sus tareas asignadas
-4. Nuevo checkbox **"Mostrar completadas"** permite ver/ocultar tareas finalizadas
-5. Por defecto, las tareas completadas siguen ocultas para mantener la vista limpia
+1. **Control total** de las 19 facturas emitidas
+2. **Acceso rápido** a copias PDF de cada factura
+3. **Seguimiento** de estados: enviada → pagada
+4. **Alertas** para facturas vencidas
+5. **Búsqueda y filtros** por cliente, estado, período
+6. **Exportación Excel** para contabilidad
 
+---
+
+## Sección Técnica
+
+### Estructura de Storage
+
+```
+invoice-files/
+├── {invoice_id}/
+│   └── factura.pdf
+```
+
+### Upload de Archivo
+
+```typescript
+const uploadInvoicePDF = async (invoiceId: string, file: File) => {
+  const filePath = `${invoiceId}/${file.name}`;
+  
+  const { data, error } = await supabase.storage
+    .from('invoice-files')
+    .upload(filePath, file, { upsert: true });
+  
+  if (!error) {
+    const { data: { publicUrl } } = supabase.storage
+      .from('invoice-files')
+      .getPublicUrl(filePath);
+    
+    // Actualizar factura con URL del PDF
+    await supabase
+      .from('invoices')
+      .update({ pdf_url: publicUrl })
+      .eq('id', invoiceId);
+  }
+};
+```
+
+### Mutación para Cambiar Estado
+
+```typescript
+const updateStatus = useMutation({
+  mutationFn: async ({ id, status }: { id: string; status: InvoiceStatus }) => {
+    const updates: any = { status };
+    
+    if (status === 'sent') {
+      updates.sent_at = new Date().toISOString();
+    } else if (status === 'paid') {
+      updates.paid_at = new Date().toISOString();
+    }
+    
+    const { error } = await supabase
+      .from('invoices')
+      .update(updates)
+      .eq('id', id);
+    
+    if (error) throw error;
+  }
+});
+```

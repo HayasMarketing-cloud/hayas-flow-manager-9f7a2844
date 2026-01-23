@@ -129,6 +129,38 @@ export default function Contratos() {
     enabled: !!user && !rolesLoading && (!isOnlySpecialist || !specialistLoading) && (!needsFiltering || !assignedLoading),
   });
 
+  // Query to get which contracts have operational projects
+  const contractIds = contracts?.map(c => c.id) || [];
+  const { data: contractProjects } = useQuery({
+    queryKey: ['contracts-with-projects', contractIds],
+    queryFn: async () => {
+      if (contractIds.length === 0) return {};
+      
+      const { data, error } = await supabase
+        .from('operational_projects')
+        .select('id, name, contract_id')
+        .in('contract_id', contractIds);
+      
+      if (error) throw error;
+      
+      // Create a map of contract_id -> project
+      const projectMap: Record<string, { id: string; name: string }> = {};
+      data?.forEach(project => {
+        if (project.contract_id) {
+          projectMap[project.contract_id] = { id: project.id, name: project.name };
+        }
+      });
+      return projectMap;
+    },
+    enabled: contractIds.length > 0,
+  });
+
+  // Enrich contracts with project info
+  const contractsWithProjects = contracts?.map(contract => ({
+    ...contract,
+    operationalProject: contractProjects?.[contract.id] || null,
+  }));
+
   const { data: clients } = useQuery({
     queryKey: ['clients'],
     queryFn: async () => {
@@ -306,10 +338,10 @@ export default function Contratos() {
               <Skeleton key={i} className="h-64" />
             ))}
           </div>
-        ) : contracts && contracts.length > 0 ? (
+        ) : contractsWithProjects && contractsWithProjects.length > 0 ? (
           viewMode === 'cards' ? (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {contracts.map((contract) => (
+              {contractsWithProjects.map((contract) => (
                 <ContractCard
                   key={contract.id}
                   contract={contract}
@@ -324,7 +356,7 @@ export default function Contratos() {
             </div>
           ) : (
             <ContractTableView
-              contracts={contracts}
+              contracts={contractsWithProjects}
               onView={handleView}
               onEdit={handleEdit}
               onActivate={handleActivate}

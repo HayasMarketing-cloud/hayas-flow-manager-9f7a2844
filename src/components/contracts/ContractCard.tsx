@@ -1,10 +1,12 @@
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Eye, Edit, Play, Pause, RotateCw, RefreshCw } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Eye, Edit, Play, Pause, RotateCw, RefreshCw, FolderKanban } from 'lucide-react';
 import { ContractStatusBadge } from './ContractStatusBadge';
 import { formatCurrency } from '@/lib/contract-utils';
 import { format } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 interface ContractCardProps {
   contract: any;
@@ -25,6 +27,8 @@ export const ContractCard = ({
   onResume,
   onGenerateRequests,
 }: ContractCardProps) => {
+  const navigate = useNavigate();
+
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader className="space-y-2">
@@ -47,6 +51,26 @@ export const ContractCard = ({
                 <RefreshCw className="h-3 w-3 mr-1" />
                 Auto
               </Badge>
+            )}
+            {contract.operationalProject && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge 
+                    variant="outline" 
+                    className="text-xs cursor-pointer bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/proyectos-operativos/${contract.operationalProject.id}`);
+                    }}
+                  >
+                    <FolderKanban className="h-3 w-3 mr-1" />
+                    Proyecto
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{contract.operationalProject.name}</p>
+                </TooltipContent>
+              </Tooltip>
             )}
           </div>
         </div>

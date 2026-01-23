@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { InvoiceStatusBadge } from './InvoiceStatusBadge';
 import { InvoiceStatusActions } from './InvoiceStatusActions';
-import { Edit, Calendar, DollarSign, AlertCircle, FileText } from 'lucide-react';
+import { Edit, Calendar, DollarSign, AlertCircle, FileText, Trash2 } from 'lucide-react';
 import { formatCurrency, getDaysUntilDue } from '@/lib/invoice-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -10,10 +10,11 @@ import { es } from 'date-fns/locale';
 interface InvoiceCardProps {
   invoice: any;
   onEdit: (invoice: any) => void;
+  onDelete?: (invoice: any) => void;
   canManage: boolean;
 }
 
-export const InvoiceCard = ({ invoice, onEdit, canManage }: InvoiceCardProps) => {
+export const InvoiceCard = ({ invoice, onEdit, onDelete, canManage }: InvoiceCardProps) => {
   const daysUntilDue = getDaysUntilDue(invoice.due_date);
   const isOverdue = daysUntilDue !== null && daysUntilDue < 0;
 
@@ -79,15 +80,27 @@ export const InvoiceCard = ({ invoice, onEdit, canManage }: InvoiceCardProps) =>
 
         <div className="pt-2 space-y-2">
           {canManage && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onEdit(invoice)}
-              className="w-full"
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              Editar
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onEdit(invoice)}
+                className="flex-1"
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Editar
+              </Button>
+              {onDelete && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onDelete(invoice)}
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           )}
           {canManage && (
             <InvoiceStatusActions invoiceId={invoice.id} currentStatus={invoice.status} />

@@ -1,55 +1,50 @@
 
-# Plan: Corregir recálculo de total al modificar el IVA
+# Plan: Corregir cálculo de total cuando IVA es 0 y subtotal manual
 
 ## Problema detectado
 
-Al modificar el porcentaje de IVA en el editor de facturas, el total no se recalcula automáticamente en tiempo real.
+Hay dos problemas en el cálculo del total de facturas:
 
-**Causa raíz:** El campo de IVA usa `register('tax_rate', { valueAsNumber: true })` junto con `watch('tax_rate')` para el cálculo. Sin embargo, hay un problema de sincronización donde:
-1. `register` con `valueAsNumber` a veces no actualiza el estado inmediatamente
-2. El re-render no se dispara correctamente hasta que el campo pierde el foco
+### Problema 1: IVA = 0 se interpreta como 21%
+En la línea 92 del archivo:
+```typescript
+const taxRate = watch('tax_rate') || 21;
+```
+
+El operador `||` considera `0` como un valor "falsy", por lo que cuando el usuario ingresa 0% de IVA, la expresión `0 || 21` devuelve `21` en lugar de `0`.
+
+### Problema 2: El subtotal manual no se usa cuando hay items vacíos
+El cálculo actual prioriza siempre los items sobre el subtotal manual:
+```typescript
+const subtotal = invoiceItems.length > 0 ? itemsSubtotal : manualSubtotal;
+```
+
+Si existen registros en `invoice_items` (aunque estén vacíos o tengan total 0), se usa la suma de items en lugar del subtotal manual que el usuario acaba de modificar.
 
 ## Solución
 
-Cambiar el campo de IVA de un input "no controlado" (con `register`) a un input "controlado" (con `value` y `onChange` + `setValue`), similar a como se maneja el campo `manualSubtotal`.
-
-## Cambio a realizar
-
-### Archivo: `src/components/modals/InvoiceFormModal.tsx`
-
-**Modificar el input de IVA (líneas 627-632):**
-
+### Cambio 1: Usar nullish coalescing para el IVA
+Cambiar de `||` a `??` para que solo use 21 cuando el valor es `null` o `undefined`, no cuando es `0`:
 ```typescript
-// Antes - Input no controlado
-<Input
-  type="number"
-  step="0.01"
-  {...register('tax_rate', { valueAsNumber: true })}
-  disabled={disabled}
-/>
-
-// Después - Input controlado
-<Input
-  type="number"
-  step="0.01"
-  value={watch('tax_rate') ?? ''}
-  onChange={(e) => {
-    const val = e.target.value;
-    setValue('tax_rate', val === '' ? 0 : parseFloat(val) || 0);
-  }}
-  disabled={disabled}
-/>
+const taxRate = watch('tax_rate') ?? 21;
 ```
 
-## Beneficio
+### Cambio 2: Priorizar subtotal con valor real
+Modificar la lógica para usar el subtotal que tenga un valor real:
+```typescript
+const subtotal = itemsSubtotal > 0 ? itemsSubtotal : manualSubtotal;
+```
 
-Con este cambio:
-- Al escribir cualquier número en el campo de IVA, se llamará a `setValue` que actualiza el estado del formulario
-- El `watch('tax_rate')` en las líneas de cálculo detectará el cambio inmediatamente
-- El componente se re-renderizará y mostrará el IVA y Total actualizados en tiempo real
+Esto asegura que si los items suman 0 pero hay un subtotal manual, se use el manual.
 
-## Resumen
+## Archivo a modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/components/modals/InvoiceFormModal.tsx` | Convertir el input de IVA a controlado con `value` y `onChange` |
+| `src/components/modals/InvoiceFormModal.tsx` | Líneas 91-92: Corregir lógica de cálculo de subtotal y taxRate |
+
+## Resultado esperado
+
+- Cuando el IVA sea 0%, el total será igual al subtotal (sin añadir IVA)
+- Cuando se modifique el subtotal manual, el total se recalculará correctamente
+- Las facturas importadas sin líneas de detalle mostrarán el subtotal y total correctos

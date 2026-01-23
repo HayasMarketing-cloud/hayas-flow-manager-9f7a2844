@@ -4,8 +4,7 @@ import { RequestStatusBadge } from './RequestStatusBadge';
 import { RequestFlowIndicator } from './RequestFlowIndicator';
 import { RequestFlowActions } from './RequestFlowActions';
 import { FlowStatusCell } from './FlowStatusCell';
-import { Edit, Building2, Calendar, Euro, Copy, Trash2, Eye, Receipt, User, TrendingUp } from 'lucide-react';
-import { formatCurrency } from '@/lib/request-utils';
+import { Edit, Building2, Calendar, Copy, Trash2, Eye, Receipt, User } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
@@ -22,21 +21,6 @@ interface RequestCardProps {
 
 export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquidation, canManage, onRefresh }: RequestCardProps) => {
   const navigate = useNavigate();
-  
-  const costHours = request.hours ?? request.quantity ?? 0;
-  const saleHours = request.sale_hours ?? request.hours ?? request.quantity ?? 0;
-
-  // Calculate cost: prefer stored total, fallback to rate * hours or fixed
-  const costAmount = request.cost_to_agency ??
-    (request.cost_type === 'hourly'
-      ? costHours * (request.cost_rate ?? 0)
-      : (request.fixed_cost ?? 0));
-  
-  // Calculate sale: prefer stored total, fallback to rate * hours or unit_price * qty
-  const saleAmount = request.sale_amount ??
-    (request.sale_type === 'hourly'
-      ? saleHours * (request.sale_rate ?? 0)
-      : (request.unit_price ?? 0) * (request.quantity ?? 1));
 
   return (
     <Card className="hover:shadow-lg transition-shadow">
@@ -69,23 +53,6 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
           </div>
         )}
         
-        <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-2">
-            <Euro className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-            <span className="font-semibold text-foreground">
-              {formatCurrency(costAmount)}
-            </span>
-            <span className="text-xs text-muted-foreground">coste</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 flex-shrink-0 text-primary" />
-            <span className="font-semibold text-primary">
-              {formatCurrency(saleAmount)}
-            </span>
-            <span className="text-xs text-muted-foreground">venta</span>
-          </div>
-        </div>
-
         {request.deadline && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Calendar className="h-4 w-4 flex-shrink-0" />

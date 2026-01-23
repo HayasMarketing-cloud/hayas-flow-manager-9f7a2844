@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/sidebar';
 import { useUserRole } from '@/hooks/useUserRole';
 import flowManagerLogo from '@/assets/flowmanager-logo.png';
+import flowManagerIsotype from '@/assets/flowmanager-isotype.png';
 
 interface NavItem {
   title: string;
@@ -75,12 +76,12 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className={state === 'collapsed' ? 'w-14' : 'w-60'}>
       <SidebarHeader className="p-6 border-b border-sidebar-border">
         <img 
-          src={flowManagerLogo} 
+          src={state === 'collapsed' ? flowManagerIsotype : flowManagerLogo} 
           alt="Flow Manager" 
           className={
             state === 'collapsed'
-              ? 'h-12 w-12 object-contain brightness-0 invert mx-auto'
-              : 'h-20 w-auto object-contain brightness-0 invert mx-auto'
+              ? 'h-10 w-10 object-contain brightness-0 invert mx-auto'
+              : 'h-16 w-auto object-contain brightness-0 invert mx-auto'
           }
         />
       </SidebarHeader>

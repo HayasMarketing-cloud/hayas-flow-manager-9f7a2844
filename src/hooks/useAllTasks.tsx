@@ -71,6 +71,11 @@ export const useAllTasks = (filters: TaskFilters) => {
   const { isAdmin, isAccountManager, isProjectManager, loading: rolesLoading } = useUserRole();
   const { specialist } = useCurrentSpecialist();
 
+  // Execute role functions to get boolean values
+  const isAdminUser = isAdmin();
+  const isAMUser = isAccountManager();
+  const isPMUser = isProjectManager();
+
   // Get assigned client IDs for AM/PM
   const { data: assignedClientIds = [], isLoading: clientsLoading } = useQuery({
     queryKey: ['assigned-clients', user?.id],
@@ -103,12 +108,12 @@ export const useAllTasks = (filters: TaskFilters) => {
 
       return [...new Set(allClientIds)];
     },
-    enabled: !!user?.id && (isAccountManager || isProjectManager) && !isAdmin,
+    enabled: !!user?.id && (isAMUser || isPMUser) && !isAdminUser,
   });
 
   // Main tasks query
   const { data: tasks = [], isLoading: tasksLoading, refetch } = useQuery({
-    queryKey: ['all-tasks', user?.id, isAdmin, isAccountManager, isProjectManager, specialist?.id, assignedClientIds, filters],
+    queryKey: ['all-tasks', user?.id, isAdminUser, isAMUser, isPMUser, specialist?.id, assignedClientIds, filters],
     queryFn: async () => {
       if (!user?.id) return [];
 
@@ -129,12 +134,16 @@ export const useAllTasks = (filters: TaskFilters) => {
             )
           )
         `)
-        .neq('status', 'completed')
         .order('deadline', { ascending: true, nullsFirst: false });
 
+      // Apply showCompleted filter - only exclude completed if not showing them
+      if (!filters.showCompleted) {
+        query = query.neq('status', 'completed');
+      }
+
       // Apply role-based visibility
-      if (!isAdmin) {
-        if (isAccountManager || isProjectManager) {
+      if (!isAdminUser) {
+        if (isAMUser || isPMUser) {
           // AM/PM see tasks for their assigned clients
           if (assignedClientIds.length === 0) {
             return [];
@@ -176,7 +185,7 @@ export const useAllTasks = (filters: TaskFilters) => {
       let filteredTasks = data || [];
 
       // Post-fetch filtering for AM/PM (nested client filtering)
-      if (!isAdmin && (isAccountManager || isProjectManager) && assignedClientIds.length > 0) {
+      if (!isAdminUser && (isAMUser || isPMUser) && assignedClientIds.length > 0) {
         filteredTasks = filteredTasks.filter(task => {
           const clientId = task.operational_request?.operational_project?.client_id;
           return clientId && assignedClientIds.includes(clientId);
@@ -214,7 +223,7 @@ export const useAllTasks = (filters: TaskFilters) => {
 
       return filteredTasks as TaskWithDetails[];
     },
-    enabled: !!user?.id && !rolesLoading && (!((isAccountManager || isProjectManager) && !isAdmin) || !clientsLoading),
+    enabled: !!user?.id && !rolesLoading && (!((isAMUser || isPMUser) && !isAdminUser) || !clientsLoading),
   });
 
   // Group tasks by project and milestone
@@ -280,8 +289,8 @@ export const useAllTasks = (filters: TaskFilters) => {
     groupedTasks,
     isLoading,
     refetch,
-    isAdmin,
-    isAccountManager,
-    isProjectManager,
+    isAdmin: isAdminUser,
+    isAccountManager: isAMUser,
+    isProjectManager: isPMUser,
   };
 };

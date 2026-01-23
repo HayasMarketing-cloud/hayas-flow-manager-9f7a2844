@@ -7,6 +7,8 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { X, User } from 'lucide-react';
 import { TaskFilters } from '@/hooks/useTaskFilters';
 
@@ -137,6 +139,20 @@ export function TaskFiltersBar({
           ))}
         </SelectContent>
       </Select>
+
+      <div className="h-6 w-px bg-border" />
+
+      {/* Show completed checkbox */}
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="showCompleted"
+          checked={filters.showCompleted}
+          onCheckedChange={(checked) => updateFilter('showCompleted', !!checked)}
+        />
+        <Label htmlFor="showCompleted" className="text-sm cursor-pointer">
+          Mostrar completadas
+        </Label>
+      </div>
 
       {/* Clear filters */}
       {hasActiveFilters && (

@@ -20,6 +20,7 @@ import { InvoiceItemsEditor, type InvoiceItem } from '@/components/invoices/Invo
 import { useRequestsForPeriod } from '@/hooks/useRequestsForPeriod';
 
 const invoiceSchema = z.object({
+  code: z.string().optional(),
   client_id: z.string().min(1, 'El cliente es obligatorio'),
   invoice_date: z.string().min(1, 'La fecha es obligatoria'),
   due_date: z.string().optional(),
@@ -98,6 +99,7 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
   useEffect(() => {
     if (invoice && mode !== 'create') {
       reset({
+        code: invoice.code || '',
         client_id: invoice.client_id,
         invoice_date: invoice.invoice_date,
         due_date: invoice.due_date || '',
@@ -210,18 +212,25 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
   const updateMutation = useMutation({
     mutationFn: async (data: InvoiceFormData) => {
       // Update invoice
+      const updateData: any = {
+        client_id: data.client_id,
+        invoice_date: data.invoice_date,
+        due_date: data.due_date || null,
+        tax_rate: data.tax_rate,
+        subtotal,
+        tax_amount: taxAmount,
+        total_amount: totalAmount,
+        notes: data.notes || null,
+      };
+
+      // Allow code update if provided
+      if (data.code && data.code.trim()) {
+        updateData.code = data.code.trim();
+      }
+
       const { error: invoiceError } = await supabase
         .from('invoices')
-        .update({
-          client_id: data.client_id,
-          invoice_date: data.invoice_date,
-          due_date: data.due_date || null,
-          tax_rate: data.tax_rate,
-          subtotal,
-          tax_amount: taxAmount,
-          total_amount: totalAmount,
-          notes: data.notes || null,
-        })
+        .update(updateData)
         .eq('id', invoice.id);
 
       if (invoiceError) throw invoiceError;
@@ -341,7 +350,8 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
     }
   };
 
-  const disabled = mode === 'view' || (mode === 'edit' && invoice?.status !== 'draft');
+  // Allow editing in edit mode regardless of status (for imported invoices)
+  const disabled = mode === 'view';
 
   const months = [
     { value: 1, label: 'Enero' },
@@ -375,6 +385,18 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Basic Info */}
           <div className="grid grid-cols-2 gap-4">
+            {/* Code field - editable in edit mode */}
+            {mode !== 'create' && (
+              <div className="space-y-2">
+                <Label>Código de Factura</Label>
+                <Input
+                  {...register('code')}
+                  disabled={disabled}
+                  placeholder="FAC-2024-001"
+                />
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Cliente *</Label>
               <Select

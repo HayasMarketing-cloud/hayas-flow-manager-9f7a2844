@@ -203,7 +203,8 @@ export function OperationalRequestFormModal({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["operational-requests"] });
       queryClient.invalidateQueries({ queryKey: ["operational-projects"] });
-      toast.success("Request operativo creado");
+      queryClient.invalidateQueries({ queryKey: ["project-operational-requests"] });
+      toast.success("Milestone creado");
       onOpenChange(false);
       reset();
     },
@@ -237,7 +238,8 @@ export function OperationalRequestFormModal({
       queryClient.invalidateQueries({ queryKey: ["operational-requests"] });
       queryClient.invalidateQueries({ queryKey: ["operational-request", requestId] });
       queryClient.invalidateQueries({ queryKey: ["operational-projects"] });
-      toast.success("Request actualizado");
+      queryClient.invalidateQueries({ queryKey: ["project-operational-requests"] });
+      toast.success("Milestone actualizado");
       onOpenChange(false);
     },
     onError: (error: any) => {
@@ -260,9 +262,9 @@ export function OperationalRequestFormModal({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {mode === "create" && "Nuevo Request Operativo"}
-            {mode === "edit" && "Editar Request Operativo"}
-            {mode === "view" && "Detalle Request Operativo"}
+            {mode === "create" && "Nuevo Milestone"}
+            {mode === "edit" && "Editar Milestone"}
+            {mode === "view" && "Detalle del Milestone"}
           </DialogTitle>
         </DialogHeader>
 

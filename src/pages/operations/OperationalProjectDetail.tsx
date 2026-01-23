@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { ArrowLeft, ExternalLink, Edit2, Calendar, User, Briefcase, X, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Edit2, Calendar, User, Briefcase, X, ChevronDown, ChevronUp, CheckCircle2, Plus } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useOperationalProject } from '@/hooks/useOperationalProjects';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -40,6 +40,7 @@ export default function OperationalProjectDetail() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editRequestId, setEditRequestId] = useState<string | null>(null);
   const [deleteRequestId, setDeleteRequestId] = useState<string | null>(null);
+  const [createMilestoneModalOpen, setCreateMilestoneModalOpen] = useState(false);
   const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
   const [expandedRequests, setExpandedRequests] = useState<Set<string>>(new Set());
   
@@ -384,13 +385,22 @@ export default function OperationalProjectDetail() {
             )}
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <CardTitle className="flex items-center gap-2">
-                Milestones y Tareas
-                <Badge variant="secondary" className="ml-2">
-                  {filteredRequests.length}
-                  {filteredRequests.length !== (operationalRequests?.length || 0) && ` de ${operationalRequests?.length || 0}`}
-                </Badge>
-              </CardTitle>
+              <div className="flex items-center gap-3">
+                <CardTitle className="flex items-center gap-2">
+                  Milestones y Tareas
+                  <Badge variant="secondary" className="ml-2">
+                    {filteredRequests.length}
+                    {filteredRequests.length !== (operationalRequests?.length || 0) && ` de ${operationalRequests?.length || 0}`}
+                  </Badge>
+                </CardTitle>
+                <Button
+                  size="sm"
+                  onClick={() => setCreateMilestoneModalOpen(true)}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Añadir Milestone
+                </Button>
+              </div>
               
               {/* Filters and Actions */}
               <div className="flex flex-wrap items-center gap-2">
@@ -608,6 +618,14 @@ export default function OperationalProjectDetail() {
         requestId={editRequestId}
         projectId={id}
         mode="edit"
+      />
+
+      {/* Modal creación milestone manual */}
+      <OperationalRequestFormModal
+        open={createMilestoneModalOpen}
+        onOpenChange={setCreateMilestoneModalOpen}
+        projectId={id}
+        mode="create"
       />
 
       {/* Confirmación eliminación milestone */}

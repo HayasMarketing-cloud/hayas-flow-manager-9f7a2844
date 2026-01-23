@@ -1,128 +1,128 @@
 
-# Plan: Aplicar identidad corporativa Flow Manager
+# Plan: Proyectos como sección principal y mejora de cards
 
 ## Resumen
+Se moverá "Proyectos" a la primera posición del menú lateral, se establecerá como página de inicio para usuarios autenticados, y se mejorará la información mostrada en las tarjetas de proyectos incluyendo progreso y cambiando "solicitudes" por "requests".
 
-Implementar la paleta cromatica "Tranquil Gradient" de Flow Manager, incluyendo:
-1. Corregir visibilidad del logo en el sidebar (aplicando fondo oscuro Deep Blue)
-2. Actualizar todas las variables CSS del sistema de diseno
-3. Aplicar gradiente corporativo en la pagina de login
+---
 
-## Paleta de colores (HEX a HSL)
+## Cambios a realizar
 
-| Nombre | HEX | HSL | Uso |
-|--------|-----|-----|-----|
-| Hayas Green | #2FA36B | 149 55% 41% | Primario, botones, CTAs |
-| Deep Teal | #0F6F78 | 185 77% 26% | Secundario, headers, hover |
-| Deep Blue | #0B3C5D | 203 80% 20% | Fondos oscuros, sidebar |
-| Tofu Digital | #F4F7F6 | 150 18% 96% | Backgrounds, cards |
-| Stone Grey | #6B7280 | 220 9% 46% | Texto secundario |
-| Charcoal | #1F2933 | 209 26% 16% | Texto principal |
+### 1. Menú lateral (Sidebar)
+**Archivo:** `src/components/layout/AppSidebar.tsx`
 
-## Cambios a implementar
+- Reordenar `operationsItems` para que "Proyectos" sea el primer elemento:
+  - Nuevo orden: Proyectos, Requests, Presupuestos, Mis Tareas, Notificaciones
 
-### 1. Actualizar variables CSS (src/index.css)
+### 2. Página de inicio
+**Archivo:** `src/pages/Index.tsx`
 
-**Modo claro:**
-```css
-:root {
-  --background: 150 18% 96%;        /* Tofu Digital */
-  --foreground: 209 26% 16%;        /* Charcoal */
-  --primary: 149 55% 41%;           /* Hayas Green */
-  --secondary: 185 77% 26%;         /* Deep Teal */
-  --muted-foreground: 220 9% 46%;   /* Stone Grey */
-  --sidebar-background: 203 80% 20%; /* Deep Blue */
-  --sidebar-foreground: 150 18% 96%; /* Texto claro en sidebar */
-}
-```
+- Cambiar redirección de usuarios autenticados:
+  - Antes: `/dashboard-mensual`
+  - Después: `/proyectos-operativos`
 
-**Modo oscuro:**
-- Mantener coherencia con la paleta
-- Sidebar ya sera oscuro por defecto
+### 3. Mejoras en las cards de proyectos
+**Archivo:** `src/pages/operations/OperationalProjects.tsx`
 
-### 2. Actualizar sidebar (src/components/layout/AppSidebar.tsx)
+#### 3.1 Cambio de terminología
+- Cambiar "solicitudes" por "requests" en el badge de conteo
 
-- El logo ahora sera visible gracias al fondo Deep Blue
-- Ajustar estilos de texto e iconos para contraste sobre fondo oscuro
+#### 3.2 Información de progreso
+- Modificar la query de `requestCounts` para obtener también los estados de cada operational_request
+- Calcular progreso: porcentaje de milestones/requests completados
+- Añadir barra de progreso visual con el porcentaje
 
-### 3. Actualizar pagina de login (src/pages/Auth.tsx)
+#### 3.3 Elementos visuales nuevos en la card:
+- Barra de progreso (Progress component)
+- Texto "X de Y requests completados" o porcentaje
 
-Aplicar el gradiente corporativo de fondo:
-```css
-linear-gradient(135deg, #2FA36B 0%, #0F6F78 50%, #0B3C5D 100%)
-```
-En HSL para Tailwind:
-```
-bg-gradient-to-br from-[hsl(149,55%,41%)] via-[hsl(185,77%,26%)] to-[hsl(203,80%,20%)]
-```
+---
 
-### 4. Actualizar colores de botones y componentes
+## Sección técnica
 
-- Botones primarios: Hayas Green (#2FA36B)
-- Estados hover: Deep Teal (#0F6F78)
-- Elementos activos en sidebar: resaltar con verde
-
-## Archivos a modificar
-
-| Archivo | Cambio |
-|---------|--------|
-| `src/index.css` | Actualizar todas las variables CSS con nueva paleta |
-| `src/pages/Auth.tsx` | Aplicar gradiente corporativo de fondo |
-| `src/components/layout/AppSidebar.tsx` | Ajustar estilos para fondo oscuro |
-
-## Vista previa del resultado esperado
-
-**Sidebar:**
-- Fondo azul profundo (Deep Blue)
-- Logo visible con buen contraste
-- Texto e iconos en color claro
-- Item activo resaltado con Hayas Green
-
-**Login:**
-- Gradiente de fondo: verde a azul profundo
-- Card blanca centrada con logo grande
-- Boton primario verde Hayas
-
-**Aplicacion general:**
-- Fondo Tofu Digital (blanco roto)
-- Texto principal Charcoal
-- Acentos y CTAs en Hayas Green
-
-## Detalles tecnicos
-
-### Variables CSS actualizadas
-
-```css
-:root {
-  --background: 150 18% 96%;
-  --foreground: 209 26% 16%;
-  --card: 0 0% 100%;
-  --card-foreground: 209 26% 16%;
-  --primary: 149 55% 41%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 185 77% 26%;
-  --secondary-foreground: 0 0% 100%;
-  --muted: 150 10% 92%;
-  --muted-foreground: 220 9% 46%;
-  --accent: 185 77% 26%;
-  --accent-foreground: 0 0% 100%;
-  --border: 150 10% 88%;
-  --input: 150 10% 88%;
-  --ring: 149 55% 41%;
-  --sidebar-background: 203 80% 20%;
-  --sidebar-foreground: 150 18% 96%;
-  --sidebar-primary: 149 55% 41%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 185 77% 30%;
-  --sidebar-accent-foreground: 0 0% 100%;
-  --sidebar-border: 203 60% 25%;
-  --sidebar-ring: 149 55% 41%;
-}
-```
-
-### Gradiente corporativo para login
-
+### Cambios en AppSidebar.tsx (líneas 26-32)
 ```typescript
-// En Auth.tsx
-<div className="min-h-screen bg-gradient-to-br from-[hsl(149,55%,41%)] via-[hsl(185,77%,26%)] to-[hsl(203,80%,20%)] flex items-center justify-center p-4">
+const operationsItems: NavItem[] = [
+  { title: 'Proyectos', url: '/proyectos-operativos', icon: Briefcase, requiredRoles: ['admin', 'project_manager', 'especialista', 'account_manager'] },
+  { title: 'Requests', url: '/solicitudes', icon: FileCheck, requiredRoles: ['admin', 'finanzas', 'project_manager', 'account_manager', 'especialista'] },
+  { title: 'Presupuestos', url: '/presupuestos', icon: Calculator },
+  { title: 'Mis Tareas', url: '/mis-tareas', icon: CheckSquare, requiredRoles: ['admin', 'project_manager', 'account_manager', 'especialista'] },
+  { title: 'Notificaciones', url: '/notificaciones', icon: Bell },
+];
 ```
+
+### Cambios en Index.tsx (línea 12)
+```typescript
+navigate(user ? '/proyectos-operativos' : '/auth', { replace: true });
+```
+
+### Cambios en OperationalProjects.tsx
+
+#### Nueva query para progreso (reemplaza la query actual de `requestCounts`)
+```typescript
+const { data: requestStats } = useQuery({
+  queryKey: ['operational-request-stats', projects?.map(p => p.id)],
+  queryFn: async () => {
+    if (!projects || projects.length === 0) return {};
+    const { data, error } = await supabase
+      .from('operational_requests')
+      .select('id, operational_project_id, status')
+      .in('operational_project_id', projects.map(p => p.id));
+    if (error) throw error;
+    
+    const stats: Record<string, { total: number; completed: number }> = {};
+    data?.forEach(r => {
+      if (!stats[r.operational_project_id]) {
+        stats[r.operational_project_id] = { total: 0, completed: 0 };
+      }
+      stats[r.operational_project_id].total++;
+      if (r.status === 'completed') {
+        stats[r.operational_project_id].completed++;
+      }
+    });
+    return stats;
+  },
+  enabled: !!projects && projects.length > 0,
+});
+```
+
+#### Nuevo UI en la card
+```typescript
+// Añadir import del componente Progress
+import { Progress } from '@/components/ui/progress';
+
+// En la card, reemplazar la sección actual de conteo:
+const stats = requestStats?.[project.id] || { total: 0, completed: 0 };
+const progressPercent = stats.total > 0 
+  ? Math.round((stats.completed / stats.total) * 100) 
+  : 0;
+
+// Renderizado:
+<div className="space-y-2">
+  <div className="flex items-center justify-between text-sm">
+    <span className="text-muted-foreground">Progreso</span>
+    <span className="font-medium">{progressPercent}%</span>
+  </div>
+  <Progress value={progressPercent} className="h-2" />
+  <div className="flex items-center justify-between text-sm">
+    <span className="text-muted-foreground">
+      {stats.completed} de {stats.total} requests
+    </span>
+    <Badge variant="outline">
+      {stats.total} requests
+    </Badge>
+  </div>
+</div>
+```
+
+---
+
+## Resultado esperado
+
+1. Al iniciar sesión, el usuario será dirigido a la página de Proyectos
+2. "Proyectos" aparecerá primero en el menú lateral de Operations
+3. Las cards de proyectos mostrarán:
+   - Barra de progreso visual
+   - Porcentaje de completado
+   - Conteo de requests completados vs totales
+   - Terminología "requests" en lugar de "solicitudes"

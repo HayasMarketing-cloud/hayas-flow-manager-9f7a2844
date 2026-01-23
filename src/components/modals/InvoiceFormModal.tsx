@@ -46,6 +46,7 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
   const [aggregatedDescription, setAggregatedDescription] = useState('');
   const [pricePerHour, setPricePerHour] = useState<number>(0);
   const [manualSubtotal, setManualSubtotal] = useState<number>(0);
+  const [editedTaxRate, setEditedTaxRate] = useState<number>(21);
 
   const {
     register,
@@ -89,8 +90,7 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
   // Calculate totals - use items sum if available, otherwise manual subtotal
   const itemsSubtotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
   const subtotal = itemsSubtotal > 0 ? itemsSubtotal : manualSubtotal;
-  const watchedTaxRate = watch('tax_rate');
-  const taxRate = typeof watchedTaxRate === 'number' ? watchedTaxRate : (parseFloat(String(watchedTaxRate)) || 0);
+  const taxRate = editedTaxRate;
   const taxAmount = (subtotal * taxRate) / 100;
   const totalAmount = subtotal + taxAmount;
 
@@ -109,8 +109,9 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
         tax_rate: invoice.tax_rate,
         notes: invoice.notes || '',
       });
-      // Load manual subtotal from invoice for imported invoices without items
+      // Load manual subtotal and tax rate from invoice for imported invoices
       setManualSubtotal(invoice.subtotal || 0);
+      setEditedTaxRate(invoice.tax_rate ?? 21);
     } else {
       reset({
         tax_rate: 21,
@@ -119,6 +120,7 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
       setInvoiceItems([]);
       setSelectedRequestIds([]);
       setManualSubtotal(0);
+      setEditedTaxRate(21);
     }
   }, [invoice, mode, reset]);
 
@@ -628,10 +630,12 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
               <Input
                 type="number"
                 step="0.01"
-                value={watch('tax_rate') ?? ''}
+                value={editedTaxRate}
                 onChange={(e) => {
                   const val = e.target.value;
-                  setValue('tax_rate', val === '' ? 0 : parseFloat(val) || 0);
+                  const newRate = val === '' ? 0 : parseFloat(val) || 0;
+                  setEditedTaxRate(newRate);
+                  setValue('tax_rate', newRate);
                 }}
                 disabled={disabled}
               />

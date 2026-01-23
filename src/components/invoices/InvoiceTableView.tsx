@@ -19,7 +19,8 @@ interface InvoiceTableViewProps {
   onSelectOne: (id: string, checked: boolean) => void;
 }
 
-const isSelectableStatus = (status: string) => status === 'sent' || status === 'overdue';
+// Selectable = all invoices that are not paid (pending payment)
+const isSelectableStatus = (status: string) => status !== 'paid';
 
 export const InvoiceTableView = ({ 
   invoices, 

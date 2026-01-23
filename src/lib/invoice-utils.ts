@@ -2,26 +2,26 @@ import { Database } from '@/integrations/supabase/types';
 
 type InvoiceStatus = Database['public']['Enums']['invoice_status'];
 
+// Simplified status display - only "Pagada" and "Pendiente de pago"
 export const getInvoiceStatusColor = (status: InvoiceStatus): string => {
-  const colors: Record<InvoiceStatus, string> = {
-    draft: 'bg-muted text-muted-foreground',
-    sent: 'bg-blue-500 text-white',
-    paid: 'bg-green-500 text-white',
-    overdue: 'bg-red-500 text-white',
-    cancelled: 'bg-destructive text-destructive-foreground',
-  };
-  return colors[status] || 'bg-muted text-muted-foreground';
+  if (status === 'paid') {
+    return 'bg-green-500 text-white';
+  }
+  // All other statuses are considered "Pendiente de pago"
+  return 'bg-amber-500 text-white';
 };
 
 export const getInvoiceStatusLabel = (status: InvoiceStatus): string => {
-  const labels: Record<InvoiceStatus, string> = {
-    draft: 'Borrador',
-    sent: 'Enviada',
-    paid: 'Pagada',
-    overdue: 'Vencida',
-    cancelled: 'Cancelada',
-  };
-  return labels[status] || status;
+  if (status === 'paid') {
+    return 'Pagada';
+  }
+  // All other statuses are considered "Pendiente de pago"
+  return 'Pendiente de pago';
+};
+
+// Check if invoice is pending payment (not paid)
+export const isInvoicePending = (status: InvoiceStatus): boolean => {
+  return status !== 'paid';
 };
 
 export const calculateTaxAmount = (subtotal: number, taxRate: number): number => {

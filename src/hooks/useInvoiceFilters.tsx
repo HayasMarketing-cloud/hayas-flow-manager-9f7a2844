@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { Database } from '@/integrations/supabase/types';
-
-type InvoiceStatus = Database['public']['Enums']['invoice_status'];
 
 export type PeriodType = 'this_month' | 'last_month' | 'this_year' | 'custom';
 
+// Simplified status filter: 'paid' or 'pending' (all non-paid)
+export type InvoiceStatusFilter = 'paid' | 'pending' | null;
+
 export interface InvoiceFilters {
   searchTerm: string;
-  status: InvoiceStatus | null;
+  status: InvoiceStatusFilter;
   clientId: string | null;
   periodType: PeriodType;
   startDate: string | null;

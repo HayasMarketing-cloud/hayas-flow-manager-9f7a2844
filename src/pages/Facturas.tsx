@@ -16,7 +16,7 @@ import { InvoiceTableView } from '@/components/invoices/InvoiceTableView';
 import { InvoiceFormModal } from '@/components/modals/InvoiceFormModal';
 import { InvoiceUploadModal } from '@/components/invoices/InvoiceUploadModal';
 import { BulkPaymentModal } from '@/components/invoices/BulkPaymentModal';
-import { useInvoiceFilters, PeriodType } from '@/hooks/useInvoiceFilters';
+import { useInvoiceFilters, PeriodType, InvoiceStatusFilter } from '@/hooks/useInvoiceFilters';
 import { formatCurrency } from '@/lib/invoice-utils';
 
 export default function Facturas() {
@@ -64,7 +64,7 @@ export default function Facturas() {
           *,
           client:clients(id, name, code)
         `)
-        .order('invoice_date', { ascending: false });
+        .order('due_date', { ascending: true, nullsFirst: false });
 
       // Filtrar por clientes asignados si es AM
       if (needsFiltering && assignedClientIds.length > 0) {
@@ -72,7 +72,12 @@ export default function Facturas() {
       }
 
       if (filters.status) {
-        query = query.eq('status', filters.status as any);
+        if (filters.status === 'pending') {
+          // Pending = all statuses except 'paid'
+          query = query.neq('status', 'paid');
+        } else {
+          query = query.eq('status', filters.status as any);
+        }
       }
 
       if (filters.clientId) {
@@ -97,8 +102,9 @@ export default function Facturas() {
   });
 
   // Selection derived state (must be above any conditional return to avoid hook-order issues)
+  // Selectable = all invoices that are not paid (pending payment)
   const selectableInvoices = useMemo(
-    () => (invoices || []).filter((inv) => inv.status === 'sent' || inv.status === 'overdue'),
+    () => (invoices || []).filter((inv) => inv.status !== 'paid'),
     [invoices]
   );
 
@@ -221,18 +227,15 @@ export default function Facturas() {
 
                 <Select
                   value={filters.status || 'all'}
-                  onValueChange={(value) => updateFilter('status', value === 'all' ? null : value as any)}
+                  onValueChange={(value) => updateFilter('status', value === 'all' ? null : value as InvoiceStatusFilter)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Todos los estados" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos los estados</SelectItem>
-                    <SelectItem value="draft">Borrador</SelectItem>
-                    <SelectItem value="sent">Enviada</SelectItem>
+                    <SelectItem value="pending">Pendiente de pago</SelectItem>
                     <SelectItem value="paid">Pagada</SelectItem>
-                    <SelectItem value="overdue">Vencida</SelectItem>
-                    <SelectItem value="cancelled">Cancelada</SelectItem>
                   </SelectContent>
                 </Select>
 

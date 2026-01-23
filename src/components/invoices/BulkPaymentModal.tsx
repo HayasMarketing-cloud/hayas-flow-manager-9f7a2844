@@ -38,12 +38,15 @@ export const BulkPaymentModal = ({ isOpen, onClose, invoices, onSuccess }: BulkP
       const invoiceIds = invoices.map(inv => inv.id);
       
       // Also set sent_at if not already set to satisfy check_paid_after_sent constraint
+      // Use current date for sent_at to ensure constraint is satisfied
+      const paymentTimestamp = new Date(paymentDate).toISOString();
+      
       const { error } = await supabase
         .from('invoices')
         .update({ 
           status: 'paid',
-          paid_at: paymentDate,
-          sent_at: paymentDate // Ensure sent_at is set for the constraint
+          paid_at: paymentTimestamp,
+          sent_at: paymentTimestamp // Ensure sent_at is set for the constraint
         })
         .in('id', invoiceIds);
 

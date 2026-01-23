@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useAssignedClients } from '@/hooks/useAssignedClients';
 import { InvoiceCard } from '@/components/invoices/InvoiceCard';
 import { InvoiceTableView } from '@/components/invoices/InvoiceTableView';
 import { InvoiceFormModal } from '@/components/modals/InvoiceFormModal';
@@ -24,23 +25,32 @@ export default function Facturas() {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
 
   const { canAccessFinance } = useUserRole();
+  const { assignedClientIds, isLoading: assignedClientsLoading, needsFiltering } = useAssignedClients();
   const { filters, updateFilter, resetFilters, getDateRange } = useInvoiceFilters();
 
   const { data: clients } = useQuery({
-    queryKey: ['clients'],
+    queryKey: ['clients-for-invoices', needsFiltering, assignedClientIds],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('clients')
         .select('id, name')
         .eq('status', 'active')
         .order('name');
+      
+      // Filtrar por clientes asignados si es AM
+      if (needsFiltering && assignedClientIds.length > 0) {
+        query = query.in('id', assignedClientIds);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
+    enabled: !needsFiltering || assignedClientIds.length > 0,
   });
 
   const { data: invoices, isLoading } = useQuery({
-    queryKey: ['invoices', filters],
+    queryKey: ['invoices', filters, needsFiltering, assignedClientIds],
     queryFn: async () => {
       const { startDate, endDate } = getDateRange();
       
@@ -51,6 +61,11 @@ export default function Facturas() {
           client:clients(id, name, code)
         `)
         .order('invoice_date', { ascending: false });
+
+      // Filtrar por clientes asignados si es AM
+      if (needsFiltering && assignedClientIds.length > 0) {
+        query = query.in('client_id', assignedClientIds);
+      }
 
       if (filters.status) {
         query = query.eq('status', filters.status as any);
@@ -74,6 +89,7 @@ export default function Facturas() {
       if (error) throw error;
       return data;
     },
+    enabled: !needsFiltering || assignedClientIds.length > 0,
   });
 
   if (!canAccessFinance()) {

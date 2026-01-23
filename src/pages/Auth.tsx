@@ -48,7 +48,7 @@ export default function Auth() {
           <img 
             src={flowManagerLogo} 
             alt="Flow Manager" 
-            className="h-16 mx-auto mb-4"
+            className="h-32 mx-auto mb-6"
           />
           <CardDescription>Sistema de gestión empresarial</CardDescription>
         </CardHeader>

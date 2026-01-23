@@ -9,6 +9,7 @@ export interface TaskFilters {
   budgetId: string | null;
   monthYear: string | null; // formato "2025-01"
   onlyMyTasks: boolean;
+  showCompleted: boolean;
 }
 
 export const useTaskFilters = () => {
@@ -19,6 +20,7 @@ export const useTaskFilters = () => {
     budgetId: null,
     monthYear: null,
     onlyMyTasks: false,
+    showCompleted: false,
   });
 
   // Fetch clients for filter dropdown
@@ -104,6 +106,7 @@ export const useTaskFilters = () => {
       budgetId: null,
       monthYear: null,
       onlyMyTasks: false,
+      showCompleted: false,
     });
   };
 

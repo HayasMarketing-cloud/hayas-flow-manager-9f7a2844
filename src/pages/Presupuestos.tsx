@@ -19,6 +19,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useCurrentSpecialist } from '@/hooks/useCurrentSpecialist';
+import { useUserBudgetIds } from '@/hooks/useAssignedClients';
 
 export default function Presupuestos() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -38,17 +39,18 @@ export default function Presupuestos() {
   const navigate = useNavigate();
   const { filters, updateFilter, resetFilters } = useBudgetFilters();
   const queryClient = useQueryClient();
-  const { isSpecialist, isAdmin, canAccessFinance, isProjectManager, loading: rolesLoading } = useUserRole();
+  const { isSpecialist, isAdmin, canAccessFinance, isProjectManager, shouldFilterByAssignment, loading: rolesLoading } = useUserRole();
   const { specialistId, isLoading: specialistLoading } = useCurrentSpecialist();
+  const { assignedBudgetIds, isLoading: assignedLoading, needsFiltering } = useUserBudgetIds();
   
   // Check if user is only specialist (no other management roles)
-  const isOnlySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && !isProjectManager();
+  const isOnlySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && !isProjectManager() && !shouldFilterByAssignment();
 
   const { data: budgets, isLoading } = useQuery({
-    queryKey: ['budgets', filters, isOnlySpecialist, specialistId],
+    queryKey: ['budgets', filters, isOnlySpecialist, specialistId, needsFiltering, assignedBudgetIds],
     queryFn: async () => {
+      // Specialist filtering: get budgets from their items
       if (isOnlySpecialist && specialistId) {
-        // Get budget IDs where specialist has items assigned
         const { data: budgetItems, error: biError } = await supabase
           .from('budget_items')
           .select('budget_id')
@@ -81,7 +83,32 @@ export default function Presupuestos() {
         return data;
       }
       
-      // Default query for non-specialists
+      // AM/PM filtering: show only assigned budgets
+      if (needsFiltering) {
+        if (assignedBudgetIds.length === 0) return [];
+        
+        let query = supabase
+          .from('budgets')
+          .select(`*, client:clients(id, name)`)
+          .in('id', assignedBudgetIds)
+          .order('created_at', { ascending: false });
+
+        if (filters.status) {
+          query = query.eq('status', filters.status);
+        }
+        if (filters.clientId) {
+          query = query.eq('client_id', filters.clientId);
+        }
+        if (filters.searchTerm) {
+          query = query.or(`title.ilike.%${filters.searchTerm}%`);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return data;
+      }
+      
+      // Default query for admin/finanzas
       let query = supabase
         .from('budgets')
         .select(`
@@ -104,7 +131,7 @@ export default function Presupuestos() {
       if (error) throw error;
       return data;
     },
-    enabled: !!user && !rolesLoading && (!isOnlySpecialist || !specialistLoading),
+    enabled: !!user && !rolesLoading && (!isOnlySpecialist || !specialistLoading) && (!needsFiltering || !assignedLoading),
   });
 
   const { data: clients } = useQuery({

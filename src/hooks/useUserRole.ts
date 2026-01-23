@@ -71,6 +71,20 @@ export const useUserRole = () => {
   const canViewClientProjects = () => isAccountManager();
   const canViewClientTasks = () => isAccountManager();
 
+  // Helper functions for AM/PM filtering
+  // Returns true if user is ONLY AM (without admin/finanzas roles)
+  const isOnlyAccountManager = () => isAccountManager() && !isAdmin() && !canAccessFinance();
+  
+  // Returns true if user is ONLY PM (without admin/finanzas roles)
+  const isOnlyProjectManager = () => isProjectManager() && !isAdmin() && !canAccessFinance();
+  
+  // Returns true if user needs to filter data by assignment (AM or PM without elevated roles)
+  const shouldFilterByAssignment = () => {
+    const hasElevatedAccess = isAdmin() || canAccessFinance();
+    const isAmOrPm = isAccountManager() || isProjectManager();
+    return isAmOrPm && !hasElevatedAccess;
+  };
+
   return {
     roles,
     loading,
@@ -90,5 +104,9 @@ export const useUserRole = () => {
     canViewClientLiquidations,
     canViewClientProjects,
     canViewClientTasks,
+    // New helpers for AM/PM filtering
+    isOnlyAccountManager,
+    isOnlyProjectManager,
+    shouldFilterByAssignment,
   };
 };

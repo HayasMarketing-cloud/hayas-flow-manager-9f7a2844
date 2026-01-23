@@ -45,6 +45,7 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
   const [aggregatedDescription, setAggregatedDescription] = useState('');
   const [pricePerHour, setPricePerHour] = useState<number>(0);
+  const [manualSubtotal, setManualSubtotal] = useState<number>(0);
 
   const {
     register,
@@ -85,8 +86,9 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
     periodYear
   );
 
-  // Calculate totals
-  const subtotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
+  // Calculate totals - use items sum if available, otherwise manual subtotal
+  const itemsSubtotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
+  const subtotal = invoiceItems.length > 0 ? itemsSubtotal : manualSubtotal;
   const taxRate = watch('tax_rate') || 21;
   const taxAmount = (subtotal * taxRate) / 100;
   const totalAmount = subtotal + taxAmount;
@@ -106,6 +108,8 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
         tax_rate: invoice.tax_rate,
         notes: invoice.notes || '',
       });
+      // Load manual subtotal from invoice for imported invoices without items
+      setManualSubtotal(invoice.subtotal || 0);
     } else {
       reset({
         tax_rate: 21,
@@ -113,6 +117,7 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
       });
       setInvoiceItems([]);
       setSelectedRequestIds([]);
+      setManualSubtotal(0);
     }
   }, [invoice, mode, reset]);
 
@@ -338,8 +343,15 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
   };
 
   const onSubmit = (data: InvoiceFormData) => {
-    if (invoiceItems.length === 0) {
+    // For new invoices require items, for edit allow manual subtotal (imported invoices)
+    if (mode === 'create' && invoiceItems.length === 0) {
       toast.error('Añade al menos una línea a la factura');
+      return;
+    }
+
+    // For edit mode without items, require manual subtotal > 0
+    if (mode === 'edit' && invoiceItems.length === 0 && manualSubtotal <= 0) {
+      toast.error('El subtotal debe ser mayor a 0');
       return;
     }
 
@@ -484,6 +496,28 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
               onChange={setInvoiceItems}
               disabled={disabled}
             />
+
+            {/* Manual subtotal input for imported invoices without items */}
+            {invoiceItems.length === 0 && mode !== 'create' && (
+              <Card className="p-4 space-y-2 border-dashed">
+                <Label>Subtotal (sin líneas de factura)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={manualSubtotal || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setManualSubtotal(val === '' ? 0 : parseFloat(val) || 0);
+                  }}
+                  disabled={disabled}
+                  placeholder="0.00"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Para facturas importadas sin líneas detalladas, ingresa el subtotal directamente.
+                </p>
+              </Card>
+            )}
           </div>
 
           {/* Available Requests */}

@@ -73,11 +73,11 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className={state === 'collapsed' ? 'w-14' : 'w-60'}>
-      <SidebarHeader className="p-4 border-b">
+      <SidebarHeader className="p-6 border-b border-sidebar-border">
         <img 
           src={flowManagerLogo} 
           alt="Flow Manager" 
-          className={state === 'collapsed' ? 'h-8 w-8 object-contain' : 'h-10 object-contain'}
+          className={state === 'collapsed' ? 'h-10 w-10 object-contain rounded' : 'h-16 object-contain mix-blend-lighten'}
         />
       </SidebarHeader>
       <SidebarContent>

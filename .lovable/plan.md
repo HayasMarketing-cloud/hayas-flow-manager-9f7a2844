@@ -1,50 +1,119 @@
 
-# Plan: Destacar el nombre del cliente en RequestCard con un badge mejorado
+# Plan: Pago masivo de facturas
 
-## Contexto actual
+## Resumen
 
-En `src/components/requests/RequestCard.tsx` (líneas 42-47), el nombre del cliente se muestra como texto simple con un icono:
+Agregar la funcionalidad para seleccionar varias facturas desde el listado y marcarlas como pagadas en un solo pago, incluyendo la fecha de pago y el importe total. Esta funcionalidad es especialmente util para clientes como Asendia que pagan multiples facturas en un unico pago.
 
-```tsx
-{request.client && (
-  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-    <Building2 className="h-4 w-4 flex-shrink-0" />
-    <span className="truncate">{request.client.name}</span>
-  </div>
-)}
-```
+## Flujo de usuario
 
-## Propuesta de diseño
+1. El usuario entra en la pagina de Facturas
+2. Cambia a vista de tabla (donde hay checkboxes)
+3. Selecciona las facturas que quiere marcar como pagadas
+4. Aparece una barra flotante con la accion "Marcar como Pagadas"
+5. Al hacer clic, se abre un modal con:
+   - Resumen de facturas seleccionadas (codigos y totales)
+   - Campo para fecha de pago (por defecto hoy)
+   - Campo opcional para importe total recibido (informativo)
+   - Campo opcional para notas del pago
+6. Al confirmar, todas las facturas se marcan como pagadas con la misma fecha
 
-Cambiar el nombre del cliente a un badge/pastilla con mejor visibilidad:
-- Usar el componente `Badge` existente en el proyecto
-- Aplicar una variante `outline` con fondo suave azul/slate para destacar sin ser intrusivo
-- Incluir el icono `Building2` dentro del badge
-- Mantener el texto truncado para nombres largos
-
-## Cambios técnicos
+## Cambios tecnicos
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/components/requests/RequestCard.tsx` | Importar `Badge` y rediseñar la sección del cliente |
+| `src/pages/Facturas.tsx` | Agregar estado `selectedIds`, handlers de seleccion, y barra de acciones masivas |
+| `src/components/invoices/InvoiceTableView.tsx` | Agregar columna de checkboxes y props de seleccion |
+| `src/components/invoices/BulkPaymentModal.tsx` | **Nuevo archivo** - Modal para configurar el pago masivo |
 
-### Código propuesto
+### 1. Modificar InvoiceTableView.tsx
 
-```tsx
-{request.client && (
-  <Badge 
-    variant="outline" 
-    className="bg-slate-50 text-slate-700 border-slate-200 font-medium text-sm py-1 px-2.5 max-w-full"
-  >
-    <Building2 className="h-3.5 w-3.5 mr-1.5 flex-shrink-0" />
-    <span className="truncate">{request.client.name}</span>
-  </Badge>
-)}
+Agregar checkboxes igual que en `RequestTableView`:
+- Nueva columna de checkbox en el header
+- Checkbox en cada fila para facturas con estado `sent` u `overdue`
+- Props nuevas: `selectedIds`, `onSelectAll`, `onSelectOne`
+
+### 2. Modificar Facturas.tsx
+
+```text
+Nuevos estados:
+- selectedIds: string[] - IDs de facturas seleccionadas
+- bulkPaymentModalOpen: boolean - Controla visibilidad del modal
+
+Nuevos handlers:
+- handleSelectAll(checked)
+- handleSelectOne(id, checked)
+- handleBulkPayment() - Abre el modal
+
+UI adicional:
+- Barra flotante cuando hay seleccion activa mostrando:
+  - "X facturas seleccionadas"
+  - Total acumulado de las facturas
+  - Boton "Marcar como Pagadas"
 ```
 
-## Resultado visual esperado
+### 3. Nuevo componente BulkPaymentModal.tsx
 
-- El nombre del cliente aparecerá en una pastilla con fondo gris claro/azulado
-- El icono del edificio estará integrado dentro del badge
-- Mayor contraste visual que lo diferencia del resto del texto
-- Consistente con el estilo de badges usado en otros componentes del proyecto (como en `ContractCard`)
+```text
+Props:
+- isOpen: boolean
+- onClose: () => void
+- invoiceIds: string[]
+- invoices: any[] (para mostrar resumen)
+
+Campos del formulario:
+- Fecha de pago (date input, default: hoy)
+- Importe total recibido (number input, opcional/informativo)
+- Notas (textarea, opcional)
+
+Al confirmar:
+- Actualiza todas las facturas seleccionadas a status='paid'
+- Guarda paid_at con la fecha indicada
+- Muestra toast de exito
+- Invalida query de facturas
+- Limpia seleccion
+```
+
+## Logica de seleccion
+
+Solo se podran seleccionar facturas con estado:
+- `sent` (Enviada)
+- `overdue` (Vencida)
+
+Las facturas en `draft`, `paid` o `cancelled` no tendran checkbox activo ya que no tiene sentido marcarlas como pagadas.
+
+## Estructura del modal de pago masivo
+
+```text
++------------------------------------------+
+|  Registrar Pago Masivo              [X]  |
++------------------------------------------+
+|                                          |
+|  Facturas a marcar como pagadas:         |
+|  +------------------------------------+  |
+|  | FAC-2025-0001  |  1.500,00 EUR    |  |
+|  | FAC-2025-0002  |  2.300,00 EUR    |  |
+|  | FAC-2025-0003  |    850,00 EUR    |  |
+|  +------------------------------------+  |
+|  Total facturas: 4.650,00 EUR            |
+|                                          |
+|  Fecha de pago:                          |
+|  [ 23/01/2026        ] (calendario)      |
+|                                          |
+|  Importe recibido (opcional):            |
+|  [ 4.650,00          ] EUR               |
+|                                          |
+|  Notas (opcional):                       |
+|  [                                   ]   |
+|  [                                   ]   |
+|                                          |
+|           [Cancelar]  [Registrar Pago]   |
++------------------------------------------+
+```
+
+## Consideraciones
+
+- El importe recibido es informativo, no se almacena (a menos que se quiera agregar un campo en la tabla de facturas)
+- La fecha de pago se aplicara a todas las facturas seleccionadas
+- Se limpiara la seleccion despues de completar el pago
+- Solo funciona en vista de tabla (la vista de cards no tiene checkboxes)

@@ -6,12 +6,14 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
 import { useUserRole } from '@/hooks/useUserRole';
+import flowManagerLogo from '@/assets/flow-manager-logo.png';
 
 interface NavItem {
   title: string;
@@ -71,8 +73,14 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className={state === 'collapsed' ? 'w-14' : 'w-60'}>
+      <SidebarHeader className="p-4 border-b">
+        <img 
+          src={flowManagerLogo} 
+          alt="Flow Manager" 
+          className={state === 'collapsed' ? 'h-8 w-8 object-contain' : 'h-10 object-contain'}
+        />
+      </SidebarHeader>
       <SidebarContent>
-        {/* Operations Layer */}
         {visibleOperationsItems.length > 0 && (
           <SidebarGroup>
             <SidebarGroupLabel>Operations</SidebarGroupLabel>

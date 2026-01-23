@@ -77,7 +77,11 @@ export function AppSidebar() {
         <img 
           src={flowManagerLogo} 
           alt="Flow Manager" 
-          className={state === 'collapsed' ? 'h-10 w-10 object-contain brightness-0 invert' : 'h-16 object-contain brightness-0 invert'}
+          className={
+            state === 'collapsed'
+              ? 'h-12 w-12 object-contain brightness-0 invert mx-auto'
+              : 'h-20 w-auto object-contain brightness-0 invert mx-auto'
+          }
         />
       </SidebarHeader>
       <SidebarContent>

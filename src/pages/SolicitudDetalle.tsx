@@ -14,9 +14,11 @@ import { FlowStatusCell } from '@/components/requests/FlowStatusCell';
 import { RequestActivityTimeline } from '@/components/requests/RequestActivityTimeline';
 import { RequestProcessTimeline } from '@/components/requests/RequestProcessTimeline';
 import { RequestFormModal } from '@/components/modals/RequestFormModal';
+import { RequestProjectCreationModal } from '@/components/requests/RequestProjectCreationModal';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCreateProjectFromRequest } from '@/hooks/useCreateProjectFromRequest';
 import { formatCurrency } from '@/lib/request-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -35,7 +37,8 @@ import {
   FileText,
   Briefcase,
   Clock,
-  ExternalLink
+  ExternalLink,
+  FolderKanban
 } from 'lucide-react';
 
 const SolicitudDetalle = () => {
@@ -49,6 +52,9 @@ const SolicitudDetalle = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [showProjectModal, setShowProjectModal] = useState(false);
+
+  const createProjectMutation = useCreateProjectFromRequest();
 
   const { data: request, isLoading, error } = useQuery({
     queryKey: ['financial_request', id],
@@ -77,6 +83,62 @@ const SolicitudDetalle = () => {
     },
     enabled: !!id,
   });
+
+  // Check if there's already an operational project linked to this request
+  const { data: existingProject } = useQuery({
+    queryKey: ['request-operational-project', id],
+    queryFn: async () => {
+      if (!id) return null;
+
+      // First check if there's an operational_request linked to this financial_request
+      const { data: opRequest, error } = await supabase
+        .from('operational_requests')
+        .select('operational_project_id, operational_projects(id, name)')
+        .eq('financial_request_id', id)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (opRequest?.operational_projects) {
+        return opRequest.operational_projects as { id: string; name: string };
+      }
+      return null;
+    },
+    enabled: !!id,
+  });
+
+  const handleCreateProject = () => {
+    if (!request || !user) return;
+
+    createProjectMutation.mutate(
+      {
+        projectData: {
+          name: request.title,
+          client_id: request.client_id,
+          contract_id: request.contract_id,
+          budget_id: request.budget_id,
+          description: request.description,
+          deadline: request.deadline,
+          status: 'pending',
+          owner_user_id: user.id,
+          created_by: user.id,
+        },
+        financialRequest: {
+          id: request.id,
+          title: request.title,
+          description: request.description,
+          deadline: request.deadline,
+          specialist_id: request.specialist_id,
+        },
+      },
+      {
+        onSuccess: (data) => {
+          setShowProjectModal(false);
+          navigate(`/proyectos-operativos/${data.project.id}`);
+        },
+      }
+    );
+  };
 
   const handleDelete = async () => {
     if (!id) return;
@@ -266,6 +328,24 @@ const SolicitudDetalle = () => {
 
               <div className="flex flex-wrap items-center gap-2">
                 <RequestFlowActions request={request} onSuccess={handleRefresh} compact />
+                
+                {canManage && !existingProject && (
+                  <Button variant="default" size="sm" onClick={() => setShowProjectModal(true)}>
+                    <FolderKanban className="h-4 w-4 mr-2" />
+                    Crear Proyecto
+                  </Button>
+                )}
+
+                {existingProject && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => navigate(`/proyectos-operativos/${existingProject.id}`)}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Ver Proyecto
+                  </Button>
+                )}
                 
                 {canManage && (
                   <>
@@ -598,6 +678,20 @@ const SolicitudDetalle = () => {
         initialData={request}
         onSuccess={handleRefresh}
         mode="edit"
+      />
+
+      {/* Project Creation Modal */}
+      <RequestProjectCreationModal
+        open={showProjectModal}
+        onOpenChange={setShowProjectModal}
+        onConfirm={handleCreateProject}
+        isLoading={createProjectMutation.isPending}
+        requestData={{
+          code: request.code,
+          title: request.title,
+          clientName: request.client?.name,
+          serviceName: request.service?.name,
+        }}
       />
 
       {/* Delete Confirmation */}

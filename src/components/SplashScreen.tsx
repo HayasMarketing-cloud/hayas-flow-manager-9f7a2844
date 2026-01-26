@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import flowManagerLogo from '@/assets/flowmanager-logo.png';
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -20,34 +19,40 @@ export function SplashScreen({ onComplete, minDisplayTime = 1500 }: SplashScreen
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-500 ${
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-white transition-opacity duration-500 ${
         fadeOut ? 'opacity-0' : 'opacity-100'
       }`}
-      style={{
-        background: 'linear-gradient(135deg, hsl(var(--hayas-green)) 0%, hsl(var(--deep-teal)) 50%, hsl(var(--deep-blue)) 100%)',
-      }}
     >
       <div className="flex flex-col items-center gap-8">
-        {/* Logo con animación */}
+        {/* Icono con animación */}
         <div className={`transition-all duration-700 ${fadeOut ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}>
           <img
-            src={flowManagerLogo}
+            src="/icons/icon-512x512.png"
             alt="Flow Manager"
-            className="h-24 w-auto brightness-0 invert drop-shadow-2xl animate-pulse"
+            className="h-32 w-32 drop-shadow-xl animate-pulse rounded-3xl"
           />
         </div>
 
-        {/* Loading indicator */}
+        {/* Loading indicator con colores del gradiente */}
         <div className="flex items-center gap-2">
-          <div className="flex space-x-1">
-            <div className="h-2 w-2 rounded-full bg-white/80 animate-bounce" style={{ animationDelay: '0ms' }} />
-            <div className="h-2 w-2 rounded-full bg-white/80 animate-bounce" style={{ animationDelay: '150ms' }} />
-            <div className="h-2 w-2 rounded-full bg-white/80 animate-bounce" style={{ animationDelay: '300ms' }} />
+          <div className="flex space-x-1.5">
+            <div 
+              className="h-2.5 w-2.5 rounded-full animate-bounce" 
+              style={{ backgroundColor: 'hsl(var(--hayas-green))', animationDelay: '0ms' }} 
+            />
+            <div 
+              className="h-2.5 w-2.5 rounded-full animate-bounce" 
+              style={{ backgroundColor: 'hsl(var(--deep-teal))', animationDelay: '150ms' }} 
+            />
+            <div 
+              className="h-2.5 w-2.5 rounded-full animate-bounce" 
+              style={{ backgroundColor: 'hsl(var(--deep-blue))', animationDelay: '300ms' }} 
+            />
           </div>
         </div>
 
         {/* Texto */}
-        <p className="text-white/70 text-sm font-medium tracking-wide">
+        <p className="text-muted-foreground text-sm font-medium tracking-wide">
           Cargando...
         </p>
       </div>

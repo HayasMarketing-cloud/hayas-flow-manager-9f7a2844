@@ -7,7 +7,9 @@ import {
   AlertTriangle, 
   Wallet, 
   CircleCheck,
-  RefreshCw
+  RefreshCw,
+  Receipt,
+  ExternalLink
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -51,6 +53,7 @@ interface LiquidationData {
     email?: string;
     name?: string;
   } | null;
+  specialist_invoice_url?: string | null;
 }
 
 interface LiquidationProcessTimelineProps {
@@ -60,7 +63,7 @@ interface LiquidationProcessTimelineProps {
   isSending?: boolean;
 }
 
-const statusOrder: LiquidationStatus[] = ['draft', 'validated', 'sent', 'accepted', 'disputed', 'pending_payment', 'paid'];
+const statusOrder: LiquidationStatus[] = ['draft', 'validated', 'sent', 'accepted', 'invoice_received', 'disputed', 'pending_payment', 'paid'];
 
 const getStatusIndex = (status: LiquidationStatus): number => {
   return statusOrder.indexOf(status);
@@ -218,22 +221,50 @@ const buildTimelineSteps = (
     });
   }
 
-  // 6. Pendiente de pago
-  const showPaymentDate = currentIndex >= 3 || signature?.status === 'accepted';
+  // 6. Factura del especialista
+  const invoiceReceived = liquidation.specialist_invoice_url || liquidation.status === 'invoice_received';
+  const invoiceStepStatus = invoiceReceived 
+    ? 'completed' 
+    : (currentIndex >= 3 && signature?.status === 'accepted' ? 'current' : 'pending');
+  
+  steps.push({
+    id: 'invoice_received',
+    label: 'Factura del especialista',
+    status: invoiceStepStatus,
+    description: invoiceReceived 
+      ? 'Factura recibida del especialista'
+      : 'Esperando factura del especialista',
+    actions: invoiceReceived && liquidation.specialist_invoice_url ? (
+      <Button 
+        variant="link" 
+        size="sm" 
+        asChild
+        className="h-auto p-0 mt-1"
+      >
+        <a href={liquidation.specialist_invoice_url} target="_blank" rel="noopener noreferrer">
+          <ExternalLink className="h-3 w-3 mr-1" />
+          Ver factura
+        </a>
+      </Button>
+    ) : undefined,
+  });
+
+  // 7. Pendiente de pago
+  const showPaymentDate = currentIndex >= 4 || signature?.status === 'accepted';
   steps.push({
     id: 'pending_payment',
     label: 'Pendiente de pago',
-    status: currentIndex >= 4 ? 'completed' : (currentIndex === 3 ? 'current' : 'pending'),
+    status: currentIndex >= 5 ? 'completed' : (currentIndex === 4 ? 'current' : 'pending'),
     description: showPaymentDate 
       ? `Pago previsto: ${formatExpectedPaymentDate(liquidation.period_year, liquidation.period_month)}`
       : undefined,
   });
 
-  // 7. Pagada
+  // 8. Pagada
   steps.push({
     id: 'paid',
     label: 'Pagada',
-    status: currentIndex >= 5 ? 'completed' : (currentIndex === 4 ? 'current' : 'pending'),
+    status: currentIndex >= 6 ? 'completed' : (currentIndex === 5 ? 'current' : 'pending'),
     date: liquidation.paid_at ? formatDate(liquidation.paid_at) : undefined,
   });
 
@@ -268,6 +299,8 @@ const getStepIcon = (stepId: string, status: TimelineStep['status']) => {
       return status === 'completed' ? <CheckCircle2 className={iconClass} /> : <Clock className={iconClass} />;
     case 'accepted':
       return <CheckCircle2 className={iconClass} />;
+    case 'invoice_received':
+      return <Receipt className={iconClass} />;
     case 'pending_payment':
       return <Wallet className={iconClass} />;
     case 'paid':

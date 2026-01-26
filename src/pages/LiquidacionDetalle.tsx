@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, User, Calendar, FileText, Mail, Download, Trash2, Plus } from 'lucide-react';
 import { AddRequestsToLiquidationModal } from '@/components/liquidations/AddRequestsToLiquidationModal';
+import { SpecialistInvoiceUpload } from '@/components/liquidations/SpecialistInvoiceUpload';
 import { LiquidationStatusBadge } from '@/components/liquidations/LiquidationStatusBadge';
 import { SignatureStatusBadge } from '@/components/liquidations/SignatureStatusBadge';
 import { LiquidationProcessTimeline } from '@/components/liquidations/LiquidationProcessTimeline';
@@ -688,6 +689,20 @@ export default function LiquidacionDetalle() {
             onAddRequest={() => setAddRequestsModalOpen(true)}
             onRequestAdded={() => {
               queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
+            }}
+          />
+        )}
+
+        {/* Specialist Invoice Upload - Only for finance users after acceptance */}
+        {canAccessFinance() && ['accepted', 'invoice_received', 'pending_payment', 'paid'].includes(liquidation.status) && (
+          <SpecialistInvoiceUpload
+            liquidationId={liquidation.id}
+            liquidationCode={liquidation.code}
+            currentInvoiceUrl={liquidation.specialist_invoice_url}
+            currentStatus={liquidation.status}
+            onUploadSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
+              queryClient.invalidateQueries({ queryKey: ['liquidations'] });
             }}
           />
         )}

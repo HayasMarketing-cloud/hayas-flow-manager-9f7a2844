@@ -47,3 +47,14 @@ export const formatCurrency = (amount: number): string => {
     currency: 'EUR',
   }).format(amount);
 };
+
+// Virtual/derived status utilities (for states not in database enum)
+export const getVirtualRequestStatusColor = (status: string): string => {
+  if (status === 'liquidated') return 'bg-teal-500 text-white';
+  return getFinancialRequestStatusColor(status as FinancialRequestStatus);
+};
+
+export const getVirtualRequestStatusLabel = (status: string): string => {
+  if (status === 'liquidated') return 'Liquidado';
+  return getFinancialRequestStatusLabel(status as FinancialRequestStatus);
+};

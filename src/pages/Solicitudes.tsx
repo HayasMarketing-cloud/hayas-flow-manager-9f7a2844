@@ -45,9 +45,11 @@ const Solicitudes = () => {
   const { data: requests, isLoading, error } = useQuery({
     queryKey: ['financial_requests', filters],
     queryFn: async () => {
-      // Build filters object
+      // Build filters object - exclude 'liquidated' from match filters
       const queryFilters: Record<string, string> = {};
-      if (filters.status) queryFilters.status = filters.status;
+      if (filters.status && filters.status !== 'liquidated') {
+        queryFilters.status = filters.status;
+      }
       if (filters.clientId) queryFilters.client_id = filters.clientId;
       if (filters.specialistId) queryFilters.specialist_id = filters.specialistId;
       if (filters.budgetId) queryFilters.budget_id = filters.budgetId;
@@ -67,6 +69,11 @@ const Solicitudes = () => {
         )
         .match(queryFilters)
         .order('created_at', { ascending: false });
+
+      // Apply 'liquidated' filter: requests with liquidation_id assigned
+      if (filters.status === 'liquidated') {
+        query = query.not('liquidation_id', 'is', null);
+      }
 
       if (filters.searchTerm) {
         query = query.or(
@@ -407,6 +414,7 @@ const Solicitudes = () => {
                 <SelectItem value="in_progress">En Progreso</SelectItem>
                 <SelectItem value="pending_review">Pend. Revisión</SelectItem>
                 <SelectItem value="completed">Completado</SelectItem>
+                <SelectItem value="liquidated">Liquidado</SelectItem>
                 <SelectItem value="cancelled">Cancelado</SelectItem>
               </SelectContent>
             </Select>

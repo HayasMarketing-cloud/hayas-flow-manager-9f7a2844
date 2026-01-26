@@ -928,6 +928,7 @@ export type Database = {
           period_year: number
           sent_at: string | null
           specialist_id: string
+          specialist_invoice_url: string | null
           status: Database["public"]["Enums"]["liquidation_status"]
           subtotal: number
           tax_amount: number
@@ -946,6 +947,7 @@ export type Database = {
           period_year: number
           sent_at?: string | null
           specialist_id: string
+          specialist_invoice_url?: string | null
           status?: Database["public"]["Enums"]["liquidation_status"]
           subtotal?: number
           tax_amount?: number
@@ -964,6 +966,7 @@ export type Database = {
           period_year?: number
           sent_at?: string | null
           specialist_id?: string
+          specialist_invoice_url?: string | null
           status?: Database["public"]["Enums"]["liquidation_status"]
           subtotal?: number
           tax_amount?: number
@@ -1612,6 +1615,7 @@ export type Database = {
         | "validated"
         | "sent"
         | "accepted"
+        | "invoice_received"
         | "pending_payment"
         | "paid"
         | "disputed"
@@ -1783,6 +1787,7 @@ export const Constants = {
         "validated",
         "sent",
         "accepted",
+        "invoice_received",
         "pending_payment",
         "paid",
         "disputed",

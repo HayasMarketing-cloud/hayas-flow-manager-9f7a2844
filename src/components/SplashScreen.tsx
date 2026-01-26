@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -7,8 +8,29 @@ interface SplashScreenProps {
 
 export function SplashScreen({ onComplete, minDisplayTime = 1500 }: SplashScreenProps) {
   const [fadeOut, setFadeOut] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
 
   useEffect(() => {
+    // Check if user is logged in and get their name
+    const fetchUserName = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', session.user.id)
+          .single();
+        
+        if (profile?.full_name) {
+          // Get first name only
+          const firstName = profile.full_name.split(' ')[0];
+          setUserName(firstName);
+        }
+      }
+    };
+
+    fetchUserName();
+
     const timer = setTimeout(() => {
       setFadeOut(true);
       setTimeout(onComplete, 500); // Wait for fade animation
@@ -51,9 +73,9 @@ export function SplashScreen({ onComplete, minDisplayTime = 1500 }: SplashScreen
           </div>
         </div>
 
-        {/* Texto */}
+        {/* Mensaje de bienvenida personalizado o texto genérico */}
         <p className="text-muted-foreground text-sm font-medium tracking-wide">
-          Cargando...
+          {userName ? `¡Hola, ${userName}!` : 'Cargando...'}
         </p>
       </div>
     </div>

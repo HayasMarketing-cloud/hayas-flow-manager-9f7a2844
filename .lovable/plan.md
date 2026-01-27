@@ -1,145 +1,71 @@
 
-# Plan: Añadir Estado "Liquidado" al Filtro de Requests
 
-## Resumen
-Añadir una opcion de filtro "Liquidado" en el selector de estados de la pagina de Requests, que muestre aquellos requests que ya han sido añadidos a una liquidacion (tienen `liquidation_id` asignado).
+## Plan: Añadir columna "Origen" a la lista de Requests
 
----
+### Objetivo
+Agregar una nueva columna **"Origen"** en la tabla y tarjetas de Requests que muestre de forma visual si el request tiene un **Presupuesto** y/o **Proyecto Operativo** asociado, con enlaces directos a cada uno.
 
-## Analisis
+### Diseño visual
 
-El estado "Liquidado" no es un estado real en el enum `financial_request_status` de la base de datos, sino una condicion derivada:
-- **Request liquidado** = request con `liquidation_id IS NOT NULL`
+La columna mostrará iconos diferenciados:
+- **📋 Presupuesto**: Icono de documento + código (PRE-XXXX) con enlace a `/presupuestos/{id}`
+- **🗂️ Proyecto**: Icono de carpeta + nombre truncado con enlace a `/proyectos/{id}`
 
-Los estados actuales del enum son:
-- draft, pending_specialist, pending_approval, in_progress, pending_review, completed, cancelled
+Cuando no hay asociación, se mostrará `---` en gris (patrón existente similar a Factura/Liquidación).
 
----
+### Cambios a realizar
 
-## Cambios a realizar
+**1. Modificar la query de datos** (`src/pages/Solicitudes.tsx`)
+- Añadir un JOIN con `operational_requests` para obtener el proyecto operativo asociado:
+  ```
+  operational_request:operational_requests(
+    id,
+    operational_project:operational_projects(id, name)
+  )
+  ```
 
-### 1. Actualizar hook useRequestFilters
+**2. Crear componente OriginCell** (`src/components/requests/OriginCell.tsx`)
+- Componente reutilizable que muestra:
+  - Presupuesto (si existe `budget_id` y `budget.code`)
+  - Proyecto Operativo (si existe relación via `operational_request`)
+- Incluye tooltips con información detallada
+- Enlaces clicables a las secciones correspondientes
 
-**Archivo:** `src/hooks/useRequestFilters.tsx`
+**3. Actualizar RequestTableView** (`src/components/requests/RequestTableView.tsx`)
+- Añadir header "Origen" después de "Especialista"
+- Insertar celda con el nuevo componente `OriginCell`
+- Actualizar `colSpan` para el mensaje de vacío
 
-Añadir soporte para el valor especial `liquidated` en el filtro de status:
+**4. Actualizar RequestCard** (`src/components/requests/RequestCard.tsx`)
+- Añadir sección visual mostrando origen (presupuesto/proyecto) entre cliente y especialista
 
-```typescript
-export interface RequestFilters {
-  searchTerm: string;
-  status: string | null; // Incluye 'liquidated' como valor especial
-  clientId: string | null;
-  specialistId: string | null;
-  budgetId: string | null;
-}
+### Detalles técnicos
+
+**Query modificada:**
+```sql
+SELECT *,
+  client:clients(id, name, code),
+  service:services(id, name),
+  specialist:specialists(id, name, email),
+  budget:budgets(id, title, code),
+  invoice:invoices(id, code, status),
+  liquidation:liquidations(id, code, status),
+  operational_request:operational_requests!financial_request_id(
+    id,
+    operational_project:operational_projects(id, name)
+  )
+FROM financial_requests
 ```
 
----
+**Componente OriginCell:**
+- Props: `budgetId`, `budgetCode`, `operationalProject` (id + name)
+- Usa `Tooltip` para mostrar información completa
+- Iconos de Lucide: `FileSpreadsheet` para presupuesto, `FolderKanban` para proyecto
+- Links con `useNavigate` a las rutas correspondientes
 
-### 2. Actualizar la consulta en Solicitudes.tsx
+### Posición de la columna
 
-**Archivo:** `src/pages/Solicitudes.tsx`
+La columna se ubicará después de "Especialista" y antes de "Estado":
 
-Modificar la query para manejar el caso especial de `liquidated`:
+| Código | Título | Cliente | Especialista | **Origen** | Estado | Flujo | ... |
 
-```typescript
-// Si el filtro es 'liquidated', no lo añadimos a queryFilters
-// sino que lo manejamos con .not('liquidation_id', 'is', null)
-if (filters.status === 'liquidated') {
-  query = query.not('liquidation_id', 'is', null);
-} else if (filters.status) {
-  queryFilters.status = filters.status;
-}
-```
-
----
-
-### 3. Añadir opcion al Select de estados
-
-**Archivo:** `src/pages/Solicitudes.tsx`
-
-Añadir la opcion "Liquidado" al dropdown de estados:
-
-```tsx
-<SelectItem value="liquidated">Liquidado</SelectItem>
-```
-
----
-
-### 4. Actualizar utilidades de request (opcional)
-
-**Archivo:** `src/lib/request-utils.ts`
-
-Añadir soporte para mostrar el badge "Liquidado" si se desea usarlo en otras partes:
-
-```typescript
-// Para estados virtuales/derivados
-export const getVirtualRequestStatusColor = (status: string): string => {
-  if (status === 'liquidated') return 'bg-teal-500 text-white';
-  return getFinancialRequestStatusColor(status as FinancialRequestStatus);
-};
-
-export const getVirtualRequestStatusLabel = (status: string): string => {
-  if (status === 'liquidated') return 'Liquidado';
-  return getFinancialRequestStatusLabel(status as FinancialRequestStatus);
-};
-```
-
----
-
-## Resultado esperado
-
-El dropdown de estados mostrara:
-- Todos los estados
-- Borrador
-- Pend. Especialista
-- Pend. Aprobacion
-- En Progreso
-- Pend. Revision
-- Completado
-- Cancelado
-- **Liquidado** (nuevo)
-
-Al seleccionar "Liquidado", se mostraran solo los requests que tienen una liquidacion asociada.
-
----
-
-## Seccion tecnica
-
-### Logica de filtrado en la query
-
-```typescript
-// En Solicitudes.tsx, dentro de la queryFn
-const queryFilters: Record<string, string> = {};
-
-// Status filter - handle 'liquidated' specially
-if (filters.status && filters.status !== 'liquidated') {
-  queryFilters.status = filters.status;
-}
-if (filters.clientId) queryFilters.client_id = filters.clientId;
-if (filters.specialistId) queryFilters.specialist_id = filters.specialistId;
-if (filters.budgetId) queryFilters.budget_id = filters.budgetId;
-
-let query = supabase
-  .from('financial_requests')
-  .select(`...`)
-  .match(queryFilters)
-  .order('created_at', { ascending: false });
-
-// Apply liquidated filter if selected
-if (filters.status === 'liquidated') {
-  query = query.not('liquidation_id', 'is', null);
-}
-```
-
-### Orden visual sugerido en el dropdown
-
-Ordenar de forma logica: flujo normal primero, luego estados finales:
-1. Borrador
-2. Pend. Especialista  
-3. Pend. Aprobacion
-4. En Progreso
-5. Pend. Revision
-6. Completado
-7. Liquidado (despues de completado, ya que es el paso posterior)
-8. Cancelado

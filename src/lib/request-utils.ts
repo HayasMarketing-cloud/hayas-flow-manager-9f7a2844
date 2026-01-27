@@ -51,10 +51,12 @@ export const formatCurrency = (amount: number): string => {
 // Virtual/derived status utilities (for states not in database enum)
 export const getVirtualRequestStatusColor = (status: string): string => {
   if (status === 'liquidated') return 'bg-teal-500 text-white';
+  if (status === 'pending_liquidation') return 'bg-amber-500 text-white';
   return getFinancialRequestStatusColor(status as FinancialRequestStatus);
 };
 
 export const getVirtualRequestStatusLabel = (status: string): string => {
   if (status === 'liquidated') return 'Liquidado';
+  if (status === 'pending_liquidation') return 'Pend. Liquidar';
   return getFinancialRequestStatusLabel(status as FinancialRequestStatus);
 };

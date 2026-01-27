@@ -168,29 +168,29 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     currentY = finalY + 15;
   }
 
-  // Sección de solicitudes pendientes
+  // Sección de solicitudes pendientes - Siempre en nueva página como ANEXO
   if (data.pendingRequests && data.pendingRequests.length > 0) {
-    const pageHeight = doc.internal.pageSize.getHeight();
-    
-    // Check if we need a new page
-    if (currentY + 60 > pageHeight - 30) {
-      doc.addPage();
-      currentY = 20;
-    } else {
-      currentY += 15;
-    }
+    // Siempre añadir nueva página para el anexo
+    doc.addPage();
+    let annexY = 20;
 
-    // Título de la sección
+    // Título del anexo
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('ANEXO', pageWidth / 2, annexY, { align: 'center' });
+
+    annexY += 12;
+
+    // Subtítulo de la sección
     doc.setFontSize(11);
-    doc.text('TRABAJOS PENDIENTES PARA PRÓXIMA LIQUIDACIÓN', 15, currentY);
+    doc.text('TRABAJOS PENDIENTES PARA PRÓXIMA LIQUIDACIÓN', 15, annexY);
 
     // Subtítulo informativo
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
-    doc.text('(Trabajos completados o en progreso aún no incluidos en esta liquidación)', 15, currentY + 6);
+    doc.text('(Trabajos completados o en progreso aún no incluidos en esta liquidación)', 15, annexY + 6);
 
     // Tabla de solicitudes pendientes
     const pendingTableData = data.pendingRequests.map(req => [
@@ -202,8 +202,8 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     ]);
 
     autoTable(doc, {
-      startY: currentY + 10,
-      head: [['Código', 'Título', 'Cliente', 'Estado', 'Coste']],
+      startY: annexY + 12,
+      head: [['Código', 'Título', 'Cliente', 'Estado', 'Importe']],
       body: pendingTableData,
       theme: 'plain',
       headStyles: {
@@ -396,29 +396,29 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
     currentY = finalY + 15;
   }
 
-  // Sección de solicitudes pendientes
+  // Sección de solicitudes pendientes - Siempre en nueva página como ANEXO
   if (data.pendingRequests && data.pendingRequests.length > 0) {
-    const pageHeight = doc.internal.pageSize.getHeight();
-    
-    // Check if we need a new page
-    if (currentY + 60 > pageHeight - 30) {
-      doc.addPage();
-      currentY = 20;
-    } else {
-      currentY += 15;
-    }
+    // Siempre añadir nueva página para el anexo
+    doc.addPage();
+    let annexY = 20;
 
-    // Título de la sección
+    // Título del anexo
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('ANEXO', pageWidth / 2, annexY, { align: 'center' });
+
+    annexY += 12;
+
+    // Subtítulo de la sección
     doc.setFontSize(11);
-    doc.text('TRABAJOS PENDIENTES PARA PRÓXIMA LIQUIDACIÓN', 15, currentY);
+    doc.text('TRABAJOS PENDIENTES PARA PRÓXIMA LIQUIDACIÓN', 15, annexY);
 
     // Subtítulo informativo
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
-    doc.text('(Trabajos completados o en progreso aún no incluidos en esta liquidación)', 15, currentY + 6);
+    doc.text('(Trabajos completados o en progreso aún no incluidos en esta liquidación)', 15, annexY + 6);
 
     // Tabla de solicitudes pendientes
     const pendingTableData = data.pendingRequests.map(req => [
@@ -430,8 +430,8 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
     ]);
 
     autoTable(doc, {
-      startY: currentY + 10,
-      head: [['Código', 'Título', 'Cliente', 'Estado', 'Coste']],
+      startY: annexY + 12,
+      head: [['Código', 'Título', 'Cliente', 'Estado', 'Importe']],
       body: pendingTableData,
       theme: 'plain',
       headStyles: {

@@ -1,71 +1,80 @@
 
 
-## Plan: Añadir columna "Origen" a la lista de Requests
+## Plan: Corregir políticas RLS de user_invitations
 
-### Objetivo
-Agregar una nueva columna **"Origen"** en la tabla y tarjetas de Requests que muestre de forma visual si el request tiene un **Presupuesto** y/o **Proyecto Operativo** asociado, con enlaces directos a cada uno.
+### Problema identificado
 
-### Diseño visual
+Las políticas RLS de la tabla `user_invitations` intentan acceder directamente a `auth.users`, lo cual no está permitido:
 
-La columna mostrará iconos diferenciados:
-- **📋 Presupuesto**: Icono de documento + código (PRE-XXXX) con enlace a `/presupuestos/{id}`
-- **🗂️ Proyecto**: Icono de carpeta + nombre truncado con enlace a `/proyectos/{id}`
+```sql
+-- Políticas actuales (incorrectas):
+(email = (SELECT users.email FROM auth.users WHERE users.id = auth.uid()))
+```
 
-Cuando no hay asociación, se mostrará `---` en gris (patrón existente similar a Factura/Liquidación).
+Esto causa el error **"permission denied for table users"**.
+
+### Solución
+
+Supabase proporciona la función `auth.email()` que devuelve el email del usuario autenticado de forma segura. Debemos actualizar las políticas RLS para usar esta función en lugar de hacer un SELECT a `auth.users`.
 
 ### Cambios a realizar
 
-**1. Modificar la query de datos** (`src/pages/Solicitudes.tsx`)
-- Añadir un JOIN con `operational_requests` para obtener el proyecto operativo asociado:
-  ```
-  operational_request:operational_requests(
-    id,
-    operational_project:operational_projects(id, name)
-  )
-  ```
+**1. Modificar política SELECT**
 
-**2. Crear componente OriginCell** (`src/components/requests/OriginCell.tsx`)
-- Componente reutilizable que muestra:
-  - Presupuesto (si existe `budget_id` y `budget.code`)
-  - Proyecto Operativo (si existe relación via `operational_request`)
-- Incluye tooltips con información detallada
-- Enlaces clicables a las secciones correspondientes
+Cambiar de:
+```sql
+qual: (email = (SELECT users.email FROM auth.users WHERE users.id = auth.uid()))
+```
 
-**3. Actualizar RequestTableView** (`src/components/requests/RequestTableView.tsx`)
-- Añadir header "Origen" después de "Especialista"
-- Insertar celda con el nuevo componente `OriginCell`
-- Actualizar `colSpan` para el mensaje de vacío
+A:
+```sql
+qual: (email = auth.email())
+```
 
-**4. Actualizar RequestCard** (`src/components/requests/RequestCard.tsx`)
-- Añadir sección visual mostrando origen (presupuesto/proyecto) entre cliente y especialista
+**2. Modificar política UPDATE**
+
+Cambiar de:
+```sql
+qual: (email = (SELECT users.email FROM auth.users WHERE users.id = auth.uid())) AND (status = 'pending')
+with_check: (email = (SELECT users.email...)) AND (status = ANY (ARRAY['pending', 'accepted']))
+```
+
+A:
+```sql
+qual: (email = auth.email()) AND (status = 'pending')
+with_check: (email = auth.email()) AND (status = ANY (ARRAY['pending', 'accepted']))
+```
+
+### Migración SQL
+
+```sql
+-- Eliminar políticas antiguas que acceden a auth.users
+DROP POLICY IF EXISTS "Users can view their own invitation" ON public.user_invitations;
+DROP POLICY IF EXISTS "Users can accept their own invitation" ON public.user_invitations;
+
+-- Recrear políticas usando auth.email()
+CREATE POLICY "Users can view their own invitation"
+ON public.user_invitations
+FOR SELECT
+TO authenticated
+USING (email = auth.email());
+
+CREATE POLICY "Users can accept their own invitation"
+ON public.user_invitations
+FOR UPDATE
+TO authenticated
+USING ((email = auth.email()) AND (status = 'pending'))
+WITH CHECK ((email = auth.email()) AND (status = ANY (ARRAY['pending', 'accepted'])));
+```
+
+### Verificación
+
+Tras aplicar la migración:
+1. Admins pueden gestionar todas las invitaciones (política existente OK)
+2. Usuarios pueden ver sus propias invitaciones usando `auth.email()`
+3. Usuarios pueden aceptar sus propias invitaciones pendientes
 
 ### Detalles técnicos
 
-**Query modificada:**
-```sql
-SELECT *,
-  client:clients(id, name, code),
-  service:services(id, name),
-  specialist:specialists(id, name, email),
-  budget:budgets(id, title, code),
-  invoice:invoices(id, code, status),
-  liquidation:liquidations(id, code, status),
-  operational_request:operational_requests!financial_request_id(
-    id,
-    operational_project:operational_projects(id, name)
-  )
-FROM financial_requests
-```
-
-**Componente OriginCell:**
-- Props: `budgetId`, `budgetCode`, `operationalProject` (id + name)
-- Usa `Tooltip` para mostrar información completa
-- Iconos de Lucide: `FileSpreadsheet` para presupuesto, `FolderKanban` para proyecto
-- Links con `useNavigate` a las rutas correspondientes
-
-### Posición de la columna
-
-La columna se ubicará después de "Especialista" y antes de "Estado":
-
-| Código | Título | Cliente | Especialista | **Origen** | Estado | Flujo | ... |
+La política de admin (`has_role(auth.uid(), 'admin')`) no se ve afectada y funciona correctamente porque usa la función `has_role` que es `SECURITY DEFINER`.
 

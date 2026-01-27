@@ -104,9 +104,13 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
       const description = requestTitle 
         ? `  ${item.description}\n     ${requestTitle}` 
         : `  ${item.description}`;
+      // Mostrar hours si es hourly, quantity del financial_request si es fixed, o item.quantity como fallback
+      const displayQuantity = item.financial_request?.cost_type === 'hourly'
+        ? (item.financial_request?.hours || item.quantity || 1)
+        : (item.financial_request?.quantity || item.quantity || 1);
       tableData.push([
         description,
-        item.quantity.toString(),
+        displayQuantity.toString(),
         formatCurrency(costToAgency),
         formatCurrency(costToAgency),
       ]);
@@ -332,9 +336,13 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
       const description = requestTitle 
         ? `  ${item.description}\n     ${requestTitle}` 
         : `  ${item.description}`;
+      // Mostrar hours si es hourly, quantity del financial_request si es fixed, o item.quantity como fallback
+      const displayQuantity = item.financial_request?.cost_type === 'hourly'
+        ? (item.financial_request?.hours || item.quantity || 1)
+        : (item.financial_request?.quantity || item.quantity || 1);
       tableData.push([
         description,
-        item.quantity.toString(),
+        displayQuantity.toString(),
         formatCurrency(costToAgency),
         formatCurrency(costToAgency),
       ]);

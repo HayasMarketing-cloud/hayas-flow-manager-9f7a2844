@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { getMonthName } from '@/lib/liquidation-utils';
 
 interface PendingRequest {
   id: string;
@@ -251,8 +252,9 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     { align: 'center' }
   );
 
-  // Descargar
-  doc.save(`liquidacion_${data.liquidation.code}.pdf`);
+  // Descargar con nombre que incluye mes y año
+  const fileMonthName = getMonthName(data.liquidation.period_month, 'short').toLowerCase();
+  doc.save(`liquidacion_${fileMonthName}_${data.liquidation.period_year}_${data.liquidation.code}.pdf`);
 };
 
 // Generate PDF as Base64 string for email attachment

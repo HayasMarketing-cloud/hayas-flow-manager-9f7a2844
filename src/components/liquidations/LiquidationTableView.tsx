@@ -1,5 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Eye, Pencil, Trash2, Mail } from 'lucide-react';
 import { LiquidationStatusBadge } from './LiquidationStatusBadge';
 import { SignatureStatusBadge } from './SignatureStatusBadge';
@@ -64,7 +65,11 @@ export const LiquidationTableView = ({
                   <TableRow key={liquidation.id}>
                     <TableCell className="font-medium">{liquidation.code}</TableCell>
                     <TableCell>{liquidation.specialist?.name || 'N/A'}</TableCell>
-                    <TableCell>{formatPeriod(liquidation.period_year, liquidation.period_month, 'short')}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {formatPeriod(liquidation.period_year, liquidation.period_month, 'short')}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(liquidation.calculated_total ?? liquidation.subtotal ?? liquidation.total_amount)}</TableCell>
                     <TableCell>
                       <LiquidationStatusBadge status={liquidation.status} />

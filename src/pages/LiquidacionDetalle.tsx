@@ -7,9 +7,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, User, Calendar, FileText, Mail, Download, Trash2, Plus } from 'lucide-react';
+import { ArrowLeft, User, Calendar, FileText, Mail, Download, Trash2, Plus, Sparkles } from 'lucide-react';
 import { AddRequestsToLiquidationModal } from '@/components/liquidations/AddRequestsToLiquidationModal';
 import { SpecialistInvoiceUpload } from '@/components/liquidations/SpecialistInvoiceUpload';
+import { SpecialistInvoiceImportModal } from '@/components/liquidations/SpecialistInvoiceImportModal';
 import { LiquidationStatusBadge } from '@/components/liquidations/LiquidationStatusBadge';
 import { SignatureStatusBadge } from '@/components/liquidations/SignatureStatusBadge';
 import { LiquidationProcessTimeline } from '@/components/liquidations/LiquidationProcessTimeline';
@@ -218,6 +219,7 @@ export default function LiquidacionDetalle() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [addRequestsModalOpen, setAddRequestsModalOpen] = useState(false);
+  const [importInvoiceModalOpen, setImportInvoiceModalOpen] = useState(false);
   const [itemToRemove, setItemToRemove] = useState<{ id: string; requestId: string | null; description: string } | null>(null);
 
   const { data: liquidation, isLoading, error } = useQuery({
@@ -702,16 +704,28 @@ export default function LiquidacionDetalle() {
 
         {/* Specialist Invoice Upload - Only for finance users after acceptance */}
         {canAccessFinance() && ['accepted', 'invoice_received', 'pending_payment', 'paid'].includes(liquidation.status) && (
-          <SpecialistInvoiceUpload
-            liquidationId={liquidation.id}
-            liquidationCode={liquidation.code}
-            currentInvoiceUrl={liquidation.specialist_invoice_url}
-            currentStatus={liquidation.status}
-            onUploadSuccess={() => {
-              queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
-              queryClient.invalidateQueries({ queryKey: ['liquidations'] });
-            }}
-          />
+          <div className="space-y-3">
+            <SpecialistInvoiceUpload
+              liquidationId={liquidation.id}
+              liquidationCode={liquidation.code}
+              currentInvoiceUrl={liquidation.specialist_invoice_url}
+              currentStatus={liquidation.status}
+              onUploadSuccess={() => {
+                queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
+                queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+              }}
+            />
+            {!liquidation.specialist_invoice_url && (
+              <Button 
+                variant="outline" 
+                className="w-full" 
+                onClick={() => setImportInvoiceModalOpen(true)}
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                Importar con IA
+              </Button>
+            )}
+          </div>
         )}
 
         {/* Notes */}
@@ -780,6 +794,16 @@ export default function LiquidacionDetalle() {
         periodMonth={liquidation.period_month}
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
+        }}
+      />
+
+      <SpecialistInvoiceImportModal
+        open={importInvoiceModalOpen}
+        onOpenChange={setImportInvoiceModalOpen}
+        preselectedLiquidationId={liquidation.id}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
+          queryClient.invalidateQueries({ queryKey: ['liquidations'] });
         }}
       />
     </AppLayout>

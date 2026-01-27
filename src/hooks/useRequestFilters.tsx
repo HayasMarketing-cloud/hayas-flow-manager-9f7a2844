@@ -7,6 +7,8 @@ export interface RequestFilters {
   clientId: string | null;
   specialistId: string | null;
   budgetId: string | null;
+  year: number | null;
+  month: number | null;
 }
 
 export const useRequestFilters = () => {
@@ -18,6 +20,8 @@ export const useRequestFilters = () => {
     clientId: null,
     specialistId: null,
     budgetId: searchParams.get('budget_id'),
+    year: null,
+    month: null,
   }));
 
   // Sync budgetId from URL on mount
@@ -37,6 +41,10 @@ export const useRequestFilters = () => {
       // Reset budget filter when client changes
       if (key === 'clientId') {
         newFilters.budgetId = null;
+      }
+      // Reset month if year is cleared
+      if (key === 'year' && value === null) {
+        newFilters.month = null;
       }
       return newFilters;
     });
@@ -59,6 +67,8 @@ export const useRequestFilters = () => {
       clientId: null,
       specialistId: null,
       budgetId: null,
+      year: null,
+      month: null,
     });
     searchParams.delete('budget_id');
     setSearchParams(searchParams, { replace: true });

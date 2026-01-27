@@ -75,6 +75,18 @@ const Solicitudes = () => {
         query = query.not('liquidation_id', 'is', null);
       }
 
+      // Apply year/month filters based on created_at
+      if (filters.year) {
+        const startDate = new Date(filters.year, filters.month ? filters.month - 1 : 0, 1);
+        const endDate = filters.month 
+          ? new Date(filters.year, filters.month, 0, 23, 59, 59, 999)
+          : new Date(filters.year, 11, 31, 23, 59, 59, 999);
+        
+        query = query
+          .gte('created_at', startDate.toISOString())
+          .lte('created_at', endDate.toISOString());
+      }
+
       if (filters.searchTerm) {
         query = query.or(
           `title.ilike.%${filters.searchTerm}%,code.ilike.%${filters.searchTerm}%`
@@ -479,7 +491,59 @@ const Solicitudes = () => {
               </Select>
             )}
 
-            {(filters.status || filters.clientId || filters.specialistId || filters.budgetId || filters.searchTerm) && (
+            {/* Year filter */}
+            <Select
+              value={filters.year?.toString() || 'all'}
+              onValueChange={(value) =>
+                updateFilter('year', value === 'all' ? null : parseInt(value))
+              }
+            >
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="Año" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {Array.from({ length: 5 }, (_, i) => {
+                  const year = new Date().getFullYear() - i;
+                  return (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+
+            {/* Month filter - only shown when year is selected */}
+            {filters.year && (
+              <Select
+                value={filters.month?.toString() || 'all'}
+                onValueChange={(value) =>
+                  updateFilter('month', value === 'all' ? null : parseInt(value))
+                }
+              >
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Mes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los meses</SelectItem>
+                  <SelectItem value="1">Enero</SelectItem>
+                  <SelectItem value="2">Febrero</SelectItem>
+                  <SelectItem value="3">Marzo</SelectItem>
+                  <SelectItem value="4">Abril</SelectItem>
+                  <SelectItem value="5">Mayo</SelectItem>
+                  <SelectItem value="6">Junio</SelectItem>
+                  <SelectItem value="7">Julio</SelectItem>
+                  <SelectItem value="8">Agosto</SelectItem>
+                  <SelectItem value="9">Septiembre</SelectItem>
+                  <SelectItem value="10">Octubre</SelectItem>
+                  <SelectItem value="11">Noviembre</SelectItem>
+                  <SelectItem value="12">Diciembre</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+
+            {(filters.status || filters.clientId || filters.specialistId || filters.budgetId || filters.searchTerm || filters.year) && (
               <Button variant="outline" onClick={resetFilters}>
                 Limpiar filtros
               </Button>

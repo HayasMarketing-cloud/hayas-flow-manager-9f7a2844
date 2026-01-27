@@ -238,6 +238,7 @@ export default function LiquidacionDetalle() {
               id,
               code,
               title,
+              hours,
               client:clients(id, name)
             )
           ),
@@ -647,7 +648,7 @@ export default function LiquidacionDetalle() {
                       </TableCell>
                       <TableCell>{item.description}</TableCell>
                       <TableCell>{item.financial_request?.client?.name || '-'}</TableCell>
-                      <TableCell className="text-right">{item.quantity}</TableCell>
+                      <TableCell className="text-right">{item.financial_request?.hours ?? item.quantity}</TableCell>
                       <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(item.total)}</TableCell>
                       {isEditable && canAccessFinance() && (

@@ -22,9 +22,10 @@ interface RequestCardProps {
 
 export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquidation, canManage, onRefresh }: RequestCardProps) => {
   const navigate = useNavigate();
+  const isLiquidated = !!request.liquidation_id;
 
   return (
-    <Card className="hover:shadow-lg transition-shadow">
+    <Card className={`hover:shadow-lg transition-shadow ${isLiquidated ? 'bg-muted/50 opacity-75' : ''}`}>
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
           <div className="flex-1">

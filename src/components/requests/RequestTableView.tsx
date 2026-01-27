@@ -79,8 +79,10 @@ export const RequestTableView = ({
               </TableCell>
             </TableRow>
           ) : (
-            requests.map((request) => (
-                <TableRow key={request.id}>
+            requests.map((request) => {
+              const isLiquidated = !!request.liquidation_id;
+              return (
+                <TableRow key={request.id} className={isLiquidated ? 'bg-muted/50 opacity-75' : ''}>
                   <TableCell>
                     <Checkbox
                       checked={selectedIds.includes(request.id)}
@@ -181,7 +183,8 @@ export const RequestTableView = ({
                     </div>
                   </TableCell>
                 </TableRow>
-            ))
+              );
+            })
           )}
         </TableBody>
       </Table>

@@ -70,9 +70,13 @@ const Solicitudes = () => {
         .match(queryFilters)
         .order('created_at', { ascending: false });
 
-      // Apply 'liquidated' filter: requests with liquidation_id assigned
+      // Apply virtual status filters
       if (filters.status === 'liquidated') {
+        // Requests with liquidation_id assigned
         query = query.not('liquidation_id', 'is', null);
+      } else if (filters.status === 'pending_liquidation') {
+        // Completed requests without liquidation_id (pending liquidation)
+        query = query.eq('status', 'completed').is('liquidation_id', null);
       }
 
       // Apply year/month filters based on created_at
@@ -426,6 +430,7 @@ const Solicitudes = () => {
                 <SelectItem value="in_progress">En Progreso</SelectItem>
                 <SelectItem value="pending_review">Pend. Revisión</SelectItem>
                 <SelectItem value="completed">Completado</SelectItem>
+                <SelectItem value="pending_liquidation">Pend. Liquidar</SelectItem>
                 <SelectItem value="liquidated">Liquidado</SelectItem>
                 <SelectItem value="cancelled">Cancelado</SelectItem>
               </SelectContent>

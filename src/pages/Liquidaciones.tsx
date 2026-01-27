@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, LayoutGrid, Table as TableIcon, X, Download } from 'lucide-react';
+import { Plus, LayoutGrid, Table as TableIcon, X, Download, FileUp } from 'lucide-react';
 import { exportLiquidationsToExcel } from '@/utils/excel/liquidationsExporter';
 import { toast } from 'sonner';
 import { notificationFeedback } from '@/lib/notification-feedback';
@@ -17,6 +17,7 @@ import { LiquidationCard } from '@/components/liquidations/LiquidationCard';
 import { LiquidationTableView } from '@/components/liquidations/LiquidationTableView';
 import { LiquidationFormModal } from '@/components/liquidations/LiquidationFormModal';
 import { EmailPreviewModal } from '@/components/liquidations/EmailPreviewModal';
+import { SpecialistInvoiceImportModal } from '@/components/liquidations/SpecialistInvoiceImportModal';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { generateLiquidationPDFBase64 } from '@/utils/pdf/liquidationPDFGenerator';
@@ -35,6 +36,7 @@ export default function Liquidaciones() {
   const [liquidationToSend, setLiquidationToSend] = useState<any>(null);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [sendingLiquidationId, setSendingLiquidationId] = useState<string | null>(null);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const { filters, updateFilter, resetFilters } = useLiquidationFilters();
   const { canAccessFinance, hasRole, loading: rolesLoading } = useUserRole();
   const { user } = useAuth();
@@ -313,10 +315,16 @@ export default function Liquidaciones() {
             )}
           </div>
           {canManage && (
-            <Button onClick={handleCreate}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nueva Liquidación
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setImportModalOpen(true)}>
+                <FileUp className="h-4 w-4 mr-2" />
+                Importar Factura
+              </Button>
+              <Button onClick={handleCreate}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nueva Liquidación
+              </Button>
+            </div>
           )}
         </div>
 
@@ -550,6 +558,14 @@ export default function Liquidaciones() {
         onConfirm={confirmSendEmail}
         isSending={isSendingEmail}
         senderEmail={user?.email || undefined}
+      />
+
+      <SpecialistInvoiceImportModal
+        open={importModalOpen}
+        onOpenChange={setImportModalOpen}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+        }}
       />
     </AppLayout>
   );

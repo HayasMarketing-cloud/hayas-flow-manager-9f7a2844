@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.extract-invoice-data]
 verify_jwt = false
+
+[functions.extract-specialist-invoice-data]
+verify_jwt = false

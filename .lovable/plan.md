@@ -1,89 +1,108 @@
 
-## Plan: Corregir columna de horas/cantidad en todas las liquidaciones
 
-### Problema
+## Plan: Añadir fecha de factura e IRPF a la extracción de datos de factura de especialista
 
-La columna "Cantidad" en las liquidaciones siempre muestra "1" porque:
+### Cambios sobre el plan original
 
-1. El campo `quantity` de `liquidation_items` se hardcodea a `1` en todos los lugares donde se crean items
-2. El valor real de horas está en `financial_requests.hours` pero no se está obteniendo correctamente en todas las consultas
+Se añaden dos campos adicionales a la extracción con IA:
 
-### Solución
-
-Actualizar la lógica para mostrar `financial_request.hours` cuando existe (solicitudes por horas), o `financial_request.quantity` cuando es coste fijo, y solo usar `liquidation_item.quantity` como fallback.
+| Campo | Descripción | Tipo |
+|-------|-------------|------|
+| `invoice_date` | Fecha de emisión de la factura | `string` (YYYY-MM-DD) |
+| `irpf_rate` | Porcentaje de retención IRPF | `number` (ej: 15) |
+| `irpf_amount` | Importe de la retención IRPF | `number` |
 
 ---
 
-### Cambios a realizar
+### Estructura de datos actualizada
 
-#### 1. Detalle de liquidación (`src/pages/LiquidacionDetalle.tsx`)
-
-**Ya parcheado** en la consulta para traer `hours`, pero falta traer también `quantity` y `cost_type` del financial_request para determinar qué mostrar:
-
-- Actualizar el query para incluir `hours`, `quantity`, `cost_type` del `financial_request`
-- Actualizar la lógica de la celda:
-  ```typescript
-  // Si es hourly, mostrar hours; si es fixed, mostrar quantity del request
-  const displayQuantity = item.financial_request?.cost_type === 'hourly'
-    ? item.financial_request?.hours
-    : item.financial_request?.quantity ?? item.quantity;
-  ```
-
-#### 2. Generador de PDF (`src/utils/pdf/liquidationPDFGenerator.ts`)
-
-Actualizar las dos funciones de generación para:
-- Obtener `hours`, `quantity` y `cost_type` del `financial_request`
-- Mostrar el valor correcto en la columna "Cantidad" de la tabla
-
-Cambios en ambas funciones (`generateLiquidationPDF` y `generateLiquidationPDFBase64`):
 ```typescript
-// Líneas 109 y 337 aproximadamente
-const displayQuantity = item.financial_request?.cost_type === 'hourly'
-  ? (item.financial_request?.hours || item.quantity || 1)
-  : (item.financial_request?.quantity || item.quantity || 1);
-
-tableData.push([
-  description,
-  displayQuantity.toString(),
-  // ...
-]);
+interface ExtractedSpecialistInvoice {
+  invoice_number: string;
+  invoice_date: string | null;        // NUEVO: Fecha de emisión
+  period_month: number | null;
+  period_year: number | null;
+  subtotal: number;
+  tax_rate: number;                   // IVA %
+  tax_amount: number;                 // Importe IVA
+  irpf_rate: number | null;           // NUEVO: Retención IRPF %
+  irpf_amount: number | null;         // NUEVO: Importe retención
+  total_amount: number;               // Total = subtotal + IVA - IRPF
+  specialist_name: string | null;
+}
 ```
 
-#### 3. Edge Function `get-liquidation-items` (`supabase/functions/get-liquidation-items/index.ts`)
+---
 
-Actualizar el query para incluir los campos necesarios:
-```typescript
-financial_request:financial_requests(
-  id,
-  title,
-  hours,
-  quantity,
-  cost_type,
-  client:clients(name)
-)
+### Prompt actualizado para Gemini
+
+```text
+Analiza esta factura de un profesional/freelance y extrae:
+
+{
+  "invoice_number": "número de factura del profesional",
+  "invoice_date": "fecha de emisión en formato YYYY-MM-DD",
+  "period_month": mes del período facturado (1-12) o null,
+  "period_year": año del período facturado o null,
+  "subtotal": importe base sin impuestos (número),
+  "tax_rate": porcentaje de IVA aplicado (número, ej: 21),
+  "tax_amount": importe del IVA (número),
+  "irpf_rate": porcentaje de retención IRPF si existe (número, ej: 15) o null,
+  "irpf_amount": importe de la retención IRPF (número) o null,
+  "total_amount": importe total a pagar (base + IVA - IRPF),
+  "specialist_name": nombre del emisor de la factura
+}
+
+IMPORTANTE:
+- Esta es una factura emitida POR un profesional/freelance
+- El IRPF es una retención que SE RESTA del total (común en España: 7%, 15%)
+- La fórmula es: total = subtotal + IVA - IRPF
+- Si no hay IRPF, usa null para irpf_rate e irpf_amount
+- Los importes deben ser números, no strings
 ```
 
-#### 4. Página de detalle - sección "Trabajos pendientes" (líneas 46-65 de `LiquidacionDetalle.tsx`)
+---
 
-En la función `addSingleRequest` que añade items desde "Trabajos pendientes", también necesita propagar las horas/cantidad correctas al crear el `liquidation_item`:
+### Impacto en el modal de importación
 
-No cambiaremos el valor guardado en `quantity` del `liquidation_item` (eso requeriría más cambios), pero nos aseguraremos de que la UI siempre lea del `financial_request`.
+El modal `SpecialistInvoiceImportModal` mostrará en la fase de revisión:
+
+```text
+┌─────────────────────────────────────────────┐
+│ Datos extraídos de la factura               │
+├─────────────────────────────────────────────┤
+│ Nº Factura:    FA-2026-001                  │
+│ Fecha:         15/01/2026          <- NUEVO │
+│ Período:       Enero 2026                   │
+│ ────────────────────────────────────────    │
+│ Base imponible:           1.500,00 €        │
+│ IVA (21%):                  315,00 €        │
+│ IRPF (-15%):               -225,00 €  NUEVO │
+│ ────────────────────────────────────────    │
+│ TOTAL:                    1.590,00 €        │
+└─────────────────────────────────────────────┘
+```
 
 ---
 
-### Archivos a modificar
+### Archivos a crear/modificar (actualizado)
 
-| Archivo | Cambio |
-|---------|--------|
-| `src/pages/LiquidacionDetalle.tsx` | Query: añadir `quantity`, `cost_type` al select de `financial_request`. UI: lógica condicional para mostrar horas vs cantidad |
-| `src/utils/pdf/liquidationPDFGenerator.ts` | Ambas funciones: usar `hours`/`quantity` del financial_request según `cost_type` |
-| `supabase/functions/get-liquidation-items/index.ts` | Query: añadir `hours`, `quantity`, `cost_type` al select |
+| Archivo | Acción | Descripción |
+|---------|--------|-------------|
+| `supabase/functions/extract-specialist-invoice-data/index.ts` | **Crear** | Edge function con extracción de fecha e IRPF |
+| `supabase/config.toml` | **Modificar** | Añadir configuración de la nueva función |
+| `src/components/liquidations/SpecialistInvoiceImportModal.tsx` | **Crear** | Modal que muestra fecha e IRPF en revisión |
+| `src/pages/Liquidaciones.tsx` | **Modificar** | Añadir botón "Importar Factura Especialista" |
+| `src/pages/LiquidacionDetalle.tsx` | **Modificar** | Añadir botón alternativo con IA |
 
 ---
 
-### Notas técnicas
+### Nota sobre almacenamiento
 
-- El campo `liquidation_items.quantity` seguirá siendo `1` (representa "1 solicitud incluida")
-- La UI mostrará las horas/cantidad reales leyendo del `financial_request` vinculado
-- Para items manuales (sin `financial_request_id`), se seguirá mostrando `item.quantity`
-- Esto es consistente con cómo funciona el sistema: la liquidación agrupa solicitudes, y cada solicitud tiene sus propios datos de horas/cantidad
+Los campos `irpf_rate`, `irpf_amount` y `invoice_date` se usarán para:
+1. **Validación visual**: Confirmar que los datos extraídos son correctos
+2. **Matching mejorado**: Comparar el total considerando IRPF
+3. **Registro futuro**: Si se decide almacenar estos datos en la tabla `liquidations`, se podría añadir una migración (opcional, no incluido en este plan inicial)
+
+Por ahora, estos datos se usan solo para la validación en el modal, no se persisten en la base de datos.
+

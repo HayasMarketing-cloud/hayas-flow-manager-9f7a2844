@@ -1,80 +1,89 @@
 
+## Plan: Corregir columna de horas/cantidad en todas las liquidaciones
 
-## Plan: Corregir políticas RLS de user_invitations
+### Problema
 
-### Problema identificado
+La columna "Cantidad" en las liquidaciones siempre muestra "1" porque:
 
-Las políticas RLS de la tabla `user_invitations` intentan acceder directamente a `auth.users`, lo cual no está permitido:
-
-```sql
--- Políticas actuales (incorrectas):
-(email = (SELECT users.email FROM auth.users WHERE users.id = auth.uid()))
-```
-
-Esto causa el error **"permission denied for table users"**.
+1. El campo `quantity` de `liquidation_items` se hardcodea a `1` en todos los lugares donde se crean items
+2. El valor real de horas está en `financial_requests.hours` pero no se está obteniendo correctamente en todas las consultas
 
 ### Solución
 
-Supabase proporciona la función `auth.email()` que devuelve el email del usuario autenticado de forma segura. Debemos actualizar las políticas RLS para usar esta función en lugar de hacer un SELECT a `auth.users`.
+Actualizar la lógica para mostrar `financial_request.hours` cuando existe (solicitudes por horas), o `financial_request.quantity` cuando es coste fijo, y solo usar `liquidation_item.quantity` como fallback.
+
+---
 
 ### Cambios a realizar
 
-**1. Modificar política SELECT**
+#### 1. Detalle de liquidación (`src/pages/LiquidacionDetalle.tsx`)
 
-Cambiar de:
-```sql
-qual: (email = (SELECT users.email FROM auth.users WHERE users.id = auth.uid()))
+**Ya parcheado** en la consulta para traer `hours`, pero falta traer también `quantity` y `cost_type` del financial_request para determinar qué mostrar:
+
+- Actualizar el query para incluir `hours`, `quantity`, `cost_type` del `financial_request`
+- Actualizar la lógica de la celda:
+  ```typescript
+  // Si es hourly, mostrar hours; si es fixed, mostrar quantity del request
+  const displayQuantity = item.financial_request?.cost_type === 'hourly'
+    ? item.financial_request?.hours
+    : item.financial_request?.quantity ?? item.quantity;
+  ```
+
+#### 2. Generador de PDF (`src/utils/pdf/liquidationPDFGenerator.ts`)
+
+Actualizar las dos funciones de generación para:
+- Obtener `hours`, `quantity` y `cost_type` del `financial_request`
+- Mostrar el valor correcto en la columna "Cantidad" de la tabla
+
+Cambios en ambas funciones (`generateLiquidationPDF` y `generateLiquidationPDFBase64`):
+```typescript
+// Líneas 109 y 337 aproximadamente
+const displayQuantity = item.financial_request?.cost_type === 'hourly'
+  ? (item.financial_request?.hours || item.quantity || 1)
+  : (item.financial_request?.quantity || item.quantity || 1);
+
+tableData.push([
+  description,
+  displayQuantity.toString(),
+  // ...
+]);
 ```
 
-A:
-```sql
-qual: (email = auth.email())
+#### 3. Edge Function `get-liquidation-items` (`supabase/functions/get-liquidation-items/index.ts`)
+
+Actualizar el query para incluir los campos necesarios:
+```typescript
+financial_request:financial_requests(
+  id,
+  title,
+  hours,
+  quantity,
+  cost_type,
+  client:clients(name)
+)
 ```
 
-**2. Modificar política UPDATE**
+#### 4. Página de detalle - sección "Trabajos pendientes" (líneas 46-65 de `LiquidacionDetalle.tsx`)
 
-Cambiar de:
-```sql
-qual: (email = (SELECT users.email FROM auth.users WHERE users.id = auth.uid())) AND (status = 'pending')
-with_check: (email = (SELECT users.email...)) AND (status = ANY (ARRAY['pending', 'accepted']))
-```
+En la función `addSingleRequest` que añade items desde "Trabajos pendientes", también necesita propagar las horas/cantidad correctas al crear el `liquidation_item`:
 
-A:
-```sql
-qual: (email = auth.email()) AND (status = 'pending')
-with_check: (email = auth.email()) AND (status = ANY (ARRAY['pending', 'accepted']))
-```
+No cambiaremos el valor guardado en `quantity` del `liquidation_item` (eso requeriría más cambios), pero nos aseguraremos de que la UI siempre lea del `financial_request`.
 
-### Migración SQL
+---
 
-```sql
--- Eliminar políticas antiguas que acceden a auth.users
-DROP POLICY IF EXISTS "Users can view their own invitation" ON public.user_invitations;
-DROP POLICY IF EXISTS "Users can accept their own invitation" ON public.user_invitations;
+### Archivos a modificar
 
--- Recrear políticas usando auth.email()
-CREATE POLICY "Users can view their own invitation"
-ON public.user_invitations
-FOR SELECT
-TO authenticated
-USING (email = auth.email());
+| Archivo | Cambio |
+|---------|--------|
+| `src/pages/LiquidacionDetalle.tsx` | Query: añadir `quantity`, `cost_type` al select de `financial_request`. UI: lógica condicional para mostrar horas vs cantidad |
+| `src/utils/pdf/liquidationPDFGenerator.ts` | Ambas funciones: usar `hours`/`quantity` del financial_request según `cost_type` |
+| `supabase/functions/get-liquidation-items/index.ts` | Query: añadir `hours`, `quantity`, `cost_type` al select |
 
-CREATE POLICY "Users can accept their own invitation"
-ON public.user_invitations
-FOR UPDATE
-TO authenticated
-USING ((email = auth.email()) AND (status = 'pending'))
-WITH CHECK ((email = auth.email()) AND (status = ANY (ARRAY['pending', 'accepted'])));
-```
+---
 
-### Verificación
+### Notas técnicas
 
-Tras aplicar la migración:
-1. Admins pueden gestionar todas las invitaciones (política existente OK)
-2. Usuarios pueden ver sus propias invitaciones usando `auth.email()`
-3. Usuarios pueden aceptar sus propias invitaciones pendientes
-
-### Detalles técnicos
-
-La política de admin (`has_role(auth.uid(), 'admin')`) no se ve afectada y funciona correctamente porque usa la función `has_role` que es `SECURITY DEFINER`.
-
+- El campo `liquidation_items.quantity` seguirá siendo `1` (representa "1 solicitud incluida")
+- La UI mostrará las horas/cantidad reales leyendo del `financial_request` vinculado
+- Para items manuales (sin `financial_request_id`), se seguirá mostrando `item.quantity`
+- Esto es consistente con cómo funciona el sistema: la liquidación agrupa solicitudes, y cada solicitud tiene sus propios datos de horas/cantidad

@@ -5,6 +5,7 @@ import { RequestStatusBadge } from './RequestStatusBadge';
 import { RequestFlowIndicator } from './RequestFlowIndicator';
 import { RequestFlowActions } from './RequestFlowActions';
 import { FlowStatusCell } from './FlowStatusCell';
+import { OriginCell } from './OriginCell';
 import { Edit, Building2, Calendar, Copy, Trash2, Eye, Receipt, User } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -50,6 +51,13 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
             <span className="truncate">{request.client.name}</span>
           </Badge>
         )}
+
+        {/* Origin info */}
+        <OriginCell
+          budgetId={request.budget_id}
+          budgetCode={request.budget?.code}
+          operationalProject={request.operational_request?.[0]?.operational_project}
+        />
         
         {request.specialist && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">

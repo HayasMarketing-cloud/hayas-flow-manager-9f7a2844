@@ -13,6 +13,7 @@ import { RequestFlowIndicator } from './RequestFlowIndicator';
 import { RequestFlowActions } from './RequestFlowActions';
 import { FlowStatusCell } from './FlowStatusCell';
 import { RequestStatusBadge } from './RequestStatusBadge';
+import { OriginCell } from './OriginCell';
 import { Edit, Eye, Copy, Trash2, User } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -62,6 +63,7 @@ export const RequestTableView = ({
             <TableHead>Título</TableHead>
             <TableHead>Cliente</TableHead>
             <TableHead>Especialista</TableHead>
+            <TableHead>Origen</TableHead>
             <TableHead>Estado</TableHead>
             <TableHead>Flujo</TableHead>
             <TableHead>Siguiente Acción</TableHead>
@@ -74,7 +76,7 @@ export const RequestTableView = ({
         <TableBody>
           {requests.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={12} className="text-center text-muted-foreground">
+              <TableCell colSpan={13} className="text-center text-muted-foreground">
                 No se encontraron solicitudes
               </TableCell>
             </TableRow>
@@ -119,6 +121,13 @@ export const RequestTableView = ({
                     ) : (
                       <span className="text-muted-foreground text-sm">-</span>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <OriginCell
+                      budgetId={request.budget_id}
+                      budgetCode={request.budget?.code}
+                      operationalProject={request.operational_request?.[0]?.operational_project}
+                    />
                   </TableCell>
                   <TableCell>
                     <RequestStatusBadge status={request.status} />

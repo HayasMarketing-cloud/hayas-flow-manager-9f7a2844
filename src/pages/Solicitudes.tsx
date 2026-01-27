@@ -65,7 +65,11 @@ const Solicitudes = () => {
           specialist:specialists(id, name),
           budget:budgets(id, title, code, client_contact_id),
           invoice:invoices(id, code, status),
-          liquidation:liquidations(id, code, status)
+          liquidation:liquidations(id, code, status),
+          operational_request:operational_requests!financial_request_id(
+            id,
+            operational_project:operational_projects(id, name)
+          )
         `
         )
         .match(queryFilters)

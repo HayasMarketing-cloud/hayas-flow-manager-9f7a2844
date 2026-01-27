@@ -45,9 +45,10 @@ const Solicitudes = () => {
   const { data: requests, isLoading, error } = useQuery({
     queryKey: ['financial_requests', filters],
     queryFn: async () => {
-      // Build filters object - exclude 'liquidated' from match filters
+      // Build filters object - exclude virtual statuses from match filters
       const queryFilters: Record<string, string> = {};
-      if (filters.status && filters.status !== 'liquidated') {
+      const virtualStatuses = ['liquidated', 'pending_liquidation'];
+      if (filters.status && !virtualStatuses.includes(filters.status)) {
         queryFilters.status = filters.status;
       }
       if (filters.clientId) queryFilters.client_id = filters.clientId;

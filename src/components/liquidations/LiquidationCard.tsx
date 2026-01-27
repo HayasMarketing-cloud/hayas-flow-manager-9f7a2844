@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Eye, Pencil, Calendar, Mail } from 'lucide-react';
 import { LiquidationStatusBadge } from './LiquidationStatusBadge';
 import { SignatureStatusBadge } from './SignatureStatusBadge';
@@ -24,12 +25,17 @@ export const LiquidationCard = ({ liquidation, onView, onEdit, onSendEmail, canM
     <Card>
       <CardHeader>
         <div className="flex items-start justify-between">
-          <CardTitle className="text-lg">{liquidation.specialist?.name || 'Sin especialista'}</CardTitle>
+          <div className="flex flex-col gap-1">
+            <CardTitle className="text-lg">{liquidation.specialist?.name || 'Sin especialista'}</CardTitle>
+            <Badge variant="outline" className="w-fit text-xs">
+              {formatPeriod(liquidation.period_year, liquidation.period_month, 'short')}
+            </Badge>
+          </div>
           <LiquidationStatusBadge status={liquidation.status} />
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Calendar className="h-4 w-4" />
-          {formatPeriod(liquidation.period_year, liquidation.period_month)} · {liquidation.code}
+          {liquidation.code}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

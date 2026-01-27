@@ -307,19 +307,28 @@ export default function FirmaLiquidacion() {
               <h4 className="font-medium">Detalle de servicios:</h4>
               <div className="bg-muted rounded-lg p-3 space-y-2 max-h-60 overflow-y-auto">
                 {items && items.length > 0 ? (
-                  items.map((item) => (
-                    <div key={item.id} className="flex justify-between text-sm">
-                      <span className="truncate flex-1">
-                        {item.description}
-                        {item.financial_request?.client?.name && (
+                  items.map((item) => {
+                    // Determinar cantidad a mostrar: hours si es hourly, quantity del request si es fixed
+                    const displayQuantity = item.financial_request?.cost_type === 'hourly'
+                      ? (item.financial_request?.hours || item.quantity || 1)
+                      : (item.financial_request?.quantity || item.quantity || 1);
+                    return (
+                      <div key={item.id} className="flex justify-between text-sm">
+                        <span className="truncate flex-1">
+                          {item.description}
+                          {item.financial_request?.client?.name && (
+                            <span className="text-muted-foreground ml-1">
+                              ({item.financial_request.client.name})
+                            </span>
+                          )}
                           <span className="text-muted-foreground ml-1">
-                            ({item.financial_request.client.name})
+                            x{displayQuantity}
                           </span>
-                        )}
-                      </span>
-                      <span className="font-medium ml-4">{formatCurrency(item.total)}</span>
-                    </div>
-                  ))
+                        </span>
+                        <span className="font-medium ml-4">{formatCurrency(item.total)}</span>
+                      </div>
+                    );
+                  })
                 ) : (
                   <p className="text-muted-foreground text-sm">Sin items</p>
                 )}

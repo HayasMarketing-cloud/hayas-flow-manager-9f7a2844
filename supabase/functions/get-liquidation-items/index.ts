@@ -62,6 +62,9 @@ Deno.serve(async (req) => {
         financial_request:financial_requests(
           id,
           title,
+          hours,
+          quantity,
+          cost_type,
           client:clients(name)
         )
       `)

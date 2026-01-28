@@ -1,174 +1,215 @@
 
-# Plan: Equipos de Especialistas con Liquidaciones Consolidadas
 
-## Concepto
+# Plan: Permitir que Especialistas Suban su Factura con Verificación Digital
 
-Implementar un sistema de **equipos de especialistas** donde un usuario (líder de equipo) puede gestionar y recibir liquidaciones consolidadas de múltiples especialistas.
+## Resumen
 
-### Caso de uso específico:
-- **Daniela** es el contacto/líder para su equipo
-- El equipo incluye a **Daniela** y **Sandra**
-- Daniela recibirá UNA liquidación consolidada que muestra:
-  - Desglose de trabajos de Daniela (subtotal)
-  - Desglose de trabajos de Sandra (subtotal)
-  - **Total del equipo** = Subtotal Daniela + Subtotal Sandra
+Implementar la funcionalidad para que los especialistas puedan subir su propia factura desde la página de firma de liquidación (`/firma/:token`), con verificación digital de importes usando IA y registro de evidencia (IP, fecha/hora).
 
----
+## Análisis de Permisos Actuales
 
-## Cambios en Base de Datos
+### Lo que el especialista puede hacer ahora:
+- ✅ Ver sus liquidaciones (RLS permite SELECT)
+- ✅ Firmar/disputar liquidación (vía Edge Function con service role)
+- ❌ Actualizar datos de liquidación (RLS bloquea UPDATE)
+- ❌ Subir archivos al bucket `liquidation-invoices` (storage policies bloquean)
 
-### 1. Nueva columna en `specialists`
-
-Añadir una columna para indicar el líder del equipo:
-
-| Columna | Tipo | Descripción |
-|---------|------|-------------|
-| `team_leader_id` | uuid (nullable) | Referencia al specialist que lidera el equipo |
-
-Cuando `team_leader_id` es NULL, el especialista es independiente o es él mismo el líder.
-
-**Ejemplo:**
-- Daniela: `team_leader_id = NULL` (es líder)
-- Sandra: `team_leader_id = Daniela.id` (miembro del equipo de Daniela)
-
-### 2. Nueva tabla (opcional): `team_liquidations`
-
-Para consolidar liquidaciones de equipo:
-
-| Columna | Tipo | Descripción |
-|---------|------|-------------|
-| `id` | uuid | Clave primaria |
-| `code` | varchar | Código de liquidación de equipo (ej: TLIQ-2026-001) |
-| `team_leader_id` | uuid | Referencia al specialist líder |
-| `period_month` | int | Mes del período |
-| `period_year` | int | Año del período |
-| `total_amount` | numeric | Suma de todas las liquidaciones del equipo |
-| `status` | liquidation_status | Estado de la liquidación consolidada |
-| `member_liquidations` | uuid[] | IDs de las liquidaciones individuales incluidas |
+### Lo que necesitamos añadir:
+- ✅ Subir factura vía Edge Function segura (similar a `process-signature`)
+- ✅ Verificación automática de importes con IA
+- ✅ Registro de evidencia digital (IP, fecha, hash)
 
 ---
 
-## Opciones de Implementación
+## Opción Recomendada: Edge Function Segura
 
-### Opción A: Enfoque Sencillo (Recomendado para MVP)
+En lugar de modificar RLS y storage policies (lo que podría abrir brechas de seguridad), usaremos una **Edge Function con service role** que:
 
-**Solo usar `team_leader_id` en `specialists`:**
-
-1. Sandra apunta a Daniela como líder
-2. Al generar liquidación de "equipo", se buscan todas las liquidaciones del período de especialistas donde `team_leader_id = Daniela.id` O `id = Daniela.id`
-3. Se genera un PDF consolidado con secciones por especialista
-4. Se envía UN email a Daniela con el PDF consolidado
-5. Daniela firma por todo el equipo
-
-**Ventajas:** Mínimos cambios en DB, aprovecha liquidaciones individuales existentes
-**Desventajas:** Hay que gestionar el estado de múltiples liquidaciones
-
-### Opción B: Enfoque Completo (Para escalar)
-
-**Crear tabla `team_liquidations` que agrupa liquidaciones:**
-
-1. Las liquidaciones individuales (Daniela, Sandra) se crean normalmente
-2. Se crea una `team_liquidation` que referencia ambas
-3. El email y firma van sobre la liquidación de equipo
-4. El estado de las liquidaciones individuales se sincroniza con la de equipo
-
-**Ventajas:** Mayor control, mejor trazabilidad
-**Desventajas:** Más complejidad, más tablas
+1. Valida el token de firma (igual que `process-signature`)
+2. Verifica que la liquidación está en estado válido
+3. Extrae datos de la factura con IA
+4. Compara importes automáticamente
+5. Sube el archivo al storage
+6. Actualiza la liquidación con la URL
+7. Registra evidencia digital
 
 ---
 
-## Plan de Implementación Recomendado (Opción A)
+## Cambios a Implementar
 
-### Fase 1: Base de Datos
+### 1. Nueva Edge Function: `upload-specialist-invoice`
 
-```sql
--- Añadir columna team_leader_id a specialists
-ALTER TABLE specialists 
-ADD COLUMN team_leader_id uuid REFERENCES specialists(id);
-
--- Índice para consultas eficientes
-CREATE INDEX idx_specialists_team_leader ON specialists(team_leader_id);
-
--- Ejemplo: Vincular Sandra al equipo de Daniela
-UPDATE specialists 
-SET team_leader_id = '4b8cdf79-270f-4c0b-8dc7-f371e63aab5b'  -- ID de Daniela
-WHERE id = 'a9b073eb-9c82-484b-8041-07dffcf0d3a7';  -- ID de Sandra
+```
+supabase/functions/upload-specialist-invoice/index.ts
 ```
 
-### Fase 2: Frontend - Formulario de Especialista
+**Funcionalidad:**
+- Recibe: `token`, `pdf_base64`
+- Valida token de firma (no expirado, pendiente)
+- Extrae datos con IA (`extract-specialist-invoice-data`)
+- Compara subtotal de factura vs liquidación
+- Sube PDF al storage usando service role
+- Actualiza `liquidations.specialist_invoice_url`
+- Registra evidencia: IP, fecha, resultado de verificación
+- Retorna: resultado de verificación + URL
 
-Añadir campo "Líder de equipo" opcional al crear/editar especialista.
+### 2. Nueva columna en `liquidation_signatures` (opcional)
 
-### Fase 3: Lógica de Liquidaciones
+| Columna | Tipo | Descripción |
+|---------|------|-------------|
+| `invoice_uploaded_at` | timestamptz | Fecha de subida de factura |
+| `invoice_verification` | jsonb | Resultado de verificación IA |
 
-1. **Nueva vista "Liquidación de Equipo":**
-   - Muestra especialistas del equipo con sus liquidaciones del período
-   - Permite validar todas juntas
-   - Genera PDF consolidado
+### 3. Actualizar página `FirmaLiquidacion.tsx`
 
-2. **Modificar envío de email:**
-   - Detectar si el especialista tiene miembros de equipo
-   - Incluir todas las liquidaciones del equipo en un solo email
-   - Un único enlace de firma para todo el equipo
+Añadir sección para subir factura ANTES de firmar:
 
-3. **PDF Consolidado:**
-   - Sección por cada especialista con sus trabajos
-   - Subtotal por especialista
-   - Total del equipo al final
+```
+┌────────────────────────────────────────────┐
+│        Firma Digital de Liquidación        │
+├────────────────────────────────────────────┤
+│                                            │
+│  📄 Resumen de liquidación                 │
+│  ─────────────────────────────             │
+│  Código: LIQ-2026-009                      │
+│  Total: €512.00                            │
+│                                            │
+├────────────────────────────────────────────┤
+│                                            │
+│  📎 Tu Factura (Opcional)                  │
+│  ─────────────────────────                 │
+│  [Arrastra tu factura PDF o haz clic]      │
+│                                            │
+│  ✓ Verificación automática de importes    │
+│  ✓ Base imponible coincide: €512          │
+│                                            │
+├────────────────────────────────────────────┤
+│                                            │
+│  Tu Decisión                               │
+│  ─────────────────────────                 │
+│  [✓ Aceptar]     [✗ Disputar]              │
+│                                            │
+└────────────────────────────────────────────┘
+```
 
-### Fase 4: Flujo de Firma
+### 4. Actualizar `LiquidacionDetalle.tsx`
 
-- Cuando Daniela firma, se actualizan todas las liquidaciones del equipo a "aceptada"
-- Notificaciones solo a admin/finanzas (ya implementado)
+Mostrar el componente `SpecialistInvoiceUpload` también para especialistas (además de admin/finanzas):
+
+```typescript
+// Antes
+{canAccessFinance() && (
+  <SpecialistInvoiceUpload ... />
+)}
+
+// Después  
+{(canAccessFinance() || isSpecialistOwner) && (
+  <SpecialistInvoiceUpload ... />
+)}
+```
+
+**Nota:** El especialista solo podrá ver y subir desde su propia liquidación.
 
 ---
 
-## Resumen Visual del Flujo
+## Flujo de Usuario
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                    EQUIPO DANIELA                           │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌─────────────────┐       ┌─────────────────┐              │
-│  │    DANIELA      │       │     SANDRA      │              │
-│  │  (team_leader)  │◄──────│ (team_member)   │              │
-│  │  user: daniela@ │       │  user: null     │              │
-│  └────────┬────────┘       └────────┬────────┘              │
-│           │                         │                       │
-│           ▼                         ▼                       │
-│  ┌─────────────────┐       ┌─────────────────┐              │
-│  │ LIQ-2026-009    │       │ LIQ-2026-005    │              │
-│  │ Subtotal: €512  │       │ Subtotal: €840  │              │
-│  └────────┬────────┘       └────────┬────────┘              │
-│           │                         │                       │
-│           └─────────┬───────────────┘                       │
-│                     ▼                                       │
-│           ┌─────────────────────┐                           │
-│           │  EMAIL CONSOLIDADO  │                           │
-│           │  TOTAL: €1.352      │                           │
-│           │  Firma: daniela@    │                           │
-│           └─────────────────────┘                           │
-└─────────────────────────────────────────────────────────────┘
+### Escenario: Daniela recibe email de liquidación
+
+1. **Email recibido** → Clic en "Ver y Firmar Liquidación"
+2. **Página de firma** → Ve resumen de trabajos y total
+3. **Subir factura** → Arrastra PDF, IA verifica importes
+4. **Verificación** → ✅ Importes coinciden (o ⚠️ discrepancia)
+5. **Firmar** → Clic en "Aceptar" o "Disputar"
+6. **Confirmación** → Evidencia digital guardada
+
+### Registro de Evidencia
+
+```json
+{
+  "uploaded_at": "2026-01-28T15:30:00Z",
+  "ip_address": "83.45.123.xxx",
+  "user_agent": "Mozilla/5.0...",
+  "invoice_verification": {
+    "subtotal_invoice": 512.00,
+    "subtotal_liquidation": 512.00,
+    "match": true,
+    "tolerance_applied": "±1€"
+  }
+}
 ```
 
 ---
 
-## Archivos a Modificar
+## Archivos a Crear/Modificar
 
-| Archivo | Cambio |
-|---------|--------|
-| `specialists` tabla | Añadir `team_leader_id` |
-| `SpecialistFormModal.tsx` | Campo para seleccionar líder de equipo |
-| `Liquidaciones.tsx` | Detectar equipos y mostrar vista consolidada |
-| `LiquidacionDetalle.tsx` | Mostrar liquidación de equipo con desglose |
-| `liquidationPDFGenerator.ts` | Generar PDF con secciones por especialista |
-| `send-liquidation-email/index.ts` | Enviar email consolidado del equipo |
-| `process-signature/index.ts` | Actualizar todas las liquidaciones del equipo |
-| RLS policies | Permitir que líder vea liquidaciones de su equipo |
+| Archivo | Acción | Descripción |
+|---------|--------|-------------|
+| `supabase/functions/upload-specialist-invoice/index.ts` | Crear | Edge Function para subida segura |
+| `supabase/config.toml` | Modificar | Añadir nueva función |
+| `src/pages/FirmaLiquidacion.tsx` | Modificar | Añadir sección de subida de factura |
+| `src/components/liquidations/SpecialistInvoiceUploadPublic.tsx` | Crear | Componente de subida para página pública |
 
 ---
 
-## Pregunta para definir alcance
+## Seguridad
 
-¿Prefieres que implementemos la **Opción A (sencilla)** donde Sandra simplemente apunta a Daniela como líder y consolidamos las liquidaciones existentes, o la **Opción B (completa)** con una tabla separada para liquidaciones de equipo?
+- ✅ **Sin cambios en RLS**: Todo via Edge Function con service role
+- ✅ **Validación de token**: Solo puede subir quien tenga enlace válido
+- ✅ **Sin exposición de datos**: El especialista solo ve SU liquidación
+- ✅ **Evidencia digital**: IP y timestamp registrados
+- ✅ **Verificación IA**: Comprobación automática de importes
+
+---
+
+## Detalle Técnico: Edge Function
+
+```typescript
+// Estructura de upload-specialist-invoice
+Deno.serve(async (req) => {
+  // 1. Obtener token y PDF
+  const { token, pdf_base64 } = await req.json();
+  
+  // 2. Validar token (igual que validate-signature-token)
+  const signature = await validateToken(token);
+  if (!signature) return error('Token inválido');
+  
+  // 3. Verificar estado de firma (debe ser 'pending')
+  if (signature.status !== 'pending') 
+    return error('Ya no se puede subir factura');
+  
+  // 4. Extraer datos con IA
+  const extractedData = await extractInvoiceData(pdf_base64);
+  
+  // 5. Comparar importes
+  const amountsMatch = Math.abs(
+    extractedData.subtotal - signature.liquidation.subtotal
+  ) <= 1;
+  
+  // 6. Subir al storage (usando service role)
+  const url = await uploadToStorage(liquidationId, pdf_base64);
+  
+  // 7. Actualizar liquidación
+  await supabase.from('liquidations').update({
+    specialist_invoice_url: url
+  }).eq('id', liquidationId);
+  
+  // 8. Registrar evidencia en signature
+  await supabase.from('liquidation_signatures').update({
+    invoice_uploaded_at: new Date().toISOString(),
+    invoice_verification: {
+      ...extractedData,
+      match: amountsMatch,
+      ip_address: req.headers.get('x-forwarded-for')
+    }
+  }).eq('id', signature.id);
+  
+  // 9. Retornar resultado
+  return success({
+    amountsMatch,
+    invoiceSubtotal: extractedData.subtotal,
+    liquidationSubtotal: signature.liquidation.subtotal
+  });
+});
+```
+

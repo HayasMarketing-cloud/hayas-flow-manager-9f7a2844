@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/components/ui/sonner";
@@ -47,6 +47,7 @@ const formSchema = z.object({
   active: z.boolean(),
   hourly_rate: z.coerce.number().min(0, "La tarifa no puede ser negativa").optional(),
   notes: z.string().optional(),
+  team_leader_id: z.string().nullable().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -59,6 +60,7 @@ interface Specialist {
   active: boolean;
   hourly_rate: number | null;
   notes: string | null;
+  team_leader_id: string | null;
 }
 
 interface SpecialistFormModalProps {
@@ -76,6 +78,31 @@ export function SpecialistFormModal({
   const queryClient = useQueryClient();
   const isEditing = !!specialist;
 
+  // Query para obtener especialistas potenciales como líderes (excluir el actual y sus miembros)
+  const { data: potentialLeaders } = useQuery({
+    queryKey: ['specialists-for-leader', specialist?.id],
+    queryFn: async () => {
+      let query = supabase
+        .from('specialists')
+        .select('id, name, team_leader_id')
+        .eq('active', true)
+        .order('name');
+      
+      // Excluir el especialista actual si estamos editando
+      if (specialist?.id) {
+        query = query.neq('id', specialist.id);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      // Solo mostrar especialistas que no son miembros de otro equipo (team_leader_id = null)
+      // o que ya son líderes (otros apuntan a ellos)
+      return data?.filter(s => !s.team_leader_id) || [];
+    },
+    enabled: open,
+  });
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -85,6 +112,7 @@ export function SpecialistFormModal({
       active: true,
       hourly_rate: 0,
       notes: "",
+      team_leader_id: null,
     },
   });
 
@@ -97,6 +125,7 @@ export function SpecialistFormModal({
         active: specialist.active,
         hourly_rate: specialist.hourly_rate || 0,
         notes: specialist.notes || "",
+        team_leader_id: specialist.team_leader_id || null,
       });
     } else {
       form.reset({
@@ -106,6 +135,7 @@ export function SpecialistFormModal({
         active: true,
         hourly_rate: 0,
         notes: "",
+        team_leader_id: null,
       });
     }
   }, [specialist, form]);
@@ -119,6 +149,7 @@ export function SpecialistFormModal({
         active: values.active,
         hourly_rate: values.hourly_rate || 0,
         notes: values.notes || null,
+        team_leader_id: values.team_leader_id || null,
         created_by: user!.id,
       });
       if (error) throw error;
@@ -145,6 +176,7 @@ export function SpecialistFormModal({
           active: values.active,
           hourly_rate: values.hourly_rate || 0,
           notes: values.notes || null,
+          team_leader_id: values.team_leader_id || null,
         })
         .eq("id", specialist!.id);
       if (error) throw error;
@@ -279,6 +311,37 @@ export function SpecialistFormModal({
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="team_leader_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Líder de equipo</FormLabel>
+                  <Select
+                    onValueChange={(value) => field.onChange(value === "none" ? null : value)}
+                    value={field.value || "none"}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sin líder (independiente)" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="none">Sin líder (independiente)</SelectItem>
+                      {potentialLeaders?.map((leader) => (
+                        <SelectItem key={leader.id} value={leader.id}>
+                          {leader.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Si seleccionas un líder, este especialista formará parte de su equipo y las liquidaciones se consolidarán.
+                  </p>
                 </FormItem>
               )}
             />

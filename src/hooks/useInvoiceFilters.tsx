@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 export type PeriodType = 'all' | 'this_month' | 'last_month' | 'this_year' | 'custom';
 
 // Simplified status filter: 'paid' or 'pending' (all non-paid)
 export type InvoiceStatusFilter = 'paid' | 'pending' | null;
+
+// Special filter for dashboard links
+export type SpecialFilter = 'overdue' | null;
 
 export interface InvoiceFilters {
   searchTerm: string;
@@ -12,31 +16,71 @@ export interface InvoiceFilters {
   periodType: PeriodType;
   startDate: string | null;
   endDate: string | null;
+  specialFilter: SpecialFilter;
 }
 
-const getDefaultFilters = (): InvoiceFilters => {
+const getFiltersFromParams = (searchParams: URLSearchParams): InvoiceFilters => {
+  const specialFilter = searchParams.get('filter') as SpecialFilter;
+  
   return {
-    searchTerm: '',
-    status: null,
-    clientId: null,
-    periodType: 'all',
-    startDate: null,
-    endDate: null,
+    searchTerm: searchParams.get('search') || '',
+    status: (searchParams.get('status') as InvoiceStatusFilter) || null,
+    clientId: searchParams.get('clientId') || null,
+    periodType: (searchParams.get('period') as PeriodType) || 'all',
+    startDate: searchParams.get('startDate') || null,
+    endDate: searchParams.get('endDate') || null,
+    specialFilter: specialFilter === 'overdue' ? 'overdue' : null,
   };
 };
 
 export const useInvoiceFilters = () => {
-  const [filters, setFilters] = useState<InvoiceFilters>(getDefaultFilters());
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [filters, setFilters] = useState<InvoiceFilters>(() => getFiltersFromParams(searchParams));
+
+  // Sync filters TO URL whenever they change
+  const syncToUrl = useCallback((newFilters: InvoiceFilters) => {
+    const newParams = new URLSearchParams();
+    
+    if (newFilters.searchTerm) newParams.set('search', newFilters.searchTerm);
+    if (newFilters.status) newParams.set('status', newFilters.status);
+    if (newFilters.clientId) newParams.set('clientId', newFilters.clientId);
+    if (newFilters.periodType !== 'all') newParams.set('period', newFilters.periodType);
+    if (newFilters.startDate) newParams.set('startDate', newFilters.startDate);
+    if (newFilters.endDate) newParams.set('endDate', newFilters.endDate);
+    if (newFilters.specialFilter) newParams.set('filter', newFilters.specialFilter);
+    
+    setSearchParams(newParams, { replace: true });
+  }, [setSearchParams]);
 
   const updateFilter = <K extends keyof InvoiceFilters>(
     key: K,
     value: InvoiceFilters[K]
   ) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
+    setFilters((prev) => {
+      const newFilters = { ...prev, [key]: value };
+      
+      // Clear special filter when user changes other filters
+      if (key !== 'specialFilter' && prev.specialFilter) {
+        newFilters.specialFilter = null;
+      }
+      
+      syncToUrl(newFilters);
+      return newFilters;
+    });
   };
 
   const resetFilters = () => {
-    setFilters(getDefaultFilters());
+    const emptyFilters: InvoiceFilters = {
+      searchTerm: '',
+      status: null,
+      clientId: null,
+      periodType: 'all',
+      startDate: null,
+      endDate: null,
+      specialFilter: null,
+    };
+    setFilters(emptyFilters);
+    setSearchParams({}, { replace: true });
   };
 
   const getDateRange = (): { startDate: string; endDate: string } => {
@@ -73,10 +117,14 @@ export const useInvoiceFilters = () => {
     };
   };
 
+  // Check if overdue filter is active
+  const isOverdueFilter = filters.specialFilter === 'overdue';
+
   return {
     filters,
     updateFilter,
     resetFilters,
     getDateRange,
+    isOverdueFilter,
   };
 };

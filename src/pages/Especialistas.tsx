@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Search, Mail, Pencil, User } from "lucide-react";
+import { Plus, Search, Mail, Pencil, User, Users } from "lucide-react";
 
 type SpecialistType = "interno" | "freelance" | "partner";
 
@@ -253,6 +253,13 @@ export default function Especialistas() {
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <User className="h-4 w-4" />
                     <span>Vinculado a usuario</span>
+                  </div>
+                )}
+
+                {specialist.team_leader_id && (
+                  <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
+                    <Users className="h-4 w-4" />
+                    <span>Miembro de equipo</span>
                   </div>
                 )}
 

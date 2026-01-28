@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, User, Calendar, FileText, Mail, Download, Trash2, Plus, Sparkles } from 'lucide-react';
+import { ArrowLeft, User, Calendar, FileText, Mail, Download, Trash2, Plus, Sparkles, Users } from 'lucide-react';
 import { AddRequestsToLiquidationModal } from '@/components/liquidations/AddRequestsToLiquidationModal';
 import { SpecialistInvoiceUpload } from '@/components/liquidations/SpecialistInvoiceUpload';
 import { SpecialistInvoiceImportModal } from '@/components/liquidations/SpecialistInvoiceImportModal';
@@ -24,6 +24,7 @@ import { generateLiquidationPDF, generateLiquidationPDFBase64 } from '@/utils/pd
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useState } from 'react';
 import { notifyLiquidationSent } from '@/lib/notification-utils';
+import { useTeamMembers, useTeamLiquidations } from '@/hooks/useTeamMembers';
 
 // Component for pending requests section
 function PendingRequestsSection({ 
@@ -276,6 +277,18 @@ export default function LiquidacionDetalle() {
     },
     enabled: !!id,
   });
+
+  // Fetch team members if this specialist is a leader
+  const { data: teamMembers } = useTeamMembers(liquidation?.specialist?.id);
+  
+  // Fetch team liquidations for the same period
+  const { data: teamData } = useTeamLiquidations(
+    liquidation?.specialist?.id,
+    liquidation?.period_year,
+    liquidation?.period_month
+  );
+
+  const hasTeam = (teamMembers?.length || 0) > 0;
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -549,6 +562,17 @@ export default function LiquidacionDetalle() {
                   {liquidation.specialist.type}
                 </Badge>
               )}
+              {hasTeam && (
+                <div className="mt-3 pt-3 border-t">
+                  <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 font-medium">
+                    <Users className="h-4 w-4" />
+                    Líder de equipo
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {teamMembers?.map(m => m.name).join(', ')}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -610,6 +634,77 @@ export default function LiquidacionDetalle() {
           onResendEmail={hasSpecialistEmail && canAccessFinance() ? handleSendEmail : undefined}
           isSending={isSending}
         />
+
+        {/* Team Summary - Only shown if specialist is a team leader */}
+        {hasTeam && teamData && (
+          <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                <Users className="h-5 w-5" />
+                Resumen de Equipo - {formatPeriod(liquidation.period_year, liquidation.period_month)}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Leader's liquidation */}
+                <div className="flex items-center justify-between p-3 bg-background rounded-lg border">
+                  <div>
+                    <p className="font-medium">{liquidation.specialist?.name}</p>
+                    <p className="text-sm text-muted-foreground">Líder de equipo</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-lg">{formatCurrency(liquidation.calculated_total)}</p>
+                    <Badge variant="outline" className="mt-1">{liquidation.code}</Badge>
+                  </div>
+                </div>
+
+                {/* Team members' liquidations */}
+                {teamData.members.map((memberLiq: any) => (
+                  <div 
+                    key={memberLiq.id} 
+                    className="flex items-center justify-between p-3 bg-background rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => navigate(`/liquidaciones/${memberLiq.id}`)}
+                  >
+                    <div>
+                      <p className="font-medium">{memberLiq.specialist?.name}</p>
+                      <p className="text-sm text-muted-foreground">Miembro del equipo</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-lg">{formatCurrency(memberLiq.calculated_total)}</p>
+                      <Badge variant="outline" className="mt-1">{memberLiq.code}</Badge>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Missing liquidations for team members */}
+                {teamMembers?.filter(m => !teamData.members.find((liq: any) => liq.specialist_id === m.id)).map(member => (
+                  <div key={member.id} className="flex items-center justify-between p-3 bg-background rounded-lg border border-dashed opacity-60">
+                    <div>
+                      <p className="font-medium">{member.name}</p>
+                      <p className="text-sm text-muted-foreground">Miembro del equipo</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-muted-foreground italic">Sin liquidación este período</p>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Team Total */}
+                <div className="flex items-center justify-between p-4 bg-blue-100 dark:bg-blue-900/30 rounded-lg border-2 border-blue-300 dark:border-blue-700">
+                  <div>
+                    <p className="font-bold text-lg">Total Equipo</p>
+                    <p className="text-sm text-muted-foreground">
+                      {1 + (teamData.members?.length || 0)} liquidación(es)
+                    </p>
+                  </div>
+                  <p className="font-bold text-2xl text-blue-700 dark:text-blue-400">
+                    {formatCurrency(teamData.teamTotal)}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Items Table */}
         <Card>

@@ -1,108 +1,172 @@
 
 
-## Plan: Añadir fecha de factura e IRPF a la extracción de datos de factura de especialista
+## Plan: Habilitar subida de factura para liquidaciones no aceptadas y auto-aceptar si coincide el importe
 
-### Cambios sobre el plan original
+### Problema actual
 
-Se añaden dos campos adicionales a la extracción con IA:
+El botón de subir factura no aparece porque el sistema solo permite subir facturas a liquidaciones con estados:
+- `accepted`
+- `invoice_received` 
+- `pending_payment`
+- `paid`
 
-| Campo | Descripción | Tipo |
-|-------|-------------|------|
-| `invoice_date` | Fecha de emisión de la factura | `string` (YYYY-MM-DD) |
-| `irpf_rate` | Porcentaje de retención IRPF | `number` (ej: 15) |
-| `irpf_amount` | Importe de la retención IRPF | `number` |
+Si la liquidación está en `draft`, `validated` o `sent`, no se muestra la opción de subir factura.
 
 ---
 
-### Estructura de datos actualizada
+### Cambios propuestos
+
+#### 1. Modificar `SpecialistInvoiceUpload.tsx`
+
+**Archivo:** `src/components/liquidations/SpecialistInvoiceUpload.tsx`
+
+**Línea 31 - Cambiar condición `canUpload`:**
 
 ```typescript
-interface ExtractedSpecialistInvoice {
-  invoice_number: string;
-  invoice_date: string | null;        // NUEVO: Fecha de emisión
-  period_month: number | null;
-  period_year: number | null;
-  subtotal: number;
-  tax_rate: number;                   // IVA %
-  tax_amount: number;                 // Importe IVA
-  irpf_rate: number | null;           // NUEVO: Retención IRPF %
-  irpf_amount: number | null;         // NUEVO: Importe retención
-  total_amount: number;               // Total = subtotal + IVA - IRPF
-  specialist_name: string | null;
+// ANTES: Solo estados avanzados
+const canUpload = ['accepted', 'invoice_received', 'pending_payment', 'paid'].includes(currentStatus);
+
+// DESPUÉS: Permitir todos los estados excepto pagado
+const canUpload = ['draft', 'validated', 'sent', 'accepted', 'invoice_received', 'pending_payment'].includes(currentStatus);
+```
+
+**Líneas 68-75 - Actualizar lógica de cambio de estado al subir:**
+
+Si la liquidación NO está aceptada y se sube una factura, se actualizará automáticamente a `accepted` + `invoice_received` (pasando por ambos estados lógicamente).
+
+---
+
+#### 2. Modificar `SpecialistInvoiceImportModal.tsx`
+
+**Archivo:** `src/components/liquidations/SpecialistInvoiceImportModal.tsx`
+
+**Línea 88 - Ampliar query de liquidaciones candidatas:**
+
+```typescript
+// ANTES
+.in('status', ['accepted', 'invoice_received', 'pending_payment'])
+
+// DESPUÉS - Incluir liquidaciones pendientes de aceptar
+.in('status', ['draft', 'validated', 'sent', 'accepted', 'invoice_received', 'pending_payment'])
+```
+
+**Líneas 263-279 - Modificar lógica de `handleConfirm`:**
+
+Añadir lógica inteligente:
+
+1. Si el estado es `draft`, `validated` o `sent`:
+   - Comparar `subtotal` de la factura con el `total_amount` de la liquidación
+   - Si coinciden (tolerancia ±1€), actualizar estado a `invoice_received` directamente (implica aceptación automática)
+   - Si no coinciden, solo actualizar a `invoice_received` pero mostrar advertencia
+
+2. Si el estado ya es `accepted`:
+   - Comportamiento actual (solo cambiar a `invoice_received`)
+
+---
+
+### Flujo propuesto
+
+```text
+Factura subida
+      │
+      ▼
+¿Estado actual de liquidación?
+      │
+      ├── draft / validated / sent
+      │         │
+      │         ▼
+      │   ¿Importe neto factura ≈ total liquidación?
+      │         │
+      │         ├── SÍ → Estado = 'invoice_received' + mensaje "Aceptada automáticamente"
+      │         │
+      │         └── NO → Estado = 'invoice_received' + advertencia de discrepancia
+      │
+      └── accepted
+               │
+               ▼
+         Estado = 'invoice_received' (comportamiento actual)
+```
+
+---
+
+### Comparación de importes
+
+Se usará el campo `subtotal` de la factura extraída (base imponible antes de impuestos) comparado con `subtotal` de la liquidación:
+
+```typescript
+// Tolerancia de 1€ para redondeos
+const amountsMatch = Math.abs(extractedData.subtotal - selectedLiquidation.subtotal) <= 1;
+```
+
+Usamos `subtotal` porque es el "neto" real del trabajo, sin incluir IVA ni retenciones IRPF.
+
+---
+
+### Archivos a modificar
+
+| Archivo | Cambios |
+|---------|---------|
+| `src/components/liquidations/SpecialistInvoiceUpload.tsx` | Ampliar `canUpload` y lógica de estado |
+| `src/components/liquidations/SpecialistInvoiceImportModal.tsx` | Ampliar query de estados + lógica de auto-aceptación |
+
+---
+
+### Detalles técnicos de implementación
+
+#### En `SpecialistInvoiceUpload.tsx`:
+
+```typescript
+// Línea 31
+const canUpload = !['paid'].includes(currentStatus); // Todo excepto pagado
+
+// Líneas 68-80 - Nueva lógica
+const updateData: { specialist_invoice_url: string; status?: LiquidationStatus } = {
+  specialist_invoice_url: publicUrlData.publicUrl,
+};
+
+// Si está en estados previos a aceptación, pasar directamente a invoice_received
+if (['draft', 'validated', 'sent'].includes(currentStatus)) {
+  updateData.status = 'invoice_received';
+} else if (currentStatus === 'accepted') {
+  updateData.status = 'invoice_received';
+}
+```
+
+#### En `SpecialistInvoiceImportModal.tsx`:
+
+```typescript
+// Línea 88 - Query ampliada
+.in('status', ['draft', 'validated', 'sent', 'accepted', 'invoice_received', 'pending_payment'])
+
+// Líneas 263-290 - Lógica mejorada en handleConfirm
+const selectedLiq = liquidations?.find(l => l.id === selectedLiquidationId);
+const updateData: { specialist_invoice_url: string; status?: LiquidationStatus } = {
+  specialist_invoice_url: publicUrlData.publicUrl,
+};
+
+// Determinar nuevo estado
+if (['draft', 'validated', 'sent'].includes(selectedLiq?.status || '')) {
+  // Verificar si importes coinciden
+  const amountsMatch = Math.abs((extractedData?.subtotal || 0) - (selectedLiq?.total_amount || 0)) <= 1;
+  
+  updateData.status = 'invoice_received';
+  
+  if (amountsMatch) {
+    toast.success('Liquidación aceptada automáticamente - importes coinciden');
+  } else {
+    toast.warning(`Atención: El importe de la factura (${formatCurrency(extractedData?.subtotal || 0)}) difiere de la liquidación (${formatCurrency(selectedLiq?.total_amount || 0)})`);
+  }
+} else if (selectedLiq?.status === 'accepted') {
+  updateData.status = 'invoice_received';
 }
 ```
 
 ---
 
-### Prompt actualizado para Gemini
+### Resultado esperado
 
-```text
-Analiza esta factura de un profesional/freelance y extrae:
-
-{
-  "invoice_number": "número de factura del profesional",
-  "invoice_date": "fecha de emisión en formato YYYY-MM-DD",
-  "period_month": mes del período facturado (1-12) o null,
-  "period_year": año del período facturado o null,
-  "subtotal": importe base sin impuestos (número),
-  "tax_rate": porcentaje de IVA aplicado (número, ej: 21),
-  "tax_amount": importe del IVA (número),
-  "irpf_rate": porcentaje de retención IRPF si existe (número, ej: 15) o null,
-  "irpf_amount": importe de la retención IRPF (número) o null,
-  "total_amount": importe total a pagar (base + IVA - IRPF),
-  "specialist_name": nombre del emisor de la factura
-}
-
-IMPORTANTE:
-- Esta es una factura emitida POR un profesional/freelance
-- El IRPF es una retención que SE RESTA del total (común en España: 7%, 15%)
-- La fórmula es: total = subtotal + IVA - IRPF
-- Si no hay IRPF, usa null para irpf_rate e irpf_amount
-- Los importes deben ser números, no strings
-```
-
----
-
-### Impacto en el modal de importación
-
-El modal `SpecialistInvoiceImportModal` mostrará en la fase de revisión:
-
-```text
-┌─────────────────────────────────────────────┐
-│ Datos extraídos de la factura               │
-├─────────────────────────────────────────────┤
-│ Nº Factura:    FA-2026-001                  │
-│ Fecha:         15/01/2026          <- NUEVO │
-│ Período:       Enero 2026                   │
-│ ────────────────────────────────────────    │
-│ Base imponible:           1.500,00 €        │
-│ IVA (21%):                  315,00 €        │
-│ IRPF (-15%):               -225,00 €  NUEVO │
-│ ────────────────────────────────────────    │
-│ TOTAL:                    1.590,00 €        │
-└─────────────────────────────────────────────┘
-```
-
----
-
-### Archivos a crear/modificar (actualizado)
-
-| Archivo | Acción | Descripción |
-|---------|--------|-------------|
-| `supabase/functions/extract-specialist-invoice-data/index.ts` | **Crear** | Edge function con extracción de fecha e IRPF |
-| `supabase/config.toml` | **Modificar** | Añadir configuración de la nueva función |
-| `src/components/liquidations/SpecialistInvoiceImportModal.tsx` | **Crear** | Modal que muestra fecha e IRPF en revisión |
-| `src/pages/Liquidaciones.tsx` | **Modificar** | Añadir botón "Importar Factura Especialista" |
-| `src/pages/LiquidacionDetalle.tsx` | **Modificar** | Añadir botón alternativo con IA |
-
----
-
-### Nota sobre almacenamiento
-
-Los campos `irpf_rate`, `irpf_amount` y `invoice_date` se usarán para:
-1. **Validación visual**: Confirmar que los datos extraídos son correctos
-2. **Matching mejorado**: Comparar el total considerando IRPF
-3. **Registro futuro**: Si se decide almacenar estos datos en la tabla `liquidations`, se podría añadir una migración (opcional, no incluido en este plan inicial)
-
-Por ahora, estos datos se usan solo para la validación en el modal, no se persisten en la base de datos.
+1. **Visibilidad del botón**: El botón de subir factura aparecerá para todas las liquidaciones excepto las ya pagadas
+2. **Subida sin restricciones**: Se podrá subir factura aunque la liquidación no esté aceptada
+3. **Auto-aceptación inteligente**: Si el importe neto coincide, la liquidación pasará automáticamente a `invoice_received` (lo que implica aceptación)
+4. **Advertencia de discrepancias**: Si los importes no coinciden, se mostrará un aviso pero se permitirá continuar
 

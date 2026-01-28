@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { notificationFeedback } from '@/lib/notification-feedback';
@@ -24,6 +23,7 @@ import {
   Download
 } from 'lucide-react';
 import { generateLiquidationPDF } from '@/utils/pdf/liquidationPDFGenerator';
+import { SpecialistInvoiceUploadPublic } from '@/components/liquidations/SpecialistInvoiceUploadPublic';
 
 const monthNames = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -39,11 +39,11 @@ const formatCurrency = (amount: number) => {
 
 export default function FirmaLiquidacion() {
   const { token } = useParams<{ token: string }>();
-  const navigate = useNavigate();
   const [action, setAction] = useState<'accept' | 'dispute' | null>(null);
   const [comments, setComments] = useState('');
   const [disputeReason, setDisputeReason] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
+  const [invoiceUploaded, setInvoiceUploaded] = useState(false);
 
   // Fetch signature and liquidation data via secure edge function
   const { data: signatureData, isLoading, error } = useQuery({
@@ -351,6 +351,17 @@ export default function FirmaLiquidacion() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Specialist Invoice Upload */}
+        <SpecialistInvoiceUploadPublic
+          token={token || ''}
+          liquidationSubtotal={liquidation?.subtotal || totalAmount}
+          currentInvoiceUrl={null}
+          onUploadSuccess={(result) => {
+            setInvoiceUploaded(true);
+            console.log('Invoice uploaded:', result);
+          }}
+        />
 
         {/* Action Selection */}
         <Card>

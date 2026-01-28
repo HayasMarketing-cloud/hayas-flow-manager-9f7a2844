@@ -872,6 +872,8 @@ export type Database = {
           dispute_reason: string | null
           expires_at: string
           id: string
+          invoice_uploaded_at: string | null
+          invoice_verification: Json | null
           ip_address: string | null
           liquidation_id: string
           signed_at: string | null
@@ -885,6 +887,8 @@ export type Database = {
           dispute_reason?: string | null
           expires_at: string
           id?: string
+          invoice_uploaded_at?: string | null
+          invoice_verification?: Json | null
           ip_address?: string | null
           liquidation_id: string
           signed_at?: string | null
@@ -898,6 +902,8 @@ export type Database = {
           dispute_reason?: string | null
           expires_at?: string
           id?: string
+          invoice_uploaded_at?: string | null
+          invoice_verification?: Json | null
           ip_address?: string | null
           liquidation_id?: string
           signed_at?: string | null

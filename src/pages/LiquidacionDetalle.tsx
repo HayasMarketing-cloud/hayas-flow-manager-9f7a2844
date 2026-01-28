@@ -679,7 +679,7 @@ export default function LiquidacionDetalle() {
   const latestSignature = liquidation.liquidation_signatures?.[0] || null;
   const isEditable = liquidation.status === 'draft' || liquidation.status === 'validated';
   const hasSpecialistEmail = !!liquidation.specialist?.email;
-  const canMarkAsPaid = canAccessFinance() && (liquidation.status === 'pending_payment' || liquidation.status === 'accepted' || liquidation.status === 'invoice_received');
+  const canMarkAsPaid = canAccessFinance() && liquidation.status !== 'draft' && liquidation.status !== 'paid';
 
   return (
     <AppLayout title={`Liquidación ${formatPeriod(liquidation.period_year, liquidation.period_month)}`}>

@@ -15,6 +15,7 @@ import { RequestActivityTimeline } from '@/components/requests/RequestActivityTi
 import { RequestProcessTimeline } from '@/components/requests/RequestProcessTimeline';
 import { RequestFormModal } from '@/components/modals/RequestFormModal';
 import { RequestProjectCreationModal } from '@/components/requests/RequestProjectCreationModal';
+import { AddToLiquidationModal } from '@/components/liquidations/AddToLiquidationModal';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
@@ -53,6 +54,7 @@ const SolicitudDetalle = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
+  const [addToLiquidationModalOpen, setAddToLiquidationModalOpen] = useState(false);
 
   const createProjectMutation = useCreateProjectFromRequest();
 
@@ -557,12 +559,23 @@ const SolicitudDetalle = () => {
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground mb-1">Liquidación</p>
-                        <FlowStatusCell
-                          type="liquidation"
-                          linkedId={request.liquidation_id}
-                          linkedCode={request.liquidation?.code}
-                          linkedStatus={request.liquidation?.status}
-                        />
+                        <div className="flex items-center gap-2">
+                          <FlowStatusCell
+                            type="liquidation"
+                            linkedId={request.liquidation_id}
+                            linkedCode={request.liquidation?.code}
+                            linkedStatus={request.liquidation?.status}
+                          />
+                          {!request.liquidation_id && canAccessFinance() && request.specialist_id && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => setAddToLiquidationModalOpen(true)}
+                            >
+                              + Liquidación
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -703,6 +716,14 @@ const SolicitudDetalle = () => {
         confirmText="Eliminar"
         onConfirm={handleDelete}
         variant="destructive"
+      />
+
+      {/* Add to Liquidation Modal */}
+      <AddToLiquidationModal
+        open={addToLiquidationModalOpen}
+        onOpenChange={setAddToLiquidationModalOpen}
+        requestIds={[request.id]}
+        onSuccess={handleRefresh}
       />
     </AppLayout>
   );

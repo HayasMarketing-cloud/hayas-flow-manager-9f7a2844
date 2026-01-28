@@ -430,6 +430,7 @@ export default function LiquidacionDetalle() {
     mutationFn: async () => {
       if (!id) return;
       
+      // Update liquidation status
       const { error } = await supabase
         .from('liquidations')
         .update({ 
@@ -439,11 +440,31 @@ export default function LiquidacionDetalle() {
         .eq('id', id);
 
       if (error) throw error;
+
+      // Send payment notification email if specialist has email
+      if (liquidation?.specialist?.email && user?.email?.endsWith('@hayas.es')) {
+        try {
+          const response = await supabase.functions.invoke('send-liquidation-paid-notification', {
+            body: {
+              liquidationId: id,
+              senderEmail: user.email,
+            },
+          });
+
+          if (response.error) {
+            console.error('Error sending payment notification:', response.error);
+            // Don't throw - the payment was still marked as paid
+          }
+        } catch (emailError) {
+          console.error('Error invoking payment notification function:', emailError);
+          // Don't throw - the payment was still marked as paid
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
       queryClient.invalidateQueries({ queryKey: ['liquidations'] });
-      toast.success('Liquidación marcada como pagada');
+      toast.success('Liquidación marcada como pagada. Se ha enviado notificación al especialista.');
       setMarkPaidDialogOpen(false);
     },
     onError: (error: any) => {
@@ -658,7 +679,7 @@ export default function LiquidacionDetalle() {
   const latestSignature = liquidation.liquidation_signatures?.[0] || null;
   const isEditable = liquidation.status === 'draft' || liquidation.status === 'validated';
   const hasSpecialistEmail = !!liquidation.specialist?.email;
-  const canMarkAsPaid = canAccessFinance() && (liquidation.status === 'pending_payment' || liquidation.status === 'accepted');
+  const canMarkAsPaid = canAccessFinance() && (liquidation.status === 'pending_payment' || liquidation.status === 'accepted' || liquidation.status === 'invoice_received');
 
   return (
     <AppLayout title={`Liquidación ${formatPeriod(liquidation.period_year, liquidation.period_month)}`}>

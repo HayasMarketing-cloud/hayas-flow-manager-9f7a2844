@@ -238,7 +238,7 @@ const handler = async (req: Request): Promise<Response> => {
     const { data: usersToNotify } = await supabase
       .from('user_roles')
       .select('user_id')
-      .in('role', ['admin', 'account_manager', 'finanzas']);
+      .in('role', ['admin', 'finanzas']);
 
     const specialistName = (liquidationData?.specialist as any)?.name || 'Especialista';
     const liquidationCode = liquidationData?.code || 'N/A';

@@ -1,95 +1,100 @@
 
-# Plan: Corregir visualizacion del campo Horas en el formulario de Request
+# Plan: Agregar filtro de Contratos en Solicitudes
 
-## Problema Identificado
+## Resumen
+Agregar un selector de contratos en los filtros de la pagina de Solicitudes, similar al filtro de presupuestos existente.
 
-El campo "Horas" muestra "0" al editar/consultar un request, aunque el "Coste calculado" se muestra correctamente (120€ = 4h x 30€/h). Los datos en la base de datos estan correctos (hours = 4, cost_rate = 30, cost_to_agency = 120).
+## Cambios a Realizar
 
-## Analisis Tecnico
+### 1. Modificar el hook de filtros (`src/hooks/useRequestFilters.tsx`)
 
-Despues de revisar el codigo, identifique varios posibles puntos de fallo:
+Agregar el campo `contractId` al interface y a toda la logica del hook:
 
-### 1. Problema con el Input controlado
-En `RequestFormModal.tsx` lineas 920-922:
-```tsx
-{...field}
-value={field.value ?? ''}
-onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+| Cambio | Detalle |
+|--------|---------|
+| Interface | Agregar `contractId: string \| null` |
+| Estado inicial | Leer `contractId` de URL params |
+| syncToUrl | Sincronizar `contractId` a la URL |
+| updateFilter | Resetear `contractId` cuando cambia el cliente |
+| resetFilters | Incluir `contractId: null` |
+
+### 2. Modificar la pagina de Solicitudes (`src/pages/Solicitudes.tsx`)
+
+**a) Agregar query para cargar contratos:**
+```typescript
+const { data: contracts } = useQuery({
+  queryKey: ['contracts-filter', filters.clientId, filters.contractId],
+  queryFn: async () => {
+    if (filters.contractId && !filters.clientId) {
+      // Cargar contrato especifico si viene por URL
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('id, title, code, client_id')
+        .eq('id', filters.contractId);
+      if (error) throw error;
+      return data;
+    }
+    
+    if (filters.clientId) {
+      // Cargar contratos del cliente seleccionado
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('id, title, code')
+        .eq('client_id', filters.clientId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    }
+    
+    return [];
+  },
+  enabled: !!filters.clientId || !!filters.contractId,
+});
 ```
 
-El spread `{...field}` incluye `value` que luego se sobrescribe. Pero para inputs numericos, cuando `field.value` es `0` (numero), `0 ?? ''` devuelve `0`, lo cual es correcto.
-
-### 2. Posible condicion de carrera en form.reset()
-El `useEffect` (lineas 355-410) que hace `form.reset()` depende de `[open, initialData, form]`. Si `initialData.hours` es `null` o no llega correctamente, el campo se queda en su valor por defecto.
-
-### 3. Conversion de tipos con Zod
-El schema define `hours: z.coerce.number()` que fuerza la conversion a numero. Si el valor llega como string vacio o formato inesperado, podria convertirse a 0 o NaN.
-
-## Solucion Propuesta
-
-### Cambio 1: Mejorar la inicializacion del campo hours
-
-Modificar el Input del campo `hours` para manejar mejor los valores numericos:
-
-**Archivo:** `src/components/modals/RequestFormModal.tsx`
-
-Cambiar de:
-```tsx
-<Input
-  type="number"
-  min="0"
-  step="0.01"
-  placeholder="0"
-  {...field}
-  value={field.value ?? ''}
-  onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
-  disabled={isViewMode}
-/>
+**b) Agregar filtro de contrato en la query principal:**
+```typescript
+if (filters.contractId) queryFilters.contract_id = filters.contractId;
 ```
 
-A:
+**c) Agregar selector UI despues del selector de presupuestos:**
 ```tsx
-<Input
-  type="number"
-  min="0"
-  step="0.01"
-  placeholder="0"
-  name={field.name}
-  ref={field.ref}
-  onBlur={field.onBlur}
-  value={field.value !== null && field.value !== undefined ? field.value : ''}
-  onChange={(e) => {
-    const val = e.target.value;
-    field.onChange(val === '' ? null : parseFloat(val));
-  }}
-  disabled={isViewMode}
-/>
+{(filters.clientId || filters.contractId) && (
+  <Select
+    value={filters.contractId || 'all'}
+    onValueChange={(value) =>
+      updateFilter('contractId', value === 'all' ? null : value)
+    }
+  >
+    <SelectTrigger className="w-[250px]">
+      <SelectValue placeholder="Todos los contratos" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="all">Todos los contratos</SelectItem>
+      {contracts?.map((contract) => (
+        <SelectItem key={contract.id} value={contract.id}>
+          {contract.code} - {contract.title}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+)}
 ```
 
-Este cambio:
-- Evita el spread completo de `{...field}` que puede causar conflictos
-- Maneja explicitamente los casos de `null` y `undefined`
-- Asegura que la conversion a numero sea correcta
-
-### Cambio 2: Agregar log de depuracion temporal (opcional)
-
-Para diagnosticar si el problema persiste, agregar un console.log en el useEffect:
-```tsx
-console.log('Initializing form with hours:', initialData?.hours);
-```
-
-### Cambio 3: Aplicar el mismo patron a cost_rate
-
-Para consistencia, aplicar el mismo cambio al campo `cost_rate` (lineas 941-949).
+**d) Actualizar condicion del boton "Limpiar filtros":**
+Agregar `filters.contractId` a la condicion.
 
 ## Archivos a Modificar
 
-| Archivo | Cambio |
-|---------|--------|
-| `src/components/modals/RequestFormModal.tsx` | Mejorar manejo de valores en campos numericos `hours` y `cost_rate` |
+| Archivo | Tipo de Cambio |
+|---------|----------------|
+| `src/hooks/useRequestFilters.tsx` | Agregar campo contractId |
+| `src/pages/Solicitudes.tsx` | Agregar query de contratos, filtro en query principal, y selector UI |
 
-## Resultado Esperado
+## Comportamiento Esperado
 
-- El campo "Horas" mostrara el valor correcto (4) al editar el request
-- El coste calculado seguira mostrando el valor correcto (120.00€)
-- Sin cambios en el comportamiento al crear nuevos requests
+- El filtro de contratos aparece cuando se selecciona un cliente O cuando hay un contractId en la URL
+- Al cambiar de cliente, se resetea el filtro de contrato (igual que presupuesto)
+- El filtro persiste en la URL como `contractId=xxx`
+- Se puede navegar desde Contratos a Solicitudes con el filtro preseleccionado

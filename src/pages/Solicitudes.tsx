@@ -54,6 +54,7 @@ const Solicitudes = () => {
       if (filters.clientId) queryFilters.client_id = filters.clientId;
       if (filters.specialistId) queryFilters.specialist_id = filters.specialistId;
       if (filters.budgetId) queryFilters.budget_id = filters.budgetId;
+      if (filters.contractId) queryFilters.contract_id = filters.contractId;
 
       let query = supabase
         .from('financial_requests')
@@ -164,7 +165,36 @@ const Solicitudes = () => {
     enabled: !!filters.clientId || !!filters.budgetId,
   });
 
-
+  // Fetch contracts - either filtered by client or fetch specific contract by ID
+  const { data: contracts } = useQuery({
+    queryKey: ['contracts-filter', filters.clientId, filters.contractId],
+    queryFn: async () => {
+      // If we have a contractId from URL but no client, fetch that specific contract
+      if (filters.contractId && !filters.clientId) {
+        const { data, error } = await supabase
+          .from('contracts')
+          .select('id, title, code, client_id')
+          .eq('id', filters.contractId);
+        if (error) throw error;
+        return data;
+      }
+      
+      // If client is selected, fetch all contracts for that client
+      if (filters.clientId) {
+        const { data, error } = await supabase
+          .from('contracts')
+          .select('id, title, code')
+          .eq('client_id', filters.clientId)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return data;
+      }
+      
+      return [];
+    },
+    enabled: !!filters.clientId || !!filters.contractId,
+  });
   const handleNewRequest = () => {
     setSelectedRequest(null);
     setModalOpen(true);
@@ -503,6 +533,28 @@ const Solicitudes = () => {
               </Select>
             )}
 
+            {/* Contract filter - shown when client is selected OR when contractId is in URL */}
+            {(filters.clientId || filters.contractId) && (
+              <Select
+                value={filters.contractId || 'all'}
+                onValueChange={(value) =>
+                  updateFilter('contractId', value === 'all' ? null : value)
+                }
+              >
+                <SelectTrigger className="w-[250px]">
+                  <SelectValue placeholder="Todos los contratos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los contratos</SelectItem>
+                  {contracts?.map((contract) => (
+                    <SelectItem key={contract.id} value={contract.id}>
+                      {contract.code} - {contract.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             {/* Year filter */}
             <Select
               value={filters.year?.toString() || 'all'}
@@ -555,8 +607,9 @@ const Solicitudes = () => {
               </Select>
             )}
 
-            {(filters.status || filters.clientId || filters.specialistId || filters.budgetId || filters.searchTerm || filters.year) && (
+            {(filters.status || filters.clientId || filters.specialistId || filters.budgetId || filters.contractId || filters.searchTerm || filters.year) && (
               <Button variant="outline" onClick={resetFilters}>
+                <X className="h-4 w-4 mr-2" />
                 Limpiar filtros
               </Button>
             )}

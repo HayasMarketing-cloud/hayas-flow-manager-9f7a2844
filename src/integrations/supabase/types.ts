@@ -1580,11 +1580,16 @@ export type Database = {
     }
     Functions: {
       generate_code: { Args: { sequence_name: string }; Returns: string }
+      get_current_specialist_id: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_specialist_liquidation: {
+        Args: { _liquidation_id: string }
         Returns: boolean
       }
     }

@@ -1,78 +1,40 @@
 
-## Plan: Corregir URL y botón en emails de liquidaciones
+## Plan: Hacer los enlaces de solicitudes más visibles en la tabla de Liquidaciones
 
-### Problemas identificados
+### Problema identificado
 
-He analizado el código y encontrado dos problemas:
+Basándome en el análisis:
 
-#### Problema 1: URL incorrecta desde LiquidacionDetalle
-
-| Archivo | Línea | Código actual | Problema |
-|---------|-------|---------------|----------|
-| `src/pages/LiquidacionDetalle.tsx` | 441 | `appUrl: window.location.origin` | Usa la URL del navegador (preview) |
-| `src/pages/Liquidaciones.tsx` | 272 | `appUrl: 'https://hayas-flow-manager.lovable.app'` | Correcto - usa URL fija |
-
-Cuando envías desde la página de detalle (preview), el email incluye la URL del preview (`preview--hayas-flow-manager.lovable.app`) en lugar de la URL de producción.
-
-#### Problema 2: Botón con emoji problemático
-
-El botón usa el carácter `✓` que algunos clientes de email (Gmail, Outlook) pueden no renderizar bien, causando que el botón se "rompa" o desaparezca.
+1. **El código funciona correctamente**: El `onClick` en `TableRow` navega a `/solicitudes/${item.financial_request.id}` cuando existe el `financial_request.id`
+2. **RLS parece estar configurado**: Los especialistas pueden ver sus propias solicitudes
+3. **Posible problema de UX**: Los códigos de solicitud no tienen un estilo visual que indique que son clicables (no parecen enlaces)
 
 ### Cambios propuestos
 
-#### 1. Corregir URL en LiquidacionDetalle.tsx
-
 **Archivo:** `src/pages/LiquidacionDetalle.tsx`
-**Línea:** 441
 
-```typescript
-// ANTES
-appUrl: window.location.origin,
+Hacer el código de la solicitud visualmente clicable añadiendo estilos de enlace:
 
-// DESPUÉS  
-appUrl: 'https://hayas-flow-manager.lovable.app',
+```tsx
+// Líneas 650-652 - Cambiar el estilo del código para que parezca un enlace
+<TableCell className="font-mono text-sm">
+  {item.financial_request?.id ? (
+    <span className="text-primary hover:underline cursor-pointer">
+      {item.financial_request?.code}
+    </span>
+  ) : (
+    '-'
+  )}
+</TableCell>
 ```
 
-#### 2. Mejorar HTML del botón en el email
+### Verificación adicional
 
-**Archivo:** `supabase/functions/send-liquidation-email/index.ts`
-**Líneas:** 293-298
-
-El botón actual tiene problemas de compatibilidad con algunos clientes de email. La solución es usar un formato más compatible:
-
-```html
-<!-- ANTES -->
-<div style="text-align: center; margin: 30px 0;">
-  <a href="${signatureUrl}" 
-     style="display: inline-block; background-color: #10b981; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-right: 10px;">
-    ✓ Revisar y Firmar
-  </a>
-</div>
-
-<!-- DESPUÉS: Usar tabla para máxima compatibilidad con email clients -->
-<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 30px auto;">
-  <tr>
-    <td align="center" bgcolor="#10b981" style="border-radius: 8px;">
-      <a href="${signatureUrl}" 
-         target="_blank" 
-         style="display: inline-block; background-color: #10b981; font-size: 16px; font-family: Arial, sans-serif; font-weight: bold; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; border: 1px solid #10b981;">
-        Revisar y Firmar
-      </a>
-    </td>
-  </tr>
-</table>
-```
-
-### Resumen de archivos a modificar
-
-| Archivo | Cambio |
-|---------|--------|
-| `src/pages/LiquidacionDetalle.tsx` | Usar URL de producción hardcodeada en línea 441 |
-| `supabase/functions/send-liquidation-email/index.ts` | Mejorar HTML del botón para compatibilidad con email clients |
+Si después de este cambio visual el usuario sigue sin poder hacer clic, entonces el problema es de RLS y necesitaríamos:
+1. Abrir una sesión de navegador como especialista para verificar si `financial_request` viene como `null`
+2. Ajustar las políticas RLS para permitir acceso a solicitudes en contexto de liquidaciones
 
 ### Resultado esperado
 
-Después de estos cambios:
-1. Todos los emails (enviados desde cualquier entorno) tendrán la URL correcta de producción
-2. El botón "Revisar y Firmar" se mostrará correctamente en todos los clientes de email (Gmail, Outlook, Apple Mail)
-3. El enlace llevará directamente a la página de firma en producción
+- Los códigos de solicitud se mostrarán en color azul (primario) con subrayado al pasar el cursor
+- Será claro para el usuario que puede hacer clic para navegar al detalle

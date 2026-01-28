@@ -56,6 +56,8 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
         <OriginCell
           budgetId={request.budget_id}
           budgetCode={request.budget?.code}
+          contractId={request.contract_id}
+          contractTitle={request.contract?.title}
           operationalProject={request.operational_request?.[0]?.operational_project}
         />
         

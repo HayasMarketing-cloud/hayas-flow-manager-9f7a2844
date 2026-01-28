@@ -9,6 +9,8 @@ interface PendingRequest {
   status: string;
   cost_to_agency: number | null;
   client?: { id: string; name: string } | null;
+  budget?: { id: string; code: string; title?: string } | null;
+  operational_request?: { id: string; operational_project?: { id: string; name: string } | null }[] | null;
 }
 
 interface TeamMemberLiquidation {
@@ -118,7 +120,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
 
     autoTable(doc, {
       startY: currentY,
-      head: [['Servicio / Cliente', 'Cantidad', 'Precio Unitario', 'Total']],
+      head: [['Servicio / Cliente', 'Proyecto/Presupuesto', 'Cantidad', 'Precio Unitario', 'Total']],
       body: leaderTableData,
       theme: 'striped',
       headStyles: {
@@ -132,10 +134,11 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
         cellPadding: 4,
       },
       columnStyles: {
-        0: { cellWidth: 90 },
-        1: { cellWidth: 25, halign: 'center' },
-        2: { cellWidth: 35, halign: 'right' },
-        3: { cellWidth: 35, halign: 'right' },
+        0: { cellWidth: 60 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 20, halign: 'center' },
+        3: { cellWidth: 30, halign: 'right' },
+        4: { cellWidth: 30, halign: 'right' },
       },
     });
 
@@ -168,7 +171,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
 
       autoTable(doc, {
         startY: currentY,
-        head: [['Servicio / Cliente', 'Cantidad', 'Precio Unitario', 'Total']],
+        head: [['Servicio / Cliente', 'Proyecto/Presupuesto', 'Cantidad', 'Precio Unitario', 'Total']],
         body: memberTableData,
         theme: 'striped',
         headStyles: {
@@ -182,10 +185,11 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
           cellPadding: 4,
         },
         columnStyles: {
-          0: { cellWidth: 90 },
-          1: { cellWidth: 25, halign: 'center' },
-          2: { cellWidth: 35, halign: 'right' },
-          3: { cellWidth: 35, halign: 'right' },
+          0: { cellWidth: 60 },
+          1: { cellWidth: 40 },
+          2: { cellWidth: 20, halign: 'center' },
+          3: { cellWidth: 30, halign: 'right' },
+          4: { cellWidth: 30, halign: 'right' },
         },
       });
 
@@ -214,7 +218,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
 
     autoTable(doc, {
       startY: currentY,
-      head: [['Servicio / Cliente', 'Cantidad', 'Precio Unitario', 'Total']],
+      head: [['Servicio / Cliente', 'Proyecto/Presupuesto', 'Cantidad', 'Precio Unitario', 'Total']],
       body: tableData,
       theme: 'striped',
       headStyles: {
@@ -228,10 +232,11 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
         cellPadding: 5,
       },
       columnStyles: {
-        0: { cellWidth: 90 },
-        1: { cellWidth: 25, halign: 'center' },
-        2: { cellWidth: 35, halign: 'right' },
-        3: { cellWidth: 35, halign: 'right' },
+        0: { cellWidth: 60 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 20, halign: 'center' },
+        3: { cellWidth: 30, halign: 'right' },
+        4: { cellWidth: 30, halign: 'right' },
       },
     });
 
@@ -285,15 +290,16 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
 
     const pendingTableData = data.pendingRequests.map(req => [
       req.code || '-',
-      (req.title?.substring(0, 35) + (req.title && req.title.length > 35 ? '...' : '')) || '-',
+      (req.title?.substring(0, 30) + (req.title && req.title.length > 30 ? '...' : '')) || '-',
       req.client?.name || '-',
+      getProjectOrBudgetName(req),
       req.status === 'completed' ? 'Completado' : 'En progreso',
       formatCurrency(Number(req.cost_to_agency) || 0)
     ]);
 
     autoTable(doc, {
       startY: annexY + 12,
-      head: [['Código', 'Título', 'Cliente', 'Estado', 'Importe']],
+      head: [['Código', 'Título', 'Cliente', 'Proy./Pres.', 'Estado', 'Importe']],
       body: pendingTableData,
       theme: 'plain',
       headStyles: {
@@ -307,11 +313,12 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
         cellPadding: 3,
       },
       columnStyles: {
-        0: { cellWidth: 25 },
-        1: { cellWidth: 55 },
-        2: { cellWidth: 40 },
-        3: { cellWidth: 25 },
-        4: { cellWidth: 30, halign: 'right' },
+        0: { cellWidth: 22 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 30 },
+        3: { cellWidth: 30 },
+        4: { cellWidth: 22 },
+        5: { cellWidth: 28, halign: 'right' },
       },
     });
 
@@ -418,7 +425,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
 
     autoTable(doc, {
       startY: currentY,
-      head: [['Servicio / Cliente', 'Cantidad', 'Precio Unitario', 'Total']],
+      head: [['Servicio / Cliente', 'Proyecto/Presupuesto', 'Cantidad', 'Precio Unitario', 'Total']],
       body: leaderTableData,
       theme: 'striped',
       headStyles: {
@@ -432,10 +439,11 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
         cellPadding: 4,
       },
       columnStyles: {
-        0: { cellWidth: 90 },
-        1: { cellWidth: 25, halign: 'center' },
-        2: { cellWidth: 35, halign: 'right' },
-        3: { cellWidth: 35, halign: 'right' },
+        0: { cellWidth: 60 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 20, halign: 'center' },
+        3: { cellWidth: 30, halign: 'right' },
+        4: { cellWidth: 30, halign: 'right' },
       },
     });
 
@@ -465,7 +473,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
 
       autoTable(doc, {
         startY: currentY,
-        head: [['Servicio / Cliente', 'Cantidad', 'Precio Unitario', 'Total']],
+        head: [['Servicio / Cliente', 'Proyecto/Presupuesto', 'Cantidad', 'Precio Unitario', 'Total']],
         body: memberTableData,
         theme: 'striped',
         headStyles: {
@@ -479,10 +487,11 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
           cellPadding: 4,
         },
         columnStyles: {
-          0: { cellWidth: 90 },
-          1: { cellWidth: 25, halign: 'center' },
-          2: { cellWidth: 35, halign: 'right' },
-          3: { cellWidth: 35, halign: 'right' },
+          0: { cellWidth: 60 },
+          1: { cellWidth: 40 },
+          2: { cellWidth: 20, halign: 'center' },
+          3: { cellWidth: 30, halign: 'right' },
+          4: { cellWidth: 30, halign: 'right' },
         },
       });
 
@@ -509,7 +518,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
 
     autoTable(doc, {
       startY: currentY,
-      head: [['Servicio / Cliente', 'Cantidad', 'Precio Unitario', 'Total']],
+      head: [['Servicio / Cliente', 'Proyecto/Presupuesto', 'Cantidad', 'Precio Unitario', 'Total']],
       body: tableData,
       theme: 'striped',
       headStyles: {
@@ -523,10 +532,11 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
         cellPadding: 5,
       },
       columnStyles: {
-        0: { cellWidth: 90 },
-        1: { cellWidth: 25, halign: 'center' },
-        2: { cellWidth: 35, halign: 'right' },
-        3: { cellWidth: 35, halign: 'right' },
+        0: { cellWidth: 60 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 20, halign: 'center' },
+        3: { cellWidth: 30, halign: 'right' },
+        4: { cellWidth: 30, halign: 'right' },
       },
     });
 
@@ -577,15 +587,16 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
 
     const pendingTableData = data.pendingRequests.map(req => [
       req.code || '-',
-      (req.title?.substring(0, 35) + (req.title && req.title.length > 35 ? '...' : '')) || '-',
+      (req.title?.substring(0, 30) + (req.title && req.title.length > 30 ? '...' : '')) || '-',
       req.client?.name || '-',
+      getProjectOrBudgetName(req),
       req.status === 'completed' ? 'Completado' : 'En progreso',
       formatCurrency(Number(req.cost_to_agency) || 0)
     ]);
 
     autoTable(doc, {
       startY: annexY + 12,
-      head: [['Código', 'Título', 'Cliente', 'Estado', 'Importe']],
+      head: [['Código', 'Título', 'Cliente', 'Proy./Pres.', 'Estado', 'Importe']],
       body: pendingTableData,
       theme: 'plain',
       headStyles: {
@@ -599,11 +610,12 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
         cellPadding: 3,
       },
       columnStyles: {
-        0: { cellWidth: 25 },
-        1: { cellWidth: 55 },
-        2: { cellWidth: 40 },
-        3: { cellWidth: 25 },
-        4: { cellWidth: 30, halign: 'right' },
+        0: { cellWidth: 22 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 30 },
+        3: { cellWidth: 30 },
+        4: { cellWidth: 22 },
+        5: { cellWidth: 28, halign: 'right' },
       },
     });
 
@@ -667,7 +679,7 @@ const buildTableData = (groupedItems: GroupedClient[]): any[][] => {
   groupedItems.forEach((group) => {
     // Client header row
     tableData.push([
-      { content: group.clientName, colSpan: 3, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+      { content: group.clientName, colSpan: 4, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
       { content: formatCurrency(group.subtotal), styles: { fontStyle: 'bold', fillColor: [240, 240, 240], halign: 'right' } },
     ]);
     
@@ -681,8 +693,10 @@ const buildTableData = (groupedItems: GroupedClient[]): any[][] => {
       const displayQuantity = item.financial_request?.cost_type === 'hourly'
         ? (item.financial_request?.hours || item.quantity || 1)
         : (item.financial_request?.quantity || item.quantity || 1);
+      const projectOrBudget = getProjectOrBudgetFromItem(item);
       tableData.push([
         description,
+        projectOrBudget,
         displayQuantity.toString(),
         formatCurrency(costToAgency),
         formatCurrency(costToAgency),
@@ -707,4 +721,30 @@ const formatCurrency = (amount: number): string => {
     style: 'currency',
     currency: 'EUR',
   }).format(amount);
+};
+
+// Helper to get project or budget name from liquidation item
+const getProjectOrBudgetFromItem = (item: any): string => {
+  const opRequest = item.financial_request?.operational_request?.[0];
+  if (opRequest?.operational_project?.name) {
+    const name = opRequest.operational_project.name;
+    return name.length > 20 ? name.substring(0, 18) + '...' : name;
+  }
+  if (item.financial_request?.budget?.code) {
+    return item.financial_request.budget.code;
+  }
+  return '-';
+};
+
+// Helper to get project or budget name from pending request
+const getProjectOrBudgetName = (req: PendingRequest): string => {
+  const opRequest = req.operational_request?.[0];
+  if (opRequest?.operational_project?.name) {
+    const name = opRequest.operational_project.name;
+    return name.length > 15 ? name.substring(0, 13) + '...' : name;
+  }
+  if (req.budget?.code) {
+    return req.budget.code;
+  }
+  return '-';
 };

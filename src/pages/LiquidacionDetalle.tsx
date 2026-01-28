@@ -430,6 +430,11 @@ export default function LiquidacionDetalle() {
         items: liquidation.liquidation_items || [],
         specialist: liquidation.specialist,
         pendingRequests: pendingRequests || [],
+        // Pass team data if this is a team leader liquidation
+        teamData: hasTeam && teamData ? {
+          members: teamData.members,
+          teamTotal: teamData.teamTotal,
+        } : undefined,
       });
       toast.success('PDF descargado');
     } catch (error: any) {
@@ -465,6 +470,11 @@ export default function LiquidacionDetalle() {
         items: liquidation.liquidation_items || [],
         specialist: liquidation.specialist,
         pendingRequests: pendingRequests || [],
+        // Pass team data if this is a team leader liquidation
+        teamData: hasTeam && teamData ? {
+          members: teamData.members,
+          teamTotal: teamData.teamTotal,
+        } : undefined,
       });
 
       const { error } = await supabase.functions.invoke('send-liquidation-email', {
@@ -733,88 +743,256 @@ export default function LiquidacionDetalle() {
           </Card>
         )}
 
-        {/* Items Table */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Trabajos incluidos</CardTitle>
-            {isEditable && canAccessFinance() && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setAddRequestsModalOpen(true)}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Añadir Solicitudes
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent>
-            {liquidation.liquidation_items && liquidation.liquidation_items.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Descripción</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead className="text-right">Cantidad</TableHead>
-                    <TableHead className="text-right">Precio Unit.</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    {isEditable && canAccessFinance() && <TableHead className="w-10"></TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {liquidation.liquidation_items.map((item: any) => (
-                    <TableRow 
-                      key={item.id}
-                      className={item.financial_request?.id ? 'cursor-pointer hover:bg-muted/50' : ''}
-                      onClick={() => item.financial_request?.id && navigate(`/solicitudes/${item.financial_request.id}`)}
+        {/* Items Tables - Separated by Specialist when team exists */}
+        {hasTeam && teamData ? (
+          <>
+            {/* Leader's Items */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-lg">Trabajos de {liquidation.specialist?.name}</CardTitle>
+                  <Badge variant="outline" className="text-blue-600 border-blue-300">Líder de equipo</Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isEditable && canAccessFinance() && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setAddRequestsModalOpen(true)}
                     >
-                      <TableCell className="font-mono text-sm">
-                        {item.financial_request?.id ? (
-                          <span className="text-primary hover:underline cursor-pointer">
-                            {item.financial_request?.code}
-                          </span>
-                        ) : (
-                          '-'
-                        )}
-                      </TableCell>
-                      <TableCell>{item.description}</TableCell>
-                      <TableCell>{item.financial_request?.client?.name || '-'}</TableCell>
-                      <TableCell className="text-right">
-                        {item.financial_request?.cost_type === 'hourly'
-                          ? (item.financial_request?.hours ?? item.quantity)
-                          : (item.financial_request?.quantity ?? item.quantity)}
-                      </TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(item.total)}</TableCell>
-                      {isEditable && canAccessFinance() && (
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setItemToRemove({
-                                id: item.id,
-                                requestId: item.financial_request?.id || null,
-                                description: item.description,
-                              });
-                            }}
+                      <Plus className="h-4 w-4 mr-2" />
+                      Añadir Solicitudes
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {liquidation.liquidation_items && liquidation.liquidation_items.length > 0 ? (
+                  <>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Código</TableHead>
+                          <TableHead>Descripción</TableHead>
+                          <TableHead>Cliente</TableHead>
+                          <TableHead className="text-right">Cantidad</TableHead>
+                          <TableHead className="text-right">Precio Unit.</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
+                          {isEditable && canAccessFinance() && <TableHead className="w-10"></TableHead>}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {liquidation.liquidation_items.map((item: any) => (
+                          <TableRow 
+                            key={item.id}
+                            className={item.financial_request?.id ? 'cursor-pointer hover:bg-muted/50' : ''}
+                            onClick={() => item.financial_request?.id && navigate(`/solicitudes/${item.financial_request.id}`)}
                           >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      )}
+                            <TableCell className="font-mono text-sm">
+                              {item.financial_request?.id ? (
+                                <span className="text-primary hover:underline cursor-pointer">
+                                  {item.financial_request?.code}
+                                </span>
+                              ) : (
+                                '-'
+                              )}
+                            </TableCell>
+                            <TableCell>{item.description}</TableCell>
+                            <TableCell>{item.financial_request?.client?.name || '-'}</TableCell>
+                            <TableCell className="text-right">
+                              {item.financial_request?.cost_type === 'hourly'
+                                ? (item.financial_request?.hours ?? item.quantity)
+                                : (item.financial_request?.quantity ?? item.quantity)}
+                            </TableCell>
+                            <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
+                            <TableCell className="text-right font-medium">{formatCurrency(item.total)}</TableCell>
+                            {isEditable && canAccessFinance() && (
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setItemToRemove({
+                                      id: item.id,
+                                      requestId: item.financial_request?.id || null,
+                                      description: item.description,
+                                    });
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <div className="flex justify-end mt-4 pt-4 border-t">
+                      <div className="text-right">
+                        <span className="text-muted-foreground mr-4">Subtotal:</span>
+                        <span className="font-semibold text-lg">{formatCurrency(liquidation.calculated_total)}</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-center text-muted-foreground py-8">No hay items para este especialista</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Team Members' Items */}
+            {teamData.members.map((memberLiq: any) => (
+              <Card key={memberLiq.id}>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-lg">Trabajos de {memberLiq.specialist?.name}</CardTitle>
+                    <Badge variant="outline">Miembro del equipo</Badge>
+                  </div>
+                  <Badge variant="secondary">{memberLiq.code}</Badge>
+                </CardHeader>
+                <CardContent>
+                  {memberLiq.liquidation_items && memberLiq.liquidation_items.length > 0 ? (
+                    <>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Código</TableHead>
+                            <TableHead>Descripción</TableHead>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead className="text-right">Cantidad</TableHead>
+                            <TableHead className="text-right">Precio Unit.</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {memberLiq.liquidation_items.map((item: any) => (
+                            <TableRow 
+                              key={item.id}
+                              className={item.financial_request?.id ? 'cursor-pointer hover:bg-muted/50' : ''}
+                              onClick={() => item.financial_request?.id && navigate(`/solicitudes/${item.financial_request.id}`)}
+                            >
+                              <TableCell className="font-mono text-sm">
+                                {item.financial_request?.id ? (
+                                  <span className="text-primary hover:underline cursor-pointer">
+                                    {item.financial_request?.code}
+                                  </span>
+                                ) : (
+                                  '-'
+                                )}
+                              </TableCell>
+                              <TableCell>{item.description}</TableCell>
+                              <TableCell>{item.financial_request?.client?.name || '-'}</TableCell>
+                              <TableCell className="text-right">
+                                {item.financial_request?.cost_type === 'hourly'
+                                  ? (item.financial_request?.hours ?? item.quantity)
+                                  : (item.financial_request?.quantity ?? item.quantity)}
+                              </TableCell>
+                              <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
+                              <TableCell className="text-right font-medium">{formatCurrency(item.total)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                      <div className="flex justify-end mt-4 pt-4 border-t">
+                        <div className="text-right">
+                          <span className="text-muted-foreground mr-4">Subtotal:</span>
+                          <span className="font-semibold text-lg">{formatCurrency(memberLiq.calculated_total)}</span>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-center text-muted-foreground py-8">No hay items para este especialista</p>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </>
+        ) : (
+          /* Single table for non-team liquidations */
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Trabajos incluidos</CardTitle>
+              {isEditable && canAccessFinance() && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setAddRequestsModalOpen(true)}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Añadir Solicitudes
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent>
+              {liquidation.liquidation_items && liquidation.liquidation_items.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Descripción</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead className="text-right">Cantidad</TableHead>
+                      <TableHead className="text-right">Precio Unit.</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      {isEditable && canAccessFinance() && <TableHead className="w-10"></TableHead>}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <p className="text-center text-muted-foreground py-8">No hay items en esta liquidación</p>
-            )}
-          </CardContent>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {liquidation.liquidation_items.map((item: any) => (
+                      <TableRow 
+                        key={item.id}
+                        className={item.financial_request?.id ? 'cursor-pointer hover:bg-muted/50' : ''}
+                        onClick={() => item.financial_request?.id && navigate(`/solicitudes/${item.financial_request.id}`)}
+                      >
+                        <TableCell className="font-mono text-sm">
+                          {item.financial_request?.id ? (
+                            <span className="text-primary hover:underline cursor-pointer">
+                              {item.financial_request?.code}
+                            </span>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+                        <TableCell>{item.description}</TableCell>
+                        <TableCell>{item.financial_request?.client?.name || '-'}</TableCell>
+                        <TableCell className="text-right">
+                          {item.financial_request?.cost_type === 'hourly'
+                            ? (item.financial_request?.hours ?? item.quantity)
+                            : (item.financial_request?.quantity ?? item.quantity)}
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(item.total)}</TableCell>
+                        {isEditable && canAccessFinance() && (
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setItemToRemove({
+                                  id: item.id,
+                                  requestId: item.financial_request?.id || null,
+                                  description: item.description,
+                                });
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-center text-muted-foreground py-8">No hay items en esta liquidación</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Pending Requests Section */}
         {isEditable && canAccessFinance() && (

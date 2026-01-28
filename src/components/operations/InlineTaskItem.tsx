@@ -249,14 +249,17 @@ export function InlineTaskItem({
               </Select>
             </div>
 
-            {/* Context URL */}
+            {/* Google Drive Link */}
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">URL de contexto</label>
+              <label className="text-xs text-muted-foreground mb-1 block flex items-center gap-1.5">
+                <img src="/src/assets/icons8-google-drive.svg" alt="Drive" className="h-4 w-4" />
+                Enlace Google Drive
+              </label>
               <Input
                 value={localContextUrl}
                 onChange={(e) => setLocalContextUrl(e.target.value)}
                 onBlur={handleContextUrlBlur}
-                placeholder="https://..."
+                placeholder="https://drive.google.com/..."
                 className="h-8 text-sm"
               />
             </div>

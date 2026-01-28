@@ -704,28 +704,17 @@ export default function LiquidacionDetalle() {
 
         {/* Specialist Invoice Upload - Para todos los estados excepto pagado */}
         {canAccessFinance() && ['draft', 'validated', 'sent', 'accepted', 'invoice_received', 'pending_payment'].includes(liquidation.status) && (
-          <div className="space-y-3">
-            <SpecialistInvoiceUpload
-              liquidationId={liquidation.id}
-              liquidationCode={liquidation.code}
-              currentInvoiceUrl={liquidation.specialist_invoice_url}
-              currentStatus={liquidation.status}
-              onUploadSuccess={() => {
-                queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
-                queryClient.invalidateQueries({ queryKey: ['liquidations'] });
-              }}
-            />
-            {!liquidation.specialist_invoice_url && (
-              <Button 
-                variant="outline" 
-                className="w-full" 
-                onClick={() => setImportInvoiceModalOpen(true)}
-              >
-                <Sparkles className="h-4 w-4 mr-2" />
-                Importar con IA
-              </Button>
-            )}
-          </div>
+          <SpecialistInvoiceUpload
+            liquidationId={liquidation.id}
+            liquidationCode={liquidation.code}
+            currentInvoiceUrl={liquidation.specialist_invoice_url}
+            currentStatus={liquidation.status}
+            liquidationSubtotal={liquidation.subtotal}
+            onUploadSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
+              queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+            }}
+          />
         )}
 
         {/* Notes */}

@@ -1,134 +1,77 @@
 
 
-# Plan: Preservar Filtros de Requests en URL
+# Plan: Mostrar Título del Presupuesto en Columna "Proyecto/Pres."
 
-## Problema
+## Problema Identificado
 
-Cuando el usuario aplica filtros en la página de Requests y navega a un detalle, al volver con el botón "atrás" los filtros se pierden. Esto ocurre porque:
+En la vista de detalle de liquidaciones, la columna "Proyecto/Pres." muestra solo el código del presupuesto (ej: `PRE-2025-201`) en lugar del título descriptivo (ej: `Switzerland without borders | Inbound Marketing Campaign`).
 
-1. Solo `budget_id` se persiste en la URL
-2. Los demás filtros (`status`, `clientId`, `specialistId`, `year`, `month`) solo están en estado local (useState)
-3. Al navegar de vuelta, el componente se re-monta con estado inicial vacío
+La query ya incluye el campo `title` del presupuesto, pero el código de renderizado solo usa el campo `code`.
 
-## Solución
+## Ubicaciones a Modificar
 
-Persistir TODOS los filtros en los query parameters de la URL. Así cuando el usuario navegue de vuelta, los filtros se restaurarán automáticamente desde la URL.
+| Archivo | Líneas | Descripción |
+|---------|--------|-------------|
+| `src/pages/LiquidacionDetalle.tsx` | ~190 | PendingRequestsSection - tabla de trabajos pendientes |
+| `src/pages/LiquidacionDetalle.tsx` | ~839 | Trabajos del líder de equipo |
+| `src/pages/LiquidacionDetalle.tsx` | ~951 | Trabajos de miembros del equipo |
+| `src/pages/LiquidacionDetalle.tsx` | ~1051 | Trabajos incluidos (liquidación individual) |
+| `src/utils/pdf/liquidationPDFGenerator.ts` | ~733-734 | Función `getProjectOrBudgetFromItem` |
+| `src/utils/pdf/liquidationPDFGenerator.ts` | ~746-747 | Función `getProjectOrBudgetName` |
 
-## Diseño de URL
+## Cambios a Realizar
 
+### 1. LiquidacionDetalle.tsx - UI (4 ubicaciones)
+
+**Antes:**
+```tsx
+{item.financial_request.budget.code}
 ```
-/solicitudes?status=pending_liquidation&clientId=xxx&specialistId=yyy&year=2025&month=12
+
+**Después:**
+```tsx
+{item.financial_request.budget.title || item.financial_request.budget.code}
 ```
 
-## Archivo a Modificar
+Con truncado para evitar columnas muy anchas (ej: máx 35 caracteres + "...").
 
-| Archivo | Cambio |
-|---------|--------|
-| `src/hooks/useRequestFilters.tsx` | Sincronizar todos los filtros con URL params |
+### 2. liquidationPDFGenerator.ts - PDF Export
 
-## Implementación
-
-### Actualizar useRequestFilters.tsx
-
+**Función `getProjectOrBudgetFromItem`:**
 ```typescript
-import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
-
-export interface RequestFilters {
-  searchTerm: string;
-  status: string | null;
-  clientId: string | null;
-  specialistId: string | null;
-  budgetId: string | null;
-  year: number | null;
-  month: number | null;
+// Antes:
+if (item.financial_request?.budget?.code) {
+  return item.financial_request.budget.code;
 }
 
-export const useRequestFilters = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  
-  // Initialize filters from URL params
-  const [filters, setFilters] = useState<RequestFilters>(() => ({
-    searchTerm: searchParams.get('search') || '',
-    status: searchParams.get('status'),
-    clientId: searchParams.get('clientId'),
-    specialistId: searchParams.get('specialistId'),
-    budgetId: searchParams.get('budget_id'),
-    year: searchParams.get('year') ? parseInt(searchParams.get('year')!) : null,
-    month: searchParams.get('month') ? parseInt(searchParams.get('month')!) : null,
-  }));
-
-  // Sync filters TO URL whenever they change
-  const syncToUrl = useCallback((newFilters: RequestFilters) => {
-    const newParams = new URLSearchParams();
-    
-    if (newFilters.searchTerm) newParams.set('search', newFilters.searchTerm);
-    if (newFilters.status) newParams.set('status', newFilters.status);
-    if (newFilters.clientId) newParams.set('clientId', newFilters.clientId);
-    if (newFilters.specialistId) newParams.set('specialistId', newFilters.specialistId);
-    if (newFilters.budgetId) newParams.set('budget_id', newFilters.budgetId);
-    if (newFilters.year) newParams.set('year', newFilters.year.toString());
-    if (newFilters.month) newParams.set('month', newFilters.month.toString());
-    
-    setSearchParams(newParams, { replace: true });
-  }, [setSearchParams]);
-
-  const updateFilter = <K extends keyof RequestFilters>(
-    key: K,
-    value: RequestFilters[K]
-  ) => {
-    setFilters((prev) => {
-      const newFilters = { ...prev, [key]: value };
-      // Reset budget filter when client changes
-      if (key === 'clientId') {
-        newFilters.budgetId = null;
-      }
-      // Reset month if year is cleared
-      if (key === 'year' && value === null) {
-        newFilters.month = null;
-      }
-      
-      // Sync to URL
-      syncToUrl(newFilters);
-      
-      return newFilters;
-    });
-  };
-
-  const resetFilters = () => {
-    const emptyFilters: RequestFilters = {
-      searchTerm: '',
-      status: null,
-      clientId: null,
-      specialistId: null,
-      budgetId: null,
-      year: null,
-      month: null,
-    };
-    setFilters(emptyFilters);
-    setSearchParams({}, { replace: true });
-  };
-
-  return {
-    filters,
-    updateFilter,
-    resetFilters,
-  };
-};
+// Después:
+if (item.financial_request?.budget) {
+  const budget = item.financial_request.budget;
+  const name = budget.title || budget.code;
+  return name.length > 25 ? name.substring(0, 23) + '...' : name;
+}
 ```
 
-## Comportamiento Esperado
+**Función `getProjectOrBudgetName`:**
+```typescript
+// Antes:
+if (req.budget?.code) {
+  return req.budget.code;
+}
 
-1. Usuario aplica filtros: `Pend. Liquidar`, `Iolanda Carbone`
-2. URL se actualiza: `/solicitudes?status=pending_liquidation&specialistId=xxx`
-3. Usuario hace click en un request → navega a `/solicitudes/abc123`
-4. Usuario hace click en "← Atrás" (browser back o botón)
-5. Vuelve a `/solicitudes?status=pending_liquidation&specialistId=xxx`
-6. Hook lee filtros desde URL → misma vista filtrada
+// Después:
+if (req.budget) {
+  const name = req.budget.title || req.budget.code;
+  return name.length > 18 ? name.substring(0, 16) + '...' : name;
+}
+```
 
-## Notas
+## Resultado Esperado
 
-- El término de búsqueda también se persiste (útil para búsquedas largas)
-- Se usa `replace: true` para no llenar el historial con cada cambio de filtro
-- El useEffect de sincronización desde URL se elimina (ya no es necesario, se lee en el useState inicial)
+| Antes | Después |
+|-------|---------|
+| `PRE-2025-201` | `Switzerland without borders...` |
+| `PRE-2026-005` | `ePAQ GO Translations` |
+
+Los proyectos operacionales seguirán mostrando su nombre como hasta ahora. Solo cambia el display de presupuestos.
 

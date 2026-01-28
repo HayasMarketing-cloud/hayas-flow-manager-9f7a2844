@@ -728,10 +728,12 @@ const getProjectOrBudgetFromItem = (item: any): string => {
   const opRequest = item.financial_request?.operational_request?.[0];
   if (opRequest?.operational_project?.name) {
     const name = opRequest.operational_project.name;
-    return name.length > 20 ? name.substring(0, 18) + '...' : name;
+    return name.length > 25 ? name.substring(0, 23) + '...' : name;
   }
-  if (item.financial_request?.budget?.code) {
-    return item.financial_request.budget.code;
+  if (item.financial_request?.budget) {
+    const budget = item.financial_request.budget;
+    const name = budget.title || budget.code;
+    return name.length > 25 ? name.substring(0, 23) + '...' : name;
   }
   return '-';
 };
@@ -741,10 +743,11 @@ const getProjectOrBudgetName = (req: PendingRequest): string => {
   const opRequest = req.operational_request?.[0];
   if (opRequest?.operational_project?.name) {
     const name = opRequest.operational_project.name;
-    return name.length > 15 ? name.substring(0, 13) + '...' : name;
+    return name.length > 18 ? name.substring(0, 16) + '...' : name;
   }
-  if (req.budget?.code) {
-    return req.budget.code;
+  if (req.budget) {
+    const name = req.budget.title || req.budget.code;
+    return name.length > 18 ? name.substring(0, 16) + '...' : name;
   }
   return '-';
 };

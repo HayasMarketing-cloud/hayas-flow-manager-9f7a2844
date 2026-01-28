@@ -519,7 +519,9 @@ export default function LiquidacionDetalle() {
           liquidationId: liquidation.id,
           periodMonth: liquidation.period_month,
           periodYear: liquidation.period_year,
-          totalAmount: liquidation.calculated_total ?? liquidation.total_amount,
+          totalAmount: (hasTeam && teamData) 
+            ? teamData.teamTotal 
+            : (liquidation.calculated_total ?? liquidation.total_amount),
           pdfBase64,
           appUrl: 'https://hayas-flow-manager.lovable.app',
           senderEmail: user?.email,

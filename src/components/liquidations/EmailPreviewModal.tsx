@@ -44,7 +44,20 @@ export const EmailPreviewModal = ({
   if (!liquidation) return null;
 
   const periodName = `${monthNames[(liquidation.period_month || 1) - 1]} ${liquidation.period_year}`;
-  const totalAmount = liquidation.calculated_total ?? liquidation.total_amount ?? 0;
+  
+  // Detect team liquidation and use team total
+  const isTeamLiquidation = liquidation.is_team && liquidation.team_total;
+  const totalAmount = isTeamLiquidation 
+    ? liquidation.team_total 
+    : (liquidation.calculated_total ?? liquidation.total_amount ?? 0);
+  
+  // Team breakdown for display
+  const teamBreakdown = isTeamLiquidation && liquidation.team_members?.length > 0
+    ? [
+        formatCurrency(liquidation.leader_total || liquidation.calculated_total || 0),
+        ...liquidation.team_members.map((m: any) => formatCurrency(m.total || 0))
+      ].join(' + ')
+    : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -148,9 +161,23 @@ export const EmailPreviewModal = ({
                       <Euro className="h-4 w-4 text-muted-foreground" />
                       <span className="text-muted-foreground">Total:</span>
                     </div>
-                    <span className="font-semibold text-primary text-lg">
-                      {formatCurrency(totalAmount)}
-                    </span>
+                    <div className="text-right">
+                      <span className="font-semibold text-primary text-lg">
+                        {formatCurrency(totalAmount)}
+                      </span>
+                      {isTeamLiquidation && (
+                        <div className="flex items-center gap-2 justify-end mt-1">
+                          <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-700">
+                            Equipo
+                          </Badge>
+                          {teamBreakdown && (
+                            <span className="text-xs text-muted-foreground">
+                              ({teamBreakdown})
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
                 

@@ -318,8 +318,8 @@ export default function Liquidaciones() {
     setSendingLiquidationId(liquidation.id);
 
     try {
-      // Fetch liquidation items with financial_request details
-      const { data: items, error: itemsError } = await supabase
+      // Fetch leader's liquidation items with financial_request details
+      const { data: leaderItems, error: itemsError } = await supabase
         .from('liquidation_items')
         .select(`
           *,
@@ -327,19 +327,61 @@ export default function Liquidaciones() {
             id,
             title,
             cost_to_agency,
-            client:clients(name)
+            client:clients(name),
+            budget:budgets(code, title),
+            operational_project:operational_projects(name)
           )
         `)
         .eq('liquidation_id', liquidation.id);
 
       if (itemsError) throw itemsError;
 
-      // Generate PDF as base64
+      // Build teamData if this is a team liquidation
+      let teamData = undefined;
+      if (liquidation.is_team && liquidation.member_liquidation_ids?.length > 0 && liquidation.team_members?.length > 0) {
+        const memberPromises = liquidation.team_members.map(async (member: any) => {
+          const { data: memberItems } = await supabase
+            .from('liquidation_items')
+            .select(`
+              *,
+              financial_request:financial_requests(
+                id,
+                title,
+                cost_to_agency,
+                client:clients(name),
+                budget:budgets(code, title),
+                operational_project:operational_projects(name)
+              )
+            `)
+            .eq('liquidation_id', member.liquidation_id);
+          
+          return {
+            specialist: { name: member.name },
+            liquidation_items: memberItems || [],
+            calculated_total: member.total,
+            code: '',
+          };
+        });
+
+        const members = await Promise.all(memberPromises);
+        teamData = {
+          members,
+          teamTotal: liquidation.team_total,
+        };
+      }
+
+      // Generate PDF with team data if applicable
       const pdfBase64 = await generateLiquidationPDFBase64({
         liquidation,
-        items: items || [],
+        items: leaderItems || [],
         specialist: liquidation.specialist,
+        teamData,
       });
+
+      // Use team total for email if this is a team liquidation
+      const totalForEmail = liquidation.is_team && liquidation.team_total
+        ? liquidation.team_total
+        : (liquidation.calculated_total ?? liquidation.total_amount);
 
       // Call edge function to send email with signature token
       const { data, error } = await supabase.functions.invoke('send-liquidation-email', {
@@ -350,28 +392,36 @@ export default function Liquidaciones() {
           liquidationId: liquidation.id,
           periodMonth: liquidation.period_month,
           periodYear: liquidation.period_year,
-          totalAmount: liquidation.calculated_total ?? liquidation.total_amount,
+          totalAmount: totalForEmail,
           pdfBase64,
           appUrl: 'https://hayas-flow-manager.lovable.app',
-          senderEmail: user?.email, // Email del usuario que envía
+          senderEmail: user?.email,
         },
       });
 
       if (error) throw error;
 
-      // Update liquidation status to 'sent'
-      const { error: updateError } = await supabase
-        .from('liquidations')
-        .update({ status: 'sent', sent_at: new Date().toISOString() })
-        .eq('id', liquidation.id);
-
-      if (updateError) throw updateError;
+      // Update status for ALL team liquidations (leader + members)
+      if (liquidation.is_team && liquidation.member_liquidation_ids?.length > 0) {
+        const allIds = [liquidation.id, ...liquidation.member_liquidation_ids];
+        const { error: updateError } = await supabase
+          .from('liquidations')
+          .update({ status: 'sent', sent_at: new Date().toISOString() })
+          .in('id', allIds);
+        if (updateError) throw updateError;
+      } else {
+        const { error: updateError } = await supabase
+          .from('liquidations')
+          .update({ status: 'sent', sent_at: new Date().toISOString() })
+          .eq('id', liquidation.id);
+        if (updateError) throw updateError;
+      }
 
       queryClient.invalidateQueries({ queryKey: ['liquidations'] });
       setSendEmailDialogOpen(false);
       toast.success(`Email enviado correctamente a ${liquidation.specialist.email}`);
       
-      // Show notification feedback - specialist may or may not have user_id for in-app
+      // Show notification feedback
       notificationFeedback.liquidationSent(liquidation.specialist.name, false);
     } catch (error: any) {
       console.error('Error sending email:', error);

@@ -290,12 +290,17 @@ const handler = async (req: Request): Promise<Response> => {
         
         <p>Por favor, revisa el documento adjunto y <strong>confirma o disputa</strong> la liquidación haciendo clic en uno de los botones de abajo:</p>
         
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${signatureUrl}" 
-             style="display: inline-block; background-color: #10b981; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-right: 10px;">
-            ✓ Revisar y Firmar
-          </a>
-        </div>
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 30px auto;">
+          <tr>
+            <td align="center" bgcolor="#10b981" style="border-radius: 8px;">
+              <a href="${signatureUrl}" 
+                 target="_blank" 
+                 style="display: inline-block; background-color: #10b981; font-size: 16px; font-family: Arial, sans-serif; font-weight: bold; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; border: 1px solid #10b981;">
+                Revisar y Firmar
+              </a>
+            </td>
+          </tr>
+        </table>
         
         <p style="color: #666; font-size: 0.9em; text-align: center;">
           Este enlace expira en 30 días.<br>

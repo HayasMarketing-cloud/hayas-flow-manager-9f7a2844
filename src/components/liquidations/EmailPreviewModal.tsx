@@ -161,7 +161,7 @@ export const EmailPreviewModal = ({
                 {/* Mock button preview */}
                 <div className="text-center my-4">
                   <div className="inline-block bg-green-500 text-white px-6 py-3 rounded-lg font-medium">
-                    ✓ Revisar y Firmar
+                    Revisar y Firmar
                   </div>
                 </div>
                 

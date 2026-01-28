@@ -186,8 +186,9 @@ function PendingRequestsSection({
                     e.stopPropagation();
                     window.open(`/presupuestos/${(request as any).budget.id}`, '_blank');
                   }}
+                  title={(request as any).budget.title || (request as any).budget.code}
                 >
-                  {(request as any).budget.code}
+                  {((request as any).budget.title || (request as any).budget.code)?.substring(0, 35)}{((request as any).budget.title || (request as any).budget.code)?.length > 35 ? '...' : ''}
                 </span>
               ) : '-';
 
@@ -835,8 +836,9 @@ export default function LiquidacionDetalle() {
                                 e.stopPropagation();
                                 navigate(`/presupuestos/${item.financial_request.budget.id}`);
                               }}
+                              title={item.financial_request.budget.title || item.financial_request.budget.code}
                             >
-                              {item.financial_request.budget.code}
+                              {(item.financial_request.budget.title || item.financial_request.budget.code)?.substring(0, 35)}{(item.financial_request.budget.title || item.financial_request.budget.code)?.length > 35 ? '...' : ''}
                             </span>
                           ) : '-';
 
@@ -947,8 +949,9 @@ export default function LiquidacionDetalle() {
                                   e.stopPropagation();
                                   navigate(`/presupuestos/${item.financial_request.budget.id}`);
                                 }}
+                                title={item.financial_request.budget.title || item.financial_request.budget.code}
                               >
-                                {item.financial_request.budget.code}
+                                {(item.financial_request.budget.title || item.financial_request.budget.code)?.substring(0, 35)}{(item.financial_request.budget.title || item.financial_request.budget.code)?.length > 35 ? '...' : ''}
                               </span>
                             ) : '-';
 
@@ -1047,8 +1050,9 @@ export default function LiquidacionDetalle() {
                             e.stopPropagation();
                             navigate(`/presupuestos/${item.financial_request.budget.id}`);
                           }}
+                          title={item.financial_request.budget.title || item.financial_request.budget.code}
                         >
-                          {item.financial_request.budget.code}
+                          {(item.financial_request.budget.title || item.financial_request.budget.code)?.substring(0, 35)}{(item.financial_request.budget.title || item.financial_request.budget.code)?.length > 35 ? '...' : ''}
                         </span>
                       ) : '-';
 

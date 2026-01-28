@@ -803,8 +803,8 @@ export default function LiquidacionDetalle() {
           />
         )}
 
-        {/* Specialist Invoice Upload - Para todos los estados excepto pagado */}
-        {canAccessFinance() && ['draft', 'validated', 'sent', 'accepted', 'invoice_received', 'pending_payment'].includes(liquidation.status) && (
+        {/* Specialist Invoice Upload - Para todos los estados */}
+        {canAccessFinance() && (
           <SpecialistInvoiceUpload
             liquidationId={liquidation.id}
             liquidationCode={liquidation.code}

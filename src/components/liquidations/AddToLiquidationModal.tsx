@@ -89,16 +89,15 @@ export const AddToLiquidationModal = ({
     return selectedRequests.filter(r => r.liquidation_id === null && r.specialist_id);
   }, [selectedRequests]);
 
-  // Fetch existing draft liquidations for this specialist
+  // Fetch ALL existing liquidations for this specialist (not just drafts)
   const { data: existingLiquidations, isLoading: loadingLiquidations } = useQuery({
-    queryKey: ['draft-liquidations-for-specialist', specialistInfo?.id],
+    queryKey: ['all-liquidations-for-specialist', specialistInfo?.id],
     queryFn: async () => {
       if (!specialistInfo?.id) return [];
       const { data, error } = await supabase
         .from('liquidations')
         .select('id, code, period_year, period_month, subtotal, status')
         .eq('specialist_id', specialistInfo.id)
-        .eq('status', 'draft')
         .order('period_year', { ascending: false })
         .order('period_month', { ascending: false });
       if (error) throw error;
@@ -106,6 +105,19 @@ export const AddToLiquidationModal = ({
     },
     enabled: open && !!specialistInfo?.id,
   });
+
+  // Filter draft liquidations for "existing" mode
+  const draftLiquidations = useMemo(() => {
+    return existingLiquidations?.filter(l => l.status === 'draft') || [];
+  }, [existingLiquidations]);
+
+  // Check if a liquidation already exists for selected period
+  const existingLiquidationForPeriod = useMemo(() => {
+    if (!existingLiquidations || mode !== 'new') return null;
+    return existingLiquidations.find(
+      l => l.period_year === selectedYear && l.period_month === selectedMonth
+    );
+  }, [existingLiquidations, selectedYear, selectedMonth, mode]);
 
   // Calculate total cost
   const totalCost = useMemo(() => {
@@ -124,31 +136,44 @@ export const AddToLiquidationModal = ({
       let liquidationCode: string;
 
       if (mode === 'new') {
-        // Create new liquidation
-        const { data: newLiq, error: createError } = await supabase
-          .from('liquidations')
-          .insert({
-            specialist_id: specialistInfo.id,
-            period_year: selectedYear,
-            period_month: selectedMonth,
-            code: '', // Will be auto-generated
-            status: 'draft',
-            subtotal: 0,
-            tax_rate: 21,
-            tax_amount: 0,
-            total_amount: 0,
-          })
-          .select()
-          .single();
+        // Check if liquidation already exists for this period
+        if (existingLiquidationForPeriod) {
+          // If it's a draft, use it; otherwise throw error
+          if (existingLiquidationForPeriod.status === 'draft') {
+            liquidationId = existingLiquidationForPeriod.id;
+            liquidationCode = existingLiquidationForPeriod.code;
+          } else {
+            throw new Error(
+              `Ya existe una liquidación para ${getMonthName(selectedMonth)} ${selectedYear} (${existingLiquidationForPeriod.code}) con estado "${existingLiquidationForPeriod.status}". Selecciona otro período.`
+            );
+          }
+        } else {
+          // Create new liquidation
+          const { data: newLiq, error: createError } = await supabase
+            .from('liquidations')
+            .insert({
+              specialist_id: specialistInfo.id,
+              period_year: selectedYear,
+              period_month: selectedMonth,
+              code: '', // Will be auto-generated
+              status: 'draft',
+              subtotal: 0,
+              tax_rate: 21,
+              tax_amount: 0,
+              total_amount: 0,
+            })
+            .select()
+            .single();
 
-        if (createError) throw createError;
-        liquidationId = newLiq.id;
-        liquidationCode = newLiq.code;
+          if (createError) throw createError;
+          liquidationId = newLiq.id;
+          liquidationCode = newLiq.code;
+        }
       } else {
         // Use existing liquidation
         if (!selectedLiquidationId) throw new Error('Selecciona una liquidación');
         liquidationId = selectedLiquidationId;
-        const existing = existingLiquidations?.find(l => l.id === selectedLiquidationId);
+        const existing = draftLiquidations?.find(l => l.id === selectedLiquidationId);
         liquidationCode = existing?.code || '';
       }
 
@@ -284,37 +309,47 @@ export const AddToLiquidationModal = ({
                   <Label htmlFor="new" className="flex-1 cursor-pointer">
                     <span className="font-medium">Crear nueva liquidación</span>
                     {mode === 'new' && (
-                      <div className="flex gap-2 mt-2">
-                        <Select
-                          value={selectedMonth.toString()}
-                          onValueChange={(v) => setSelectedMonth(parseInt(v))}
-                        >
-                          <SelectTrigger className="w-[140px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {months.map((m) => (
-                              <SelectItem key={m.value} value={m.value.toString()}>
-                                {m.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Select
-                          value={selectedYear.toString()}
-                          onValueChange={(v) => setSelectedYear(parseInt(v))}
-                        >
-                          <SelectTrigger className="w-[100px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {years.map((y) => (
-                              <SelectItem key={y} value={y.toString()}>
-                                {y}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <div className="space-y-2 mt-2">
+                        <div className="flex gap-2">
+                          <Select
+                            value={selectedMonth.toString()}
+                            onValueChange={(v) => setSelectedMonth(parseInt(v))}
+                          >
+                            <SelectTrigger className="w-[140px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {months.map((m) => (
+                                <SelectItem key={m.value} value={m.value.toString()}>
+                                  {m.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value={selectedYear.toString()}
+                            onValueChange={(v) => setSelectedYear(parseInt(v))}
+                          >
+                            <SelectTrigger className="w-[100px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {years.map((y) => (
+                                <SelectItem key={y} value={y.toString()}>
+                                  {y}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {existingLiquidationForPeriod && (
+                          <div className={`text-sm p-2 rounded ${existingLiquidationForPeriod.status === 'draft' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-destructive/10 text-destructive'}`}>
+                            {existingLiquidationForPeriod.status === 'draft' 
+                              ? `✓ Ya existe ${existingLiquidationForPeriod.code} en borrador. Las solicitudes se añadirán a esta liquidación.`
+                              : `⚠️ Ya existe ${existingLiquidationForPeriod.code} con estado "${existingLiquidationForPeriod.status}". Selecciona otro período.`
+                            }
+                          </div>
+                        )}
                       </div>
                     )}
                   </Label>
@@ -326,7 +361,7 @@ export const AddToLiquidationModal = ({
                     <span className="font-medium">Añadir a liquidación existente</span>
                     {mode === 'existing' && (
                       <div className="mt-2">
-                        {existingLiquidations && existingLiquidations.length > 0 ? (
+                        {draftLiquidations && draftLiquidations.length > 0 ? (
                           <Select
                             value={selectedLiquidationId}
                             onValueChange={setSelectedLiquidationId}
@@ -335,7 +370,7 @@ export const AddToLiquidationModal = ({
                               <SelectValue placeholder="Selecciona una liquidación" />
                             </SelectTrigger>
                             <SelectContent>
-                              {existingLiquidations.map((liq) => (
+                              {draftLiquidations.map((liq) => (
                                 <SelectItem key={liq.id} value={liq.id}>
                                   {liq.code} - {formatPeriod(liq.period_year, liq.period_month)}
                                 </SelectItem>
@@ -409,7 +444,8 @@ export const AddToLiquidationModal = ({
               !!hasError ||
               validRequests.length === 0 ||
               addToLiquidationMutation.isPending ||
-              (mode === 'existing' && !selectedLiquidationId)
+              (mode === 'existing' && !selectedLiquidationId) ||
+              (mode === 'new' && existingLiquidationForPeriod && existingLiquidationForPeriod.status !== 'draft')
             }
           >
             {addToLiquidationMutation.isPending ? 'Añadiendo...' : 'Añadir a Liquidación'}

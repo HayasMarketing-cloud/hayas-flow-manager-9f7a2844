@@ -81,10 +81,9 @@ const Solicitudes = () => {
         // Requests with liquidation_id assigned
         query = query.not('liquidation_id', 'is', null);
       } else if (filters.status === 'pending_liquidation') {
-        // Completed requests without liquidation_id (pending liquidation)
-        query = query.eq('status', 'completed').is('liquidation_id', null);
+        // All requests without liquidation_id, except cancelled ones
+        query = query.is('liquidation_id', null).neq('status', 'cancelled');
       }
-
       // Apply year/month filters based on created_at
       if (filters.year) {
         const startDate = new Date(filters.year, filters.month ? filters.month - 1 : 0, 1);

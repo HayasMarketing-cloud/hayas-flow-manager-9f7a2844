@@ -2,11 +2,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Eye, Pencil, Trash2, Mail } from 'lucide-react';
+import { Eye, Pencil, Trash2, Mail, Users, Info } from 'lucide-react';
 import { LiquidationStatusBadge } from './LiquidationStatusBadge';
 import { SignatureStatusBadge } from './SignatureStatusBadge';
 import { formatPeriod, formatCurrency } from '@/lib/liquidation-utils';
 import { Card, CardContent } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 
 interface LiquidationTableViewProps {
   liquidations: any[];
@@ -108,6 +109,12 @@ export const LiquidationTableView = ({
                 const canBeSelected = isPayable(liquidation.status);
                 const isSelected = selectedIds.includes(liquidation.id);
                 
+                // Team liquidation properties
+                const isTeamLiquidation = liquidation.is_team === true;
+                const displayTotal = isTeamLiquidation 
+                  ? liquidation.team_total 
+                  : (liquidation.calculated_total ?? liquidation.subtotal ?? liquidation.total_amount);
+                
                 return (
                   <TableRow key={liquidation.id} className={isSelected ? "bg-muted/50" : ""}>
                     {canManage && onSelectionChange && (
@@ -124,14 +131,46 @@ export const LiquidationTableView = ({
                       </TableCell>
                     )}
                     <TableCell className="font-medium">{liquidation.code}</TableCell>
-                    <TableCell>{liquidation.specialist?.name || 'N/A'}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {liquidation.specialist?.name || 'N/A'}
+                        {isTeamLiquidation && (
+                          <Badge variant="secondary" className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 text-xs">
+                            <Users className="h-3 w-3 mr-1" />
+                            Equipo
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline">
                         {formatPeriod(liquidation.period_year, liquidation.period_month, 'short')}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-semibold">
-                      {formatCurrency(liquidation.calculated_total ?? liquidation.subtotal ?? liquidation.total_amount)}
+                      <div className="flex items-center justify-end gap-1">
+                        {formatCurrency(displayTotal)}
+                        {isTeamLiquidation && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="text-sm">
+                                  <div>Líder: {formatCurrency(liquidation.leader_total || 0)}</div>
+                                  <div>Miembros: {formatCurrency((liquidation.team_total || 0) - (liquidation.leader_total || 0))}</div>
+                                  {liquidation.team_members?.map((m: any) => (
+                                    <div key={m.id} className="text-xs text-muted-foreground pl-2">
+                                      • {m.name}: {formatCurrency(m.total || 0)}
+                                    </div>
+                                  ))}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <LiquidationStatusBadge status={liquidation.status} />

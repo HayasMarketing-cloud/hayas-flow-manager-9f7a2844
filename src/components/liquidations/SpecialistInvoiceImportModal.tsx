@@ -37,6 +37,7 @@ interface LiquidationCandidate {
   code: string;
   period_month: number;
   period_year: number;
+  subtotal: number;
   total_amount: number;
   status: string;
   specialist: { id: string; name: string } | null;
@@ -81,11 +82,12 @@ export function SpecialistInvoiceImportModal({
           code,
           period_month,
           period_year,
+          subtotal,
           total_amount,
           status,
           specialist:specialists(id, name)
         `)
-        .in('status', ['accepted', 'invoice_received', 'pending_payment'])
+        .in('status', ['draft', 'validated', 'sent', 'accepted', 'invoice_received', 'pending_payment'])
         .is('specialist_invoice_url', null)
         .order('period_year', { ascending: false })
         .order('period_month', { ascending: false });
@@ -265,8 +267,20 @@ export function SpecialistInvoiceImportModal({
         specialist_invoice_url: publicUrlData.publicUrl,
       };
 
-      // Change status to invoice_received if currently accepted
-      if (selectedLiq?.status === 'accepted') {
+      // Determinar nuevo estado según estado actual
+      if (['draft', 'validated', 'sent'].includes(selectedLiq?.status || '')) {
+        // Auto-aceptar y marcar factura recibida
+        updateData.status = 'invoice_received';
+        
+        // Verificar si importes coinciden (comparar subtotales con tolerancia de 1€)
+        const amountsMatch = Math.abs((extractedData?.subtotal || 0) - (selectedLiq?.subtotal || 0)) <= 1;
+        
+        if (amountsMatch) {
+          toast.success('Liquidación aceptada automáticamente - importes coinciden');
+        } else {
+          toast.warning(`Atención: El importe de la factura (${formatCurrency(extractedData?.subtotal || 0)}) difiere de la liquidación (${formatCurrency(selectedLiq?.subtotal || 0)})`);
+        }
+      } else if (selectedLiq?.status === 'accepted') {
         updateData.status = 'invoice_received';
       }
 
@@ -280,8 +294,11 @@ export function SpecialistInvoiceImportModal({
 
       queryClient.invalidateQueries({ queryKey: ['liquidations'] });
       queryClient.invalidateQueries({ queryKey: ['liquidation-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['liquidations-for-matching'] });
 
-      toast.success('Factura asociada correctamente');
+      if (!['draft', 'validated', 'sent'].includes(selectedLiq?.status || '')) {
+        toast.success('Factura asociada correctamente');
+      }
       onSuccess?.();
       handleClose();
     } catch (error: any) {

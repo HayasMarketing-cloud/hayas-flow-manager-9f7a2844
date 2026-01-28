@@ -33,7 +33,7 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
             <p className="text-xs text-muted-foreground font-mono">{request.code}</p>
             <CardTitle className="text-lg mt-1">{request.title}</CardTitle>
           </div>
-          <RequestStatusBadge status={request.status} />
+          <RequestStatusBadge status={request.status} isLiquidated={isLiquidated} />
         </div>
       </CardHeader>
       <CardContent className="space-y-3">

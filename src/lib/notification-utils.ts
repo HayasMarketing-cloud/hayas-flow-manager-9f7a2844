@@ -168,7 +168,7 @@ export const notifyLiquidationSigned = async (
   specialistName: string
 ) => {
   await notifyByRole(
-    ['admin', 'finanzas', 'account_manager', 'project_manager'],
+    ['admin', 'finanzas'],
     {
       title: 'Liquidación firmada',
       message: `${liquidationCode} de ${specialistName} ha sido firmada`,
@@ -213,7 +213,7 @@ export const notifyLiquidationAccepted = async (
   specialistName: string
 ) => {
   await notifyByRole(
-    ['admin', 'finanzas', 'account_manager'],
+    ['admin', 'finanzas'],
     {
       title: 'Liquidación aceptada',
       message: `${specialistName} ha aceptado ${liquidationCode}`,
@@ -234,7 +234,7 @@ export const notifyLiquidationDisputed = async (
   disputeReason?: string
 ) => {
   await notifyByRole(
-    ['admin', 'finanzas', 'account_manager', 'project_manager'],
+    ['admin', 'finanzas'],
     {
       title: 'Liquidación disputada',
       message: `${specialistName} ha disputado ${liquidationCode}${disputeReason ? `: ${disputeReason}` : ''}`,

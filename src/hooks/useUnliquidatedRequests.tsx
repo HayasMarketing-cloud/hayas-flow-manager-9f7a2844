@@ -14,7 +14,12 @@ export const useUnliquidatedRequests = (
         client:clients(id, name, code),
         service:services(id, name),
         specialist:specialists(id, name),
-        billed_invoice:invoices(id, code)
+        billed_invoice:invoices(id, code),
+        budget:budgets(id, code, title),
+        operational_request:operational_requests!financial_request_id(
+          id,
+          operational_project:operational_projects(id, name)
+        )
       `;
 
       // Get all COMPLETED requests without liquidation

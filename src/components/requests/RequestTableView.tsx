@@ -130,7 +130,10 @@ export const RequestTableView = ({
                     />
                   </TableCell>
                   <TableCell>
-                    <RequestStatusBadge status={request.status} />
+                    <RequestStatusBadge 
+                      status={request.status} 
+                      isLiquidated={isLiquidated}
+                    />
                   </TableCell>
                   <TableCell>
                     <RequestFlowIndicator status={request.status} compact />

@@ -220,6 +220,8 @@ const Solicitudes = () => {
       billed_invoice_id,
       liquidation_id,
       completed_at,
+      operational_request, // Exclude the joined operational_request relation
+      billed_invoice, // Exclude joined relation
       ...cloneData 
     } = request;
 

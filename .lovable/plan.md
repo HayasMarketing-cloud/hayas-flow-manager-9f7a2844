@@ -1,40 +1,67 @@
 
-## Plan: Hacer los enlaces de solicitudes más visibles en la tabla de Liquidaciones
+## Plan: Permitir a especialistas crear tareas y añadir campo de Google Drive
 
 ### Problema identificado
 
-Basándome en el análisis:
+El error "new row violates row-level security policy for table tasks" ocurre porque las políticas actuales de INSERT en la tabla `tasks` son muy restrictivas:
 
-1. **El código funciona correctamente**: El `onClick` en `TableRow` navega a `/solicitudes/${item.financial_request.id}` cuando existe el `financial_request.id`
-2. **RLS parece estar configurado**: Los especialistas pueden ver sus propias solicitudes
-3. **Posible problema de UX**: Los códigos de solicitud no tienen un estilo visual que indique que son clicables (no parecen enlaces)
+| Política actual | Quién puede crear |
+|-----------------|-------------------|
+| "AM and PM can create tasks" | Solo owner/creador del proyecto operacional |
+| "PM and admin can create tasks" | Solo roles admin o project_manager |
 
-### Cambios propuestos
+**Los especialistas asignados a un operational_request NO pueden crear tareas** bajo las políticas actuales.
 
-**Archivo:** `src/pages/LiquidacionDetalle.tsx`
+### Solución propuesta
 
-Hacer el código de la solicitud visualmente clicable añadiendo estilos de enlace:
+#### 1. Nueva política RLS para especialistas
 
-```tsx
-// Líneas 650-652 - Cambiar el estilo del código para que parezca un enlace
-<TableCell className="font-mono text-sm">
-  {item.financial_request?.id ? (
-    <span className="text-primary hover:underline cursor-pointer">
-      {item.financial_request?.code}
-    </span>
-  ) : (
-    '-'
-  )}
-</TableCell>
+Crear una nueva política que permita a los especialistas asignados a un `operational_request` crear tareas para ese mismo request:
+
+```sql
+CREATE POLICY "Assigned specialists can create tasks"
+ON public.tasks
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  operational_request_id IN (
+    SELECT orq.id 
+    FROM operational_requests orq
+    WHERE orq.assignee_specialist_id IN (
+      SELECT s.id FROM specialists s WHERE s.user_id = auth.uid()
+    )
+  )
+);
 ```
 
-### Verificación adicional
+Esta política verifica que:
+- El usuario tenga un perfil de especialista vinculado (`specialists.user_id = auth.uid()`)
+- Ese especialista esté asignado al operational_request donde se crea la tarea
 
-Si después de este cambio visual el usuario sigue sin poder hacer clic, entonces el problema es de RLS y necesitaríamos:
-1. Abrir una sesión de navegador como especialista para verificar si `financial_request` viene como `null`
-2. Ajustar las políticas RLS para permitir acceso a solicitudes en contexto de liquidaciones
+#### 2. Campo de Google Drive (ya existe)
+
+El campo `context_url` ya está implementado en:
+- **Base de datos**: Columna `context_url` en tabla `tasks`
+- **UI**: Campo "URL de contexto" visible al expandir una tarea en `InlineTaskItem.tsx`
+
+Solo necesitamos mejorar la UI para hacerlo más visible y específico para Google Drive:
+
+**Archivo:** `src/components/operations/InlineTaskItem.tsx`
+
+Cambiar el label y placeholder del campo para indicar que es para Google Drive:
+- Label: "URL de contexto" → "Enlace Google Drive"
+- Placeholder: "https://..." → "https://drive.google.com/..."
+- Añadir icono de Drive junto al campo
+
+### Resumen de cambios
+
+| Tipo | Cambio |
+|------|--------|
+| **Base de datos** | Nueva política RLS para permitir a especialistas crear tareas en sus requests asignados |
+| **UI** | Modificar `InlineTaskItem.tsx` para mostrar campo de Google Drive más claro |
 
 ### Resultado esperado
 
-- Los códigos de solicitud se mostrarán en color azul (primario) con subrayado al pasar el cursor
-- Será claro para el usuario que puede hacer clic para navegar al detalle
+1. Los especialistas podrán crear tareas en los operational_requests donde están asignados
+2. Los managers (AM/PM) seguirán pudiendo crear tareas si son owner/creador del proyecto
+3. Cada tarea mostrará un campo claro para añadir un enlace de Google Drive

@@ -1,123 +1,51 @@
 
-# Plan: Añadir conceptos manuales en el detalle de liquidación
 
-## Situación Actual
+# Plan: Habilitar "Marcar como Pagada" para todos los estados excepto borrador
 
-La funcionalidad de añadir líneas manuales (concepto + importe) **ya existe** en el sistema, pero solo está disponible en el **modal de creación/edición** (`LiquidationFormModal.tsx`). La página de **detalle de liquidación** (`LiquidacionDetalle.tsx`) solo tiene el botón "Añadir Solicitudes".
+## Cambio Requerido
 
-La tabla `liquidation_items` ya soporta items manuales porque el campo `financial_request_id` es **nullable** (opcional).
+Actualmente, el botón "Marcar como Pagada" solo aparece para las liquidaciones en estados:
+- `pending_payment`
+- `accepted`
+- `invoice_received`
 
-## Cambios a Realizar
+El usuario solicita que esté disponible para **todos los estados excepto `draft`**.
 
-### 1. Añadir sección de "Conceptos Manuales" en LiquidacionDetalle.tsx
+## Modificación
 
-**Ubicación**: Junto al botón "Añadir Solicitudes", añadir otro botón "Añadir Concepto" que abra un pequeño formulario inline o un modal simple.
+**Archivo:** `src/pages/LiquidacionDetalle.tsx`
 
-**Implementación**:
-
-| Elemento | Descripción |
-|----------|-------------|
-| Estado local | `newConceptDescription`, `newConceptAmount`, `isAddingConcept` |
-| Formulario inline | Descripción (texto) + Importe (número) + botón Añadir |
-| Mutation | Insertar en `liquidation_items` con `financial_request_id = null` |
-| Actualización | Recalcular subtotal de la liquidación |
-
-### 2. Interfaz propuesta
-
-```
-┌─────────────────────────────────────────────────────────┐
-│ Conceptos de la Liquidación                             │
-│                                                         │
-│ [+ Añadir Solicitudes] [+ Añadir Concepto Manual]       │
-│                                                         │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ Concepto: [__________________] Importe: [____] [+] │ │  ← Solo visible al pulsar "Añadir Concepto"
-│ └─────────────────────────────────────────────────────┘ │
-│                                                         │
-│ | Código | Descripción | Cliente | ... | Total |        │
-│ |--------|-------------|---------|-----|-------|        │
-│ | REQ-XX | Trabajo A   | Cliente | ... | 120€  |        │
-│ | -      | Bonus extra | -       | ... | 50€   |  ← Item manual (sin código)
-└─────────────────────────────────────────────────────────┘
-```
-
-### 3. Código a añadir
-
-**Estados nuevos:**
+**Línea 682 - Cambiar de:**
 ```typescript
-const [isAddingManualConcept, setIsAddingManualConcept] = useState(false);
-const [manualDescription, setManualDescription] = useState('');
-const [manualAmount, setManualAmount] = useState<number | ''>('');
+const canMarkAsPaid = canAccessFinance() && (liquidation.status === 'pending_payment' || liquidation.status === 'accepted' || liquidation.status === 'invoice_received');
 ```
 
-**Mutation para añadir concepto manual:**
+**A:**
 ```typescript
-const addManualConceptMutation = useMutation({
-  mutationFn: async () => {
-    const { error } = await supabase
-      .from('liquidation_items')
-      .insert({
-        liquidation_id: id,
-        description: manualDescription,
-        quantity: 1,
-        unit_price: manualAmount,
-        total: manualAmount,
-        financial_request_id: null, // Item manual sin request
-      });
-    if (error) throw error;
-  },
-  onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ['liquidation', id] });
-    setManualDescription('');
-    setManualAmount('');
-    setIsAddingManualConcept(false);
-    toast.success('Concepto añadido');
-  },
-});
+const canMarkAsPaid = canAccessFinance() && liquidation.status !== 'draft';
 ```
 
-**UI del formulario inline:**
-```tsx
-{isAddingManualConcept && isEditable && (
-  <div className="flex gap-2 items-end p-3 bg-muted/50 rounded-lg">
-    <div className="flex-1">
-      <Label className="text-xs">Concepto</Label>
-      <Input
-        placeholder="Descripción del concepto"
-        value={manualDescription}
-        onChange={(e) => setManualDescription(e.target.value)}
-      />
-    </div>
-    <div className="w-32">
-      <Label className="text-xs">Importe (€)</Label>
-      <Input
-        type="number"
-        step="0.01"
-        placeholder="0.00"
-        value={manualAmount}
-        onChange={(e) => setManualAmount(e.target.value ? parseFloat(e.target.value) : '')}
-      />
-    </div>
-    <Button size="sm" onClick={() => addManualConceptMutation.mutate()}>
-      <Plus className="h-4 w-4" />
-    </Button>
-    <Button size="sm" variant="ghost" onClick={() => setIsAddingManualConcept(false)}>
-      <X className="h-4 w-4" />
-    </Button>
-  </div>
-)}
+## Estados que ahora podrán marcarse como pagadas
+
+| Estado | Antes | Después |
+|--------|-------|---------|
+| `draft` (Borrador) | No | No |
+| `validated` (Validada) | No | Sí |
+| `sent` (Enviada) | No | Sí |
+| `accepted` (Aceptada) | Sí | Sí |
+| `invoice_received` (Factura recibida) | Sí | Sí |
+| `disputed` (Disputada) | No | Sí |
+| `pending_payment` (Pendiente de pago) | Sí | Sí |
+| `paid` (Pagada) | No | Sí* |
+
+*Nota: Técnicamente el botón aparecerá en `paid`, pero al hacer clic ya está pagada. Podríamos excluir también `paid` para evitar confusión:
+```typescript
+const canMarkAsPaid = canAccessFinance() && liquidation.status !== 'draft' && liquidation.status !== 'paid';
 ```
 
-## Archivos a Modificar
+## Resumen de Archivos
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/pages/LiquidacionDetalle.tsx` | Añadir estados, mutation, botón y formulario inline para conceptos manuales |
+| `src/pages/LiquidacionDetalle.tsx` | Modificar condición `canMarkAsPaid` en línea 682 |
 
-## Resultado Esperado
-
-- Botón "Añadir Concepto Manual" junto a "Añadir Solicitudes"
-- Al pulsar, aparece formulario inline con campos Concepto + Importe
-- Los conceptos manuales aparecen en la tabla sin código de request
-- Solo visible cuando la liquidación está en estado editable (borrador)
-- Solo para usuarios con permisos de finanzas

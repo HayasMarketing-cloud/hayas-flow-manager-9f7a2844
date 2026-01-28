@@ -648,7 +648,13 @@ export default function LiquidacionDetalle() {
                       onClick={() => item.financial_request?.id && navigate(`/solicitudes/${item.financial_request.id}`)}
                     >
                       <TableCell className="font-mono text-sm">
-                        {item.financial_request?.code || '-'}
+                        {item.financial_request?.id ? (
+                          <span className="text-primary hover:underline cursor-pointer">
+                            {item.financial_request?.code}
+                          </span>
+                        ) : (
+                          '-'
+                        )}
                       </TableCell>
                       <TableCell>{item.description}</TableCell>
                       <TableCell>{item.financial_request?.client?.name || '-'}</TableCell>

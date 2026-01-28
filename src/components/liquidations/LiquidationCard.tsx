@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Eye, Pencil, Calendar, Mail } from 'lucide-react';
+import { Eye, Pencil, Calendar, Mail, Users } from 'lucide-react';
 import { LiquidationStatusBadge } from './LiquidationStatusBadge';
 import { SignatureStatusBadge } from './SignatureStatusBadge';
 import { formatPeriod, formatCurrency } from '@/lib/liquidation-utils';
@@ -20,13 +20,27 @@ export const LiquidationCard = ({ liquidation, onView, onEdit, onSendEmail, canM
   const hasSpecialistEmail = !!liquidation.specialist?.email;
   // Get latest signature (first one in array, sorted by created_at desc)
   const latestSignature = liquidation.liquidation_signatures?.[0] || null;
+  
+  // Team liquidation properties
+  const isTeamLiquidation = liquidation.is_team === true;
+  const displayTotal = isTeamLiquidation 
+    ? liquidation.team_total 
+    : (liquidation.calculated_total ?? liquidation.subtotal ?? liquidation.total_amount);
 
   return (
     <Card>
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="flex flex-col gap-1">
-            <CardTitle className="text-lg">{liquidation.specialist?.name || 'Sin especialista'}</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-lg">{liquidation.specialist?.name || 'Sin especialista'}</CardTitle>
+              {isTeamLiquidation && (
+                <Badge variant="secondary" className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                  <Users className="h-3 w-3 mr-1" />
+                  Equipo
+                </Badge>
+              )}
+            </div>
             <Badge variant="outline" className="w-fit text-xs">
               {formatPeriod(liquidation.period_year, liquidation.period_month, 'short')}
             </Badge>
@@ -47,14 +61,31 @@ export const LiquidationCard = ({ liquidation, onView, onEdit, onSendEmail, canM
           </div>
         )}
 
+        {/* Team members info */}
+        {isTeamLiquidation && liquidation.team_members?.length > 0 && (
+          <div className="text-sm text-muted-foreground">
+            <span className="font-medium">Miembros:</span>{' '}
+            {liquidation.team_members.map((m: any) => m.name).join(', ')}
+          </div>
+        )}
+
         <div className="text-sm text-muted-foreground">
           <Calendar className="h-4 w-4 inline mr-2" />
           Creada: {new Date(liquidation.created_at).toLocaleDateString('es-ES')}
         </div>
 
         <div className="flex items-center justify-between pt-2 border-t">
-          <span className="text-sm text-muted-foreground">Total:</span>
-          <span className="text-lg font-bold">{formatCurrency(liquidation.calculated_total ?? liquidation.subtotal ?? liquidation.total_amount)}</span>
+          <span className="text-sm text-muted-foreground">
+            {isTeamLiquidation ? 'Total Equipo:' : 'Total:'}
+          </span>
+          <div className="text-right">
+            <span className="text-lg font-bold">{formatCurrency(displayTotal)}</span>
+            {isTeamLiquidation && (
+              <div className="text-xs text-muted-foreground">
+                ({formatCurrency(liquidation.leader_total)} + {formatCurrency((liquidation.team_total || 0) - (liquidation.leader_total || 0))})
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex gap-2">

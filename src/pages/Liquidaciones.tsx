@@ -64,7 +64,7 @@ export default function Liquidaciones() {
         .from('liquidations')
         .select(`
           *,
-          specialist:specialists(id, name, email),
+          specialist:specialists(id, name, email, team_leader_id),
           liquidation_items(
             id,
             total
@@ -86,9 +86,7 @@ export default function Liquidaciones() {
       if (filters.status) {
         query = query.eq('status', filters.status);
       }
-      if (filters.specialistId) {
-        query = query.eq('specialist_id', filters.specialistId);
-      }
+      // Note: specialistId filter needs to consider team members too
       if (filters.searchTerm) {
         query = query.or(`code.ilike.%${filters.searchTerm}%`);
       }
@@ -104,7 +102,7 @@ export default function Liquidaciones() {
       if (error) throw error;
       
       // Calcular el total correcto y ordenar firmas por fecha descendente
-      return data?.map(liquidation => {
+      const processedData = data?.map(liquidation => {
         const calculatedTotal = liquidation.liquidation_items?.reduce((sum: number, item: any) => {
           return sum + (Number(item.total) || 0);
         }, 0) || 0;
@@ -118,9 +116,90 @@ export default function Liquidaciones() {
           liquidation_signatures: sortedSignatures,
           calculated_total: calculatedTotal
         };
-      });
+      }) || [];
+
+      // Consolidate team liquidations
+      return consolidateTeamLiquidations(processedData, filters.specialistId);
     },
   });
+
+  // Helper function to consolidate team liquidations for list view
+  const consolidateTeamLiquidations = (liquidations: any[], filterSpecialistId?: string | null) => {
+    // Identify member liquidations (specialists who have a team_leader_id)
+    const memberLiquidations = liquidations.filter(
+      l => l.specialist?.team_leader_id
+    );
+    
+    // Get the set of leader IDs (specialists whose IDs appear as team_leader_id)
+    const leaderIds = new Set(
+      memberLiquidations.map(l => l.specialist.team_leader_id)
+    );
+    
+    // For each leader's liquidation, find and sum their team members' liquidations
+    const enrichedLiquidations = liquidations.map(liq => {
+      const isLeader = leaderIds.has(liq.specialist_id);
+      
+      if (!isLeader) return { ...liq, is_team: false };
+      
+      // Find member liquidations for the same period
+      const memberLiqs = memberLiquidations.filter(ml => 
+        ml.specialist.team_leader_id === liq.specialist_id &&
+        ml.period_month === liq.period_month &&
+        ml.period_year === liq.period_year
+      );
+      
+      // Calculate team total
+      const memberTotal = memberLiqs.reduce(
+        (sum, ml) => sum + (ml.calculated_total || 0), 0
+      );
+      const teamTotal = (liq.calculated_total || 0) + memberTotal;
+      
+      return {
+        ...liq,
+        is_team: true,
+        team_total: teamTotal,
+        leader_total: liq.calculated_total,
+        team_members: memberLiqs.map(ml => ({
+          id: ml.specialist_id,
+          name: ml.specialist.name,
+          total: ml.calculated_total,
+          liquidation_id: ml.id,
+        })),
+        // Include member liquidation IDs for bulk actions
+        member_liquidation_ids: memberLiqs.map(ml => ml.id),
+      };
+    });
+    
+    // Filter out member liquidations (don't show separately)
+    let result = enrichedLiquidations.filter(
+      l => !l.specialist?.team_leader_id
+    );
+
+    // If filtering by specialist, also show the team if the specialist is a member
+    if (filterSpecialistId) {
+      // Check if filterSpecialistId is a team member
+      const memberLiq = liquidations.find(l => 
+        l.specialist_id === filterSpecialistId && l.specialist?.team_leader_id
+      );
+      
+      if (memberLiq) {
+        // Show the leader's consolidated liquidation instead
+        const leaderLiq = result.find(l => 
+          l.specialist_id === memberLiq.specialist.team_leader_id &&
+          l.period_month === memberLiq.period_month &&
+          l.period_year === memberLiq.period_year
+        );
+        if (leaderLiq) {
+          result = [leaderLiq];
+        }
+      } else {
+        // Filter by specialist directly
+        result = result.filter(l => l.specialist_id === filterSpecialistId);
+      }
+    }
+
+    return result;
+  };
 
   const { data: specialists } = useQuery({
     queryKey: ['specialists-active'],

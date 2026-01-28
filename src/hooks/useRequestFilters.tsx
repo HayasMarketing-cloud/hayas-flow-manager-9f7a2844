@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 export interface RequestFilters {
@@ -14,23 +14,31 @@ export interface RequestFilters {
 export const useRequestFilters = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   
+  // Initialize filters from URL params
   const [filters, setFilters] = useState<RequestFilters>(() => ({
-    searchTerm: '',
-    status: null,
-    clientId: null,
-    specialistId: null,
+    searchTerm: searchParams.get('search') || '',
+    status: searchParams.get('status'),
+    clientId: searchParams.get('clientId'),
+    specialistId: searchParams.get('specialistId'),
     budgetId: searchParams.get('budget_id'),
-    year: null,
-    month: null,
+    year: searchParams.get('year') ? parseInt(searchParams.get('year')!) : null,
+    month: searchParams.get('month') ? parseInt(searchParams.get('month')!) : null,
   }));
 
-  // Sync budgetId from URL on mount
-  useEffect(() => {
-    const budgetIdFromUrl = searchParams.get('budget_id');
-    if (budgetIdFromUrl && budgetIdFromUrl !== filters.budgetId) {
-      setFilters((prev) => ({ ...prev, budgetId: budgetIdFromUrl }));
-    }
-  }, [searchParams]);
+  // Sync filters TO URL whenever they change
+  const syncToUrl = useCallback((newFilters: RequestFilters) => {
+    const newParams = new URLSearchParams();
+    
+    if (newFilters.searchTerm) newParams.set('search', newFilters.searchTerm);
+    if (newFilters.status) newParams.set('status', newFilters.status);
+    if (newFilters.clientId) newParams.set('clientId', newFilters.clientId);
+    if (newFilters.specialistId) newParams.set('specialistId', newFilters.specialistId);
+    if (newFilters.budgetId) newParams.set('budget_id', newFilters.budgetId);
+    if (newFilters.year) newParams.set('year', newFilters.year.toString());
+    if (newFilters.month) newParams.set('month', newFilters.month.toString());
+    
+    setSearchParams(newParams, { replace: true });
+  }, [setSearchParams]);
 
   const updateFilter = <K extends keyof RequestFilters>(
     key: K,
@@ -46,22 +54,16 @@ export const useRequestFilters = () => {
       if (key === 'year' && value === null) {
         newFilters.month = null;
       }
+      
+      // Sync to URL
+      syncToUrl(newFilters);
+      
       return newFilters;
     });
-    
-    // Update URL params for budgetId
-    if (key === 'budgetId') {
-      if (value) {
-        searchParams.set('budget_id', value as string);
-      } else {
-        searchParams.delete('budget_id');
-      }
-      setSearchParams(searchParams, { replace: true });
-    }
   };
 
   const resetFilters = () => {
-    setFilters({
+    const emptyFilters: RequestFilters = {
       searchTerm: '',
       status: null,
       clientId: null,
@@ -69,9 +71,9 @@ export const useRequestFilters = () => {
       budgetId: null,
       year: null,
       month: null,
-    });
-    searchParams.delete('budget_id');
-    setSearchParams(searchParams, { replace: true });
+    };
+    setFilters(emptyFilters);
+    setSearchParams({}, { replace: true });
   };
 
   return {

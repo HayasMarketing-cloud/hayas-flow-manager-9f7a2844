@@ -702,8 +702,8 @@ export default function LiquidacionDetalle() {
           />
         )}
 
-        {/* Specialist Invoice Upload - Only for finance users after acceptance */}
-        {canAccessFinance() && ['accepted', 'invoice_received', 'pending_payment', 'paid'].includes(liquidation.status) && (
+        {/* Specialist Invoice Upload - Para todos los estados excepto pagado */}
+        {canAccessFinance() && ['draft', 'validated', 'sent', 'accepted', 'invoice_received', 'pending_payment'].includes(liquidation.status) && (
           <div className="space-y-3">
             <SpecialistInvoiceUpload
               liquidationId={liquidation.id}

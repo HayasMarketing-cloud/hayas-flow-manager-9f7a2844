@@ -7,7 +7,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, User, Calendar, FileText, Mail, Download, Trash2, Plus, Sparkles, Users, Check } from 'lucide-react';
+import { ArrowLeft, User, Calendar, FileText, Mail, Download, Trash2, Plus, Sparkles, Users, Check, X } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { AddRequestsToLiquidationModal } from '@/components/liquidations/AddRequestsToLiquidationModal';
 import { SpecialistInvoiceUpload } from '@/components/liquidations/SpecialistInvoiceUpload';
 import { SpecialistInvoiceImportModal } from '@/components/liquidations/SpecialistInvoiceImportModal';
@@ -251,6 +253,9 @@ export default function LiquidacionDetalle() {
   const [importInvoiceModalOpen, setImportInvoiceModalOpen] = useState(false);
   const [itemToRemove, setItemToRemove] = useState<{ id: string; requestId: string | null; description: string } | null>(null);
   const [markPaidDialogOpen, setMarkPaidDialogOpen] = useState(false);
+  const [isAddingManualConcept, setIsAddingManualConcept] = useState(false);
+  const [manualDescription, setManualDescription] = useState('');
+  const [manualAmount, setManualAmount] = useState<string>('');
 
   const { data: liquidation, isLoading, error } = useQuery({
     queryKey: ['liquidation-detail', id],
@@ -443,6 +448,69 @@ export default function LiquidacionDetalle() {
     },
     onError: (error: any) => {
       toast.error('Error al actualizar: ' + error.message);
+    },
+  });
+
+  const addManualConceptMutation = useMutation({
+    mutationFn: async () => {
+      if (!manualDescription.trim() || !manualAmount) {
+        throw new Error('Debes completar concepto e importe');
+      }
+      
+      const amount = parseFloat(manualAmount);
+      if (isNaN(amount) || amount <= 0) {
+        throw new Error('El importe debe ser un número válido mayor a 0');
+      }
+
+      // Insert the manual item
+      const { error: insertError } = await supabase
+        .from('liquidation_items')
+        .insert({
+          liquidation_id: id,
+          description: manualDescription.trim(),
+          quantity: 1,
+          unit_price: amount,
+          total: amount,
+          financial_request_id: null, // Item manual sin request
+        });
+
+      if (insertError) throw insertError;
+
+      // Get current liquidation subtotal and update
+      const { data: currentLiquidation, error: fetchError } = await supabase
+        .from('liquidations')
+        .select('subtotal')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const newSubtotal = (Number(currentLiquidation.subtotal) || 0) + amount;
+      const taxRate = liquidation?.tax_rate || 0;
+      const newTaxAmount = (newSubtotal * taxRate) / 100;
+      const newTotalAmount = newSubtotal + newTaxAmount;
+
+      const { error: updateError } = await supabase
+        .from('liquidations')
+        .update({
+          subtotal: newSubtotal,
+          tax_amount: newTaxAmount,
+          total_amount: newTotalAmount,
+        })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      setManualDescription('');
+      setManualAmount('');
+      setIsAddingManualConcept(false);
+      toast.success('Concepto añadido');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Error al añadir concepto');
     },
   });
 
@@ -791,18 +859,74 @@ export default function LiquidacionDetalle() {
                 </div>
                 <div className="flex items-center gap-2">
                   {isEditable && canAccessFinance() && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => setAddRequestsModalOpen(true)}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Añadir Solicitudes
-                    </Button>
+                    <>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setAddRequestsModalOpen(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Añadir Solicitudes
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setIsAddingManualConcept(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Añadir Concepto
+                      </Button>
+                    </>
                   )}
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Formulario inline para concepto manual */}
+                {isAddingManualConcept && isEditable && canAccessFinance() && (
+                  <div className="flex gap-2 items-end p-3 bg-muted/50 rounded-lg mb-4">
+                    <div className="flex-1">
+                      <Label className="text-xs">Concepto</Label>
+                      <Input
+                        placeholder="Descripción del concepto"
+                        value={manualDescription}
+                        onChange={(e) => setManualDescription(e.target.value)}
+                      />
+                    </div>
+                    <div className="w-32">
+                      <Label className="text-xs">Importe (€)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={manualAmount}
+                        onChange={(e) => setManualAmount(e.target.value)}
+                      />
+                    </div>
+                    <Button 
+                      size="sm" 
+                      onClick={() => addManualConceptMutation.mutate()}
+                      disabled={addManualConceptMutation.isPending}
+                    >
+                      {addManualConceptMutation.isPending ? (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={() => {
+                        setIsAddingManualConcept(false);
+                        setManualDescription('');
+                        setManualAmount('');
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
                 {liquidation.liquidation_items && liquidation.liquidation_items.length > 0 ? (
                   <>
                     <Table>
@@ -1007,17 +1131,73 @@ export default function LiquidacionDetalle() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Trabajos incluidos</CardTitle>
               {isEditable && canAccessFinance() && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setAddRequestsModalOpen(true)}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Añadir Solicitudes
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setAddRequestsModalOpen(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Añadir Solicitudes
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setIsAddingManualConcept(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Añadir Concepto
+                  </Button>
+                </div>
               )}
             </CardHeader>
             <CardContent>
+              {/* Formulario inline para concepto manual */}
+              {isAddingManualConcept && isEditable && canAccessFinance() && (
+                <div className="flex gap-2 items-end p-3 bg-muted/50 rounded-lg mb-4">
+                  <div className="flex-1">
+                    <Label className="text-xs">Concepto</Label>
+                    <Input
+                      placeholder="Descripción del concepto"
+                      value={manualDescription}
+                      onChange={(e) => setManualDescription(e.target.value)}
+                    />
+                  </div>
+                  <div className="w-32">
+                    <Label className="text-xs">Importe (€)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={manualAmount}
+                      onChange={(e) => setManualAmount(e.target.value)}
+                    />
+                  </div>
+                  <Button 
+                    size="sm" 
+                    onClick={() => addManualConceptMutation.mutate()}
+                    disabled={addManualConceptMutation.isPending}
+                  >
+                    {addManualConceptMutation.isPending ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                    ) : (
+                      <Plus className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={() => {
+                      setIsAddingManualConcept(false);
+                      setManualDescription('');
+                      setManualAmount('');
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
               {liquidation.liquidation_items && liquidation.liquidation_items.length > 0 ? (
                 <Table>
                   <TableHeader>

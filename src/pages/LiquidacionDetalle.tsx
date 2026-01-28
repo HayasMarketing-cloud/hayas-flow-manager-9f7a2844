@@ -438,7 +438,7 @@ export default function LiquidacionDetalle() {
           periodYear: liquidation.period_year,
           totalAmount: liquidation.calculated_total ?? liquidation.total_amount,
           pdfBase64,
-          appUrl: window.location.origin,
+          appUrl: 'https://hayas-flow-manager.lovable.app',
           senderEmail: user?.email,
         },
       });

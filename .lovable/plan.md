@@ -1,64 +1,78 @@
 
-## Plan: Mostrar botón de subir factura para liquidaciones en estados tempranos
+## Plan: Corregir URL y botón en emails de liquidaciones
 
-### Problema identificado
+### Problemas identificados
 
-El componente `SpecialistInvoiceUpload` fue modificado correctamente para permitir uploads en estados `draft`, `validated`, `sent`, etc. (línea 31).
+He analizado el código y encontrado dos problemas:
 
-**Sin embargo**, en `LiquidacionDetalle.tsx` (línea 706) hay una condición adicional que impide que el componente se renderice:
+#### Problema 1: URL incorrecta desde LiquidacionDetalle
 
-```tsx
-{canAccessFinance() && ['accepted', 'invoice_received', 'pending_payment', 'paid'].includes(liquidation.status) && (
-```
+| Archivo | Línea | Código actual | Problema |
+|---------|-------|---------------|----------|
+| `src/pages/LiquidacionDetalle.tsx` | 441 | `appUrl: window.location.origin` | Usa la URL del navegador (preview) |
+| `src/pages/Liquidaciones.tsx` | 272 | `appUrl: 'https://hayas-flow-manager.lovable.app'` | Correcto - usa URL fija |
 
-Esta condición **solo muestra** el upload para estados `accepted` en adelante, ignorando la lógica interna del componente.
+Cuando envías desde la página de detalle (preview), el email incluye la URL del preview (`preview--hayas-flow-manager.lovable.app`) en lugar de la URL de producción.
 
-### Cambio requerido
+#### Problema 2: Botón con emoji problemático
+
+El botón usa el carácter `✓` que algunos clientes de email (Gmail, Outlook) pueden no renderizar bien, causando que el botón se "rompa" o desaparezca.
+
+### Cambios propuestos
+
+#### 1. Corregir URL en LiquidacionDetalle.tsx
 
 **Archivo:** `src/pages/LiquidacionDetalle.tsx`
+**Línea:** 441
 
-**Línea 706 - Modificar condición:**
+```typescript
+// ANTES
+appUrl: window.location.origin,
 
-| Antes | Después |
-|-------|---------|
-| `['accepted', 'invoice_received', 'pending_payment', 'paid'].includes(liquidation.status)` | `['draft', 'validated', 'sent', 'accepted', 'invoice_received', 'pending_payment'].includes(liquidation.status)` |
-
-Se excluye `paid` porque no tiene sentido subir factura a una liquidación ya pagada.
-
-### Código corregido
-
-```tsx
-{/* Specialist Invoice Upload - Para todos los estados excepto pagado */}
-{canAccessFinance() && ['draft', 'validated', 'sent', 'accepted', 'invoice_received', 'pending_payment'].includes(liquidation.status) && (
-  <div className="space-y-3">
-    <SpecialistInvoiceUpload
-      liquidationId={liquidation.id}
-      liquidationCode={liquidation.code}
-      currentInvoiceUrl={liquidation.specialist_invoice_url}
-      currentStatus={liquidation.status}
-      onUploadSuccess={() => {
-        queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
-        queryClient.invalidateQueries({ queryKey: ['liquidations'] });
-      }}
-    />
-    {!liquidation.specialist_invoice_url && (
-      <Button 
-        variant="outline" 
-        className="w-full" 
-        onClick={() => setImportInvoiceModalOpen(true)}
-      >
-        <Sparkles className="h-4 w-4 mr-2" />
-        Importar con IA
-      </Button>
-    )}
-  </div>
-)}
+// DESPUÉS  
+appUrl: 'https://hayas-flow-manager.lovable.app',
 ```
+
+#### 2. Mejorar HTML del botón en el email
+
+**Archivo:** `supabase/functions/send-liquidation-email/index.ts`
+**Líneas:** 293-298
+
+El botón actual tiene problemas de compatibilidad con algunos clientes de email. La solución es usar un formato más compatible:
+
+```html
+<!-- ANTES -->
+<div style="text-align: center; margin: 30px 0;">
+  <a href="${signatureUrl}" 
+     style="display: inline-block; background-color: #10b981; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-right: 10px;">
+    ✓ Revisar y Firmar
+  </a>
+</div>
+
+<!-- DESPUÉS: Usar tabla para máxima compatibilidad con email clients -->
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 30px auto;">
+  <tr>
+    <td align="center" bgcolor="#10b981" style="border-radius: 8px;">
+      <a href="${signatureUrl}" 
+         target="_blank" 
+         style="display: inline-block; background-color: #10b981; font-size: 16px; font-family: Arial, sans-serif; font-weight: bold; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; border: 1px solid #10b981;">
+        Revisar y Firmar
+      </a>
+    </td>
+  </tr>
+</table>
+```
+
+### Resumen de archivos a modificar
+
+| Archivo | Cambio |
+|---------|--------|
+| `src/pages/LiquidacionDetalle.tsx` | Usar URL de producción hardcodeada en línea 441 |
+| `supabase/functions/send-liquidation-email/index.ts` | Mejorar HTML del botón para compatibilidad con email clients |
 
 ### Resultado esperado
 
-Después de este cambio:
-
-1. El componente "Factura del Especialista" aparecerá para liquidaciones en estado "Enviada" (sent), "Borrador" (draft), y "Validada" (validated)
-2. Al subir una factura, el estado se actualizará automáticamente a `invoice_received`
-3. El botón "Importar con IA" también será visible en estos estados
+Después de estos cambios:
+1. Todos los emails (enviados desde cualquier entorno) tendrán la URL correcta de producción
+2. El botón "Revisar y Firmar" se mostrará correctamente en todos los clientes de email (Gmail, Outlook, Apple Mail)
+3. El enlace llevará directamente a la página de firma en producción

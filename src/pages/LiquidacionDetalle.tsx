@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, User, Calendar, FileText, Mail, Download, Trash2, Plus, Sparkles, Users } from 'lucide-react';
+import { ArrowLeft, User, Calendar, FileText, Mail, Download, Trash2, Plus, Sparkles, Users, Check } from 'lucide-react';
 import { AddRequestsToLiquidationModal } from '@/components/liquidations/AddRequestsToLiquidationModal';
 import { SpecialistInvoiceUpload } from '@/components/liquidations/SpecialistInvoiceUpload';
 import { SpecialistInvoiceImportModal } from '@/components/liquidations/SpecialistInvoiceImportModal';
@@ -222,6 +222,7 @@ export default function LiquidacionDetalle() {
   const [addRequestsModalOpen, setAddRequestsModalOpen] = useState(false);
   const [importInvoiceModalOpen, setImportInvoiceModalOpen] = useState(false);
   const [itemToRemove, setItemToRemove] = useState<{ id: string; requestId: string | null; description: string } | null>(null);
+  const [markPaidDialogOpen, setMarkPaidDialogOpen] = useState(false);
 
   const { data: liquidation, isLoading, error } = useQuery({
     queryKey: ['liquidation-detail', id],
@@ -386,6 +387,31 @@ export default function LiquidacionDetalle() {
     },
   });
 
+  const markAsPaidMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) return;
+      
+      const { error } = await supabase
+        .from('liquidations')
+        .update({ 
+          status: 'paid', 
+          paid_at: new Date().toISOString() 
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      toast.success('Liquidación marcada como pagada');
+      setMarkPaidDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast.error('Error al actualizar: ' + error.message);
+    },
+  });
+
   const handleDownloadPDF = async () => {
     if (!liquidation) return;
 
@@ -518,6 +544,7 @@ export default function LiquidacionDetalle() {
   const latestSignature = liquidation.liquidation_signatures?.[0] || null;
   const isEditable = liquidation.status === 'draft' || liquidation.status === 'validated';
   const hasSpecialistEmail = !!liquidation.specialist?.email;
+  const canMarkAsPaid = canAccessFinance() && (liquidation.status === 'pending_payment' || liquidation.status === 'accepted');
 
   return (
     <AppLayout title={`Liquidación ${formatPeriod(liquidation.period_year, liquidation.period_month)}`}>
@@ -843,6 +870,15 @@ export default function LiquidacionDetalle() {
                 {isSending ? 'Enviando...' : 'Enviar por Email'}
               </Button>
             )}
+            {canMarkAsPaid && (
+              <Button 
+                onClick={() => setMarkPaidDialogOpen(true)}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Check className="h-4 w-4 mr-2" />
+                Marcar como Pagada
+              </Button>
+            )}
             {isEditable && (
               <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -873,6 +909,16 @@ export default function LiquidacionDetalle() {
         confirmText="Eliminar"
         cancelText="Cancelar"
         variant="destructive"
+      />
+
+      <ConfirmDialog
+        open={markPaidDialogOpen}
+        onOpenChange={setMarkPaidDialogOpen}
+        title="Marcar liquidación como pagada"
+        description={`¿Confirmas que la liquidación ${liquidation.code} por ${formatCurrency(liquidation.calculated_total ?? liquidation.total_amount)} ha sido pagada?`}
+        onConfirm={() => markAsPaidMutation.mutate()}
+        confirmText="Confirmar Pago"
+        cancelText="Cancelar"
       />
 
       <AddRequestsToLiquidationModal

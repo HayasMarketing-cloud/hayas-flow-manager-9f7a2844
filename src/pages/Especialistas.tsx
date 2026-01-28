@@ -30,6 +30,7 @@ interface Specialist {
   notes: string | null;
   user_id: string | null;
   created_at: string;
+  team_leader_id: string | null;
 }
 
 const typeLabels: Record<SpecialistType, string> = {
@@ -57,7 +58,7 @@ export default function Especialistas() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("specialists")
-        .select("id, name, email, type, active, notes, user_id, created_at, hourly_rate")
+        .select("id, name, email, type, active, notes, user_id, created_at, hourly_rate, team_leader_id")
         .order("name");
       if (error) throw error;
       return data as Specialist[];

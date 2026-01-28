@@ -1415,6 +1415,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          team_leader_id: string | null
           type: Database["public"]["Enums"]["specialist_type"] | null
           updated_at: string
           user_id: string | null
@@ -1428,6 +1429,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          team_leader_id?: string | null
           type?: Database["public"]["Enums"]["specialist_type"] | null
           updated_at?: string
           user_id?: string | null
@@ -1441,11 +1443,20 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          team_leader_id?: string | null
           type?: Database["public"]["Enums"]["specialist_type"] | null
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "specialists_team_leader_id_fkey"
+            columns: ["team_leader_id"]
+            isOneToOne: false
+            referencedRelation: "specialists"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tasks: {
         Row: {

@@ -1,100 +1,123 @@
 
-# Plan: Agregar filtro de Contratos en Solicitudes
+# Plan: Añadir conceptos manuales en el detalle de liquidación
 
-## Resumen
-Agregar un selector de contratos en los filtros de la pagina de Solicitudes, similar al filtro de presupuestos existente.
+## Situación Actual
+
+La funcionalidad de añadir líneas manuales (concepto + importe) **ya existe** en el sistema, pero solo está disponible en el **modal de creación/edición** (`LiquidationFormModal.tsx`). La página de **detalle de liquidación** (`LiquidacionDetalle.tsx`) solo tiene el botón "Añadir Solicitudes".
+
+La tabla `liquidation_items` ya soporta items manuales porque el campo `financial_request_id` es **nullable** (opcional).
 
 ## Cambios a Realizar
 
-### 1. Modificar el hook de filtros (`src/hooks/useRequestFilters.tsx`)
+### 1. Añadir sección de "Conceptos Manuales" en LiquidacionDetalle.tsx
 
-Agregar el campo `contractId` al interface y a toda la logica del hook:
+**Ubicación**: Junto al botón "Añadir Solicitudes", añadir otro botón "Añadir Concepto" que abra un pequeño formulario inline o un modal simple.
 
-| Cambio | Detalle |
-|--------|---------|
-| Interface | Agregar `contractId: string \| null` |
-| Estado inicial | Leer `contractId` de URL params |
-| syncToUrl | Sincronizar `contractId` a la URL |
-| updateFilter | Resetear `contractId` cuando cambia el cliente |
-| resetFilters | Incluir `contractId: null` |
+**Implementación**:
 
-### 2. Modificar la pagina de Solicitudes (`src/pages/Solicitudes.tsx`)
+| Elemento | Descripción |
+|----------|-------------|
+| Estado local | `newConceptDescription`, `newConceptAmount`, `isAddingConcept` |
+| Formulario inline | Descripción (texto) + Importe (número) + botón Añadir |
+| Mutation | Insertar en `liquidation_items` con `financial_request_id = null` |
+| Actualización | Recalcular subtotal de la liquidación |
 
-**a) Agregar query para cargar contratos:**
+### 2. Interfaz propuesta
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Conceptos de la Liquidación                             │
+│                                                         │
+│ [+ Añadir Solicitudes] [+ Añadir Concepto Manual]       │
+│                                                         │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ Concepto: [__________________] Importe: [____] [+] │ │  ← Solo visible al pulsar "Añadir Concepto"
+│ └─────────────────────────────────────────────────────┘ │
+│                                                         │
+│ | Código | Descripción | Cliente | ... | Total |        │
+│ |--------|-------------|---------|-----|-------|        │
+│ | REQ-XX | Trabajo A   | Cliente | ... | 120€  |        │
+│ | -      | Bonus extra | -       | ... | 50€   |  ← Item manual (sin código)
+└─────────────────────────────────────────────────────────┘
+```
+
+### 3. Código a añadir
+
+**Estados nuevos:**
 ```typescript
-const { data: contracts } = useQuery({
-  queryKey: ['contracts-filter', filters.clientId, filters.contractId],
-  queryFn: async () => {
-    if (filters.contractId && !filters.clientId) {
-      // Cargar contrato especifico si viene por URL
-      const { data, error } = await supabase
-        .from('contracts')
-        .select('id, title, code, client_id')
-        .eq('id', filters.contractId);
-      if (error) throw error;
-      return data;
-    }
-    
-    if (filters.clientId) {
-      // Cargar contratos del cliente seleccionado
-      const { data, error } = await supabase
-        .from('contracts')
-        .select('id, title, code')
-        .eq('client_id', filters.clientId)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
-    }
-    
-    return [];
+const [isAddingManualConcept, setIsAddingManualConcept] = useState(false);
+const [manualDescription, setManualDescription] = useState('');
+const [manualAmount, setManualAmount] = useState<number | ''>('');
+```
+
+**Mutation para añadir concepto manual:**
+```typescript
+const addManualConceptMutation = useMutation({
+  mutationFn: async () => {
+    const { error } = await supabase
+      .from('liquidation_items')
+      .insert({
+        liquidation_id: id,
+        description: manualDescription,
+        quantity: 1,
+        unit_price: manualAmount,
+        total: manualAmount,
+        financial_request_id: null, // Item manual sin request
+      });
+    if (error) throw error;
   },
-  enabled: !!filters.clientId || !!filters.contractId,
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['liquidation', id] });
+    setManualDescription('');
+    setManualAmount('');
+    setIsAddingManualConcept(false);
+    toast.success('Concepto añadido');
+  },
 });
 ```
 
-**b) Agregar filtro de contrato en la query principal:**
-```typescript
-if (filters.contractId) queryFilters.contract_id = filters.contractId;
-```
-
-**c) Agregar selector UI despues del selector de presupuestos:**
+**UI del formulario inline:**
 ```tsx
-{(filters.clientId || filters.contractId) && (
-  <Select
-    value={filters.contractId || 'all'}
-    onValueChange={(value) =>
-      updateFilter('contractId', value === 'all' ? null : value)
-    }
-  >
-    <SelectTrigger className="w-[250px]">
-      <SelectValue placeholder="Todos los contratos" />
-    </SelectTrigger>
-    <SelectContent>
-      <SelectItem value="all">Todos los contratos</SelectItem>
-      {contracts?.map((contract) => (
-        <SelectItem key={contract.id} value={contract.id}>
-          {contract.code} - {contract.title}
-        </SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
+{isAddingManualConcept && isEditable && (
+  <div className="flex gap-2 items-end p-3 bg-muted/50 rounded-lg">
+    <div className="flex-1">
+      <Label className="text-xs">Concepto</Label>
+      <Input
+        placeholder="Descripción del concepto"
+        value={manualDescription}
+        onChange={(e) => setManualDescription(e.target.value)}
+      />
+    </div>
+    <div className="w-32">
+      <Label className="text-xs">Importe (€)</Label>
+      <Input
+        type="number"
+        step="0.01"
+        placeholder="0.00"
+        value={manualAmount}
+        onChange={(e) => setManualAmount(e.target.value ? parseFloat(e.target.value) : '')}
+      />
+    </div>
+    <Button size="sm" onClick={() => addManualConceptMutation.mutate()}>
+      <Plus className="h-4 w-4" />
+    </Button>
+    <Button size="sm" variant="ghost" onClick={() => setIsAddingManualConcept(false)}>
+      <X className="h-4 w-4" />
+    </Button>
+  </div>
 )}
 ```
 
-**d) Actualizar condicion del boton "Limpiar filtros":**
-Agregar `filters.contractId` a la condicion.
-
 ## Archivos a Modificar
 
-| Archivo | Tipo de Cambio |
-|---------|----------------|
-| `src/hooks/useRequestFilters.tsx` | Agregar campo contractId |
-| `src/pages/Solicitudes.tsx` | Agregar query de contratos, filtro en query principal, y selector UI |
+| Archivo | Cambio |
+|---------|--------|
+| `src/pages/LiquidacionDetalle.tsx` | Añadir estados, mutation, botón y formulario inline para conceptos manuales |
 
-## Comportamiento Esperado
+## Resultado Esperado
 
-- El filtro de contratos aparece cuando se selecciona un cliente O cuando hay un contractId en la URL
-- Al cambiar de cliente, se resetea el filtro de contrato (igual que presupuesto)
-- El filtro persiste en la URL como `contractId=xxx`
-- Se puede navegar desde Contratos a Solicitudes con el filtro preseleccionado
+- Botón "Añadir Concepto Manual" junto a "Añadir Solicitudes"
+- Al pulsar, aparece formulario inline con campos Concepto + Importe
+- Los conceptos manuales aparecen en la tabla sin código de request
+- Solo visible cuando la liquidación está en estado editable (borrador)
+- Solo para usuarios con permisos de finanzas

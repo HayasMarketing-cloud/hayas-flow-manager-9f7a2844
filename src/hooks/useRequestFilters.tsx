@@ -7,6 +7,7 @@ export interface RequestFilters {
   clientId: string | null;
   specialistId: string | null;
   budgetId: string | null;
+  contractId: string | null;
   year: number | null;
   month: number | null;
 }
@@ -21,6 +22,7 @@ export const useRequestFilters = () => {
     clientId: searchParams.get('clientId'),
     specialistId: searchParams.get('specialistId'),
     budgetId: searchParams.get('budget_id'),
+    contractId: searchParams.get('contractId'),
     year: searchParams.get('year') ? parseInt(searchParams.get('year')!) : null,
     month: searchParams.get('month') ? parseInt(searchParams.get('month')!) : null,
   }));
@@ -34,6 +36,7 @@ export const useRequestFilters = () => {
     if (newFilters.clientId) newParams.set('clientId', newFilters.clientId);
     if (newFilters.specialistId) newParams.set('specialistId', newFilters.specialistId);
     if (newFilters.budgetId) newParams.set('budget_id', newFilters.budgetId);
+    if (newFilters.contractId) newParams.set('contractId', newFilters.contractId);
     if (newFilters.year) newParams.set('year', newFilters.year.toString());
     if (newFilters.month) newParams.set('month', newFilters.month.toString());
     
@@ -46,9 +49,10 @@ export const useRequestFilters = () => {
   ) => {
     setFilters((prev) => {
       const newFilters = { ...prev, [key]: value };
-      // Reset budget filter when client changes
+      // Reset budget and contract filters when client changes
       if (key === 'clientId') {
         newFilters.budgetId = null;
+        newFilters.contractId = null;
       }
       // Reset month if year is cleared
       if (key === 'year' && value === null) {
@@ -69,6 +73,7 @@ export const useRequestFilters = () => {
       clientId: null,
       specialistId: null,
       budgetId: null,
+      contractId: null,
       year: null,
       month: null,
     };

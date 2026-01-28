@@ -917,9 +917,14 @@ export const RequestFormModal = ({
                             min="0"
                             step="0.01"
                             placeholder="0"
-                            {...field}
-                            value={field.value ?? ''}
-                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                            name={field.name}
+                            ref={field.ref}
+                            onBlur={field.onBlur}
+                            value={field.value !== null && field.value !== undefined ? field.value : ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              field.onChange(val === '' ? null : parseFloat(val));
+                            }}
                             disabled={isViewMode}
                           />
                         </FormControl>
@@ -943,9 +948,14 @@ export const RequestFormModal = ({
                             min="0"
                             step="0.01"
                             placeholder="0.00"
-                            {...field}
-                            value={field.value ?? ''}
-                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                            name={field.name}
+                            ref={field.ref}
+                            onBlur={field.onBlur}
+                            value={field.value !== null && field.value !== undefined ? field.value : ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              field.onChange(val === '' ? null : parseFloat(val));
+                            }}
                             disabled={isViewMode}
                           />
                         </FormControl>

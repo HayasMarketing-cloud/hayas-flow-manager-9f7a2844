@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, LayoutGrid, Table as TableIcon, X, Download, FileUp } from 'lucide-react';
+import { Plus, LayoutGrid, Table as TableIcon, X, Download, FileUp, Check } from 'lucide-react';
 import { exportLiquidationsToExcel } from '@/utils/excel/liquidationsExporter';
 import { toast } from 'sonner';
 import { notificationFeedback } from '@/lib/notification-feedback';
@@ -18,11 +18,13 @@ import { LiquidationTableView } from '@/components/liquidations/LiquidationTable
 import { LiquidationFormModal } from '@/components/liquidations/LiquidationFormModal';
 import { EmailPreviewModal } from '@/components/liquidations/EmailPreviewModal';
 import { SpecialistInvoiceImportModal } from '@/components/liquidations/SpecialistInvoiceImportModal';
+import { BulkLiquidationPaymentModal } from '@/components/liquidations/BulkLiquidationPaymentModal';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { generateLiquidationPDFBase64 } from '@/utils/pdf/liquidationPDFGenerator';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCurrentSpecialist } from '@/hooks/useCurrentSpecialist';
+import { formatCurrency } from '@/lib/liquidation-utils';
 
 export default function Liquidaciones() {
   const navigate = useNavigate();
@@ -37,6 +39,8 @@ export default function Liquidaciones() {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [sendingLiquidationId, setSendingLiquidationId] = useState<string | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [selectedLiquidationIds, setSelectedLiquidationIds] = useState<string[]>([]);
+  const [bulkPaymentModalOpen, setBulkPaymentModalOpen] = useState(false);
   const { filters, updateFilter, resetFilters } = useLiquidationFilters();
   const { canAccessFinance, hasRole, loading: rolesLoading } = useUserRole();
   const { user } = useAuth();
@@ -474,7 +478,10 @@ export default function Liquidaciones() {
                   <Button
                     variant={viewMode === 'cards' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => setViewMode('cards')}
+                    onClick={() => {
+                      setViewMode('cards');
+                      setSelectedLiquidationIds([]);
+                    }}
                   >
                     <LayoutGrid className="h-4 w-4" />
                   </Button>
@@ -490,6 +497,46 @@ export default function Liquidaciones() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Bulk Actions Bar */}
+        {viewMode === 'table' && selectedLiquidationIds.length > 0 && canManage && (
+          <Card className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20">
+            <CardContent className="py-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium">
+                    {selectedLiquidationIds.length} liquidación(es) seleccionada(s)
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    Total: {formatCurrency(
+                      liquidations
+                        ?.filter(l => selectedLiquidationIds.includes(l.id))
+                        .reduce((sum, l) => sum + (l.calculated_total ?? l.total_amount ?? 0), 0) || 0
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedLiquidationIds([])}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Deseleccionar
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => setBulkPaymentModalOpen(true)}
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    Marcar como Pagadas
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {isLoading ? (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -522,6 +569,8 @@ export default function Liquidaciones() {
               canManage={canManage}
               isSending={isSendingEmail}
               sendingLiquidationId={sendingLiquidationId || undefined}
+              selectedIds={selectedLiquidationIds}
+              onSelectionChange={setSelectedLiquidationIds}
             />
           )
         ) : (
@@ -564,6 +613,16 @@ export default function Liquidaciones() {
         open={importModalOpen}
         onOpenChange={setImportModalOpen}
         onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+        }}
+      />
+
+      <BulkLiquidationPaymentModal
+        isOpen={bulkPaymentModalOpen}
+        onClose={() => setBulkPaymentModalOpen(false)}
+        liquidations={liquidations?.filter(l => selectedLiquidationIds.includes(l.id)) || []}
+        onSuccess={() => {
+          setSelectedLiquidationIds([]);
           queryClient.invalidateQueries({ queryKey: ['liquidations'] });
         }}
       />

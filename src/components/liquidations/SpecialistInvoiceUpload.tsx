@@ -48,7 +48,7 @@ export function SpecialistInvoiceUpload({
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const [amountMismatch, setAmountMismatch] = useState<{ invoiceAmount: number; liquidationAmount: number } | null>(null);
 
-  const canUpload = ['draft', 'validated', 'sent', 'accepted', 'invoice_received', 'pending_payment'].includes(currentStatus);
+  const canUpload = ['draft', 'validated', 'sent', 'accepted', 'invoice_received', 'pending_payment', 'paid'].includes(currentStatus);
 
   const handleUpload = useCallback(async (file: File) => {
     if (!file.type.includes('pdf')) {

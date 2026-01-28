@@ -28,7 +28,7 @@ export function SpecialistInvoiceUpload({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const canUpload = ['accepted', 'invoice_received', 'pending_payment', 'paid'].includes(currentStatus);
+  const canUpload = ['draft', 'validated', 'sent', 'accepted', 'invoice_received', 'pending_payment'].includes(currentStatus);
 
   const handleUpload = useCallback(async (file: File) => {
     if (!file.type.includes('pdf')) {
@@ -69,8 +69,8 @@ export function SpecialistInvoiceUpload({
         specialist_invoice_url: publicUrlData.publicUrl,
       };
 
-      // Solo cambiar estado si está en 'accepted'
-      if (currentStatus === 'accepted') {
+      // Cambiar estado a invoice_received si está en cualquier estado previo
+      if (['draft', 'validated', 'sent', 'accepted'].includes(currentStatus)) {
         updateData.status = 'invoice_received';
       }
 

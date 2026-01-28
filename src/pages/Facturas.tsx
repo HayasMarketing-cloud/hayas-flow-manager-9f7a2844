@@ -34,7 +34,7 @@ export default function Facturas() {
   const queryClient = useQueryClient();
   const { canAccessFinance, loading: rolesLoading } = useUserRole();
   const { assignedClientIds, isLoading: assignedClientsLoading, needsFiltering } = useAssignedClients();
-  const { filters, updateFilter, resetFilters, getDateRange } = useInvoiceFilters();
+  const { filters, updateFilter, resetFilters, getDateRange, isOverdueFilter } = useInvoiceFilters();
 
   const { data: clients } = useQuery({
     queryKey: ['clients-for-invoices', needsFiltering, assignedClientIds],
@@ -58,9 +58,10 @@ export default function Facturas() {
   });
 
   const { data: invoices, isLoading } = useQuery({
-    queryKey: ['invoices', filters, needsFiltering, assignedClientIds],
+    queryKey: ['invoices', filters, needsFiltering, assignedClientIds, isOverdueFilter],
     queryFn: async () => {
       const { startDate, endDate } = getDateRange();
+      const today = new Date().toISOString().split('T')[0];
       
       let query = supabase
         .from('invoices')
@@ -75,29 +76,37 @@ export default function Facturas() {
         query = query.in('client_id', assignedClientIds);
       }
 
-      if (filters.status) {
-        if (filters.status === 'pending') {
-          // Pending = all statuses except 'paid'
-          query = query.neq('status', 'paid');
-        } else {
-          query = query.eq('status', filters.status as any);
+      // Special filter: overdue invoices (due_date < today AND status != 'paid')
+      if (isOverdueFilter) {
+        query = query
+          .lt('due_date', today)
+          .neq('status', 'paid');
+      } else {
+        // Normal filters
+        if (filters.status) {
+          if (filters.status === 'pending') {
+            // Pending = all statuses except 'paid'
+            query = query.neq('status', 'paid');
+          } else {
+            query = query.eq('status', filters.status as any);
+          }
         }
-      }
 
-      if (filters.clientId) {
-        query = query.eq('client_id', filters.clientId);
-      }
+        if (filters.clientId) {
+          query = query.eq('client_id', filters.clientId);
+        }
 
-      if (filters.searchTerm) {
-        query = query.or(`code.ilike.%${filters.searchTerm}%`);
-      }
+        if (filters.searchTerm) {
+          query = query.or(`code.ilike.%${filters.searchTerm}%`);
+        }
 
-      // Only apply date filter if not 'all'
-      if (filters.periodType !== 'all') {
-        if (filters.periodType !== 'custom' || (startDate && endDate)) {
-          query = query
-            .gte('invoice_date', startDate)
-            .lte('invoice_date', endDate);
+        // Only apply date filter if not 'all'
+        if (filters.periodType !== 'all') {
+          if (filters.periodType !== 'custom' || (startDate && endDate)) {
+            query = query
+              .gte('invoice_date', startDate)
+              .lte('invoice_date', endDate);
+          }
         }
       }
 
@@ -221,13 +230,20 @@ export default function Facturas() {
     setUploadModalOpen(true);
   };
 
-  const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId;
+  const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId || isOverdueFilter;
 
   return (
     <AppLayout title="Gestión de Facturas">
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">Facturas</h2>
+      <div className="flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold">Facturas</h2>
+            {isOverdueFilter && (
+              <span className="bg-destructive/10 text-destructive text-sm font-medium px-3 py-1 rounded-full">
+                Vencidas
+              </span>
+            )}
+          </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleUpload}>
               <Upload className="h-4 w-4 mr-2" />

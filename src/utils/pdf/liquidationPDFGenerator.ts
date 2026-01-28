@@ -11,6 +11,13 @@ interface PendingRequest {
   client?: { id: string; name: string } | null;
 }
 
+interface TeamMemberLiquidation {
+  specialist: { name: string };
+  liquidation_items: any[];
+  calculated_total: number;
+  code: string;
+}
+
 interface LiquidationData {
   liquidation: any;
   items: any[];
@@ -22,6 +29,10 @@ interface LiquidationData {
     address: string;
     phone: string;
     email: string;
+  };
+  teamData?: {
+    members: TeamMemberLiquidation[];
+    teamTotal: number;
   };
 }
 
@@ -85,101 +96,178 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
   doc.setLineWidth(0.5);
   doc.line(15, 50, pageWidth - 15, 50);
 
-  // Agrupar items por cliente
-  const groupedItems = groupItemsByClient(data.items);
+  let currentY = 58;
 
-  // Preparar datos de la tabla con agrupación por cliente
-  const tableData: any[][] = [];
-  
-  groupedItems.forEach((group) => {
-    // Fila de encabezado del cliente
-    tableData.push([
-      { content: group.clientName, colSpan: 3, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
-      { content: formatCurrency(group.subtotal), styles: { fontStyle: 'bold', fillColor: [240, 240, 240], halign: 'right' } },
-    ]);
+  // Check if we have team data with members
+  const hasTeamData = data.teamData && data.teamData.members.length > 0;
+
+  if (hasTeamData) {
+    // === TEAM LIQUIDATION MODE ===
     
-    // Filas de items del cliente
-    group.items.forEach((item) => {
-      const costToAgency = Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0;
-      const requestTitle = item.financial_request?.title;
-      const description = requestTitle 
-        ? `  ${item.description}\n     ${requestTitle}` 
-        : `  ${item.description}`;
-      // Mostrar hours si es hourly, quantity del financial_request si es fixed, o item.quantity como fallback
-      const displayQuantity = item.financial_request?.cost_type === 'hourly'
-        ? (item.financial_request?.hours || item.quantity || 1)
-        : (item.financial_request?.quantity || item.quantity || 1);
-      tableData.push([
-        description,
-        displayQuantity.toString(),
-        formatCurrency(costToAgency),
-        formatCurrency(costToAgency),
-      ]);
+    // Section: Leader's items
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 70, 126);
+    doc.text(`TRABAJOS DE ${data.specialist.name.toUpperCase()} - LÍDER DE EQUIPO`, 15, currentY);
+    doc.setTextColor(0, 0, 0);
+    currentY += 8;
+
+    // Leader's items table
+    const leaderGroupedItems = groupItemsByClient(data.items);
+    const leaderTableData = buildTableData(leaderGroupedItems);
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [['Servicio / Cliente', 'Cantidad', 'Precio Unitario', 'Total']],
+      body: leaderTableData,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [0, 70, 126],
+        textColor: 255,
+        fontSize: 9,
+        fontStyle: 'bold',
+      },
+      styles: {
+        fontSize: 8,
+        cellPadding: 4,
+      },
+      columnStyles: {
+        0: { cellWidth: 90 },
+        1: { cellWidth: 25, halign: 'center' },
+        2: { cellWidth: 35, halign: 'right' },
+        3: { cellWidth: 35, halign: 'right' },
+      },
     });
-  });
 
-  autoTable(doc, {
-    startY: 58,
-    head: [['Servicio / Cliente', 'Cantidad', 'Precio Unitario', 'Total']],
-    body: tableData,
-    theme: 'striped',
-    headStyles: {
-      fillColor: [0, 70, 126], // Corporate blue #00467E
-      textColor: 255,
-      fontSize: 10,
-      fontStyle: 'bold',
-    },
-    styles: {
-      fontSize: 9,
-      cellPadding: 5,
-    },
-    columnStyles: {
-      0: { cellWidth: 90 },
-      1: { cellWidth: 25, halign: 'center' },
-      2: { cellWidth: 35, halign: 'right' },
-      3: { cellWidth: 35, halign: 'right' },
-    },
-  });
+    // Leader subtotal
+    const leaderTotal = calculateItemsTotal(data.items);
+    currentY = (doc as any).lastAutoTable.finalY + 5;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(`Subtotal ${data.specialist.name}:`, pageWidth - 75, currentY);
+    doc.text(formatCurrency(leaderTotal), pageWidth - 15, currentY, { align: 'right' });
+    currentY += 15;
 
-  // Calcular total desde los items en lugar de usar subtotal guardado
-  const calculatedTotal = data.items.reduce((sum, item) => {
-    const costToAgency = item.financial_request_id 
-      ? (Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0)
-      : Number(item.unit_price) || 0;
-    return sum + costToAgency;
-  }, 0);
+    // Section: Each team member's items
+    for (const member of data.teamData!.members) {
+      // Check if we need a new page
+      if (currentY > 240) {
+        doc.addPage();
+        currentY = 20;
+      }
 
-  // Total
-  const finalY = (doc as any).lastAutoTable.finalY + 10;
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 70, 126);
+      doc.text(`TRABAJOS DE ${member.specialist.name.toUpperCase()} - MIEMBRO DEL EQUIPO`, 15, currentY);
+      doc.setTextColor(0, 0, 0);
+      currentY += 8;
 
-  const totalsX = pageWidth - 75;
-  
-  // Total en negrita
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text('TOTAL A PAGAR:', totalsX, finalY);
-  doc.text(formatCurrency(calculatedTotal), pageWidth - 15, finalY, { align: 'right' });
+      const memberGroupedItems = groupItemsByClient(member.liquidation_items);
+      const memberTableData = buildTableData(memberGroupedItems);
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [['Servicio / Cliente', 'Cantidad', 'Precio Unitario', 'Total']],
+        body: memberTableData,
+        theme: 'striped',
+        headStyles: {
+          fillColor: [100, 100, 100],
+          textColor: 255,
+          fontSize: 9,
+          fontStyle: 'bold',
+        },
+        styles: {
+          fontSize: 8,
+          cellPadding: 4,
+        },
+        columnStyles: {
+          0: { cellWidth: 90 },
+          1: { cellWidth: 25, halign: 'center' },
+          2: { cellWidth: 35, halign: 'right' },
+          3: { cellWidth: 35, halign: 'right' },
+        },
+      });
+
+      // Member subtotal
+      currentY = (doc as any).lastAutoTable.finalY + 5;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text(`Subtotal ${member.specialist.name}:`, pageWidth - 75, currentY);
+      doc.text(formatCurrency(member.calculated_total), pageWidth - 15, currentY, { align: 'right' });
+      currentY += 15;
+    }
+
+    // Team Total
+    doc.setLineWidth(0.5);
+    doc.line(pageWidth - 100, currentY - 5, pageWidth - 15, currentY - 5);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('TOTAL EQUIPO A PAGAR:', pageWidth - 100, currentY + 5);
+    doc.text(formatCurrency(data.teamData!.teamTotal), pageWidth - 15, currentY + 5, { align: 'right' });
+
+    currentY += 20;
+  } else {
+    // === SINGLE LIQUIDATION MODE (original behavior) ===
+    const groupedItems = groupItemsByClient(data.items);
+    const tableData = buildTableData(groupedItems);
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [['Servicio / Cliente', 'Cantidad', 'Precio Unitario', 'Total']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [0, 70, 126],
+        textColor: 255,
+        fontSize: 10,
+        fontStyle: 'bold',
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 5,
+      },
+      columnStyles: {
+        0: { cellWidth: 90 },
+        1: { cellWidth: 25, halign: 'center' },
+        2: { cellWidth: 35, halign: 'right' },
+        3: { cellWidth: 35, halign: 'right' },
+      },
+    });
+
+    // Calculate total
+    const calculatedTotal = calculateItemsTotal(data.items);
+
+    // Total
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    const totalsX = pageWidth - 75;
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('TOTAL A PAGAR:', totalsX, finalY);
+    doc.text(formatCurrency(calculatedTotal), pageWidth - 15, finalY, { align: 'right' });
+
+    currentY = finalY;
+  }
 
   // Notas
-  let currentY = finalY;
   if (data.liquidation.notes) {
+    if (currentY > 250) {
+      doc.addPage();
+      currentY = 20;
+    }
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.text('Notas:', 15, currentY + 30);
+    doc.text('Notas:', 15, currentY + 15);
     const splitNotes = doc.splitTextToSize(data.liquidation.notes, pageWidth - 30);
-    doc.text(splitNotes, 15, currentY + 37);
-    currentY = currentY + 37 + (splitNotes.length * 5);
-  } else {
-    currentY = finalY + 15;
+    doc.text(splitNotes, 15, currentY + 22);
   }
 
   // Sección de solicitudes pendientes - Siempre en nueva página como ANEXO
   if (data.pendingRequests && data.pendingRequests.length > 0) {
-    // Siempre añadir nueva página para el anexo
     doc.addPage();
     let annexY = 20;
 
-    // Título del anexo
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
@@ -187,17 +275,14 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
 
     annexY += 12;
 
-    // Subtítulo de la sección
     doc.setFontSize(11);
     doc.text('TRABAJOS PENDIENTES PARA PRÓXIMA LIQUIDACIÓN', 15, annexY);
 
-    // Subtítulo informativo
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
     doc.text('(Trabajos completados o en progreso aún no incluidos en esta liquidación)', 15, annexY + 6);
 
-    // Tabla de solicitudes pendientes
     const pendingTableData = data.pendingRequests.map(req => [
       req.code || '-',
       (req.title?.substring(0, 35) + (req.title && req.title.length > 35 ? '...' : '')) || '-',
@@ -230,7 +315,6 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
       },
     });
 
-    // Total pendiente
     const totalPending = data.pendingRequests.reduce(
       (sum, req) => sum + (Number(req.cost_to_agency) || 0), 0
     );
@@ -252,7 +336,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     { align: 'center' }
   );
 
-  // Descargar con nombre que incluye mes y año
+  // Descargar
   const fileMonthName = getMonthName(data.liquidation.period_month, 'short').toLowerCase();
   doc.save(`liquidacion_${fileMonthName}_${data.liquidation.period_year}_${data.liquidation.code}.pdf`);
 };
@@ -262,7 +346,6 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // Información de la empresa (APPS 4 BUSINESS SL - HAYAS MARKETING)
   const company = data.companyInfo || {
     name: 'APPS 4 BUSINESS SL',
     tradeName: 'HAYAS MARKETING',
@@ -285,7 +368,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
     console.warn('Could not load logo for PDF');
   }
 
-  // Header - Datos de empresa (al lado del logo)
+  // Header
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.text(company.name, 55, 18);
@@ -297,7 +380,6 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
   doc.text(`Tel: ${company.phone}`, 55, 37);
   doc.text(company.email, 55, 43);
 
-  // Título - Derecha (LIQUIDACIÓN + Especialista + Mes + Código)
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.text('LIQUIDACIÓN', pageWidth - 15, 18, { align: 'right' });
@@ -314,105 +396,170 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
   doc.setFontSize(10);
   doc.text(data.liquidation.code, pageWidth - 15, 40, { align: 'right' });
 
-  // Línea divisoria
   doc.setLineWidth(0.5);
   doc.line(15, 50, pageWidth - 15, 50);
 
-  // Agrupar items por cliente
-  const groupedItems = groupItemsByClient(data.items);
+  let currentY = 58;
 
-  // Preparar datos de la tabla con agrupación por cliente
-  const tableData: any[][] = [];
-  
-  groupedItems.forEach((group) => {
-    // Fila de encabezado del cliente
-    tableData.push([
-      { content: group.clientName, colSpan: 3, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
-      { content: formatCurrency(group.subtotal), styles: { fontStyle: 'bold', fillColor: [240, 240, 240], halign: 'right' } },
-    ]);
+  const hasTeamData = data.teamData && data.teamData.members.length > 0;
+
+  if (hasTeamData) {
+    // === TEAM LIQUIDATION MODE ===
     
-    // Filas de items del cliente
-    group.items.forEach((item) => {
-      const costToAgency = Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0;
-      const requestTitle = item.financial_request?.title;
-      const description = requestTitle 
-        ? `  ${item.description}\n     ${requestTitle}` 
-        : `  ${item.description}`;
-      // Mostrar hours si es hourly, quantity del financial_request si es fixed, o item.quantity como fallback
-      const displayQuantity = item.financial_request?.cost_type === 'hourly'
-        ? (item.financial_request?.hours || item.quantity || 1)
-        : (item.financial_request?.quantity || item.quantity || 1);
-      tableData.push([
-        description,
-        displayQuantity.toString(),
-        formatCurrency(costToAgency),
-        formatCurrency(costToAgency),
-      ]);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 70, 126);
+    doc.text(`TRABAJOS DE ${data.specialist.name.toUpperCase()} - LÍDER DE EQUIPO`, 15, currentY);
+    doc.setTextColor(0, 0, 0);
+    currentY += 8;
+
+    const leaderGroupedItems = groupItemsByClient(data.items);
+    const leaderTableData = buildTableData(leaderGroupedItems);
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [['Servicio / Cliente', 'Cantidad', 'Precio Unitario', 'Total']],
+      body: leaderTableData,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [0, 70, 126],
+        textColor: 255,
+        fontSize: 9,
+        fontStyle: 'bold',
+      },
+      styles: {
+        fontSize: 8,
+        cellPadding: 4,
+      },
+      columnStyles: {
+        0: { cellWidth: 90 },
+        1: { cellWidth: 25, halign: 'center' },
+        2: { cellWidth: 35, halign: 'right' },
+        3: { cellWidth: 35, halign: 'right' },
+      },
     });
-  });
 
-  autoTable(doc, {
-    startY: 58,
-    head: [['Servicio / Cliente', 'Cantidad', 'Precio Unitario', 'Total']],
-    body: tableData,
-    theme: 'striped',
-    headStyles: {
-      fillColor: [0, 70, 126],
-      textColor: 255,
-      fontSize: 10,
-      fontStyle: 'bold',
-    },
-    styles: {
-      fontSize: 9,
-      cellPadding: 5,
-    },
-    columnStyles: {
-      0: { cellWidth: 90 },
-      1: { cellWidth: 25, halign: 'center' },
-      2: { cellWidth: 35, halign: 'right' },
-      3: { cellWidth: 35, halign: 'right' },
-    },
-  });
+    const leaderTotal = calculateItemsTotal(data.items);
+    currentY = (doc as any).lastAutoTable.finalY + 5;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(`Subtotal ${data.specialist.name}:`, pageWidth - 75, currentY);
+    doc.text(formatCurrency(leaderTotal), pageWidth - 15, currentY, { align: 'right' });
+    currentY += 15;
 
-  // Calcular total desde los items en lugar de usar subtotal guardado
-  const calculatedTotal = data.items.reduce((sum, item) => {
-    const costToAgency = item.financial_request_id 
-      ? (Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0)
-      : Number(item.unit_price) || 0;
-    return sum + costToAgency;
-  }, 0);
+    for (const member of data.teamData!.members) {
+      if (currentY > 240) {
+        doc.addPage();
+        currentY = 20;
+      }
 
-  // Total
-  const finalY = (doc as any).lastAutoTable.finalY + 10;
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 70, 126);
+      doc.text(`TRABAJOS DE ${member.specialist.name.toUpperCase()} - MIEMBRO DEL EQUIPO`, 15, currentY);
+      doc.setTextColor(0, 0, 0);
+      currentY += 8;
 
-  const totalsX = pageWidth - 75;
-  
-  // Total en negrita
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text('TOTAL A PAGAR:', totalsX, finalY);
-  doc.text(formatCurrency(calculatedTotal), pageWidth - 15, finalY, { align: 'right' });
+      const memberGroupedItems = groupItemsByClient(member.liquidation_items);
+      const memberTableData = buildTableData(memberGroupedItems);
 
-  // Notas
-  let currentY = finalY;
-  if (data.liquidation.notes) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text('Notas:', 15, currentY + 30);
-    const splitNotes = doc.splitTextToSize(data.liquidation.notes, pageWidth - 30);
-    doc.text(splitNotes, 15, currentY + 37);
-    currentY = currentY + 37 + (splitNotes.length * 5);
+      autoTable(doc, {
+        startY: currentY,
+        head: [['Servicio / Cliente', 'Cantidad', 'Precio Unitario', 'Total']],
+        body: memberTableData,
+        theme: 'striped',
+        headStyles: {
+          fillColor: [100, 100, 100],
+          textColor: 255,
+          fontSize: 9,
+          fontStyle: 'bold',
+        },
+        styles: {
+          fontSize: 8,
+          cellPadding: 4,
+        },
+        columnStyles: {
+          0: { cellWidth: 90 },
+          1: { cellWidth: 25, halign: 'center' },
+          2: { cellWidth: 35, halign: 'right' },
+          3: { cellWidth: 35, halign: 'right' },
+        },
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 5;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text(`Subtotal ${member.specialist.name}:`, pageWidth - 75, currentY);
+      doc.text(formatCurrency(member.calculated_total), pageWidth - 15, currentY, { align: 'right' });
+      currentY += 15;
+    }
+
+    doc.setLineWidth(0.5);
+    doc.line(pageWidth - 100, currentY - 5, pageWidth - 15, currentY - 5);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('TOTAL EQUIPO A PAGAR:', pageWidth - 100, currentY + 5);
+    doc.text(formatCurrency(data.teamData!.teamTotal), pageWidth - 15, currentY + 5, { align: 'right' });
+
+    currentY += 20;
   } else {
-    currentY = finalY + 15;
+    // === SINGLE LIQUIDATION MODE ===
+    const groupedItems = groupItemsByClient(data.items);
+    const tableData = buildTableData(groupedItems);
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [['Servicio / Cliente', 'Cantidad', 'Precio Unitario', 'Total']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [0, 70, 126],
+        textColor: 255,
+        fontSize: 10,
+        fontStyle: 'bold',
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 5,
+      },
+      columnStyles: {
+        0: { cellWidth: 90 },
+        1: { cellWidth: 25, halign: 'center' },
+        2: { cellWidth: 35, halign: 'right' },
+        3: { cellWidth: 35, halign: 'right' },
+      },
+    });
+
+    const calculatedTotal = calculateItemsTotal(data.items);
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    const totalsX = pageWidth - 75;
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('TOTAL A PAGAR:', totalsX, finalY);
+    doc.text(formatCurrency(calculatedTotal), pageWidth - 15, finalY, { align: 'right' });
+
+    currentY = finalY;
   }
 
-  // Sección de solicitudes pendientes - Siempre en nueva página como ANEXO
+  // Notas
+  if (data.liquidation.notes) {
+    if (currentY > 250) {
+      doc.addPage();
+      currentY = 20;
+    }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text('Notas:', 15, currentY + 15);
+    const splitNotes = doc.splitTextToSize(data.liquidation.notes, pageWidth - 30);
+    doc.text(splitNotes, 15, currentY + 22);
+  }
+
+  // Pending requests annex
   if (data.pendingRequests && data.pendingRequests.length > 0) {
-    // Siempre añadir nueva página para el anexo
     doc.addPage();
     let annexY = 20;
 
-    // Título del anexo
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
@@ -420,17 +567,14 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
 
     annexY += 12;
 
-    // Subtítulo de la sección
     doc.setFontSize(11);
     doc.text('TRABAJOS PENDIENTES PARA PRÓXIMA LIQUIDACIÓN', 15, annexY);
 
-    // Subtítulo informativo
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
     doc.text('(Trabajos completados o en progreso aún no incluidos en esta liquidación)', 15, annexY + 6);
 
-    // Tabla de solicitudes pendientes
     const pendingTableData = data.pendingRequests.map(req => [
       req.code || '-',
       (req.title?.substring(0, 35) + (req.title && req.title.length > 35 ? '...' : '')) || '-',
@@ -463,7 +607,6 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
       },
     });
 
-    // Total pendiente
     const totalPending = data.pendingRequests.reduce(
       (sum, req) => sum + (Number(req.cost_to_agency) || 0), 0
     );
@@ -485,7 +628,6 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
     { align: 'center' }
   );
 
-  // Return as base64 string (without the data:application/pdf;base64, prefix)
   return doc.output('datauristring').split(',')[1];
 };
 
@@ -499,7 +641,6 @@ const groupItemsByClient = (items: any[]): GroupedClient[] => {
   const grouped: { [clientName: string]: { items: any[]; subtotal: number } } = {};
   
   items.forEach((item) => {
-    // Items sin financial_request son manuales
     const clientName = item.financial_request_id 
       ? (item.financial_request?.client?.name || 'Sin cliente')
       : 'Otros conceptos';
@@ -507,7 +648,6 @@ const groupItemsByClient = (items: any[]): GroupedClient[] => {
       grouped[clientName] = { items: [], subtotal: 0 };
     }
     grouped[clientName].items.push(item);
-    // Usar cost_to_agency del financial_request para el subtotal, o unit_price para items manuales
     const costToAgency = item.financial_request_id 
       ? (Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0)
       : Number(item.unit_price) || 0;
@@ -519,6 +659,47 @@ const groupItemsByClient = (items: any[]): GroupedClient[] => {
     items: data.items,
     subtotal: data.subtotal,
   }));
+};
+
+const buildTableData = (groupedItems: GroupedClient[]): any[][] => {
+  const tableData: any[][] = [];
+  
+  groupedItems.forEach((group) => {
+    // Client header row
+    tableData.push([
+      { content: group.clientName, colSpan: 3, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
+      { content: formatCurrency(group.subtotal), styles: { fontStyle: 'bold', fillColor: [240, 240, 240], halign: 'right' } },
+    ]);
+    
+    // Item rows
+    group.items.forEach((item) => {
+      const costToAgency = Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0;
+      const requestTitle = item.financial_request?.title;
+      const description = requestTitle 
+        ? `  ${item.description}\n     ${requestTitle}` 
+        : `  ${item.description}`;
+      const displayQuantity = item.financial_request?.cost_type === 'hourly'
+        ? (item.financial_request?.hours || item.quantity || 1)
+        : (item.financial_request?.quantity || item.quantity || 1);
+      tableData.push([
+        description,
+        displayQuantity.toString(),
+        formatCurrency(costToAgency),
+        formatCurrency(costToAgency),
+      ]);
+    });
+  });
+
+  return tableData;
+};
+
+const calculateItemsTotal = (items: any[]): number => {
+  return items.reduce((sum, item) => {
+    const costToAgency = item.financial_request_id 
+      ? (Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0)
+      : Number(item.unit_price) || 0;
+    return sum + costToAgency;
+  }, 0);
 };
 
 const formatCurrency = (amount: number): string => {

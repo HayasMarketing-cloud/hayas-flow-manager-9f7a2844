@@ -1,67 +1,105 @@
 
-## Plan: Permitir a especialistas crear tareas y añadir campo de Google Drive
 
-### Problema identificado
+# Plan: Restringir Notificaciones de Liquidaciones a Admin y Finanzas
 
-El error "new row violates row-level security policy for table tasks" ocurre porque las políticas actuales de INSERT en la tabla `tasks` son muy restrictivas:
+## Resumen del Cambio
 
-| Política actual | Quién puede crear |
-|-----------------|-------------------|
-| "AM and PM can create tasks" | Solo owner/creador del proyecto operacional |
-| "PM and admin can create tasks" | Solo roles admin o project_manager |
+Simplificar la lógica de notificaciones de liquidaciones para que **únicamente los usuarios con roles `admin` y `finanzas`** reciban notificaciones cuando un especialista acepta o disputa una liquidación. Los Account Managers y Project Managers validarán las liquidaciones en un paso previo, por lo que no necesitan recibir estas notificaciones.
 
-**Los especialistas asignados a un operational_request NO pueden crear tareas** bajo las políticas actuales.
+## Archivos a Modificar
 
-### Solución propuesta
+| Archivo | Cambio |
+|---------|--------|
+| `supabase/functions/process-signature/index.ts` | Eliminar `account_manager` de la lista de roles (línea 241) |
+| `src/lib/notification-utils.ts` | Actualizar funciones de liquidación para solo notificar a admin/finanzas |
 
-#### 1. Nueva política RLS para especialistas
+## Cambios Detallados
 
-Crear una nueva política que permita a los especialistas asignados a un `operational_request` crear tareas para ese mismo request:
+### 1. Edge Function: `process-signature/index.ts`
 
-```sql
-CREATE POLICY "Assigned specialists can create tasks"
-ON public.tasks
-FOR INSERT
-TO authenticated
-WITH CHECK (
-  operational_request_id IN (
-    SELECT orq.id 
-    FROM operational_requests orq
-    WHERE orq.assignee_specialist_id IN (
-      SELECT s.id FROM specialists s WHERE s.user_id = auth.uid()
-    )
-  )
+**Ubicación**: Línea 241
+
+**Antes:**
+```typescript
+.in('role', ['admin', 'account_manager', 'finanzas']);
+```
+
+**Después:**
+```typescript
+.in('role', ['admin', 'finanzas']);
+```
+
+### 2. Frontend: `notification-utils.ts`
+
+#### Función `notifyLiquidationSigned` (líneas 165-182)
+
+**Antes:**
+```typescript
+await notifyByRole(
+  ['admin', 'finanzas', 'account_manager', 'project_manager'],
+  { ... }
 );
 ```
 
-Esta política verifica que:
-- El usuario tenga un perfil de especialista vinculado (`specialists.user_id = auth.uid()`)
-- Ese especialista esté asignado al operational_request donde se crea la tarea
+**Después:**
+```typescript
+await notifyByRole(
+  ['admin', 'finanzas'],
+  { ... }
+);
+```
 
-#### 2. Campo de Google Drive (ya existe)
+#### Función `notifyLiquidationAccepted` (líneas 210-227)
 
-El campo `context_url` ya está implementado en:
-- **Base de datos**: Columna `context_url` en tabla `tasks`
-- **UI**: Campo "URL de contexto" visible al expandir una tarea en `InlineTaskItem.tsx`
+**Antes:**
+```typescript
+await notifyByRole(
+  ['admin', 'finanzas', 'account_manager'],
+  { ... }
+);
+```
 
-Solo necesitamos mejorar la UI para hacerlo más visible y específico para Google Drive:
+**Después:**
+```typescript
+await notifyByRole(
+  ['admin', 'finanzas'],
+  { ... }
+);
+```
 
-**Archivo:** `src/components/operations/InlineTaskItem.tsx`
+#### Función `notifyLiquidationDisputed` (líneas 230-248)
 
-Cambiar el label y placeholder del campo para indicar que es para Google Drive:
-- Label: "URL de contexto" → "Enlace Google Drive"
-- Placeholder: "https://..." → "https://drive.google.com/..."
-- Añadir icono de Drive junto al campo
+**Antes:**
+```typescript
+await notifyByRole(
+  ['admin', 'finanzas', 'account_manager', 'project_manager'],
+  { ... }
+);
+```
 
-### Resumen de cambios
+**Después:**
+```typescript
+await notifyByRole(
+  ['admin', 'finanzas'],
+  { ... }
+);
+```
 
-| Tipo | Cambio |
-|------|--------|
-| **Base de datos** | Nueva política RLS para permitir a especialistas crear tareas en sus requests asignados |
-| **UI** | Modificar `InlineTaskItem.tsx` para mostrar campo de Google Drive más claro |
+## Resultado Esperado
 
-### Resultado esperado
+Después de la implementación:
 
-1. Los especialistas podrán crear tareas en los operational_requests donde están asignados
-2. Los managers (AM/PM) seguirán pudiendo crear tareas si son owner/creador del proyecto
-3. Cada tarea mostrará un campo claro para añadir un enlace de Google Drive
+| Rol | Recibe notificación de liquidación |
+|-----|-----------------------------------|
+| Admin | ✅ Sí |
+| Finanzas | ✅ Sí |
+| Account Manager | ❌ No |
+| Project Manager | ❌ No |
+| Especialista | ✅ Sí (solo su propia liquidación enviada) |
+
+## Verificación
+
+1. Cuando Daniela acepte una liquidación → Ebelyn (AM) NO recibirá email ni notificación in-app
+2. Ruben (admin) y usuarios con rol finanzas seguirán recibiendo todas las notificaciones
+3. El especialista seguirá recibiendo la notificación cuando se le envíe una nueva liquidación para revisar
+

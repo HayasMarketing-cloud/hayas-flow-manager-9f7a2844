@@ -1,154 +1,105 @@
 
-# Plan: Corregir Email y PDF de Liquidaciones de Equipo
+# Plan: Mostrar Contrato en Columna Origen
 
 ## Problema Identificado
 
-Cuando se envía el email de una liquidación de equipo desde la vista de lista (`Liquidaciones.tsx`):
+Los requests asociados a contratos (sin presupuesto) muestran "---" en la columna Origen. La tabla `financial_requests` tiene un campo `contract_id` que referencia a `contracts`, pero:
+- La query no incluye la relación con contratos
+- El componente `OriginCell` no soporta mostrar contratos
 
-| Componente | Valor Correcto | Valor Actual |
-|------------|----------------|--------------|
-| Card (UI) | **1.352,50 €** (team_total) | 1.352,50 € |
-| Email preview | **1.352,50 €** | 512,50 € (individual) |
-| Email enviado | **1.352,50 €** | 512,50 € |
-| PDF adjunto | Secciones separadas para líder y miembros | Solo items del líder |
+## Cambios a Realizar
 
-El objeto `liquidation` consolidado tiene los datos del equipo (`is_team`, `team_total`, `team_members`, `member_liquidation_ids`) pero la función `confirmSendEmail` no los usa.
+### 1. Solicitudes.tsx - Añadir contrato a la query
 
-Además, en `LiquidacionDetalle.tsx`, aunque se pasa `teamData` al PDF correctamente, el `totalAmount` enviado al email sigue siendo el individual.
+Modificar el select para incluir la relación con contratos:
+
+```typescript
+// Línea ~60-73
+.select(`
+  *,
+  client:clients(id, name, code),
+  service:services(id, name),
+  specialist:specialists(id, name),
+  budget:budgets(id, title, code, client_contact_id),
+  contract:contracts(id, title, code),  // ← AÑADIR
+  invoice:invoices(id, code, status),
+  liquidation:liquidations(id, code, status),
+  operational_request:operational_requests!financial_request_id(
+    id,
+    operational_project:operational_projects(id, name)
+  )
+`)
+```
+
+### 2. OriginCell.tsx - Soportar contratos
+
+Añadir prop para contrato y mostrarlo con icono diferenciador:
+
+| Prop Nueva | Tipo | Descripción |
+|------------|------|-------------|
+| `contractId` | `string \| null` | ID del contrato |
+| `contractTitle` | `string \| null` | Título del contrato |
+
+Usar un icono distintivo (por ejemplo `FileText` o `ScrollText`) con color diferente (azul) para distinguir contratos de presupuestos.
+
+Prioridad de visualización:
+1. Si hay presupuesto → mostrar presupuesto (icono documento, color primary)
+2. Si hay contrato (sin presupuesto) → mostrar contrato (icono scroll, color azul)
+3. Si hay proyecto operativo → mostrar también (siempre se muestra si existe)
+
+### 3. RequestTableView.tsx - Pasar datos del contrato
+
+Actualizar el uso de `OriginCell`:
+
+```tsx
+<OriginCell
+  budgetId={request.budget_id}
+  budgetCode={request.budget?.code}
+  contractId={request.contract_id}
+  contractTitle={request.contract?.title}
+  operationalProject={request.operational_request?.[0]?.operational_project}
+/>
+```
+
+### 4. RequestCard.tsx - Pasar datos del contrato
+
+Mismo cambio que en RequestTableView:
+
+```tsx
+<OriginCell
+  budgetId={request.budget_id}
+  budgetCode={request.budget?.code}
+  contractId={request.contract_id}
+  contractTitle={request.contract?.title}
+  operationalProject={request.operational_request?.[0]?.operational_project}
+/>
+```
+
+## Resultado Visual
+
+| Antes | Después |
+|-------|---------|
+| `---` | `📜 epAQ GO Services Agreement` (azul) |
+| `PRE-2025-201` | `📄 PRE-2025-201` (primary) |
+
+Los contratos se mostrarán con su **título** (no el código) ya que el código es menos descriptivo (ej: "CON-2025-001").
 
 ## Archivos a Modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/components/liquidations/EmailPreviewModal.tsx` | Mostrar total de equipo cuando `is_team=true` |
-| `src/pages/Liquidaciones.tsx` | Modificar `confirmSendEmail` para obtener items de miembros y pasar `teamData` al PDF |
-| `src/pages/LiquidacionDetalle.tsx` | Usar `teamData.teamTotal` para el email cuando es equipo |
+| `src/pages/Solicitudes.tsx` | Añadir `contract:contracts(id, title, code)` al select |
+| `src/components/requests/OriginCell.tsx` | Añadir props y lógica para contratos |
+| `src/components/requests/RequestTableView.tsx` | Pasar `contractId` y `contractTitle` a OriginCell |
+| `src/components/requests/RequestCard.tsx` | Pasar `contractId` y `contractTitle` a OriginCell |
 
-## Cambios Detallados
+## Detalles Técnicos
 
-### 1. EmailPreviewModal.tsx
+### Icono para Contratos
+Usar `ScrollText` de lucide-react con clase `text-blue-600` para diferenciarlo visualmente del presupuesto (que usa `FileSpreadsheet` con `text-primary`).
 
-Detectar si la liquidación es de equipo y mostrar el total consolidado:
+### Navegación
+Click en el contrato navega a la página de contratos (la aplicación no tiene vista de detalle de contrato individual según la estructura de archivos).
 
-```tsx
-// Línea 47 - Cambiar la lógica del totalAmount
-const isTeamLiquidation = liquidation.is_team && liquidation.team_total;
-const totalAmount = isTeamLiquidation 
-  ? liquidation.team_total 
-  : (liquidation.calculated_total ?? liquidation.total_amount ?? 0);
-```
-
-Agregar indicador visual de equipo en la preview del email cuando corresponda:
-- Mostrar badge "Equipo" junto al total
-- Añadir desglose (ej: "512,50 € + 840,00 €")
-
-### 2. Liquidaciones.tsx - confirmSendEmail
-
-Modificar la función para manejar equipos:
-
-```typescript
-const confirmSendEmail = async () => {
-  if (!liquidationToSend) return;
-  const liquidation = liquidationToSend;
-  setIsSendingEmail(true);
-  setSendingLiquidationId(liquidation.id);
-
-  try {
-    // 1. Fetch leader's items
-    const { data: leaderItems, error: itemsError } = await supabase
-      .from('liquidation_items')
-      .select(`*, financial_request:financial_requests(...)`)
-      .eq('liquidation_id', liquidation.id);
-
-    if (itemsError) throw itemsError;
-
-    // 2. If team liquidation, fetch member items too
-    let teamData = undefined;
-    if (liquidation.is_team && liquidation.member_liquidation_ids?.length > 0) {
-      const memberPromises = liquidation.team_members.map(async (member) => {
-        const { data: memberItems } = await supabase
-          .from('liquidation_items')
-          .select(`*, financial_request:financial_requests(...)`)
-          .eq('liquidation_id', member.liquidation_id);
-        
-        return {
-          specialist: { name: member.name },
-          liquidation_items: memberItems || [],
-          calculated_total: member.total,
-          code: '',
-        };
-      });
-
-      const members = await Promise.all(memberPromises);
-      teamData = {
-        members,
-        teamTotal: liquidation.team_total,
-      };
-    }
-
-    // 3. Generate PDF with team data
-    const pdfBase64 = await generateLiquidationPDFBase64({
-      liquidation,
-      items: leaderItems || [],
-      specialist: liquidation.specialist,
-      teamData,
-    });
-
-    // 4. Send email with correct total
-    const totalForEmail = liquidation.is_team 
-      ? liquidation.team_total 
-      : (liquidation.calculated_total ?? liquidation.total_amount);
-
-    await supabase.functions.invoke('send-liquidation-email', {
-      body: {
-        ...
-        totalAmount: totalForEmail,
-        ...
-      },
-    });
-
-    // 5. Update status for ALL team liquidations
-    if (liquidation.is_team && liquidation.member_liquidation_ids?.length > 0) {
-      const allIds = [liquidation.id, ...liquidation.member_liquidation_ids];
-      await supabase
-        .from('liquidations')
-        .update({ status: 'sent', sent_at: new Date().toISOString() })
-        .in('id', allIds);
-    } else {
-      await supabase
-        .from('liquidations')
-        .update({ status: 'sent', sent_at: new Date().toISOString() })
-        .eq('id', liquidation.id);
-    }
-    
-    ...
-  }
-};
-```
-
-### 3. LiquidacionDetalle.tsx
-
-Corregir el `totalAmount` enviado al email (línea 522):
-
-```typescript
-// Antes:
-totalAmount: liquidation.calculated_total ?? liquidation.total_amount,
-
-// Después:
-totalAmount: (hasTeam && teamData) 
-  ? teamData.teamTotal 
-  : (liquidation.calculated_total ?? liquidation.total_amount),
-```
-
-## Resultado Esperado
-
-| Componente | Después del Fix |
-|------------|-----------------|
-| Card (UI) | 1.352,50 € (sin cambios) |
-| Email preview | **1.352,50 €** con badge "Equipo" y desglose |
-| Email enviado | **1.352,50 €** (total equipo) |
-| PDF adjunto | Secciones separadas: Daniela (líder) + Sandra (miembro) + Total Equipo |
-
-## Flujo de Firma
-
-Cuando el líder de equipo firma (acepta/disputa), las liquidaciones de todos los miembros ya se actualizan automáticamente según la memoria del proyecto (`specialist-team-consolidation`).
+### Truncado
+Aplicar el mismo patrón de truncado (`max-w-[120px] truncate`) con tooltip que muestre el título completo.

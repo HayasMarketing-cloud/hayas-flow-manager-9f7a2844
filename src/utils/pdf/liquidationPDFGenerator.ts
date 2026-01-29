@@ -120,7 +120,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
 
     autoTable(doc, {
       startY: currentY,
-      head: [['Servicio / Cliente', 'Proyecto/Presupuesto', 'Cantidad', 'Precio Unitario', 'Total']],
+      head: [['Servicio / Cliente', 'Proy./Presup.', 'Cant.', 'Precio Unit.', 'Total']],
       body: leaderTableData,
       theme: 'striped',
       headStyles: {
@@ -134,10 +134,10 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
         cellPadding: 4,
       },
       columnStyles: {
-        0: { cellWidth: 60 },
-        1: { cellWidth: 40 },
-        2: { cellWidth: 20, halign: 'center' },
-        3: { cellWidth: 30, halign: 'right' },
+        0: { cellWidth: 55 },
+        1: { cellWidth: 45 },
+        2: { cellWidth: 18, halign: 'center' },
+        3: { cellWidth: 32, halign: 'right' },
         4: { cellWidth: 30, halign: 'right' },
       },
     });
@@ -147,8 +147,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     currentY = (doc as any).lastAutoTable.finalY + 5;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    doc.text(`Subtotal ${data.specialist.name}:`, pageWidth - 75, currentY);
-    doc.text(formatCurrency(leaderTotal), pageWidth - 15, currentY, { align: 'right' });
+    doc.text(`Subtotal ${data.specialist.name}:  ${formatCurrency(leaderTotal)}`, pageWidth - 15, currentY, { align: 'right' });
     currentY += 15;
 
     // Section: Each team member's items
@@ -171,7 +170,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
 
       autoTable(doc, {
         startY: currentY,
-        head: [['Servicio / Cliente', 'Proyecto/Presupuesto', 'Cantidad', 'Precio Unitario', 'Total']],
+        head: [['Servicio / Cliente', 'Proy./Presup.', 'Cant.', 'Precio Unit.', 'Total']],
         body: memberTableData,
         theme: 'striped',
         headStyles: {
@@ -185,10 +184,10 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
           cellPadding: 4,
         },
         columnStyles: {
-          0: { cellWidth: 60 },
-          1: { cellWidth: 40 },
-          2: { cellWidth: 20, halign: 'center' },
-          3: { cellWidth: 30, halign: 'right' },
+          0: { cellWidth: 55 },
+          1: { cellWidth: 45 },
+          2: { cellWidth: 18, halign: 'center' },
+          3: { cellWidth: 32, halign: 'right' },
           4: { cellWidth: 30, halign: 'right' },
         },
       });
@@ -197,8 +196,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
       currentY = (doc as any).lastAutoTable.finalY + 5;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
-      doc.text(`Subtotal ${member.specialist.name}:`, pageWidth - 75, currentY);
-      doc.text(formatCurrency(member.calculated_total), pageWidth - 15, currentY, { align: 'right' });
+      doc.text(`Subtotal ${member.specialist.name}:  ${formatCurrency(member.calculated_total)}`, pageWidth - 15, currentY, { align: 'right' });
       currentY += 15;
     }
 
@@ -218,7 +216,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
 
     autoTable(doc, {
       startY: currentY,
-      head: [['Servicio / Cliente', 'Proyecto/Presupuesto', 'Cantidad', 'Precio Unitario', 'Total']],
+      head: [['Servicio / Cliente', 'Proy./Presup.', 'Cant.', 'Precio Unit.', 'Total']],
       body: tableData,
       theme: 'striped',
       headStyles: {
@@ -232,10 +230,10 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
         cellPadding: 5,
       },
       columnStyles: {
-        0: { cellWidth: 60 },
-        1: { cellWidth: 40 },
-        2: { cellWidth: 20, halign: 'center' },
-        3: { cellWidth: 30, halign: 'right' },
+        0: { cellWidth: 55 },
+        1: { cellWidth: 45 },
+        2: { cellWidth: 18, halign: 'center' },
+        3: { cellWidth: 32, halign: 'right' },
         4: { cellWidth: 30, halign: 'right' },
       },
     });
@@ -425,7 +423,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
 
     autoTable(doc, {
       startY: currentY,
-      head: [['Servicio / Cliente', 'Proyecto/Presupuesto', 'Cantidad', 'Precio Unitario', 'Total']],
+      head: [['Servicio / Cliente', 'Proy./Presup.', 'Cant.', 'Precio Unit.', 'Total']],
       body: leaderTableData,
       theme: 'striped',
       headStyles: {
@@ -439,10 +437,10 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
         cellPadding: 4,
       },
       columnStyles: {
-        0: { cellWidth: 60 },
-        1: { cellWidth: 40 },
-        2: { cellWidth: 20, halign: 'center' },
-        3: { cellWidth: 30, halign: 'right' },
+        0: { cellWidth: 55 },
+        1: { cellWidth: 45 },
+        2: { cellWidth: 18, halign: 'center' },
+        3: { cellWidth: 32, halign: 'right' },
         4: { cellWidth: 30, halign: 'right' },
       },
     });
@@ -451,8 +449,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
     currentY = (doc as any).lastAutoTable.finalY + 5;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    doc.text(`Subtotal ${data.specialist.name}:`, pageWidth - 75, currentY);
-    doc.text(formatCurrency(leaderTotal), pageWidth - 15, currentY, { align: 'right' });
+    doc.text(`Subtotal ${data.specialist.name}:  ${formatCurrency(leaderTotal)}`, pageWidth - 15, currentY, { align: 'right' });
     currentY += 15;
 
     for (const member of data.teamData!.members) {
@@ -473,7 +470,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
 
       autoTable(doc, {
         startY: currentY,
-        head: [['Servicio / Cliente', 'Proyecto/Presupuesto', 'Cantidad', 'Precio Unitario', 'Total']],
+        head: [['Servicio / Cliente', 'Proy./Presup.', 'Cant.', 'Precio Unit.', 'Total']],
         body: memberTableData,
         theme: 'striped',
         headStyles: {
@@ -487,10 +484,10 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
           cellPadding: 4,
         },
         columnStyles: {
-          0: { cellWidth: 60 },
-          1: { cellWidth: 40 },
-          2: { cellWidth: 20, halign: 'center' },
-          3: { cellWidth: 30, halign: 'right' },
+          0: { cellWidth: 55 },
+          1: { cellWidth: 45 },
+          2: { cellWidth: 18, halign: 'center' },
+          3: { cellWidth: 32, halign: 'right' },
           4: { cellWidth: 30, halign: 'right' },
         },
       });
@@ -498,8 +495,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
       currentY = (doc as any).lastAutoTable.finalY + 5;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
-      doc.text(`Subtotal ${member.specialist.name}:`, pageWidth - 75, currentY);
-      doc.text(formatCurrency(member.calculated_total), pageWidth - 15, currentY, { align: 'right' });
+      doc.text(`Subtotal ${member.specialist.name}:  ${formatCurrency(member.calculated_total)}`, pageWidth - 15, currentY, { align: 'right' });
       currentY += 15;
     }
 
@@ -518,7 +514,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
 
     autoTable(doc, {
       startY: currentY,
-      head: [['Servicio / Cliente', 'Proyecto/Presupuesto', 'Cantidad', 'Precio Unitario', 'Total']],
+      head: [['Servicio / Cliente', 'Proy./Presup.', 'Cant.', 'Precio Unit.', 'Total']],
       body: tableData,
       theme: 'striped',
       headStyles: {
@@ -532,10 +528,10 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
         cellPadding: 5,
       },
       columnStyles: {
-        0: { cellWidth: 60 },
-        1: { cellWidth: 40 },
-        2: { cellWidth: 20, halign: 'center' },
-        3: { cellWidth: 30, halign: 'right' },
+        0: { cellWidth: 55 },
+        1: { cellWidth: 45 },
+        2: { cellWidth: 18, halign: 'center' },
+        3: { cellWidth: 32, halign: 'right' },
         4: { cellWidth: 30, halign: 'right' },
       },
     });

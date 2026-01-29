@@ -16,6 +16,7 @@ import { SpecialistInvoiceImportModal } from '@/components/liquidations/Speciali
 import { LiquidationStatusBadge } from '@/components/liquidations/LiquidationStatusBadge';
 import { SignatureStatusBadge } from '@/components/liquidations/SignatureStatusBadge';
 import { LiquidationProcessTimeline } from '@/components/liquidations/LiquidationProcessTimeline';
+import { GroupedLiquidationItemsTable } from '@/components/liquidations/GroupedLiquidationItemsTable';
 import { formatPeriod, formatCurrency } from '@/lib/liquidation-utils';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useUnliquidatedRequests } from '@/hooks/useUnliquidatedRequests';
@@ -950,94 +951,12 @@ export default function LiquidacionDetalle() {
                 )}
                 {liquidation.liquidation_items && liquidation.liquidation_items.length > 0 ? (
                   <>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Código</TableHead>
-                          <TableHead>Descripción</TableHead>
-                          <TableHead>Cliente</TableHead>
-                          <TableHead>Proyecto/Pres.</TableHead>
-                          <TableHead className="text-right">Cantidad</TableHead>
-                          <TableHead className="text-right">Precio Unit.</TableHead>
-                          <TableHead className="text-right">Total</TableHead>
-                          {isEditable && canAccessFinance() && <TableHead className="w-10"></TableHead>}
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {liquidation.liquidation_items.map((item: any) => {
-                          const opRequest = item.financial_request?.operational_request?.[0];
-                          const projectOrBudget = opRequest?.operational_project ? (
-                            <span 
-                              className="text-emerald-600 hover:underline cursor-pointer text-sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/operaciones/proyectos/${opRequest.operational_project.id}`);
-                              }}
-                            >
-                              {opRequest.operational_project.name}
-                            </span>
-                          ) : item.financial_request?.budget ? (
-                            <span 
-                              className="text-primary hover:underline cursor-pointer text-sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/presupuestos/${item.financial_request.budget.id}`);
-                              }}
-                              title={item.financial_request.budget.title || item.financial_request.budget.code}
-                            >
-                              {(item.financial_request.budget.title || item.financial_request.budget.code)?.substring(0, 35)}{(item.financial_request.budget.title || item.financial_request.budget.code)?.length > 35 ? '...' : ''}
-                            </span>
-                          ) : '-';
-
-                          return (
-                            <TableRow 
-                              key={item.id}
-                              className={item.financial_request?.id ? 'cursor-pointer hover:bg-muted/50' : ''}
-                              onClick={() => item.financial_request?.id && navigate(`/solicitudes/${item.financial_request.id}`)}
-                            >
-                              <TableCell className="font-mono text-sm">
-                                {item.financial_request?.id ? (
-                                  <span className="text-primary hover:underline cursor-pointer">
-                                    {item.financial_request?.code}
-                                  </span>
-                                ) : (
-                                  '-'
-                                )}
-                              </TableCell>
-                              <TableCell>{item.description}</TableCell>
-                              <TableCell>{item.financial_request?.client?.name || '-'}</TableCell>
-                              <TableCell onClick={(e) => e.stopPropagation()}>{projectOrBudget}</TableCell>
-                              <TableCell className="text-right">
-                                {item.financial_request?.cost_type === 'hourly'
-                                  ? (item.financial_request?.hours ?? item.quantity)
-                                  : (item.financial_request?.quantity ?? item.quantity)}
-                              </TableCell>
-                              <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
-                              <TableCell className="text-right font-medium">{formatCurrency(item.total)}</TableCell>
-                              {isEditable && canAccessFinance() && (
-                                <TableCell className="text-right">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setItemToRemove({
-                                        id: item.id,
-                                        requestId: item.financial_request?.id || null,
-                                        description: item.description,
-                                      });
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </TableCell>
-                              )}
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
+                    <GroupedLiquidationItemsTable
+                      items={liquidation.liquidation_items}
+                      isEditable={isEditable}
+                      canEdit={canAccessFinance()}
+                      onRemoveItem={setItemToRemove}
+                    />
                     <div className="flex justify-end mt-4 pt-4 border-t">
                       <div className="text-right">
                         <span className="text-muted-foreground mr-4">Subtotal:</span>
@@ -1064,74 +983,11 @@ export default function LiquidacionDetalle() {
                 <CardContent>
                   {memberLiq.liquidation_items && memberLiq.liquidation_items.length > 0 ? (
                     <>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Código</TableHead>
-                            <TableHead>Descripción</TableHead>
-                            <TableHead>Cliente</TableHead>
-                            <TableHead>Proyecto/Pres.</TableHead>
-                            <TableHead className="text-right">Cantidad</TableHead>
-                            <TableHead className="text-right">Precio Unit.</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {memberLiq.liquidation_items.map((item: any) => {
-                            const opRequest = item.financial_request?.operational_request?.[0];
-                            const projectOrBudget = opRequest?.operational_project ? (
-                              <span 
-                                className="text-emerald-600 hover:underline cursor-pointer text-sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate(`/operaciones/proyectos/${opRequest.operational_project.id}`);
-                                }}
-                              >
-                                {opRequest.operational_project.name}
-                              </span>
-                            ) : item.financial_request?.budget ? (
-                              <span 
-                                className="text-primary hover:underline cursor-pointer text-sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate(`/presupuestos/${item.financial_request.budget.id}`);
-                                }}
-                                title={item.financial_request.budget.title || item.financial_request.budget.code}
-                              >
-                                {(item.financial_request.budget.title || item.financial_request.budget.code)?.substring(0, 35)}{(item.financial_request.budget.title || item.financial_request.budget.code)?.length > 35 ? '...' : ''}
-                              </span>
-                            ) : '-';
-
-                            return (
-                              <TableRow 
-                                key={item.id}
-                                className={item.financial_request?.id ? 'cursor-pointer hover:bg-muted/50' : ''}
-                                onClick={() => item.financial_request?.id && navigate(`/solicitudes/${item.financial_request.id}`)}
-                              >
-                                <TableCell className="font-mono text-sm">
-                                  {item.financial_request?.id ? (
-                                    <span className="text-primary hover:underline cursor-pointer">
-                                      {item.financial_request?.code}
-                                    </span>
-                                  ) : (
-                                    '-'
-                                  )}
-                                </TableCell>
-                                <TableCell>{item.description}</TableCell>
-                                <TableCell>{item.financial_request?.client?.name || '-'}</TableCell>
-                                <TableCell onClick={(e) => e.stopPropagation()}>{projectOrBudget}</TableCell>
-                                <TableCell className="text-right">
-                                  {item.financial_request?.cost_type === 'hourly'
-                                    ? (item.financial_request?.hours ?? item.quantity)
-                                    : (item.financial_request?.quantity ?? item.quantity)}
-                                </TableCell>
-                                <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
-                                <TableCell className="text-right font-medium">{formatCurrency(item.total)}</TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
+                      <GroupedLiquidationItemsTable
+                        items={memberLiq.liquidation_items}
+                        isEditable={false}
+                        canEdit={false}
+                      />
                       <div className="flex justify-end mt-4 pt-4 border-t">
                         <div className="text-right">
                           <span className="text-muted-foreground mr-4">Subtotal:</span>
@@ -1220,94 +1076,12 @@ export default function LiquidacionDetalle() {
                 </div>
               )}
               {liquidation.liquidation_items && liquidation.liquidation_items.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Código</TableHead>
-                      <TableHead>Descripción</TableHead>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead>Proyecto/Pres.</TableHead>
-                      <TableHead className="text-right">Cantidad</TableHead>
-                      <TableHead className="text-right">Precio Unit.</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      {isEditable && canAccessFinance() && <TableHead className="w-10"></TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {liquidation.liquidation_items.map((item: any) => {
-                      const opRequest = item.financial_request?.operational_request?.[0];
-                      const projectOrBudget = opRequest?.operational_project ? (
-                        <span 
-                          className="text-emerald-600 hover:underline cursor-pointer text-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/operaciones/proyectos/${opRequest.operational_project.id}`);
-                          }}
-                        >
-                          {opRequest.operational_project.name}
-                        </span>
-                      ) : item.financial_request?.budget ? (
-                        <span 
-                          className="text-primary hover:underline cursor-pointer text-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/presupuestos/${item.financial_request.budget.id}`);
-                          }}
-                          title={item.financial_request.budget.title || item.financial_request.budget.code}
-                        >
-                          {(item.financial_request.budget.title || item.financial_request.budget.code)?.substring(0, 35)}{(item.financial_request.budget.title || item.financial_request.budget.code)?.length > 35 ? '...' : ''}
-                        </span>
-                      ) : '-';
-
-                      return (
-                        <TableRow 
-                          key={item.id}
-                          className={item.financial_request?.id ? 'cursor-pointer hover:bg-muted/50' : ''}
-                          onClick={() => item.financial_request?.id && navigate(`/solicitudes/${item.financial_request.id}`)}
-                        >
-                          <TableCell className="font-mono text-sm">
-                            {item.financial_request?.id ? (
-                              <span className="text-primary hover:underline cursor-pointer">
-                                {item.financial_request?.code}
-                              </span>
-                            ) : (
-                              '-'
-                            )}
-                          </TableCell>
-                          <TableCell>{item.description}</TableCell>
-                          <TableCell>{item.financial_request?.client?.name || '-'}</TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>{projectOrBudget}</TableCell>
-                          <TableCell className="text-right">
-                            {item.financial_request?.cost_type === 'hourly'
-                              ? (item.financial_request?.hours ?? item.quantity)
-                              : (item.financial_request?.quantity ?? item.quantity)}
-                          </TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
-                          <TableCell className="text-right font-medium">{formatCurrency(item.total)}</TableCell>
-                          {isEditable && canAccessFinance() && (
-                            <TableCell className="text-right">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setItemToRemove({
-                                    id: item.id,
-                                    requestId: item.financial_request?.id || null,
-                                    description: item.description,
-                                  });
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                <GroupedLiquidationItemsTable
+                  items={liquidation.liquidation_items}
+                  isEditable={isEditable}
+                  canEdit={canAccessFinance()}
+                  onRemoveItem={setItemToRemove}
+                />
               ) : (
                 <p className="text-center text-muted-foreground py-8">No hay items en esta liquidación</p>
               )}

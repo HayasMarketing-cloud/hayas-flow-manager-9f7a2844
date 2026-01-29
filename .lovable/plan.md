@@ -1,182 +1,198 @@
 
 
-# Plan: Asociar Datos de Proyecto/Presupuesto/Contrato a Facturas
+# Plan: Registrar Códigos de Partner en Solicitudes (Financial Requests)
 
-## Situación Actual
+## Contexto del Problema
 
-Las columnas **Proyecto**, **Presupuesto** y **Contrato** están creadas pero muestran "---" porque:
-1. Las facturas no tienen `financial_requests` vinculadas (`billed_invoice_id`)
-2. El sistema actual solo extrae: código, cliente, fechas e importes del PDF
-3. No se extraen referencias a proyectos, presupuestos o contratos
+El partner **Wolfestone** trabaja con códigos de proyecto propios (ej: `P1225-5602-4821`) que agrupan múltiples traducciones enviadas en un mismo email. Actualmente:
 
----
+| Situación Actual | Problema |
+|------------------|----------|
+| Cada traducción = 1 `financial_request` con código `REQ-XXXX` | El código interno `REQ-2026-045` no coincide con el código de Wolfestone |
+| No hay campo para registrar código de partner | Cuando Wolfestone factura con `P1225-5602-4821`, es difícil saber qué requests incluye |
+| No se puede agrupar requests por código de partner | Imposible filtrar todas las traducciones de un mismo "lote" |
 
-## Datos Disponibles
-
-| Fuente | Datos | Uso Potencial |
-|--------|-------|---------------|
-| **PDF de factura** | Líneas de servicio (descripciones) | Matching con nombres de proyectos/presupuestos |
-| **Cliente detectado** | `client_id` | Filtrar contratos/presupuestos/proyectos del cliente |
-| **Base de datos** | Contratos activos por cliente | Sugerir contrato si hay uno único activo |
-| **Base de datos** | Presupuestos aprobados por cliente | Matching por nombre/período |
-| **Base de datos** | Proyectos operativos activos | Matching por nombre de proyecto |
-
----
-
-## Estrategias Propuestas
-
-### Estrategia 1: Vinculación Manual con Sugerencias Inteligentes (Recomendada)
-
-**Descripción:**
-Añadir campos de selección de Contrato/Presupuesto/Proyecto en el modal de importación, con sugerencias automáticas basadas en:
-- Cliente detectado
-- Fechas de la factura
-- Palabras clave en las líneas de factura
-
-**Ventajas:**
-- Control total del usuario
-- Reducción de errores
-- Se puede implementar incrementalmente
-
-**Implementación:**
-1. Añadir 3 selectores opcionales en `ExtractedInvoiceRow`
-2. Pre-filtrar opciones por cliente
-3. Destacar sugerencias más probables
-
----
-
-### Estrategia 2: Extracción AI Mejorada del PDF
-
-**Descripción:**
-Modificar el prompt de Gemini para que extraiga también:
-- Referencia a proyecto (si aparece en la factura)
-- Código de presupuesto (si aparece)
-- Nombre del contrato/acuerdo
-
-Luego hacer matching fuzzy con los datos existentes.
-
-**Ventajas:**
-- Automatización máxima
-- Funciona si las facturas mencionan el proyecto/contrato
-
-**Desventajas:**
-- Depende de que la información esté en el PDF
-- Más complejo de implementar
-
----
-
-### Estrategia 3: Vinculación Automática por Reglas de Negocio
-
-**Descripción:**
-Si un cliente tiene un único contrato activo, auto-asignarlo. 
-Si hay un único presupuesto aprobado en el período de la factura, auto-asignarlo.
-
-**Datos observados:**
-| Cliente | Contratos Activos |
-|---------|-------------------|
-| ASENDIA HQ | 1 (HubSpot Requests) |
-| Asendia Spain | 1 (Plan Marketing Digital) |
-| Formato Educativo | 2 (HS Management, Mantenimiento) |
-
-**Ventajas:**
-- Simple de implementar
-- Funciona bien para clientes con un solo contrato
-
----
-
-## Plan de Implementación Recomendado
-
-Combinar las 3 estrategias en orden de prioridad:
-
-### Fase 1: Vinculación Manual con Pre-filtrado (Inmediata)
-
-**Cambios en `ExtractedInvoiceRow.tsx`:**
-
-1. Añadir 3 nuevos campos editables:
-   - **Contrato** (Select) - Filtrado por `client_id` + estado "active"
-   - **Presupuesto** (Select) - Filtrado por `client_id` + estado "approved"
-   - **Proyecto** (Select) - Filtrado por `client_id` + estado != "completed"
-
-2. Pasar datos adicionales al modal:
-   ```typescript
-   // En InvoiceUploadModal.tsx
-   const { data: contracts } = useQuery({
-     queryKey: ['contracts-active'],
-     queryFn: async () => supabase.from('contracts').select('id, title, code, client_id').eq('status', 'active')
-   });
-   ```
-
-3. Pre-seleccionar si hay único match:
-   - Si cliente tiene 1 contrato activo → auto-seleccionar
-   - Si tiene 1 presupuesto aprobado → sugerirlo
-
-4. Guardar relación al importar:
-   - Almacenar en campos nuevos de `invoices` o crear relación indirecta
-
-### Fase 2: Extracción AI Mejorada (Posterior)
-
-Modificar prompt de `extract-invoice-data`:
-
-```typescript
-{
-  // ... existing fields ...
-  "project_reference": "nombre o código del proyecto si aparece en la factura",
-  "budget_reference": "código de presupuesto si aparece (ej: PRE-2025-XXX)",
-  "contract_reference": "referencia al contrato o acuerdo si aparece"
-}
+### Ejemplo del Email Recibido
+```
+De: Oana Ivan <oana.ivan@wolfestonegroup.co.uk>
+Subject: P1225-5602-4821
+Adjuntos: 6 documentos traducidos
 ```
 
-Hacer matching fuzzy con base de datos después de la extracción.
+Este código `P1225-5602-4821` agrupa varias traducciones que están en diferentes `financial_requests`.
 
 ---
 
-## Cambios de Base de Datos Necesarios
+## Solución Propuesta
 
-**Opción A: Añadir campos directos a `invoices`**
+### Fase 1: Añadir Campo "Código de Partner" a Requests
+
+Añadir un nuevo campo `partner_reference` a la tabla `financial_requests` para almacenar el código de referencia del proveedor/partner.
+
+**Migración SQL:**
 ```sql
-ALTER TABLE invoices 
-ADD COLUMN contract_id uuid REFERENCES contracts(id),
-ADD COLUMN budget_id uuid REFERENCES budgets(id),
-ADD COLUMN operational_project_id uuid REFERENCES operational_projects(id);
+ALTER TABLE financial_requests 
+ADD COLUMN partner_reference VARCHAR(100);
+
+-- Índice para búsquedas rápidas
+CREATE INDEX idx_financial_requests_partner_reference 
+ON financial_requests(partner_reference) 
+WHERE partner_reference IS NOT NULL;
+
+-- Comentario descriptivo
+COMMENT ON COLUMN financial_requests.partner_reference IS 
+'Código de referencia del partner/proveedor (ej: P1225-5602-4821 de Wolfestone)';
 ```
 
-**Opción B: Mantener relación indirecta (actual)**
-Las facturas se vinculan a través de `financial_requests.billed_invoice_id`, manteniendo el modelo actual donde las facturas agrupan solicitudes.
+### Fase 2: Actualizar Formulario de Solicitudes
 
-**Recomendación:** Opción B para mantener consistencia. La vinculación se haría:
-1. Usuario selecciona contrato/presupuesto al importar
-2. Sistema crea/vincula `financial_requests` correspondientes
-3. Columnas de la tabla se llenan automáticamente
+Modificar `RequestFormModal.tsx` para incluir el nuevo campo:
+
+| Campo | Tipo | Ubicación | Descripción |
+|-------|------|-----------|-------------|
+| **Ref. Partner** | Input texto | Junto a "Especialista" | Código de proyecto del proveedor |
+
+**Comportamiento:**
+- Campo opcional
+- Solo visible si el especialista seleccionado es tipo "partner"
+- Placeholder: "Ej: P1225-5602-4821"
+- Autocompletado con valores usados recientemente para el mismo partner
+
+### Fase 3: Mostrar en Tabla y Detalle
+
+**En `RequestTableView.tsx`:**
+- Nueva columna "Ref. Partner" después de "Especialista"
+- Solo visible si hay datos
+- Link para filtrar todas las requests con el mismo código
+
+**En `SolicitudDetalle.tsx`:**
+- Card dedicada mostrando el código de partner
+- Lista de otras requests vinculadas al mismo código de partner
 
 ---
 
-## Resumen de Archivos a Modificar
+## Diseño Visual
+
+### Formulario de Edición
+```
+┌────────────────────────────────────────────────────────────┐
+│  Especialista                    │  Ref. Partner          │
+│  [▼ WOLFESTONE          ]        │  [ P1225-5602-4821   ] │
+│                                  │  ⓘ Código de proyecto   │
+│                                  │    del proveedor        │
+└────────────────────────────────────────────────────────────┘
+```
+
+### Tabla de Solicitudes
+```
+│ Código      │ Título            │ Especialista │ Ref. Partner   │
+│─────────────│───────────────────│──────────────│────────────────│
+│ REQ-2026-045│ Translation EN>BE │ WOLFESTONE   │ P1225-5602-4821│
+│ REQ-2026-046│ Translation EN>DK │ WOLFESTONE   │ P1225-5602-4821│
+│ REQ-2026-047│ Translation EN>SE │ WOLFESTONE   │ P1225-5602-4821│
+```
+
+### Detalle de Solicitud
+```
+┌──────────────────────────────────────────────────────────────┐
+│ 🏷️ Referencia Partner                                        │
+│ ─────────────────────────────────────────────────────────────│
+│ Código: P1225-5602-4821                                      │
+│ Partner: WOLFESTONE                                          │
+│                                                              │
+│ Otras solicitudes con este código:                           │
+│ • REQ-2026-045 - Translation EN>BE                           │
+│ • REQ-2026-046 - Translation EN>DK                           │
+│ • REQ-2026-047 - Translation EN>SE                           │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Archivos a Modificar
 
 | Archivo | Cambios |
 |---------|---------|
-| `src/components/invoices/InvoiceUploadModal.tsx` | Añadir queries de contratos, presupuestos, proyectos |
-| `src/components/invoices/ExtractedInvoiceRow.tsx` | Añadir 3 selectores con pre-filtrado por cliente |
-| `supabase/functions/extract-invoice-data/index.ts` | (Fase 2) Mejorar prompt para extraer referencias |
+| `migrations/add_partner_reference.sql` | Añadir columna `partner_reference` |
+| `src/components/modals/RequestFormModal.tsx` | Añadir campo de entrada |
+| `src/components/requests/RequestTableView.tsx` | Añadir columna en tabla |
+| `src/pages/SolicitudDetalle.tsx` | Mostrar card con referencia y requests relacionados |
+| `src/pages/Solicitudes.tsx` | Añadir filtro por código de partner |
 
 ---
 
-## Vista Previa del Flujo
+## Funcionalidad Extra: Filtros y Búsqueda
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│  Importar Facturas - Revisar Datos Extraídos                    │
-├─────────────────────────────────────────────────────────────────┤
-│ Código  │ Cliente         │ Contrato      │ Presupuesto │ Fecha │
-├─────────────────────────────────────────────────────────────────┤
-│ 2026/8  │ ▼ ASENDIA HQ    │ ▼ HubSpot Req │ ▼ (ninguno) │ 08/01 │
-│         │                 │   ✓ sugerido  │             │       │
-├─────────────────────────────────────────────────────────────────┤
-│ 2026/9  │ ▼ CONNECTIF     │ ▼ (ninguno)   │ ▼ PRE-2026..│ 23/01 │
-└─────────────────────────────────────────────────────────────────┘
+### Filtrar por Código de Partner
+- Añadir dropdown/search en la página de Solicitudes
+- Mostrar lista de códigos únicos con contador: `P1225-5602-4821 (3 requests)`
+
+### Exportación
+- Incluir columna "Ref. Partner" en exportación CSV
+
+---
+
+## Beneficios
+
+| Beneficio | Descripción |
+|-----------|-------------|
+| **Trazabilidad** | Vincular factura del partner con requests específicos |
+| **Agrupación** | Ver todas las traducciones de un mismo lote |
+| **Reconciliación** | Cuando llegue factura de Wolfestone, filtrar por su código |
+| **Histórico** | Mantener registro del código original del partner |
+
+---
+
+## Flujo de Uso
+
+```
+1. Wolfestone envía email con código "P1225-5602-4821" y 6 documentos
+   
+2. Usuario edita cada request relacionado y añade el código de partner
+   
+3. Cuando llega la factura de Wolfestone:
+   - Filtrar requests por "P1225-5602-4821"
+   - Ver total a pagar
+   - Verificar contra factura recibida
 ```
 
-**Comportamiento:**
-- Si el cliente tiene 1 contrato activo → se pre-selecciona con badge "sugerido"
-- Si hay múltiples → dropdown vacío, usuario elige
-- Si no hay ninguno → se muestra "---"
+---
+
+## Detalles Técnicos
+
+### Schema del Campo
+```typescript
+// En requestSchema de RequestFormModal.tsx
+partner_reference: z.string().max(100).optional().nullable(),
+```
+
+### Query para Requests Relacionados
+```typescript
+// En SolicitudDetalle.tsx
+const { data: relatedRequests } = useQuery({
+  queryKey: ['related-partner-requests', request?.partner_reference],
+  queryFn: async () => {
+    if (!request?.partner_reference) return [];
+    const { data, error } = await supabase
+      .from('financial_requests')
+      .select('id, code, title')
+      .eq('partner_reference', request.partner_reference)
+      .neq('id', request.id)
+      .order('created_at', { ascending: true });
+    return data || [];
+  },
+  enabled: !!request?.partner_reference,
+});
+```
+
+### Filtro en Página de Solicitudes
+```typescript
+// Añadir a useRequestFilters.tsx
+partner_reference: string | null;
+
+// En la query
+if (filters.partner_reference) {
+  query = query.eq('partner_reference', filters.partner_reference);
+}
+```
 

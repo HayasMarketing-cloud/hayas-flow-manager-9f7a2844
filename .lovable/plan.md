@@ -1,111 +1,141 @@
 
+# Plan: Agrupar Trabajos en Liquidación por Cliente y Proyecto/Presupuesto
 
-# Plan: Registrar Códigos de Partner en Solicitudes (Financial Requests)
+## Objetivo
 
-## Contexto del Problema
+Reorganizar la tabla "Trabajos incluidos" en el detalle de liquidación para mostrar los items agrupados jerárquicamente:
 
-El partner **Wolfestone** trabaja con códigos de proyecto propios (ej: `P1225-5602-4821`) que agrupan múltiples traducciones enviadas en un mismo email. Actualmente:
-
-| Situación Actual | Problema |
-|------------------|----------|
-| Cada traducción = 1 `financial_request` con código `REQ-XXXX` | El código interno `REQ-2026-045` no coincide con el código de Wolfestone |
-| No hay campo para registrar código de partner | Cuando Wolfestone factura con `P1225-5602-4821`, es difícil saber qué requests incluye |
-| No se puede agrupar requests por código de partner | Imposible filtrar todas las traducciones de un mismo "lote" |
-
-### Ejemplo del Email Recibido
 ```
-De: Oana Ivan <oana.ivan@wolfestonegroup.co.uk>
-Subject: P1225-5602-4821
-Adjuntos: 6 documentos traducidos
+📁 CLIENTE A (Subtotal: X €)
+   📂 Proyecto/Presupuesto 1 (Subtotal: Y €)
+      └─ REQ-2025-001 - Descripción 1
+      └─ REQ-2025-002 - Descripción 2
+   📂 Proyecto/Presupuesto 2 (Subtotal: Z €)
+      └─ REQ-2025-003 - Descripción 3
+📁 CLIENTE B (Subtotal: W €)
+   ...
 ```
 
-Este código `P1225-5602-4821` agrupa varias traducciones que están en diferentes `financial_requests`.
+## Estructura Actual vs Propuesta
 
----
+| Actual | Propuesto |
+|--------|-----------|
+| Lista plana de requests | Agrupación jerárquica por Cliente → Proyecto/Presupuesto |
+| Sin subtotales visuales | Subtotal por cliente + subtotal por proyecto |
+| Sin separación visual | Filas destacadas para cabeceras de grupo |
 
-## Solución Propuesta
+## Cambios Propuestos
 
-### Fase 1: Añadir Campo "Código de Partner" a Requests
+### 1. Crear función helper de agrupación jerárquica
 
-Añadir un nuevo campo `partner_reference` a la tabla `financial_requests` para almacenar el código de referencia del proveedor/partner.
+```typescript
+interface GroupedProjectBudget {
+  id: string;
+  name: string;
+  type: 'project' | 'budget' | 'none';
+  items: any[];
+  subtotal: number;
+}
 
-**Migración SQL:**
-```sql
-ALTER TABLE financial_requests 
-ADD COLUMN partner_reference VARCHAR(100);
+interface GroupedClient {
+  clientId: string;
+  clientName: string;
+  projectBudgets: GroupedProjectBudget[];
+  subtotal: number;
+}
 
--- Índice para búsquedas rápidas
-CREATE INDEX idx_financial_requests_partner_reference 
-ON financial_requests(partner_reference) 
-WHERE partner_reference IS NOT NULL;
-
--- Comentario descriptivo
-COMMENT ON COLUMN financial_requests.partner_reference IS 
-'Código de referencia del partner/proveedor (ej: P1225-5602-4821 de Wolfestone)';
+const groupItemsByClientAndProject = (items: any[]): GroupedClient[] => {
+  // 1. Agrupar por cliente
+  // 2. Dentro de cada cliente, agrupar por proyecto/presupuesto
+  // 3. Calcular subtotales
+};
 ```
 
-### Fase 2: Actualizar Formulario de Solicitudes
+### 2. Actualizar estructura de la tabla en `LiquidacionDetalle.tsx`
 
-Modificar `RequestFormModal.tsx` para incluir el nuevo campo:
+**Para la tabla de "Trabajos incluidos":**
 
-| Campo | Tipo | Ubicación | Descripción |
-|-------|------|-----------|-------------|
-| **Ref. Partner** | Input texto | Junto a "Especialista" | Código de proyecto del proveedor |
-
-**Comportamiento:**
-- Campo opcional
-- Solo visible si el especialista seleccionado es tipo "partner"
-- Placeholder: "Ej: P1225-5602-4821"
-- Autocompletado con valores usados recientemente para el mismo partner
-
-### Fase 3: Mostrar en Tabla y Detalle
-
-**En `RequestTableView.tsx`:**
-- Nueva columna "Ref. Partner" después de "Especialista"
-- Solo visible si hay datos
-- Link para filtrar todas las requests con el mismo código
-
-**En `SolicitudDetalle.tsx`:**
-- Card dedicada mostrando el código de partner
-- Lista de otras requests vinculadas al mismo código de partner
-
----
-
-## Diseño Visual
-
-### Formulario de Edición
-```
-┌────────────────────────────────────────────────────────────┐
-│  Especialista                    │  Ref. Partner          │
-│  [▼ WOLFESTONE          ]        │  [ P1225-5602-4821   ] │
-│                                  │  ⓘ Código de proyecto   │
-│                                  │    del proveedor        │
-└────────────────────────────────────────────────────────────┘
-```
-
-### Tabla de Solicitudes
-```
-│ Código      │ Título            │ Especialista │ Ref. Partner   │
-│─────────────│───────────────────│──────────────│────────────────│
-│ REQ-2026-045│ Translation EN>BE │ WOLFESTONE   │ P1225-5602-4821│
-│ REQ-2026-046│ Translation EN>DK │ WOLFESTONE   │ P1225-5602-4821│
-│ REQ-2026-047│ Translation EN>SE │ WOLFESTONE   │ P1225-5602-4821│
+```tsx
+{groupedItems.map((clientGroup) => (
+  <>
+    {/* Fila de cabecera de cliente */}
+    <TableRow className="bg-slate-100 dark:bg-slate-800">
+      <TableCell colSpan={6} className="font-bold">
+        {clientGroup.clientName}
+      </TableCell>
+      <TableCell className="text-right font-bold">
+        {formatCurrency(clientGroup.subtotal)}
+      </TableCell>
+    </TableRow>
+    
+    {clientGroup.projectBudgets.map((projectGroup) => (
+      <>
+        {/* Fila de cabecera de proyecto/presupuesto */}
+        <TableRow className="bg-muted/50">
+          <TableCell colSpan={6} className="pl-8 font-medium text-emerald-600">
+            {projectGroup.name}
+          </TableCell>
+          <TableCell className="text-right font-medium">
+            {formatCurrency(projectGroup.subtotal)}
+          </TableCell>
+        </TableRow>
+        
+        {/* Filas de items individuales */}
+        {projectGroup.items.map((item) => (
+          <TableRow className="pl-12">
+            {/* ... datos del item ... */}
+          </TableRow>
+        ))}
+      </>
+    ))}
+  </>
+))}
 ```
 
-### Detalle de Solicitud
+### 3. Diseño Visual de la Tabla
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│ Trabajos incluidos                                      [+ Añadir] [+ Concepto]     │
+├───────────┬──────────────────────────┬────────┬──────────┬────────┬────────┬────────┤
+│ Código    │ Descripción              │ Cant.  │ Precio   │ Total  │        │        │
+├═══════════╪══════════════════════════════════════════════════════════════╪═════════┤
+│ 🏢 ASENDIA HQ                                                            │ 535,00 €│
+├───────────┼──────────────────────────────────────────────────────────────┼─────────┤
+│   📁 ePAQ GO Translations                                                │ 120,00 €│
+├───────────┼──────────────────────────┬────────┬──────────┬────────┬──────┼─────────┤
+│     REQ-2025-098 │ Content localisat...│  2     │ 60,00 €  │ 60,00 € │ 🗑  │         │
+│     REQ-2025-111 │ Translation Page...  │  0.5   │ 15,00 €  │ 15,00 € │ 🗑  │         │
+│     REQ-2025-114 │ OHH section Trans... │  0.5   │ 15,00 €  │ 15,00 € │ 🗑  │         │
+│     ...          │                      │        │          │        │     │         │
+├───────────┼──────────────────────────────────────────────────────────────┼─────────┤
+│   📁 Inbound Marketing Campaign: Switzerland                             │ 250,00 €│
+├───────────┼──────────────────────────┬────────┬──────────┬────────┬──────┼─────────┤
+│     REQ-2026-101 │ Traducción y loca...│  5     │ 125,00 €  │ 125,00 €│ 🗑  │         │
+│     REQ-2026-129 │ Gestión CRM - Ema...│  5     │ 125,00 €  │ 125,00 €│ 🗑  │         │
+├═══════════╪══════════════════════════════════════════════════════════════╪═════════┤
+│ 🏢 Asendia USA Inc                                                       │ 75,00 € │
+├───────────┼──────────────────────────────────────────────────────────────┼─────────┤
+│   📁 Newsletter Q4 USA                                                   │ 75,00 € │
+├───────────┼──────────────────────────┬────────┬──────────┬────────┬──────┼─────────┤
+│     REQ-2026-131 │ Translation EN>ES │  3     │ 75,00 €  │ 75,00 € │ 🗑   │         │
+└───────────┴──────────────────────────┴────────┴──────────┴────────┴──────┴─────────┘
 ```
-┌──────────────────────────────────────────────────────────────┐
-│ 🏷️ Referencia Partner                                        │
-│ ─────────────────────────────────────────────────────────────│
-│ Código: P1225-5602-4821                                      │
-│ Partner: WOLFESTONE                                          │
-│                                                              │
-│ Otras solicitudes con este código:                           │
-│ • REQ-2026-045 - Translation EN>BE                           │
-│ • REQ-2026-046 - Translation EN>DK                           │
-│ • REQ-2026-047 - Translation EN>SE                           │
-└──────────────────────────────────────────────────────────────┘
-```
+
+### 4. Ordenación
+
+Los grupos se ordenarán de la siguiente manera:
+1. **Clientes**: Alfabéticamente por nombre
+2. **Proyectos/Presupuestos dentro de cada cliente**: Alfabéticamente por nombre
+3. **Requests dentro de cada proyecto**: Por código de request
+
+### 5. Casos Especiales
+
+| Caso | Tratamiento |
+|------|-------------|
+| Request sin cliente | Grupo "Sin cliente asignado" |
+| Request sin proyecto/presupuesto | Sub-grupo "Sin proyecto" dentro del cliente |
+| Concepto manual (sin financial_request) | Grupo "Otros conceptos" al final |
 
 ---
 
@@ -113,86 +143,101 @@ Modificar `RequestFormModal.tsx` para incluir el nuevo campo:
 
 | Archivo | Cambios |
 |---------|---------|
-| `migrations/add_partner_reference.sql` | Añadir columna `partner_reference` |
-| `src/components/modals/RequestFormModal.tsx` | Añadir campo de entrada |
-| `src/components/requests/RequestTableView.tsx` | Añadir columna en tabla |
-| `src/pages/SolicitudDetalle.tsx` | Mostrar card con referencia y requests relacionados |
-| `src/pages/Solicitudes.tsx` | Añadir filtro por código de partner |
-
----
-
-## Funcionalidad Extra: Filtros y Búsqueda
-
-### Filtrar por Código de Partner
-- Añadir dropdown/search en la página de Solicitudes
-- Mostrar lista de códigos únicos con contador: `P1225-5602-4821 (3 requests)`
-
-### Exportación
-- Incluir columna "Ref. Partner" en exportación CSV
-
----
-
-## Beneficios
-
-| Beneficio | Descripción |
-|-----------|-------------|
-| **Trazabilidad** | Vincular factura del partner con requests específicos |
-| **Agrupación** | Ver todas las traducciones de un mismo lote |
-| **Reconciliación** | Cuando llegue factura de Wolfestone, filtrar por su código |
-| **Histórico** | Mantener registro del código original del partner |
-
----
-
-## Flujo de Uso
-
-```
-1. Wolfestone envía email con código "P1225-5602-4821" y 6 documentos
-   
-2. Usuario edita cada request relacionado y añade el código de partner
-   
-3. Cuando llega la factura de Wolfestone:
-   - Filtrar requests por "P1225-5602-4821"
-   - Ver total a pagar
-   - Verificar contra factura recibida
-```
+| `src/pages/LiquidacionDetalle.tsx` | Implementar agrupación jerárquica en las tablas de items (tanto para liquidación individual como para equipos) |
+| `src/utils/pdf/liquidationPDFGenerator.ts` | Actualizar `groupItemsByClient` y `buildTableData` para incluir sub-agrupación por proyecto/presupuesto |
+| `src/pages/FirmaLiquidacion.tsx` | (Opcional) Aplicar la misma agrupación en la vista de firma pública |
 
 ---
 
 ## Detalles Técnicos
 
-### Schema del Campo
+### Función de Agrupación
+
 ```typescript
-// En requestSchema de RequestFormModal.tsx
-partner_reference: z.string().max(100).optional().nullable(),
+const groupItemsByClientAndProject = (items: any[]): GroupedClient[] => {
+  const clientMap = new Map<string, GroupedClient>();
+  
+  items.forEach((item) => {
+    const clientId = item.financial_request?.client?.id || 'no-client';
+    const clientName = item.financial_request?.client?.name || 
+      (item.financial_request_id ? 'Sin cliente' : 'Otros conceptos');
+    
+    // Obtener proyecto o presupuesto
+    const opRequest = item.financial_request?.operational_request?.[0];
+    const project = opRequest?.operational_project;
+    const budget = item.financial_request?.budget;
+    
+    let projectBudgetId = 'no-project';
+    let projectBudgetName = 'Sin proyecto/presupuesto';
+    let projectBudgetType: 'project' | 'budget' | 'none' = 'none';
+    
+    if (project) {
+      projectBudgetId = project.id;
+      projectBudgetName = project.name;
+      projectBudgetType = 'project';
+    } else if (budget) {
+      projectBudgetId = budget.id;
+      projectBudgetName = budget.title || budget.code;
+      projectBudgetType = 'budget';
+    }
+    
+    // Agrupar...
+  });
+  
+  // Ordenar y devolver
+  return Array.from(clientMap.values()).sort((a, b) => 
+    a.clientName.localeCompare(b.clientName)
+  );
+};
 ```
 
-### Query para Requests Relacionados
-```typescript
-// En SolicitudDetalle.tsx
-const { data: relatedRequests } = useQuery({
-  queryKey: ['related-partner-requests', request?.partner_reference],
-  queryFn: async () => {
-    if (!request?.partner_reference) return [];
-    const { data, error } = await supabase
-      .from('financial_requests')
-      .select('id, code, title')
-      .eq('partner_reference', request.partner_reference)
-      .neq('id', request.id)
-      .order('created_at', { ascending: true });
-    return data || [];
-  },
-  enabled: !!request?.partner_reference,
-});
+### Renderizado de Filas de Cabecera
+
+```tsx
+// Fila de cabecera de cliente
+<TableRow className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800">
+  <TableCell colSpan={isEditable ? 7 : 6} className="font-bold py-3">
+    <span className="flex items-center gap-2">
+      <Building2 className="h-4 w-4 text-slate-600" />
+      {clientGroup.clientName}
+    </span>
+  </TableCell>
+  <TableCell className="text-right font-bold">
+    {formatCurrency(clientGroup.subtotal)}
+  </TableCell>
+</TableRow>
+
+// Fila de cabecera de proyecto/presupuesto
+<TableRow className="bg-muted/30 hover:bg-muted/30">
+  <TableCell colSpan={isEditable ? 7 : 6} className="font-medium py-2 pl-8">
+    <span className="flex items-center gap-2 text-emerald-600">
+      {projectGroup.type === 'project' ? (
+        <FolderKanban className="h-3.5 w-3.5" />
+      ) : (
+        <FileSpreadsheet className="h-3.5 w-3.5" />
+      )}
+      {projectGroup.name}
+    </span>
+  </TableCell>
+  <TableCell className="text-right font-medium text-muted-foreground">
+    {formatCurrency(projectGroup.subtotal)}
+  </TableCell>
+</TableRow>
 ```
 
-### Filtro en Página de Solicitudes
-```typescript
-// Añadir a useRequestFilters.tsx
-partner_reference: string | null;
+---
 
-// En la query
-if (filters.partner_reference) {
-  query = query.eq('partner_reference', filters.partner_reference);
-}
-```
+## Beneficios
 
+1. **Claridad**: Los usuarios ven inmediatamente cuánto factura cada cliente y proyecto
+2. **Verificación**: Facilita revisar que todos los trabajos de un cliente/proyecto están incluidos
+3. **Profesionalismo**: Presentación más organizada tanto en web como en PDF
+4. **Consistencia**: La agrupación será igual en la vista web que en el PDF generado
+
+---
+
+## Consideraciones de Rendimiento
+
+- La agrupación se realiza en el frontend con los datos ya cargados
+- No requiere cambios en la base de datos ni en las queries
+- Para liquidaciones con muchos items (100+), se usará `useMemo` para evitar recálculos innecesarios

@@ -44,6 +44,9 @@ export interface ExtractedInvoice {
   editedSubtotal?: number;
   editedTaxRate?: number;
   editedInvoiceStatus?: InvoiceStatus;
+  editedContractId?: string | null;
+  editedBudgetId?: string | null;
+  editedProjectId?: string | null;
 }
 
 interface Client {
@@ -51,9 +54,32 @@ interface Client {
   name: string;
 }
 
+interface Contract {
+  id: string;
+  title: string;
+  code: string;
+  client_id: string;
+}
+
+interface Budget {
+  id: string;
+  title: string;
+  code: string;
+  client_id: string;
+}
+
+interface Project {
+  id: string;
+  name: string;
+  client_id: string;
+}
+
 interface ExtractedInvoiceRowProps {
   invoice: ExtractedInvoice;
   clients: Client[];
+  contracts: Contract[];
+  budgets: Budget[];
+  projects: Project[];
   onUpdate: (id: string, updates: Partial<ExtractedInvoice>) => void;
   onRemove: (id: string) => void;
 }
@@ -61,6 +87,9 @@ interface ExtractedInvoiceRowProps {
 export function ExtractedInvoiceRow({
   invoice,
   clients,
+  contracts,
+  budgets,
+  projects,
   onUpdate,
   onRemove,
 }: ExtractedInvoiceRowProps) {
@@ -69,7 +98,7 @@ export function ExtractedInvoiceRow({
   if (invoice.status === 'processing') {
     return (
       <tr className="animate-pulse">
-        <td colSpan={7} className="px-4 py-3">
+        <td colSpan={11} className="px-4 py-3">
           <div className="flex items-center gap-2">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             <span className="text-muted-foreground">
@@ -84,7 +113,7 @@ export function ExtractedInvoiceRow({
   if (invoice.status === 'error') {
     return (
       <tr className="bg-destructive/5">
-        <td colSpan={7} className="px-4 py-3">
+        <td colSpan={11} className="px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <X className="h-4 w-4 text-destructive" />
@@ -111,11 +140,25 @@ export function ExtractedInvoiceRow({
   const subtotal = invoice.editedSubtotal ?? data.subtotal;
   const taxRate = invoice.editedTaxRate ?? data.tax_rate;
   const invoiceStatus = invoice.editedInvoiceStatus ?? 'sent';
+  const contractId = invoice.editedContractId ?? null;
+  const budgetId = invoice.editedBudgetId ?? null;
+  const projectId = invoice.editedProjectId ?? null;
 
   const taxAmount = subtotal * (taxRate / 100);
   const total = subtotal + taxAmount;
 
   const isClientMissing = !clientId;
+
+  // Filter options by selected client
+  const clientContracts = clientId 
+    ? contracts.filter((c) => c.client_id === clientId) 
+    : [];
+  const clientBudgets = clientId 
+    ? budgets.filter((b) => b.client_id === clientId) 
+    : [];
+  const clientProjects = clientId 
+    ? projects.filter((p) => p.client_id === clientId) 
+    : [];
 
   return (
     <>
@@ -164,6 +207,90 @@ export function ExtractedInvoiceRow({
             <p className="mt-1 text-xs text-muted-foreground">
               Detectado: "{data.client_name}"
             </p>
+          )}
+        </td>
+        <td className="px-4 py-3">
+          <Select
+            value={contractId || 'none'}
+            onValueChange={(value) =>
+              onUpdate(invoice.id, { editedContractId: value === 'none' ? null : value })
+            }
+            disabled={!clientId}
+          >
+            <SelectTrigger className="h-8 w-36">
+              <SelectValue placeholder="Ninguno">
+                {contractId
+                  ? clientContracts.find((c) => c.id === contractId)?.title || 'Contrato'
+                  : 'Ninguno'}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Ninguno</SelectItem>
+              {clientContracts.map((contract) => (
+                <SelectItem key={contract.id} value={contract.id}>
+                  {contract.code} - {contract.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {clientContracts.length === 1 && contractId === clientContracts[0].id && (
+            <p className="mt-1 text-xs text-green-600">✓ sugerido</p>
+          )}
+        </td>
+        <td className="px-4 py-3">
+          <Select
+            value={budgetId || 'none'}
+            onValueChange={(value) =>
+              onUpdate(invoice.id, { editedBudgetId: value === 'none' ? null : value })
+            }
+            disabled={!clientId}
+          >
+            <SelectTrigger className="h-8 w-36">
+              <SelectValue placeholder="Ninguno">
+                {budgetId
+                  ? clientBudgets.find((b) => b.id === budgetId)?.code || 'Presupuesto'
+                  : 'Ninguno'}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Ninguno</SelectItem>
+              {clientBudgets.map((budget) => (
+                <SelectItem key={budget.id} value={budget.id}>
+                  {budget.code} - {budget.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {clientBudgets.length === 1 && budgetId === clientBudgets[0].id && (
+            <p className="mt-1 text-xs text-green-600">✓ sugerido</p>
+          )}
+        </td>
+        <td className="px-4 py-3">
+          <Select
+            value={projectId || 'none'}
+            onValueChange={(value) =>
+              onUpdate(invoice.id, { editedProjectId: value === 'none' ? null : value })
+            }
+            disabled={!clientId}
+          >
+            <SelectTrigger className="h-8 w-36">
+              <SelectValue placeholder="Ninguno">
+                {projectId
+                  ? clientProjects.find((p) => p.id === projectId)?.name || 'Proyecto'
+                  : 'Ninguno'}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Ninguno</SelectItem>
+              {clientProjects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {clientProjects.length === 1 && projectId === clientProjects[0].id && (
+            <p className="mt-1 text-xs text-green-600">✓ sugerido</p>
           )}
         </td>
         <td className="px-4 py-3 text-sm">
@@ -243,7 +370,7 @@ export function ExtractedInvoiceRow({
       </tr>
       {expanded && data.line_items && data.line_items.length > 0 && (
         <tr className="bg-muted/30">
-          <td colSpan={8} className="px-4 py-3">
+          <td colSpan={11} className="px-4 py-3">
             <div className="ml-8">
               <p className="mb-2 text-sm font-medium">Líneas de factura:</p>
               <ul className="space-y-1 text-sm text-muted-foreground">

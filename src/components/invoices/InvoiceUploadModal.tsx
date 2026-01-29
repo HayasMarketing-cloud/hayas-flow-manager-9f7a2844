@@ -1,6 +1,6 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
-import { Upload, FileText, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { Upload, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -51,6 +51,89 @@ export function InvoiceUploadModal({ isOpen, onClose }: InvoiceUploadModalProps)
       return data;
     },
   });
+
+  // Fetch active contracts for association
+  const { data: contracts = [] } = useQuery({
+    queryKey: ['contracts-active-for-import'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('id, title, code, client_id')
+        .eq('status', 'active')
+        .order('title');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch approved budgets for association
+  const { data: budgets = [] } = useQuery({
+    queryKey: ['budgets-approved-for-import'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('budgets')
+        .select('id, title, code, client_id')
+        .eq('status', 'approved')
+        .order('title');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch active operational projects for association
+  const { data: projects = [] } = useQuery({
+    queryKey: ['projects-active-for-import'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('operational_projects')
+        .select('id, name, client_id')
+        .neq('status', 'completed')
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Auto-suggest contract/budget/project when client changes
+  useEffect(() => {
+    setExtractedInvoices((prev) =>
+      prev.map((inv) => {
+        if (inv.status !== 'success' || !inv.data) return inv;
+        
+        const clientId = inv.editedClientId ?? inv.data.client_id;
+        if (!clientId) return inv;
+
+        // Only auto-suggest if not already edited
+        let updates: Partial<ExtractedInvoice> = {};
+
+        // Auto-suggest contract if single active contract for client
+        if (inv.editedContractId === undefined) {
+          const clientContracts = contracts.filter((c) => c.client_id === clientId);
+          if (clientContracts.length === 1) {
+            updates.editedContractId = clientContracts[0].id;
+          }
+        }
+
+        // Auto-suggest budget if single approved budget for client
+        if (inv.editedBudgetId === undefined) {
+          const clientBudgets = budgets.filter((b) => b.client_id === clientId);
+          if (clientBudgets.length === 1) {
+            updates.editedBudgetId = clientBudgets[0].id;
+          }
+        }
+
+        // Auto-suggest project if single active project for client
+        if (inv.editedProjectId === undefined) {
+          const clientProjects = projects.filter((p) => p.client_id === clientId);
+          if (clientProjects.length === 1) {
+            updates.editedProjectId = clientProjects[0].id;
+          }
+        }
+
+        return Object.keys(updates).length > 0 ? { ...inv, ...updates } : inv;
+      })
+    );
+  }, [contracts, budgets, projects]);
 
   const resetState = () => {
     setPhase('upload');
@@ -327,7 +410,7 @@ export function InvoiceUploadModal({ isOpen, onClose }: InvoiceUploadModalProps)
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className={phase === 'review' ? 'max-w-5xl' : 'max-w-lg'}>
+      <DialogContent className={phase === 'review' ? 'max-w-7xl' : 'max-w-lg'}>
         <DialogHeader>
           <DialogTitle>
             {phase === 'upload' && 'Importar Facturas'}
@@ -441,6 +524,9 @@ export function InvoiceUploadModal({ isOpen, onClose }: InvoiceUploadModalProps)
                   <TableRow>
                     <TableHead>Código</TableHead>
                     <TableHead>Cliente</TableHead>
+                    <TableHead>Contrato</TableHead>
+                    <TableHead>Presupuesto</TableHead>
+                    <TableHead>Proyecto</TableHead>
                     <TableHead>Fecha</TableHead>
                     <TableHead>Subtotal</TableHead>
                     <TableHead>IVA</TableHead>
@@ -455,6 +541,9 @@ export function InvoiceUploadModal({ isOpen, onClose }: InvoiceUploadModalProps)
                       key={invoice.id}
                       invoice={invoice}
                       clients={clients}
+                      contracts={contracts}
+                      budgets={budgets}
+                      projects={projects}
                       onUpdate={handleUpdateInvoice}
                       onRemove={handleRemoveInvoice}
                     />

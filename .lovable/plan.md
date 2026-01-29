@@ -1,157 +1,179 @@
 
-# Plan: Corrección de Maquetación del PDF de Liquidación
+# Plan: Añadir columnas Proyecto, Presupuesto y Contrato a la tabla de Facturas
 
-## Problemas Identificados
+## Análisis
 
-Analizando la imagen adjunta, encuentro estos errores de maquetación:
+Analizando la imagen proporcionada, la tabla de facturas actual muestra:
+- Checkbox de selección
+- Código
+- Cliente
+- Fecha
+- Vencimiento
+- Subtotal
+- IVA
+- Total
+- Estado
+- PDF
+- Acciones
 
-| # | Problema | Causa |
-|---|----------|-------|
-| 1 | **Cabecera "Proyecto/Presupuest o"** cortada en dos líneas | Columna de 40px es demasiado estrecha para el texto |
-| 2 | **Cabecera "Cantida d"** cortada incorrectamente | Columna de 20px insuficiente |
-| 3 | **Cabecera "Precio Unitario"** en dos líneas | Columna de 30px no permite el texto completo |
-| 4 | **Subtotal sin espacio** - "Subtotal Daniela Puntriano241,00 €" | Falta separación entre texto y valor en el código |
+Se solicita añadir tres nuevas columnas: **Proyecto**, **Presupuesto** y **Contrato**.
+
+### Origen de los datos
+
+Las facturas se relacionan indirectamente con proyectos/presupuestos/contratos a través de:
+1. `financial_requests.billed_invoice_id` → apunta a la factura
+2. Cada `financial_request` tiene `budget_id` y `contract_id`
+3. Los proyectos operativos se obtienen vía `operational_requests.financial_request_id`
+
+Una factura puede tener múltiples solicitudes asociadas, por lo que podría tener varios presupuestos, contratos y proyectos.
 
 ---
 
-## Solución Propuesta
+## Cambios Propuestos
 
-### 1. Redistribuir Anchos de Columna
+### 1. Modificar la query en `src/pages/Facturas.tsx`
 
-**Configuración actual (problematica):**
-```
-Columna 0 (Servicio/Cliente):    60px
-Columna 1 (Proyecto/Presupuesto): 40px  ← MUY ESTRECHA
-Columna 2 (Cantidad):             20px  ← MUY ESTRECHA  
-Columna 3 (Precio Unitario):      30px  ← MUY ESTRECHA
-Columna 4 (Total):                30px
-Total:                           180px
-```
+Agregar una subquery o join para obtener los datos relacionados de cada factura.
 
-**Nueva configuración optimizada:**
-```
-Columna 0 (Servicio/Cliente):    55px  (reducir ligeramente)
-Columna 1 (Proyecto/Presup.):    45px  (+5px)
-Columna 2 (Cant.):               18px  (usar abreviatura)
-Columna 3 (Precio Unit.):        32px  (+2px, usar abreviatura)
-Columna 4 (Total):               30px
-Total:                          180px
-```
-
-### 2. Usar Nombres de Cabecera Abreviados
-
-| Actual | Nuevo |
-|--------|-------|
-| Proyecto/Presupuesto | Proy./Presup. |
-| Cantidad | Cant. |
-| Precio Unitario | Precio Unit. |
-
-### 3. Corregir Línea de Subtotal
-
-**Código actual (línea ~150-151):**
 ```typescript
-doc.text(`Subtotal ${data.specialist.name}:`, pageWidth - 75, currentY);
-doc.text(formatCurrency(leaderTotal), pageWidth - 15, currentY, { align: 'right' });
+// Antes
+.select(`
+  *,
+  client:clients(id, name, code)
+`)
+
+// Después - añadir datos relacionados
+.select(`
+  *,
+  client:clients(id, name, code),
+  linked_requests:financial_requests!financial_requests_billed_invoice_id_fkey(
+    id,
+    code,
+    budget:budgets(id, code, title),
+    contract:contracts(id, code, title),
+    operational_request:operational_requests(
+      operational_project:operational_projects(id, name)
+    )
+  )
+`)
 ```
 
-**Problema:** El nombre queda pegado al importe porque comparten la misma coordenada X inicial.
+### 2. Actualizar `src/components/invoices/InvoiceTableView.tsx`
 
-**Solución:** Añadir espacio fijo con tabulación visual correcta.
+**Añadir las nuevas columnas en el encabezado:**
+
+| Posición | Nueva Columna |
+|----------|--------------|
+| Después de "Cliente" | Proyecto |
+| Después de "Proyecto" | Presupuesto |
+| Después de "Presupuesto" | Contrato |
+
+**Implementar celdas que extraigan y muestren los datos únicos:**
+
+```tsx
+// Helper para extraer valores únicos de las solicitudes vinculadas
+const getUniqueProjects = (invoice: any) => {
+  if (!invoice.linked_requests) return [];
+  return [...new Set(
+    invoice.linked_requests
+      .flatMap(r => r.operational_request || [])
+      .map(or => or.operational_project)
+      .filter(Boolean)
+  )];
+};
+```
+
+**Reutilizar el componente `OriginCell`** existente o crear celdas similares con:
+- Iconos distintivos (FolderKanban, FileSpreadsheet, ScrollText)
+- Tooltips con nombre completo
+- Enlaces a las páginas de detalle
+- Manejo de múltiples valores (mostrar el primero + badge con "+X")
+
+### 3. Actualizar el colspan del mensaje vacío
+
+Cambiar `colSpan={11}` → `colSpan={14}` para incluir las 3 nuevas columnas.
+
+---
+
+## Diseño Visual de las Nuevas Columnas
+
+```text
+| ... | Cliente    | Proyecto        | Presupuesto  | Contrato       | Fecha | ...
+|-----|------------|-----------------|--------------|----------------|-------|
+|     | ASENDIA HQ | 📁 Localización | 📄 PRE-2025-001 | 📜 CTR-2025-001 | 01/12 |
+|     | CLIENTE X  | ---             | 📄 PRE-2025-002 | ---            | 05/12 |
+|     | CLIENTE Y  | 📁 Proyecto +2  | ---          | 📜 Retainer    | 08/12 |
+```
+
+### Comportamiento esperado:
+- **Sin datos**: Mostrar "---" en gris
+- **Un valor**: Mostrar icono + nombre truncado (tooltip completo)
+- **Múltiples valores**: Mostrar primero + badge "+N" con tooltip listando todos
 
 ---
 
 ## Archivos a Modificar
 
-### `src/utils/pdf/liquidationPDFGenerator.ts`
+| Archivo | Cambios |
+|---------|---------|
+| `src/pages/Facturas.tsx` | Expandir select query para incluir datos relacionados |
+| `src/components/invoices/InvoiceTableView.tsx` | Añadir 3 columnas con celdas que muestren proyectos, presupuestos y contratos |
 
-#### Cambio 1: Cabeceras y anchos de columna (7 ubicaciones)
+---
 
-Todas las tablas `autoTable` usan la misma configuración. Cambiar:
+## Detalles Técnicos
+
+### Query actualizada
 
 ```typescript
-// ANTES
-head: [['Servicio / Cliente', 'Proyecto/Presupuesto', 'Cantidad', 'Precio Unitario', 'Total']],
-columnStyles: {
-  0: { cellWidth: 60 },
-  1: { cellWidth: 40 },
-  2: { cellWidth: 20, halign: 'center' },
-  3: { cellWidth: 30, halign: 'right' },
-  4: { cellWidth: 30, halign: 'right' },
-},
-
-// DESPUÉS
-head: [['Servicio / Cliente', 'Proy./Presup.', 'Cant.', 'Precio Unit.', 'Total']],
-columnStyles: {
-  0: { cellWidth: 55 },
-  1: { cellWidth: 45 },
-  2: { cellWidth: 18, halign: 'center' },
-  3: { cellWidth: 32, halign: 'right' },
-  4: { cellWidth: 30, halign: 'right' },
-},
+const { data: invoices, isLoading } = useQuery({
+  queryKey: ['invoices', filters, needsFiltering, assignedClientIds, isOverdueFilter],
+  queryFn: async () => {
+    // ... existing filter logic ...
+    
+    let query = supabase
+      .from('invoices')
+      .select(`
+        *,
+        client:clients(id, name, code),
+        linked_requests:financial_requests!billed_invoice_id(
+          id,
+          budget:budgets(id, code, title),
+          contract:contracts(id, code, title),
+          operational_request:operational_requests(
+            operational_project:operational_projects(id, name)
+          )
+        )
+      `)
+      .order('due_date', { ascending: true, nullsFirst: false });
+    // ... rest of query logic ...
+  }
+});
 ```
 
-#### Cambio 2: Líneas de Subtotal (4 ubicaciones)
+### Componentes de celdas
 
-```typescript
-// ANTES
-doc.text(`Subtotal ${data.specialist.name}:`, pageWidth - 75, currentY);
-doc.text(formatCurrency(leaderTotal), pageWidth - 15, currentY, { align: 'right' });
+Para las celdas de Proyecto, Presupuesto y Contrato, se creará un helper que:
+1. Extrae valores únicos de `linked_requests`
+2. Muestra el primero con icono y tooltip
+3. Si hay más de uno, añade un badge "+N"
 
-// DESPUÉS  
-const subtotalLabel = `Subtotal ${data.specialist.name}:`;
-doc.text(subtotalLabel, pageWidth - 80, currentY, { align: 'right' });
-doc.text(formatCurrency(leaderTotal), pageWidth - 15, currentY, { align: 'right' });
-```
-
-O usar un espaciado consistente:
-```typescript
-doc.text(`Subtotal ${data.specialist.name}:  ${formatCurrency(leaderTotal)}`, pageWidth - 15, currentY, { align: 'right' });
+```tsx
+// Ejemplo de celda para Proyecto
+<TableCell>
+  <InvoiceOriginBadge
+    items={getUniqueProjects(invoice)}
+    type="project"
+    icon={<FolderKanban className="h-3.5 w-3.5" />}
+    basePath="/operaciones/proyectos"
+  />
+</TableCell>
 ```
 
 ---
 
-## Ubicaciones Exactas a Modificar
+## Compatibilidad
 
-| Línea | Descripción |
-|-------|-------------|
-| 122-143 | Tabla líder equipo (generateLiquidationPDF) |
-| 148-151 | Subtotal líder |
-| 172-194 | Tabla miembro equipo |
-| 197-202 | Subtotal miembro |
-| 219-241 | Tabla liquidación simple |
-| 426-448 | Tabla líder (generateLiquidationPDFBase64) |
-| 451-456 | Subtotal líder (Base64) |
-| 474-496 | Tabla miembro (Base64) |
-| 498-503 | Subtotal miembro (Base64) |
-| 519-541 | Tabla liquidación simple (Base64) |
-
----
-
-## Resultado Esperado
-
-Después de los cambios:
-
-```
-+------------------+---------------+------+-------------+--------+
-| Servicio/Cliente | Proy./Presup. | Cant.| Precio Unit.| Total  |
-+------------------+---------------+------+-------------+--------+
-| ASENDIA HQ       |               |      |             | 241,00€|
-+------------------+---------------+------+-------------+--------+
-| REQ-2025-046...  |       -       |  4   |    100,00€  | 100,00€|
-+------------------+---------------+------+-------------+--------+
-
-                        Subtotal Daniela Puntriano:  241,00 €
-```
-
----
-
-## Resumen de Cambios
-
-| Tipo | Cantidad |
-|------|----------|
-| Tablas a modificar | 6 (3 en cada función) |
-| Líneas de subtotal | 4 |
-| Total líneas afectadas | ~60 |
-| Archivos modificados | 1 |
-
-La solución es genérica y aplica a todas las liquidaciones (individuales, de equipo, y en formato Base64 para email).
+- Los datos actuales no tienen solicitudes vinculadas a facturas, pero la infraestructura está preparada
+- Las columnas mostrarán "---" hasta que se vinculen solicitudes a facturas
+- No hay cambios de base de datos requeridos - solo lectura de relaciones existentes

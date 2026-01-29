@@ -1,99 +1,119 @@
 
 
-# Plan: Mejorar Diseño de Títulos de Proyecto en PDF de Liquidaciones
+# Plan: Corregir Verificación de Importes en Factura de Especialista
 
-## Análisis del Problema
+## Problema Detectado
 
-El PDF de liquidación muestra caracteres extraños (`%Æ`, `%Ë`) delante de los nombres de proyectos y presupuestos, y el texto aparece con letras espaciadas de forma inusual.
+La liquidación de Iolanda (LIQ-2026-008) muestra un error de verificación cuando sube su factura:
+- **Factura subida:** 2.360,75 € (CORRECTO)
+- **Subtotal en BD:** 2.395,75 € (INCORRECTO)
+- **Suma real de items:** 2.360,75 € (CORRECTO)
 
-**Síntomas observados:**
-- `%Æ  S i n  p r o y e c t o / p r e s u p u e s t o`
-- `%Æ  N e w s l e t t e r  Q 4  U S A`
-- `%Ë  Switzerland without borders...`
+La factura de Iolanda es correcta. El problema es que el campo `subtotal` en la tabla `liquidations` no se actualizó correctamente cuando se añadieron/eliminaron items individualmente.
 
-**Causa probable:**
-Los prefijos ASCII (`> `, `* `, `- `) que se añadieron en el último cambio podrían estar interactuando de forma extraña con jsPDF-autotable, especialmente cuando se combinan con espacios de indentación y ciertos caracteres especiales en los nombres.
+## Causa Raíz
 
----
+Cuando se añade o elimina una solicitud individual desde el detalle de la liquidación:
+- Se actualiza `total_amount`
+- **NO se actualiza `subtotal`**
 
-## Solución Propuesta
+Esto causa una desincronización entre el campo `subtotal` y la suma real de los items.
 
-### 1. Simplificar el formato de los títulos de proyecto
-Eliminar los prefijos de símbolo y usar solo indentación visual con guiones simples, evitando cualquier carácter que pueda causar problemas de encoding.
+## Solución
 
-### 2. Usar un formato más limpio y legible
-En lugar de símbolos para diferenciar proyectos de presupuestos, usar texto descriptivo más claro:
-- Proyectos: `[Proyecto] Nombre`
-- Presupuestos: `[Presup.] Nombre`  
-- Sin asignar: `Sin proy./presup.`
+### Enfoque: Doble corrección
 
-### 3. Aplicar formato con negrita y color en lugar de símbolos
-Usar estilos de texto (fontStyle, textColor) para diferenciar visualmente sin necesidad de caracteres especiales.
+1. **Corregir el Edge Function** para que calcule el subtotal desde los items reales (solución robusta)
+2. **Corregir el código frontend** para que actualice `subtotal` al añadir/eliminar items (prevención)
 
 ---
 
-## Cambios Técnicos
+## Cambio 1: Edge Function `upload-specialist-invoice`
 
-### Archivo: `src/utils/pdf/liquidationPDFGenerator.ts`
+**Archivo:** `supabase/functions/upload-specialist-invoice/index.ts`
 
-**Líneas 653-662 - Filas de proyecto/presupuesto:**
+Calcular el subtotal desde los `liquidation_items` en lugar de confiar en el campo `subtotal` de la liquidación:
 
 ```typescript
-// Actual
-const prefix = projectGroup.type === 'project' ? '> ' : projectGroup.type === 'budget' ? '* ' : '- ';
-tableData.push([
-  { content: `   ${prefix}${projectGroup.name}`, styles: {...} },
-  ...
-]);
+// Después de obtener la liquidación, calcular subtotal real desde items
+const { data: items, error: itemsError } = await supabase
+  .from('liquidation_items')
+  .select('total')
+  .eq('liquidation_id', liquidationId);
 
-// Propuesto - Eliminar símbolos y usar texto limpio
-let displayName = projectGroup.name;
-if (projectGroup.type === 'project') {
-  displayName = `[Proy.] ${projectGroup.name}`;
-} else if (projectGroup.type === 'budget') {
-  displayName = `[Presup.] ${projectGroup.name}`;
-}
-// Para "Sin proyecto/presupuesto" se mantiene el nombre tal cual
+if (itemsError) throw itemsError;
 
-tableData.push([
-  { content: `    ${displayName}`, styles: { 
-    fontStyle: projectGroup.type !== 'none' ? 'italic' : 'normal', 
-    fillColor: [245, 245, 245], 
-    textColor: [80, 80, 80], 
-    fontSize: 8 
-  } },
-  { content: '', styles: { fillColor: [245, 245, 245] } },
-  { content: '', styles: { fillColor: [245, 245, 245] } },
-  { content: formatCurrency(projectGroup.subtotal), styles: { 
-    fillColor: [245, 245, 245], 
-    halign: 'right', 
-    textColor: [100, 100, 100], 
-    fontSize: 8 
-  } },
-  { content: '', styles: { fillColor: [245, 245, 245] } },
-]);
+// El subtotal real es la suma de todos los items
+const liquidationSubtotal = items?.reduce((sum, item) => sum + Number(item.total), 0) || 0;
 ```
 
 ---
 
-## Resultado Visual Esperado
+## Cambio 2: Función `addSingleRequest` en LiquidacionDetalle.tsx
 
-```text
-+------------------------------------------------------+-------+--------+-----------+
-| Descripción                                          | Cant. | P.Unit | Total     |
-+------------------------------------------------------+-------+--------+-----------+
-| ASENDIA HQ                                           |       |        | 1.271,25€ |
-+------------------------------------------------------+-------+--------+-----------+
-|     [Proy.] ePAQ GO Translations                     |       |        |   125,00€ |
-|         REQ-2025-097 - Gestión y coordinación...     |   1   | 25,00€ |    25,00€ |
-|         REQ-2025-098 - Email Marketing...            |   2   | 50,00€ |    50,00€ |
-+------------------------------------------------------+-------+--------+-----------+
-|     [Presup.] Switzerland without borders            |       |        |   150,00€ |
-|         REQ-2026-110 - Gestión y coordinación...     |   2   | 50,00€ |    50,00€ |
-+------------------------------------------------------+-------+--------+-----------+
-|     Sin proyecto/presupuesto                         |       |        |   141,00€ |
-|         REQ-2026-080 - Gestión y coordinación...     |   1   |141,00€ |   141,00€ |
-+------------------------------------------------------+-------+--------+-----------+
+**Archivo:** `src/pages/LiquidacionDetalle.tsx` (líneas 81-96)
+
+```typescript
+// Antes
+const { data: liquidation, error: fetchError } = await supabase
+  .from('liquidations')
+  .select('total_amount')
+  ...
+const newTotal = (Number(liquidation.total_amount) || 0) + cost;
+const { error: updateError } = await supabase
+  .from('liquidations')
+  .update({ total_amount: newTotal })
+  ...
+
+// Después - incluir subtotal y recálculo de impuestos
+const { data: liquidation, error: fetchError } = await supabase
+  .from('liquidations')
+  .select('subtotal, tax_rate')
+  ...
+const newSubtotal = (Number(liquidation.subtotal) || 0) + cost;
+const taxRate = liquidation.tax_rate || 0;
+const newTaxAmount = (newSubtotal * taxRate) / 100;
+const newTotal = newSubtotal + newTaxAmount;
+
+const { error: updateError } = await supabase
+  .from('liquidations')
+  .update({ 
+    subtotal: newSubtotal,
+    tax_amount: newTaxAmount,
+    total_amount: newTotal 
+  })
+  ...
+```
+
+---
+
+## Cambio 3: Función `removeItemMutation` en LiquidacionDetalle.tsx
+
+**Archivo:** `src/pages/LiquidacionDetalle.tsx` (líneas 409-416)
+
+```typescript
+// Antes
+const newTotal = (liquidation?.calculated_total || 0) - (Number(item.total) || 0);
+const { error: liquidationError } = await supabase
+  .from('liquidations')
+  .update({ total_amount: Math.max(0, newTotal) })
+  ...
+
+// Después - recalcular subtotal, impuestos y total
+const currentSubtotal = Number(liquidation?.subtotal) || 0;
+const taxRate = liquidation?.tax_rate || 0;
+const newSubtotal = Math.max(0, currentSubtotal - (Number(item.total) || 0));
+const newTaxAmount = (newSubtotal * taxRate) / 100;
+const newTotal = newSubtotal + newTaxAmount;
+
+const { error: liquidationError } = await supabase
+  .from('liquidations')
+  .update({ 
+    subtotal: newSubtotal,
+    tax_amount: newTaxAmount,
+    total_amount: newTotal 
+  })
+  ...
 ```
 
 ---
@@ -102,5 +122,28 @@ tableData.push([
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/utils/pdf/liquidationPDFGenerator.ts` | Reemplazar prefijos de símbolo por etiquetas de texto `[Proy.]` y `[Presup.]` |
+| `supabase/functions/upload-specialist-invoice/index.ts` | Calcular subtotal desde items reales |
+| `src/pages/LiquidacionDetalle.tsx` | Actualizar subtotal en addSingleRequest y removeItemMutation |
+
+---
+
+## Corrección de Datos Existentes
+
+Para arreglar la liquidación de Iolanda (datos ya incorrectos), se debe ejecutar manualmente:
+
+```sql
+UPDATE liquidations 
+SET subtotal = 2360.75,
+    tax_amount = (2360.75 * tax_rate / 100),
+    total_amount = 2360.75 + (2360.75 * tax_rate / 100)
+WHERE id = '89222442-2e8c-4541-ae81-4d9058080965';
+```
+
+---
+
+## Resultado Esperado
+
+1. Al subir la factura (2.360,75 €), el sistema comparará con la suma real de items (2.360,75 €)
+2. Los importes coincidirán y se mostrará "Importes verificados" en lugar de "Discrepancia de importes"
+3. Futuras operaciones de añadir/eliminar items mantendrán los totales sincronizados
 

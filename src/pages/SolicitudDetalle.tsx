@@ -39,7 +39,8 @@ import {
   Briefcase,
   Clock,
   ExternalLink,
-  FolderKanban
+  FolderKanban,
+  Tag
 } from 'lucide-react';
 
 const SolicitudDetalle = () => {
@@ -107,6 +108,23 @@ const SolicitudDetalle = () => {
       return null;
     },
     enabled: !!id,
+  });
+
+  // Query for related partner requests
+  const { data: relatedPartnerRequests } = useQuery({
+    queryKey: ['related-partner-requests', request?.partner_reference],
+    queryFn: async () => {
+      if (!request?.partner_reference) return [];
+      const { data, error } = await supabase
+        .from('financial_requests')
+        .select('id, code, title')
+        .eq('partner_reference', request.partner_reference)
+        .neq('id', request.id)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!request?.partner_reference,
   });
 
   const handleCreateProject = () => {
@@ -528,6 +546,47 @@ const SolicitudDetalle = () => {
                 </Card>
               )}
                 </div>
+
+                {/* Partner Reference */}
+                {request.partner_reference && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <Tag className="h-4 w-4" />
+                        Referencia Partner
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-lg font-semibold">{request.partner_reference}</span>
+                        {request.specialist && (
+                          <Badge variant="outline">{request.specialist.name}</Badge>
+                        )}
+                      </div>
+                      {relatedPartnerRequests && relatedPartnerRequests.length > 0 && (
+                        <div>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            Otras solicitudes con este código ({relatedPartnerRequests.length}):
+                          </p>
+                          <div className="space-y-1">
+                            {relatedPartnerRequests.map((r) => (
+                              <Button
+                                key={r.id}
+                                variant="ghost"
+                                size="sm"
+                                className="w-full justify-start h-auto py-1"
+                                onClick={() => navigate(`/solicitudes/${r.id}`)}
+                              >
+                                <span className="font-mono text-xs mr-2">{r.code}</span>
+                                <span className="text-sm truncate">{r.title}</span>
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Description */}
                 {request.description && (

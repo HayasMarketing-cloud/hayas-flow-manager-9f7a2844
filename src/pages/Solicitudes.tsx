@@ -55,6 +55,7 @@ const Solicitudes = () => {
       if (filters.specialistId) queryFilters.specialist_id = filters.specialistId;
       if (filters.budgetId) queryFilters.budget_id = filters.budgetId;
       if (filters.contractId) queryFilters.contract_id = filters.contractId;
+      if (filters.partnerReference) queryFilters.partner_reference = filters.partnerReference;
 
       let query = supabase
         .from('financial_requests')
@@ -607,12 +608,22 @@ const Solicitudes = () => {
               </Select>
             )}
 
-            {(filters.status || filters.clientId || filters.specialistId || filters.budgetId || filters.contractId || filters.searchTerm || filters.year) && (
+            {(filters.status || filters.clientId || filters.specialistId || filters.budgetId || filters.contractId || filters.searchTerm || filters.year || filters.partnerReference) && (
               <Button variant="outline" onClick={resetFilters}>
                 <X className="h-4 w-4 mr-2" />
                 Limpiar filtros
               </Button>
             )}
+
+            {/* Partner Reference filter - show as text input for searching */}
+            <div className="relative max-w-[200px]">
+              <Input
+                placeholder="Ref. Partner..."
+                value={filters.partnerReference || ''}
+                onChange={(e) => updateFilter('partnerReference', e.target.value || null)}
+                className="h-10"
+              />
+            </div>
           </div>
         </div>
 

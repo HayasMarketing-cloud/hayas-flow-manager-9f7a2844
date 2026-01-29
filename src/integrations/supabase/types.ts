@@ -556,6 +556,7 @@ export type Database = {
           hours: number | null
           id: string
           liquidation_id: string | null
+          partner_reference: string | null
           quantity: number
           sale_amount: number | null
           sale_hours: number | null
@@ -588,6 +589,7 @@ export type Database = {
           hours?: number | null
           id?: string
           liquidation_id?: string | null
+          partner_reference?: string | null
           quantity?: number
           sale_amount?: number | null
           sale_hours?: number | null
@@ -620,6 +622,7 @@ export type Database = {
           hours?: number | null
           id?: string
           liquidation_id?: string | null
+          partner_reference?: string | null
           quantity?: number
           sale_amount?: number | null
           sale_hours?: number | null

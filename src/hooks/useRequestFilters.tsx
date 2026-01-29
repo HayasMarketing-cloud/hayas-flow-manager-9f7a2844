@@ -10,6 +10,7 @@ export interface RequestFilters {
   contractId: string | null;
   year: number | null;
   month: number | null;
+  partnerReference: string | null;
 }
 
 export const useRequestFilters = () => {
@@ -25,6 +26,7 @@ export const useRequestFilters = () => {
     contractId: searchParams.get('contractId'),
     year: searchParams.get('year') ? parseInt(searchParams.get('year')!) : null,
     month: searchParams.get('month') ? parseInt(searchParams.get('month')!) : null,
+    partnerReference: searchParams.get('partnerReference'),
   }));
 
   // Sync filters TO URL whenever they change
@@ -39,6 +41,7 @@ export const useRequestFilters = () => {
     if (newFilters.contractId) newParams.set('contractId', newFilters.contractId);
     if (newFilters.year) newParams.set('year', newFilters.year.toString());
     if (newFilters.month) newParams.set('month', newFilters.month.toString());
+    if (newFilters.partnerReference) newParams.set('partnerReference', newFilters.partnerReference);
     
     setSearchParams(newParams, { replace: true });
   }, [setSearchParams]);
@@ -76,6 +79,7 @@ export const useRequestFilters = () => {
       contractId: null,
       year: null,
       month: null,
+      partnerReference: null,
     };
     setFilters(emptyFilters);
     setSearchParams({}, { replace: true });

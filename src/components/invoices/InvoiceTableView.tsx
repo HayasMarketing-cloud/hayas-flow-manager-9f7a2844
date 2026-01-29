@@ -3,12 +3,46 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InvoiceStatusBadge } from './InvoiceStatusBadge';
 import { InvoiceStatusActions } from './InvoiceStatusActions';
+import { InvoiceOriginCell } from './InvoiceOriginCell';
 import { Edit, Eye, FileText, AlertCircle, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/invoice-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
+interface OriginItem {
+  id: string;
+  name?: string;
+  code?: string;
+  title?: string;
+}
+
+// Helper functions to extract unique items from linked requests
+const getUniqueProjects = (invoice: any): OriginItem[] => {
+  if (!invoice.linked_requests) return [];
+  const projects = invoice.linked_requests
+    .flatMap((r: any) => r.operational_request || [])
+    .map((or: any) => or.operational_project)
+    .filter(Boolean);
+  // Deduplicate by id
+  return [...new Map(projects.map((p: any) => [p.id, p])).values()] as OriginItem[];
+};
+
+const getUniqueBudgets = (invoice: any): OriginItem[] => {
+  if (!invoice.linked_requests) return [];
+  const budgets = invoice.linked_requests
+    .map((r: any) => r.budget)
+    .filter(Boolean);
+  return [...new Map(budgets.map((b: any) => [b.id, b])).values()] as OriginItem[];
+};
+
+const getUniqueContracts = (invoice: any): OriginItem[] => {
+  if (!invoice.linked_requests) return [];
+  const contracts = invoice.linked_requests
+    .map((r: any) => r.contract)
+    .filter(Boolean);
+  return [...new Map(contracts.map((c: any) => [c.id, c])).values()] as OriginItem[];
+};
 interface InvoiceTableViewProps {
   invoices: any[];
   onView: (invoice: any) => void;
@@ -52,6 +86,9 @@ export const InvoiceTableView = ({
             </TableHead>
             <TableHead>Código</TableHead>
             <TableHead>Cliente</TableHead>
+            <TableHead>Proyecto</TableHead>
+            <TableHead>Presupuesto</TableHead>
+            <TableHead>Contrato</TableHead>
             <TableHead>Fecha</TableHead>
             <TableHead>Vencimiento</TableHead>
             <TableHead className="text-right">Subtotal</TableHead>
@@ -65,7 +102,7 @@ export const InvoiceTableView = ({
         <TableBody>
           {invoices.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={11} className="text-center text-muted-foreground">
+              <TableCell colSpan={14} className="text-center text-muted-foreground">
                 No hay facturas para mostrar
               </TableCell>
             </TableRow>
@@ -89,6 +126,15 @@ export const InvoiceTableView = ({
                   </TableCell>
                   <TableCell className="font-medium">{invoice.code}</TableCell>
                   <TableCell>{invoice.client?.name || '-'}</TableCell>
+                  <TableCell>
+                    <InvoiceOriginCell items={getUniqueProjects(invoice)} type="project" />
+                  </TableCell>
+                  <TableCell>
+                    <InvoiceOriginCell items={getUniqueBudgets(invoice)} type="budget" />
+                  </TableCell>
+                  <TableCell>
+                    <InvoiceOriginCell items={getUniqueContracts(invoice)} type="contract" />
+                  </TableCell>
                   <TableCell>
                     {format(new Date(invoice.invoice_date), 'dd/MM/yyyy', { locale: es })}
                   </TableCell>

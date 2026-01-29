@@ -16,6 +16,7 @@ import DashboardEspecialista from "./pages/DashboardEspecialista";
 import Solicitudes from "./pages/Solicitudes";
 import SolicitudDetalle from "./pages/SolicitudDetalle";
 import Facturas from "./pages/Facturas";
+import FacturasReconciliar from "./pages/FacturasReconciliar";
 import Presupuestos from "./pages/Presupuestos";
 import PresupuestoDetalle from "./pages/PresupuestoDetalle";
 import Servicios from "./pages/Servicios";
@@ -91,6 +92,7 @@ const App = () => {
               <Route path="/solicitudes" element={<ProtectedRoute><Solicitudes /></ProtectedRoute>} />
               <Route path="/solicitudes/:id" element={<ProtectedRoute><SolicitudDetalle /></ProtectedRoute>} />
               <Route path="/facturas" element={<ProtectedRoute><Facturas /></ProtectedRoute>} />
+              <Route path="/facturas/reconciliar" element={<ProtectedRoute><FacturasReconciliar /></ProtectedRoute>} />
               <Route path="/liquidaciones" element={<ProtectedRoute><Liquidaciones /></ProtectedRoute>} />
               <Route path="/liquidaciones/:id" element={<ProtectedRoute><LiquidacionDetalle /></ProtectedRoute>} />
               

@@ -78,19 +78,27 @@ function PendingRequestsSection({
 
       if (requestError) throw requestError;
 
-      // Get current liquidation total and update
+      // Get current liquidation subtotal and tax_rate, then recalculate all totals
       const { data: liquidation, error: fetchError } = await supabase
         .from('liquidations')
-        .select('total_amount')
+        .select('subtotal, tax_rate')
         .eq('id', liquidationId)
         .single();
 
       if (fetchError) throw fetchError;
 
-      const newTotal = (Number(liquidation.total_amount) || 0) + cost;
+      const newSubtotal = (Number(liquidation.subtotal) || 0) + cost;
+      const taxRate = liquidation.tax_rate || 0;
+      const newTaxAmount = (newSubtotal * taxRate) / 100;
+      const newTotal = newSubtotal + newTaxAmount;
+
       const { error: updateError } = await supabase
         .from('liquidations')
-        .update({ total_amount: newTotal })
+        .update({ 
+          subtotal: newSubtotal,
+          tax_amount: newTaxAmount,
+          total_amount: newTotal 
+        })
         .eq('id', liquidationId);
 
       if (updateError) throw updateError;
@@ -406,11 +414,20 @@ export default function LiquidacionDetalle() {
         if (updateError) throw updateError;
       }
 
-      // Recalculate and update liquidation total
-      const newTotal = (liquidation?.calculated_total || 0) - (Number(item.total) || 0);
+      // Recalculate subtotal, tax_amount and total_amount
+      const currentSubtotal = Number(liquidation?.subtotal) || 0;
+      const taxRate = liquidation?.tax_rate || 0;
+      const newSubtotal = Math.max(0, currentSubtotal - (Number(item.total) || 0));
+      const newTaxAmount = (newSubtotal * taxRate) / 100;
+      const newTotal = newSubtotal + newTaxAmount;
+
       const { error: liquidationError } = await supabase
         .from('liquidations')
-        .update({ total_amount: Math.max(0, newTotal) })
+        .update({ 
+          subtotal: newSubtotal,
+          tax_amount: newTaxAmount,
+          total_amount: newTotal 
+        })
         .eq('id', id);
 
       if (liquidationError) throw liquidationError;

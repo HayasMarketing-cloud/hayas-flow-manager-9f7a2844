@@ -116,9 +116,26 @@ Deno.serve(async (req) => {
     }
 
     const liquidationId = liquidation.id;
-    const liquidationSubtotal = liquidation.subtotal;
 
-    console.log(`Processing invoice upload for liquidation ${liquidation.code}...`);
+    // Calculate subtotal from actual liquidation_items (more reliable than stored field)
+    console.log(`Fetching liquidation items to calculate real subtotal...`);
+    const { data: items, error: itemsError } = await supabase
+      .from('liquidation_items')
+      .select('total')
+      .eq('liquidation_id', liquidationId);
+
+    if (itemsError) {
+      console.error('Error fetching liquidation items:', itemsError);
+      return new Response(
+        JSON.stringify({ error: 'Error al obtener items de liquidación' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Real subtotal is the sum of all items
+    const liquidationSubtotal = items?.reduce((sum, item) => sum + Number(item.total), 0) || 0;
+
+    console.log(`Processing invoice upload for liquidation ${liquidation.code}, calculated subtotal: ${liquidationSubtotal}...`);
 
     // 4. Extract invoice data with AI
     let extractedData: ExtractedInvoiceData | null = null;

@@ -640,41 +640,25 @@ const buildHierarchicalTableData = (items: any[]): any[][] => {
   const tableData: any[][] = [];
 
   groupedItems.forEach((clientGroup) => {
-    // Client header row
+    // Client header row - 5 individual cells to avoid colSpan issues
     tableData.push([
-      { 
-        content: clientGroup.clientName, 
-        colSpan: 3, 
-        styles: { fontStyle: 'bold', fillColor: [230, 230, 230], textColor: [50, 50, 50] } 
-      },
-      { 
-        content: formatCurrency(clientGroup.subtotal), 
-        styles: { fontStyle: 'bold', fillColor: [230, 230, 230], halign: 'right', textColor: [50, 50, 50] } 
-      },
-      { 
-        content: '', 
-        styles: { fillColor: [230, 230, 230] } 
-      },
+      { content: clientGroup.clientName, styles: { fontStyle: 'bold', fillColor: [230, 230, 230], textColor: [50, 50, 50] } },
+      { content: '', styles: { fillColor: [230, 230, 230] } },
+      { content: '', styles: { fillColor: [230, 230, 230] } },
+      { content: formatCurrency(clientGroup.subtotal), styles: { fontStyle: 'bold', fillColor: [230, 230, 230], halign: 'right', textColor: [50, 50, 50] } },
+      { content: '', styles: { fillColor: [230, 230, 230] } },
     ]);
 
     // Project/Budget groups within client
     clientGroup.projectBudgets.forEach((projectGroup) => {
-      // Project/Budget header row
-      const icon = projectGroup.type === 'project' ? '▸ ' : projectGroup.type === 'budget' ? '◆ ' : '○ ';
+      // Project/Budget header row - use ASCII prefixes instead of Unicode icons
+      const prefix = projectGroup.type === 'project' ? '> ' : projectGroup.type === 'budget' ? '* ' : '- ';
       tableData.push([
-        { 
-          content: `   ${icon}${projectGroup.name}`, 
-          colSpan: 3, 
-          styles: { fontStyle: 'normal', fillColor: [245, 245, 245], textColor: [80, 80, 80], fontSize: 8 } 
-        },
-        { 
-          content: formatCurrency(projectGroup.subtotal), 
-          styles: { fillColor: [245, 245, 245], halign: 'right', textColor: [100, 100, 100], fontSize: 8 } 
-        },
-        { 
-          content: '', 
-          styles: { fillColor: [245, 245, 245] } 
-        },
+        { content: `   ${prefix}${projectGroup.name}`, styles: { fontStyle: 'normal', fillColor: [245, 245, 245], textColor: [80, 80, 80], fontSize: 8 } },
+        { content: '', styles: { fillColor: [245, 245, 245] } },
+        { content: '', styles: { fillColor: [245, 245, 245] } },
+        { content: formatCurrency(projectGroup.subtotal), styles: { fillColor: [245, 245, 245], halign: 'right', textColor: [100, 100, 100], fontSize: 8 } },
+        { content: '', styles: { fillColor: [245, 245, 245] } },
       ]);
 
       // Individual items

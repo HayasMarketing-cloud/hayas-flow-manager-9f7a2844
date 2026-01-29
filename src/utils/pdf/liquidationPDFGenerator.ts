@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getMonthName } from '@/lib/liquidation-utils';
+import { groupItemsByClientAndProject } from '@/lib/liquidation-grouping';
 
 interface PendingRequest {
   id: string;
@@ -115,14 +116,13 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     currentY += 8;
 
     // Leader's items table
-    const leaderGroupedItems = groupItemsByClient(data.items);
-    const leaderTableData = buildTableData(leaderGroupedItems);
+    const leaderTableData = buildHierarchicalTableData(data.items);
 
     autoTable(doc, {
       startY: currentY,
-      head: [['Servicio / Cliente', 'Proy./Presup.', 'Cant.', 'Precio Unit.', 'Total']],
+      head: [['Descripción', 'Cant.', 'Precio Unit.', 'Total', '']],
       body: leaderTableData,
-      theme: 'striped',
+      theme: 'plain',
       headStyles: {
         fillColor: [0, 70, 126],
         textColor: 255,
@@ -131,14 +131,14 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
       },
       styles: {
         fontSize: 8,
-        cellPadding: 4,
+        cellPadding: 3,
       },
       columnStyles: {
-        0: { cellWidth: 55 },
-        1: { cellWidth: 45 },
-        2: { cellWidth: 18, halign: 'center' },
-        3: { cellWidth: 32, halign: 'right' },
-        4: { cellWidth: 30, halign: 'right' },
+        0: { cellWidth: 100 },
+        1: { cellWidth: 18, halign: 'center' },
+        2: { cellWidth: 28, halign: 'right' },
+        3: { cellWidth: 28, halign: 'right' },
+        4: { cellWidth: 6 },
       },
     });
 
@@ -165,14 +165,13 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
       doc.setTextColor(0, 0, 0);
       currentY += 8;
 
-      const memberGroupedItems = groupItemsByClient(member.liquidation_items);
-      const memberTableData = buildTableData(memberGroupedItems);
+      const memberTableData = buildHierarchicalTableData(member.liquidation_items);
 
       autoTable(doc, {
         startY: currentY,
-        head: [['Servicio / Cliente', 'Proy./Presup.', 'Cant.', 'Precio Unit.', 'Total']],
+        head: [['Descripción', 'Cant.', 'Precio Unit.', 'Total', '']],
         body: memberTableData,
-        theme: 'striped',
+        theme: 'plain',
         headStyles: {
           fillColor: [100, 100, 100],
           textColor: 255,
@@ -181,14 +180,14 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
         },
         styles: {
           fontSize: 8,
-          cellPadding: 4,
+          cellPadding: 3,
         },
         columnStyles: {
-          0: { cellWidth: 55 },
-          1: { cellWidth: 45 },
-          2: { cellWidth: 18, halign: 'center' },
-          3: { cellWidth: 32, halign: 'right' },
-          4: { cellWidth: 30, halign: 'right' },
+          0: { cellWidth: 100 },
+          1: { cellWidth: 18, halign: 'center' },
+          2: { cellWidth: 28, halign: 'right' },
+          3: { cellWidth: 28, halign: 'right' },
+          4: { cellWidth: 6 },
         },
       });
 
@@ -211,14 +210,13 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     currentY += 20;
   } else {
     // === SINGLE LIQUIDATION MODE (original behavior) ===
-    const groupedItems = groupItemsByClient(data.items);
-    const tableData = buildTableData(groupedItems);
+    const tableData = buildHierarchicalTableData(data.items);
 
     autoTable(doc, {
       startY: currentY,
-      head: [['Servicio / Cliente', 'Proy./Presup.', 'Cant.', 'Precio Unit.', 'Total']],
+      head: [['Descripción', 'Cant.', 'Precio Unit.', 'Total', '']],
       body: tableData,
-      theme: 'striped',
+      theme: 'plain',
       headStyles: {
         fillColor: [0, 70, 126],
         textColor: 255,
@@ -227,14 +225,14 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
       },
       styles: {
         fontSize: 9,
-        cellPadding: 5,
+        cellPadding: 4,
       },
       columnStyles: {
-        0: { cellWidth: 55 },
-        1: { cellWidth: 45 },
-        2: { cellWidth: 18, halign: 'center' },
-        3: { cellWidth: 32, halign: 'right' },
-        4: { cellWidth: 30, halign: 'right' },
+        0: { cellWidth: 100 },
+        1: { cellWidth: 18, halign: 'center' },
+        2: { cellWidth: 28, halign: 'right' },
+        3: { cellWidth: 28, halign: 'right' },
+        4: { cellWidth: 6 },
       },
     });
 
@@ -418,14 +416,13 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
     doc.setTextColor(0, 0, 0);
     currentY += 8;
 
-    const leaderGroupedItems = groupItemsByClient(data.items);
-    const leaderTableData = buildTableData(leaderGroupedItems);
+    const leaderTableData = buildHierarchicalTableData(data.items);
 
     autoTable(doc, {
       startY: currentY,
-      head: [['Servicio / Cliente', 'Proy./Presup.', 'Cant.', 'Precio Unit.', 'Total']],
+      head: [['Descripción', 'Cant.', 'Precio Unit.', 'Total', '']],
       body: leaderTableData,
-      theme: 'striped',
+      theme: 'plain',
       headStyles: {
         fillColor: [0, 70, 126],
         textColor: 255,
@@ -434,14 +431,14 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
       },
       styles: {
         fontSize: 8,
-        cellPadding: 4,
+        cellPadding: 3,
       },
       columnStyles: {
-        0: { cellWidth: 55 },
-        1: { cellWidth: 45 },
-        2: { cellWidth: 18, halign: 'center' },
-        3: { cellWidth: 32, halign: 'right' },
-        4: { cellWidth: 30, halign: 'right' },
+        0: { cellWidth: 100 },
+        1: { cellWidth: 18, halign: 'center' },
+        2: { cellWidth: 28, halign: 'right' },
+        3: { cellWidth: 28, halign: 'right' },
+        4: { cellWidth: 6 },
       },
     });
 
@@ -465,14 +462,13 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
       doc.setTextColor(0, 0, 0);
       currentY += 8;
 
-      const memberGroupedItems = groupItemsByClient(member.liquidation_items);
-      const memberTableData = buildTableData(memberGroupedItems);
+      const memberTableData = buildHierarchicalTableData(member.liquidation_items);
 
       autoTable(doc, {
         startY: currentY,
-        head: [['Servicio / Cliente', 'Proy./Presup.', 'Cant.', 'Precio Unit.', 'Total']],
+        head: [['Descripción', 'Cant.', 'Precio Unit.', 'Total', '']],
         body: memberTableData,
-        theme: 'striped',
+        theme: 'plain',
         headStyles: {
           fillColor: [100, 100, 100],
           textColor: 255,
@@ -481,14 +477,14 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
         },
         styles: {
           fontSize: 8,
-          cellPadding: 4,
+          cellPadding: 3,
         },
         columnStyles: {
-          0: { cellWidth: 55 },
-          1: { cellWidth: 45 },
-          2: { cellWidth: 18, halign: 'center' },
-          3: { cellWidth: 32, halign: 'right' },
-          4: { cellWidth: 30, halign: 'right' },
+          0: { cellWidth: 100 },
+          1: { cellWidth: 18, halign: 'center' },
+          2: { cellWidth: 28, halign: 'right' },
+          3: { cellWidth: 28, halign: 'right' },
+          4: { cellWidth: 6 },
         },
       });
 
@@ -509,14 +505,13 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
     currentY += 20;
   } else {
     // === SINGLE LIQUIDATION MODE ===
-    const groupedItems = groupItemsByClient(data.items);
-    const tableData = buildTableData(groupedItems);
+    const tableData = buildHierarchicalTableData(data.items);
 
     autoTable(doc, {
       startY: currentY,
-      head: [['Servicio / Cliente', 'Proy./Presup.', 'Cant.', 'Precio Unit.', 'Total']],
+      head: [['Descripción', 'Cant.', 'Precio Unit.', 'Total', '']],
       body: tableData,
-      theme: 'striped',
+      theme: 'plain',
       headStyles: {
         fillColor: [0, 70, 126],
         textColor: 255,
@@ -525,14 +520,14 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
       },
       styles: {
         fontSize: 9,
-        cellPadding: 5,
+        cellPadding: 4,
       },
       columnStyles: {
-        0: { cellWidth: 55 },
-        1: { cellWidth: 45 },
-        2: { cellWidth: 18, halign: 'center' },
-        3: { cellWidth: 32, halign: 'right' },
-        4: { cellWidth: 30, halign: 'right' },
+        0: { cellWidth: 100 },
+        1: { cellWidth: 18, halign: 'center' },
+        2: { cellWidth: 28, halign: 'right' },
+        3: { cellWidth: 28, halign: 'right' },
+        4: { cellWidth: 6 },
       },
     });
 
@@ -639,64 +634,61 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
   return doc.output('datauristring').split(',')[1];
 };
 
-interface GroupedClient {
-  clientName: string;
-  items: any[];
-  subtotal: number;
-}
-
-const groupItemsByClient = (items: any[]): GroupedClient[] => {
-  const grouped: { [clientName: string]: { items: any[]; subtotal: number } } = {};
-  
-  items.forEach((item) => {
-    const clientName = item.financial_request_id 
-      ? (item.financial_request?.client?.name || 'Sin cliente')
-      : 'Otros conceptos';
-    if (!grouped[clientName]) {
-      grouped[clientName] = { items: [], subtotal: 0 };
-    }
-    grouped[clientName].items.push(item);
-    const costToAgency = item.financial_request_id 
-      ? (Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0)
-      : Number(item.unit_price) || 0;
-    grouped[clientName].subtotal += costToAgency;
-  });
-  
-  return Object.entries(grouped).map(([clientName, data]) => ({
-    clientName,
-    items: data.items,
-    subtotal: data.subtotal,
-  }));
-};
-
-const buildTableData = (groupedItems: GroupedClient[]): any[][] => {
+// Build table data with hierarchical grouping: Client → Project/Budget → Items
+const buildHierarchicalTableData = (items: any[]): any[][] => {
+  const groupedItems = groupItemsByClientAndProject(items);
   const tableData: any[][] = [];
-  
-  groupedItems.forEach((group) => {
+
+  groupedItems.forEach((clientGroup) => {
     // Client header row
     tableData.push([
-      { content: group.clientName, colSpan: 4, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } },
-      { content: formatCurrency(group.subtotal), styles: { fontStyle: 'bold', fillColor: [240, 240, 240], halign: 'right' } },
+      { 
+        content: clientGroup.clientName, 
+        colSpan: 4, 
+        styles: { fontStyle: 'bold', fillColor: [230, 230, 230], textColor: [50, 50, 50] } 
+      },
+      { 
+        content: formatCurrency(clientGroup.subtotal), 
+        styles: { fontStyle: 'bold', fillColor: [230, 230, 230], halign: 'right', textColor: [50, 50, 50] } 
+      },
     ]);
-    
-    // Item rows
-    group.items.forEach((item) => {
-      const costToAgency = Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0;
-      const requestTitle = item.financial_request?.title;
-      const description = requestTitle 
-        ? `  ${item.description}\n     ${requestTitle}` 
-        : `  ${item.description}`;
-      const displayQuantity = item.financial_request?.cost_type === 'hourly'
-        ? (item.financial_request?.hours || item.quantity || 1)
-        : (item.financial_request?.quantity || item.quantity || 1);
-      const projectOrBudget = getProjectOrBudgetFromItem(item);
+
+    // Project/Budget groups within client
+    clientGroup.projectBudgets.forEach((projectGroup) => {
+      // Project/Budget header row
+      const icon = projectGroup.type === 'project' ? '▸ ' : projectGroup.type === 'budget' ? '◆ ' : '○ ';
       tableData.push([
-        description,
-        projectOrBudget,
-        displayQuantity.toString(),
-        formatCurrency(costToAgency),
-        formatCurrency(costToAgency),
+        { 
+          content: `   ${icon}${projectGroup.name}`, 
+          colSpan: 4, 
+          styles: { fontStyle: 'normal', fillColor: [245, 245, 245], textColor: [80, 80, 80], fontSize: 8 } 
+        },
+        { 
+          content: formatCurrency(projectGroup.subtotal), 
+          styles: { fillColor: [245, 245, 245], halign: 'right', textColor: [100, 100, 100], fontSize: 8 } 
+        },
       ]);
+
+      // Individual items
+      projectGroup.items.forEach((item) => {
+        const costToAgency = Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0;
+        const requestCode = item.financial_request?.code || '-';
+        const requestTitle = item.financial_request?.title;
+        const description = requestTitle 
+          ? `      ${requestCode} - ${requestTitle.substring(0, 30)}${requestTitle.length > 30 ? '...' : ''}` 
+          : `      ${item.description}`;
+        const displayQuantity = item.financial_request?.cost_type === 'hourly'
+          ? (item.financial_request?.hours || item.quantity || 1)
+          : (item.financial_request?.quantity || item.quantity || 1);
+        
+        tableData.push([
+          description,
+          displayQuantity.toString(),
+          formatCurrency(costToAgency),
+          formatCurrency(costToAgency),
+          '',
+        ]);
+      });
     });
   });
 
@@ -717,21 +709,6 @@ const formatCurrency = (amount: number): string => {
     style: 'currency',
     currency: 'EUR',
   }).format(amount);
-};
-
-// Helper to get project or budget name from liquidation item
-const getProjectOrBudgetFromItem = (item: any): string => {
-  const opRequest = item.financial_request?.operational_request?.[0];
-  if (opRequest?.operational_project?.name) {
-    const name = opRequest.operational_project.name;
-    return name.length > 25 ? name.substring(0, 23) + '...' : name;
-  }
-  if (item.financial_request?.budget) {
-    const budget = item.financial_request.budget;
-    const name = budget.title || budget.code;
-    return name.length > 25 ? name.substring(0, 23) + '...' : name;
-  }
-  return '-';
 };
 
 // Helper to get project or budget name from pending request

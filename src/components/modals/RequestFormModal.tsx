@@ -60,6 +60,8 @@ const requestSchema = z.object({
   hours: z.coerce.number().min(0).optional().nullable(),
   cost_rate: z.coerce.number().min(0).optional().nullable(),
   fixed_cost: z.coerce.number().min(0).optional().nullable(),
+  // Partner reference (for partners like Wolfestone)
+  partner_reference: z.string().max(100).optional().nullable(),
 });
 
 type RequestFormData = z.infer<typeof requestSchema>;
@@ -107,6 +109,8 @@ export const RequestFormModal = ({
       hours: null,
       cost_rate: null,
       fixed_cost: null,
+      // Partner reference
+      partner_reference: null,
     },
   });
 
@@ -241,6 +245,8 @@ export const RequestFormModal = ({
         cost_rate: data.cost_type === 'hourly' ? data.cost_rate : null,
         fixed_cost: data.cost_type === 'fixed' ? data.fixed_cost : null,
         cost_to_agency,
+        // Partner reference
+        partner_reference: data.partner_reference || null,
       };
 
       if (initialData) {
@@ -381,6 +387,8 @@ export const RequestFormModal = ({
           hours: initialData.hours ?? null,
           cost_rate: initialData.cost_rate ?? null,
           fixed_cost: initialData.fixed_cost ?? null,
+          // Partner reference
+          partner_reference: initialData.partner_reference ?? null,
         });
       } else {
         form.reset({
@@ -404,6 +412,8 @@ export const RequestFormModal = ({
           hours: null,
           cost_rate: null,
           fixed_cost: null,
+          // Partner reference
+          partner_reference: null,
         });
       }
     }
@@ -651,6 +661,29 @@ export const RequestFormModal = ({
                 )}
               />
             </div>
+
+            {/* Partner Reference - show when a specialist is selected */}
+            <FormField
+              control={form.control}
+              name="partner_reference"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Referencia Partner</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Ej: P1225-5602-4821"
+                      {...field}
+                      value={field.value || ''}
+                      disabled={isViewMode}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Código de proyecto del proveedor (para reconciliar facturas)
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

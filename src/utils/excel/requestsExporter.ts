@@ -7,6 +7,7 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
     'Cliente',
     'Servicio',
     'Especialista',
+    'Ref. Partner',
     'Estado',
     'Cantidad',
     'Precio Unit.',
@@ -25,6 +26,7 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
     request.client?.name || '-',
     request.service?.name || '-',
     request.specialist?.name || '-',
+    request.partner_reference || '-',
     request.status || '-',
     request.quantity || 0,
     formatCurrency(request.unit_price),
@@ -45,6 +47,7 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
   rows.push([]);
   rows.push([
     'TOTALES',
+    '',
     '',
     '',
     '',

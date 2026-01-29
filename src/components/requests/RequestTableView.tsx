@@ -63,6 +63,7 @@ export const RequestTableView = ({
             <TableHead>Título</TableHead>
             <TableHead>Cliente</TableHead>
             <TableHead>Especialista</TableHead>
+            <TableHead>Ref. Partner</TableHead>
             <TableHead>Origen</TableHead>
             <TableHead>Estado</TableHead>
             <TableHead>Flujo</TableHead>
@@ -76,7 +77,7 @@ export const RequestTableView = ({
         <TableBody>
           {requests.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={13} className="text-center text-muted-foreground">
+              <TableCell colSpan={14} className="text-center text-muted-foreground">
                 No se encontraron solicitudes
               </TableCell>
             </TableRow>
@@ -118,6 +119,13 @@ export const RequestTableView = ({
                           )}
                         </TooltipContent>
                       </Tooltip>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {request.partner_reference ? (
+                      <span className="font-mono text-xs">{request.partner_reference}</span>
                     ) : (
                       <span className="text-muted-foreground text-sm">-</span>
                     )}

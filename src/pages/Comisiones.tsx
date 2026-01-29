@@ -21,6 +21,7 @@ import { CommissionTableView } from '@/components/commissions/CommissionTableVie
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
+type CommissionType = 'sales' | 'am' | 'pm';
 type CommissionStatus = 'pending' | 'approved' | 'paid';
 
 const statusLabels: Record<CommissionStatus, string> = {
@@ -35,11 +36,19 @@ const statusColors: Record<CommissionStatus, string> = {
   paid: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
 };
 
+const commissionTypeLabels: Record<CommissionType, string> = {
+  sales: 'Venta',
+  am: 'Account Manager',
+  pm: 'Project Manager',
+};
+
 interface Commission {
   id: string;
+  commission_type?: CommissionType;
   seller_user_id: string;
   contract_id: string | null;
   budget_id: string | null;
+  invoice_ids?: string[];
   commission_percentage: number;
   commission_amount: number;
   base_amount: number;
@@ -58,10 +67,11 @@ function ComisionesContent() {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
 
   const { data: commissions, isLoading, refetch } = useQuery({
-    queryKey: ['sales-commissions', statusFilter],
+    queryKey: ['sales-commissions', statusFilter, typeFilter],
     queryFn: async () => {
       // Use raw query since types may not be updated yet
       let query = supabase
@@ -75,6 +85,10 @@ function ComisionesContent() {
 
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter);
+      }
+
+      if (typeFilter !== 'all') {
+        query = query.eq('commission_type', typeFilter);
       }
 
       const { data, error } = await query;
@@ -257,6 +271,17 @@ function ComisionesContent() {
                   className="pl-10"
                 />
               </div>
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los tipos</SelectItem>
+                  <SelectItem value="am">Account Manager</SelectItem>
+                  <SelectItem value="pm">Project Manager</SelectItem>
+                  <SelectItem value="sales">Venta</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Estado" />

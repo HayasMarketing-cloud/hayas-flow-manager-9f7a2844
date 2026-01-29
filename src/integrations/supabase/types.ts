@@ -352,6 +352,27 @@ export type Database = {
         }
         Relationships: []
       }
+      commission_settings: {
+        Row: {
+          commission_type: string
+          default_percentage: number
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          commission_type: string
+          default_percentage: number
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          commission_type?: string
+          default_percentage?: number
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       contract_services: {
         Row: {
           billing_frequency:
@@ -1347,6 +1368,72 @@ export type Database = {
             columns: ["request_id"]
             isOneToOne: false
             referencedRelation: "financial_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_commissions: {
+        Row: {
+          base_amount: number
+          budget_id: string | null
+          commission_amount: number
+          commission_percentage: number
+          commission_type: string
+          contract_id: string | null
+          created_at: string | null
+          id: string
+          invoice_ids: string[] | null
+          notes: string | null
+          paid_at: string | null
+          seller_user_id: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          base_amount?: number
+          budget_id?: string | null
+          commission_amount: number
+          commission_percentage: number
+          commission_type: string
+          contract_id?: string | null
+          created_at?: string | null
+          id?: string
+          invoice_ids?: string[] | null
+          notes?: string | null
+          paid_at?: string | null
+          seller_user_id: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          base_amount?: number
+          budget_id?: string | null
+          commission_amount?: number
+          commission_percentage?: number
+          commission_type?: string
+          contract_id?: string | null
+          created_at?: string | null
+          id?: string
+          invoice_ids?: string[] | null
+          notes?: string | null
+          paid_at?: string | null
+          seller_user_id?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_commissions_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_commissions_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
             referencedColumns: ["id"]
           },
         ]

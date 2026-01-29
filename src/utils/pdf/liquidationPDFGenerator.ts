@@ -644,12 +644,16 @@ const buildHierarchicalTableData = (items: any[]): any[][] => {
     tableData.push([
       { 
         content: clientGroup.clientName, 
-        colSpan: 4, 
+        colSpan: 3, 
         styles: { fontStyle: 'bold', fillColor: [230, 230, 230], textColor: [50, 50, 50] } 
       },
       { 
         content: formatCurrency(clientGroup.subtotal), 
         styles: { fontStyle: 'bold', fillColor: [230, 230, 230], halign: 'right', textColor: [50, 50, 50] } 
+      },
+      { 
+        content: '', 
+        styles: { fillColor: [230, 230, 230] } 
       },
     ]);
 
@@ -660,12 +664,16 @@ const buildHierarchicalTableData = (items: any[]): any[][] => {
       tableData.push([
         { 
           content: `   ${icon}${projectGroup.name}`, 
-          colSpan: 4, 
+          colSpan: 3, 
           styles: { fontStyle: 'normal', fillColor: [245, 245, 245], textColor: [80, 80, 80], fontSize: 8 } 
         },
         { 
           content: formatCurrency(projectGroup.subtotal), 
           styles: { fillColor: [245, 245, 245], halign: 'right', textColor: [100, 100, 100], fontSize: 8 } 
+        },
+        { 
+          content: '', 
+          styles: { fillColor: [245, 245, 245] } 
         },
       ]);
 

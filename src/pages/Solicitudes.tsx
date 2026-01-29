@@ -352,11 +352,33 @@ const Solicitudes = () => {
   // Bulk update mutation
   const bulkUpdateMutation = useMutation({
     mutationFn: async ({ field, value }: { field: string; value: any }) => {
-      const { error } = await supabase
-        .from('financial_requests')
-        .update({ [field]: value })
-        .in('id', selectedIds);
-      if (error) throw error;
+      // Special handling for cost_rate: recalculate cost_to_agency based on hours
+      if (field === 'cost_rate') {
+        // Get selected requests with their hours
+        const selectedRequests = requests?.filter(r => selectedIds.includes(r.id)) || [];
+        
+        // Update each request individually with recalculated cost_to_agency
+        for (const request of selectedRequests) {
+          const hours = request.hours || 0;
+          const newCostToAgency = value * hours;
+          
+          const { error } = await supabase
+            .from('financial_requests')
+            .update({ 
+              cost_rate: value,
+              cost_to_agency: newCostToAgency 
+            })
+            .eq('id', request.id);
+          
+          if (error) throw error;
+        }
+      } else {
+        const { error } = await supabase
+          .from('financial_requests')
+          .update({ [field]: value })
+          .in('id', selectedIds);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       toast.success('Requests actualizados correctamente');
@@ -680,19 +702,19 @@ const Solicitudes = () => {
               />
             </div>
             
-            {/* Coste */}
+            {/* Tarifa por hora (cost_rate) */}
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Coste:</span>
+              <span className="text-sm text-muted-foreground">Tarifa/hora:</span>
               <Input
-                id="bulk-cost-input"
+                id="bulk-cost-rate-input"
                 type="number"
                 placeholder="0.00"
                 className="w-[100px] h-8"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     const value = parseFloat((e.target as HTMLInputElement).value);
-                    if (!isNaN(value)) {
-                      confirmBulkEdit('cost_to_agency', value, `${value.toFixed(2)} €`);
+                    if (!isNaN(value) && value >= 0) {
+                      confirmBulkEdit('cost_rate', value, `${value.toFixed(2)} €/h (recalcula coste total)`);
                     }
                   }
                 }}
@@ -702,12 +724,12 @@ const Solicitudes = () => {
                 size="sm"
                 className="h-8 px-2"
                 onClick={() => {
-                  const input = document.getElementById('bulk-cost-input') as HTMLInputElement;
+                  const input = document.getElementById('bulk-cost-rate-input') as HTMLInputElement;
                   const value = parseFloat(input?.value || '');
                   if (!isNaN(value) && value >= 0) {
-                    confirmBulkEdit('cost_to_agency', value, `${value.toFixed(2)} €`);
+                    confirmBulkEdit('cost_rate', value, `${value.toFixed(2)} €/h (recalcula coste total)`);
                   } else {
-                    toast.error('Introduce un coste válido');
+                    toast.error('Introduce una tarifa válida');
                   }
                 }}
               >

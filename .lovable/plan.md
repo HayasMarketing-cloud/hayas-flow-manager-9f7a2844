@@ -1,179 +1,182 @@
 
-# Plan: Añadir columnas Proyecto, Presupuesto y Contrato a la tabla de Facturas
 
-## Análisis
+# Plan: Asociar Datos de Proyecto/Presupuesto/Contrato a Facturas
 
-Analizando la imagen proporcionada, la tabla de facturas actual muestra:
-- Checkbox de selección
-- Código
-- Cliente
-- Fecha
-- Vencimiento
-- Subtotal
-- IVA
-- Total
-- Estado
-- PDF
-- Acciones
+## Situación Actual
 
-Se solicita añadir tres nuevas columnas: **Proyecto**, **Presupuesto** y **Contrato**.
-
-### Origen de los datos
-
-Las facturas se relacionan indirectamente con proyectos/presupuestos/contratos a través de:
-1. `financial_requests.billed_invoice_id` → apunta a la factura
-2. Cada `financial_request` tiene `budget_id` y `contract_id`
-3. Los proyectos operativos se obtienen vía `operational_requests.financial_request_id`
-
-Una factura puede tener múltiples solicitudes asociadas, por lo que podría tener varios presupuestos, contratos y proyectos.
+Las columnas **Proyecto**, **Presupuesto** y **Contrato** están creadas pero muestran "---" porque:
+1. Las facturas no tienen `financial_requests` vinculadas (`billed_invoice_id`)
+2. El sistema actual solo extrae: código, cliente, fechas e importes del PDF
+3. No se extraen referencias a proyectos, presupuestos o contratos
 
 ---
 
-## Cambios Propuestos
+## Datos Disponibles
 
-### 1. Modificar la query en `src/pages/Facturas.tsx`
+| Fuente | Datos | Uso Potencial |
+|--------|-------|---------------|
+| **PDF de factura** | Líneas de servicio (descripciones) | Matching con nombres de proyectos/presupuestos |
+| **Cliente detectado** | `client_id` | Filtrar contratos/presupuestos/proyectos del cliente |
+| **Base de datos** | Contratos activos por cliente | Sugerir contrato si hay uno único activo |
+| **Base de datos** | Presupuestos aprobados por cliente | Matching por nombre/período |
+| **Base de datos** | Proyectos operativos activos | Matching por nombre de proyecto |
 
-Agregar una subquery o join para obtener los datos relacionados de cada factura.
+---
+
+## Estrategias Propuestas
+
+### Estrategia 1: Vinculación Manual con Sugerencias Inteligentes (Recomendada)
+
+**Descripción:**
+Añadir campos de selección de Contrato/Presupuesto/Proyecto en el modal de importación, con sugerencias automáticas basadas en:
+- Cliente detectado
+- Fechas de la factura
+- Palabras clave en las líneas de factura
+
+**Ventajas:**
+- Control total del usuario
+- Reducción de errores
+- Se puede implementar incrementalmente
+
+**Implementación:**
+1. Añadir 3 selectores opcionales en `ExtractedInvoiceRow`
+2. Pre-filtrar opciones por cliente
+3. Destacar sugerencias más probables
+
+---
+
+### Estrategia 2: Extracción AI Mejorada del PDF
+
+**Descripción:**
+Modificar el prompt de Gemini para que extraiga también:
+- Referencia a proyecto (si aparece en la factura)
+- Código de presupuesto (si aparece)
+- Nombre del contrato/acuerdo
+
+Luego hacer matching fuzzy con los datos existentes.
+
+**Ventajas:**
+- Automatización máxima
+- Funciona si las facturas mencionan el proyecto/contrato
+
+**Desventajas:**
+- Depende de que la información esté en el PDF
+- Más complejo de implementar
+
+---
+
+### Estrategia 3: Vinculación Automática por Reglas de Negocio
+
+**Descripción:**
+Si un cliente tiene un único contrato activo, auto-asignarlo. 
+Si hay un único presupuesto aprobado en el período de la factura, auto-asignarlo.
+
+**Datos observados:**
+| Cliente | Contratos Activos |
+|---------|-------------------|
+| ASENDIA HQ | 1 (HubSpot Requests) |
+| Asendia Spain | 1 (Plan Marketing Digital) |
+| Formato Educativo | 2 (HS Management, Mantenimiento) |
+
+**Ventajas:**
+- Simple de implementar
+- Funciona bien para clientes con un solo contrato
+
+---
+
+## Plan de Implementación Recomendado
+
+Combinar las 3 estrategias en orden de prioridad:
+
+### Fase 1: Vinculación Manual con Pre-filtrado (Inmediata)
+
+**Cambios en `ExtractedInvoiceRow.tsx`:**
+
+1. Añadir 3 nuevos campos editables:
+   - **Contrato** (Select) - Filtrado por `client_id` + estado "active"
+   - **Presupuesto** (Select) - Filtrado por `client_id` + estado "approved"
+   - **Proyecto** (Select) - Filtrado por `client_id` + estado != "completed"
+
+2. Pasar datos adicionales al modal:
+   ```typescript
+   // En InvoiceUploadModal.tsx
+   const { data: contracts } = useQuery({
+     queryKey: ['contracts-active'],
+     queryFn: async () => supabase.from('contracts').select('id, title, code, client_id').eq('status', 'active')
+   });
+   ```
+
+3. Pre-seleccionar si hay único match:
+   - Si cliente tiene 1 contrato activo → auto-seleccionar
+   - Si tiene 1 presupuesto aprobado → sugerirlo
+
+4. Guardar relación al importar:
+   - Almacenar en campos nuevos de `invoices` o crear relación indirecta
+
+### Fase 2: Extracción AI Mejorada (Posterior)
+
+Modificar prompt de `extract-invoice-data`:
 
 ```typescript
-// Antes
-.select(`
-  *,
-  client:clients(id, name, code)
-`)
-
-// Después - añadir datos relacionados
-.select(`
-  *,
-  client:clients(id, name, code),
-  linked_requests:financial_requests!financial_requests_billed_invoice_id_fkey(
-    id,
-    code,
-    budget:budgets(id, code, title),
-    contract:contracts(id, code, title),
-    operational_request:operational_requests(
-      operational_project:operational_projects(id, name)
-    )
-  )
-`)
+{
+  // ... existing fields ...
+  "project_reference": "nombre o código del proyecto si aparece en la factura",
+  "budget_reference": "código de presupuesto si aparece (ej: PRE-2025-XXX)",
+  "contract_reference": "referencia al contrato o acuerdo si aparece"
+}
 ```
 
-### 2. Actualizar `src/components/invoices/InvoiceTableView.tsx`
-
-**Añadir las nuevas columnas en el encabezado:**
-
-| Posición | Nueva Columna |
-|----------|--------------|
-| Después de "Cliente" | Proyecto |
-| Después de "Proyecto" | Presupuesto |
-| Después de "Presupuesto" | Contrato |
-
-**Implementar celdas que extraigan y muestren los datos únicos:**
-
-```tsx
-// Helper para extraer valores únicos de las solicitudes vinculadas
-const getUniqueProjects = (invoice: any) => {
-  if (!invoice.linked_requests) return [];
-  return [...new Set(
-    invoice.linked_requests
-      .flatMap(r => r.operational_request || [])
-      .map(or => or.operational_project)
-      .filter(Boolean)
-  )];
-};
-```
-
-**Reutilizar el componente `OriginCell`** existente o crear celdas similares con:
-- Iconos distintivos (FolderKanban, FileSpreadsheet, ScrollText)
-- Tooltips con nombre completo
-- Enlaces a las páginas de detalle
-- Manejo de múltiples valores (mostrar el primero + badge con "+X")
-
-### 3. Actualizar el colspan del mensaje vacío
-
-Cambiar `colSpan={11}` → `colSpan={14}` para incluir las 3 nuevas columnas.
+Hacer matching fuzzy con base de datos después de la extracción.
 
 ---
 
-## Diseño Visual de las Nuevas Columnas
+## Cambios de Base de Datos Necesarios
 
-```text
-| ... | Cliente    | Proyecto        | Presupuesto  | Contrato       | Fecha | ...
-|-----|------------|-----------------|--------------|----------------|-------|
-|     | ASENDIA HQ | 📁 Localización | 📄 PRE-2025-001 | 📜 CTR-2025-001 | 01/12 |
-|     | CLIENTE X  | ---             | 📄 PRE-2025-002 | ---            | 05/12 |
-|     | CLIENTE Y  | 📁 Proyecto +2  | ---          | 📜 Retainer    | 08/12 |
+**Opción A: Añadir campos directos a `invoices`**
+```sql
+ALTER TABLE invoices 
+ADD COLUMN contract_id uuid REFERENCES contracts(id),
+ADD COLUMN budget_id uuid REFERENCES budgets(id),
+ADD COLUMN operational_project_id uuid REFERENCES operational_projects(id);
 ```
 
-### Comportamiento esperado:
-- **Sin datos**: Mostrar "---" en gris
-- **Un valor**: Mostrar icono + nombre truncado (tooltip completo)
-- **Múltiples valores**: Mostrar primero + badge "+N" con tooltip listando todos
+**Opción B: Mantener relación indirecta (actual)**
+Las facturas se vinculan a través de `financial_requests.billed_invoice_id`, manteniendo el modelo actual donde las facturas agrupan solicitudes.
+
+**Recomendación:** Opción B para mantener consistencia. La vinculación se haría:
+1. Usuario selecciona contrato/presupuesto al importar
+2. Sistema crea/vincula `financial_requests` correspondientes
+3. Columnas de la tabla se llenan automáticamente
 
 ---
 
-## Archivos a Modificar
+## Resumen de Archivos a Modificar
 
 | Archivo | Cambios |
 |---------|---------|
-| `src/pages/Facturas.tsx` | Expandir select query para incluir datos relacionados |
-| `src/components/invoices/InvoiceTableView.tsx` | Añadir 3 columnas con celdas que muestren proyectos, presupuestos y contratos |
+| `src/components/invoices/InvoiceUploadModal.tsx` | Añadir queries de contratos, presupuestos, proyectos |
+| `src/components/invoices/ExtractedInvoiceRow.tsx` | Añadir 3 selectores con pre-filtrado por cliente |
+| `supabase/functions/extract-invoice-data/index.ts` | (Fase 2) Mejorar prompt para extraer referencias |
 
 ---
 
-## Detalles Técnicos
+## Vista Previa del Flujo
 
-### Query actualizada
-
-```typescript
-const { data: invoices, isLoading } = useQuery({
-  queryKey: ['invoices', filters, needsFiltering, assignedClientIds, isOverdueFilter],
-  queryFn: async () => {
-    // ... existing filter logic ...
-    
-    let query = supabase
-      .from('invoices')
-      .select(`
-        *,
-        client:clients(id, name, code),
-        linked_requests:financial_requests!billed_invoice_id(
-          id,
-          budget:budgets(id, code, title),
-          contract:contracts(id, code, title),
-          operational_request:operational_requests(
-            operational_project:operational_projects(id, name)
-          )
-        )
-      `)
-      .order('due_date', { ascending: true, nullsFirst: false });
-    // ... rest of query logic ...
-  }
-});
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  Importar Facturas - Revisar Datos Extraídos                    │
+├─────────────────────────────────────────────────────────────────┤
+│ Código  │ Cliente         │ Contrato      │ Presupuesto │ Fecha │
+├─────────────────────────────────────────────────────────────────┤
+│ 2026/8  │ ▼ ASENDIA HQ    │ ▼ HubSpot Req │ ▼ (ninguno) │ 08/01 │
+│         │                 │   ✓ sugerido  │             │       │
+├─────────────────────────────────────────────────────────────────┤
+│ 2026/9  │ ▼ CONNECTIF     │ ▼ (ninguno)   │ ▼ PRE-2026..│ 23/01 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Componentes de celdas
+**Comportamiento:**
+- Si el cliente tiene 1 contrato activo → se pre-selecciona con badge "sugerido"
+- Si hay múltiples → dropdown vacío, usuario elige
+- Si no hay ninguno → se muestra "---"
 
-Para las celdas de Proyecto, Presupuesto y Contrato, se creará un helper que:
-1. Extrae valores únicos de `linked_requests`
-2. Muestra el primero con icono y tooltip
-3. Si hay más de uno, añade un badge "+N"
-
-```tsx
-// Ejemplo de celda para Proyecto
-<TableCell>
-  <InvoiceOriginBadge
-    items={getUniqueProjects(invoice)}
-    type="project"
-    icon={<FolderKanban className="h-3.5 w-3.5" />}
-    basePath="/operaciones/proyectos"
-  />
-</TableCell>
-```
-
----
-
-## Compatibilidad
-
-- Los datos actuales no tienen solicitudes vinculadas a facturas, pero la infraestructura está preparada
-- Las columnas mostrarán "---" hasta que se vinculen solicitudes a facturas
-- No hay cambios de base de datos requeridos - solo lectura de relaciones existentes

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { ServiceFormModal, SERVICE_CATEGORIES } from "@/components/modals/ServiceFormModal";
+import { ServiceFormModal, SERVICE_CATEGORIES, ServiceWithTemplate } from "@/components/modals/ServiceFormModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,14 +19,9 @@ import {
 } from "@/components/ui/select";
 import { Plus, Search, Pencil, Package } from "lucide-react";
 
-interface Service {
-  id: string;
-  name: string;
-  description: string | null;
-  category: string | null;
-  active: boolean;
+type Service = ServiceWithTemplate & {
   created_at: string;
-}
+};
 
 const categoryColors: Record<string, string> = {
   'Branding & Creatividad': 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300',
@@ -60,7 +55,7 @@ export default function Servicios() {
         .order("name");
 
       if (error) throw error;
-      return data as Service[];
+      return data as unknown as Service[];
     },
   });
 

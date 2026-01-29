@@ -651,10 +651,17 @@ const buildHierarchicalTableData = (items: any[]): any[][] => {
 
     // Project/Budget groups within client
     clientGroup.projectBudgets.forEach((projectGroup) => {
-      // Project/Budget header row - use ASCII prefixes instead of Unicode icons
-      const prefix = projectGroup.type === 'project' ? '> ' : projectGroup.type === 'budget' ? '* ' : '- ';
+      // Project/Budget header row - use text labels instead of symbols for better PDF compatibility
+      let displayName = projectGroup.name;
+      if (projectGroup.type === 'project') {
+        displayName = `[Proy.] ${projectGroup.name}`;
+      } else if (projectGroup.type === 'budget') {
+        displayName = `[Presup.] ${projectGroup.name}`;
+      }
+      // For "Sin proyecto/presupuesto" keep the name as-is
+      
       tableData.push([
-        { content: `   ${prefix}${projectGroup.name}`, styles: { fontStyle: 'normal', fillColor: [245, 245, 245], textColor: [80, 80, 80], fontSize: 8 } },
+        { content: `    ${displayName}`, styles: { fontStyle: projectGroup.type !== 'none' ? 'italic' : 'normal', fillColor: [245, 245, 245], textColor: [80, 80, 80], fontSize: 8 } },
         { content: '', styles: { fillColor: [245, 245, 245] } },
         { content: '', styles: { fillColor: [245, 245, 245] } },
         { content: formatCurrency(projectGroup.subtotal), styles: { fillColor: [245, 245, 245], halign: 'right', textColor: [100, 100, 100], fontSize: 8 } },

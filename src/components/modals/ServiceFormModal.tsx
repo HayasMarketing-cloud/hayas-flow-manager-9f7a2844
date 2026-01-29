@@ -31,6 +31,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ServiceTemplateEditor } from "@/components/services/ServiceTemplateEditor";
 
 export const SERVICE_CATEGORIES = [
   'Branding & Creatividad',
@@ -54,24 +56,33 @@ const serviceSchema = z.object({
 
 type ServiceFormData = z.infer<typeof serviceSchema>;
 
-interface Service {
+export interface TemplateStructure {
+  milestones: Array<{
+    name: string;
+    tasks: string[];
+  }>;
+}
+
+export interface ServiceWithTemplate {
   id: string;
   name: string;
   description: string | null;
   category: string | null;
   active: boolean;
+  template_structure?: TemplateStructure | null;
 }
 
 interface ServiceFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  service?: Service | null;
+  service?: ServiceWithTemplate | null;
 }
 
 export function ServiceFormModal({ open, onOpenChange, service }: ServiceFormModalProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const isEditing = !!service;
+  const [templateStructure, setTemplateStructure] = useState<TemplateStructure | null>(null);
 
   const form = useForm<ServiceFormData>({
     resolver: zodResolver(serviceSchema),
@@ -91,6 +102,7 @@ export function ServiceFormModal({ open, onOpenChange, service }: ServiceFormMod
         category: service.category || "",
         active: service.active,
       });
+      setTemplateStructure(service.template_structure || null);
     } else {
       form.reset({
         name: "",
@@ -98,6 +110,7 @@ export function ServiceFormModal({ open, onOpenChange, service }: ServiceFormMod
         category: "",
         active: true,
       });
+      setTemplateStructure(null);
     }
   }, [service, form]);
 
@@ -113,6 +126,7 @@ export function ServiceFormModal({ open, onOpenChange, service }: ServiceFormMod
             description: data.description || null,
             category: data.category,
             active: data.active,
+            template_structure: templateStructure as any,
           })
           .eq("id", service.id);
 
@@ -125,6 +139,7 @@ export function ServiceFormModal({ open, onOpenChange, service }: ServiceFormMod
             description: data.description || null,
             category: data.category,
             active: data.active,
+            template_structure: templateStructure as any,
             created_by: user.id,
           });
 
@@ -141,6 +156,7 @@ export function ServiceFormModal({ open, onOpenChange, service }: ServiceFormMod
       });
       onOpenChange(false);
       form.reset();
+      setTemplateStructure(null);
     },
     onError: (error) => {
       console.error("Error saving service:", error);
@@ -158,7 +174,7 @@ export function ServiceFormModal({ open, onOpenChange, service }: ServiceFormMod
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? "Editar Servicio" : "Nuevo Servicio"}
@@ -167,86 +183,108 @@ export function ServiceFormModal({ open, onOpenChange, service }: ServiceFormMod
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nombre *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Nombre del servicio" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <Tabs defaultValue="general" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="general">General</TabsTrigger>
+                <TabsTrigger value="plantilla">Plantilla Operativa</TabsTrigger>
+              </TabsList>
 
-            <FormField
-              control={form.control}
-              name="category"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Categoría *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar categoría" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {SERVICE_CATEGORIES.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <TabsContent value="general" className="space-y-4 mt-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nombre *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Nombre del servicio" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Descripción</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Descripción del servicio (opcional)"
-                      className="resize-none"
-                      rows={3}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                <FormField
+                  control={form.control}
+                  name="category"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Categoría *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar categoría" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {SERVICE_CATEGORIES.map((category) => (
+                            <SelectItem key={category} value={category}>
+                              {category}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="active"
-              render={({ field }) => (
-                <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                  <div className="space-y-0.5">
-                    <FormLabel>Activo</FormLabel>
-                    <p className="text-sm text-muted-foreground">
-                      Los servicios inactivos no aparecen en los selectores
-                    </p>
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Descripción</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Descripción del servicio (opcional)"
+                          className="resize-none"
+                          rows={3}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="active"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                      <div className="space-y-0.5">
+                        <FormLabel>Activo</FormLabel>
+                        <p className="text-sm text-muted-foreground">
+                          Los servicios inactivos no aparecen en los selectores
+                        </p>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+
+              <TabsContent value="plantilla" className="mt-4">
+                <div className="space-y-4">
+                  <div className="text-sm text-muted-foreground">
+                    Define una plantilla de milestones y tareas que se clonarán automáticamente al crear proyectos con este servicio.
                   </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+                  <ServiceTemplateEditor
+                    value={templateStructure}
+                    onChange={setTemplateStructure}
+                    disabled={false}
+                  />
+                </div>
+              </TabsContent>
+            </Tabs>
 
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex justify-end gap-2 pt-4 border-t">
               <Button
                 type="button"
                 variant="outline"

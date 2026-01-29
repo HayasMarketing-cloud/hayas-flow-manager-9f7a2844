@@ -29,6 +29,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogD
 import { useApproveBudget } from '@/hooks/useApproveBudget';
 import { useCreateProjectWithActivities } from '@/hooks/useCreateProjectWithActivities';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { BudgetContextTab } from '@/components/budgets/BudgetContextTab';
 
 export default function PresupuestoDetalle() {
   const { id } = useParams<{ id: string }>();
@@ -886,8 +887,9 @@ export default function PresupuestoDetalle() {
         </div>
 
         <Tabs defaultValue="resumen" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="resumen">Resumen</TabsTrigger>
+            <TabsTrigger value="contexto">Contexto</TabsTrigger>
             <TabsTrigger value="economico">Detalle Económico</TabsTrigger>
           </TabsList>
 
@@ -1290,6 +1292,14 @@ export default function PresupuestoDetalle() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="contexto" className="space-y-6">
+            <BudgetContextTab
+              budgetId={budget.id}
+              proposalContext={budget.proposal_context as any}
+              userId={user?.id}
+            />
           </TabsContent>
 
           <TabsContent value="economico" className="space-y-6">

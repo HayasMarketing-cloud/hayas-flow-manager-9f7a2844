@@ -129,6 +129,7 @@ export type Database = {
           description: string | null
           id: string
           pm_user_id: string | null
+          proposal_context: Json | null
           status: string
           title: string
           total_amount: number | null
@@ -147,6 +148,7 @@ export type Database = {
           description?: string | null
           id?: string
           pm_user_id?: string | null
+          proposal_context?: Json | null
           status?: string
           title: string
           total_amount?: number | null
@@ -165,6 +167,7 @@ export type Database = {
           description?: string | null
           id?: string
           pm_user_id?: string | null
+          proposal_context?: Json | null
           status?: string
           title?: string
           total_amount?: number | null
@@ -1385,6 +1388,7 @@ export type Database = {
           duration_minutes: number | null
           id: string
           name: string
+          template_structure: Json | null
           updated_at: string
         }
         Insert: {
@@ -1396,6 +1400,7 @@ export type Database = {
           duration_minutes?: number | null
           id?: string
           name: string
+          template_structure?: Json | null
           updated_at?: string
         }
         Update: {
@@ -1407,6 +1412,7 @@ export type Database = {
           duration_minutes?: number | null
           id?: string
           name?: string
+          template_structure?: Json | null
           updated_at?: string
         }
         Relationships: []

@@ -67,7 +67,15 @@ export default function Facturas() {
         .from('invoices')
         .select(`
           *,
-          client:clients(id, name, code)
+          client:clients(id, name, code),
+          linked_requests:financial_requests!billed_invoice_id(
+            id,
+            budget:budgets(id, code, title),
+            contract:contracts(id, code, title),
+            operational_request:operational_requests(
+              operational_project:operational_projects(id, name)
+            )
+          )
         `)
         .order('due_date', { ascending: true, nullsFirst: false });
 

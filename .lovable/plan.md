@@ -1,149 +1,162 @@
 
+# Plan: Asociar Facturas de Ingresos con Proyectos para Controlling Financiero
 
-# Plan: Corregir Verificación de Importes en Factura de Especialista
+## Situación Actual
 
-## Problema Detectado
+### Datos que tenemos:
+1. **Facturas importadas**: ~60+ facturas con PDF, cliente y montos, pero sin líneas de detalle (`invoice_items`) ni `financial_requests` vinculados
+2. **Financial Requests**: Registros con información completa de proyecto, presupuesto, contrato, importe de venta (`sale_amount`), cliente, etc.
+3. **Proyectos operativos**: Vinculados a requests via `operational_requests`
 
-La liquidación de Iolanda (LIQ-2026-008) muestra un error de verificación cuando sube su factura:
-- **Factura subida:** 2.360,75 € (CORRECTO)
-- **Subtotal en BD:** 2.395,75 € (INCORRECTO)
-- **Suma real de items:** 2.360,75 € (CORRECTO)
-
-La factura de Iolanda es correcta. El problema es que el campo `subtotal` en la tabla `liquidations` no se actualizó correctamente cuando se añadieron/eliminaron items individualmente.
-
-## Causa Raíz
-
-Cuando se añade o elimina una solicitud individual desde el detalle de la liquidación:
-- Se actualiza `total_amount`
-- **NO se actualiza `subtotal`**
-
-Esto causa una desincronización entre el campo `subtotal` y la suma real de los items.
-
-## Solución
-
-### Enfoque: Doble corrección
-
-1. **Corregir el Edge Function** para que calcule el subtotal desde los items reales (solución robusta)
-2. **Corregir el código frontend** para que actualice `subtotal` al añadir/eliminar items (prevención)
+### Problema:
+- La asociación factura-proyecto depende de `financial_requests.billed_invoice_id`
+- Las facturas importadas por IA no capturaron esta relación
+- Sin esta vinculación, no es posible hacer controlling por proyecto/cliente
 
 ---
 
-## Cambio 1: Edge Function `upload-specialist-invoice`
+## Solución Propuesta: Herramienta de Reconciliación Manual Asistida
 
-**Archivo:** `supabase/functions/upload-specialist-invoice/index.ts`
+Crear una interfaz donde el usuario pueda asociar las facturas importadas con los requests correspondientes de forma manual pero asistida con sugerencias inteligentes.
 
-Calcular el subtotal desde los `liquidation_items` en lugar de confiar en el campo `subtotal` de la liquidación:
+### Enfoque en 3 Fases:
 
-```typescript
-// Después de obtener la liquidación, calcular subtotal real desde items
-const { data: items, error: itemsError } = await supabase
-  .from('liquidation_items')
-  .select('total')
-  .eq('liquidation_id', liquidationId);
+---
 
-if (itemsError) throw itemsError;
+## Fase 1: Pantalla de Reconciliación de Facturas
 
-// El subtotal real es la suma de todos los items
-const liquidationSubtotal = items?.reduce((sum, item) => sum + Number(item.total), 0) || 0;
+**Nueva página**: `/facturas/reconciliar` o modal desde lista de facturas
+
+### Componentes:
+1. **Lista de facturas sin asociar**: Facturas donde `linked_requests_count = 0`
+2. **Para cada factura mostrar**:
+   - Código, cliente, fecha, subtotal/total
+   - Requests disponibles del mismo cliente (status: completed, sin billed_invoice_id)
+   - Checkbox para seleccionar qué requests asociar
+
+### Lógica de sugerencias automáticas:
+- Filtrar requests por mismo cliente
+- Ordenar por fecha cercana a la factura
+- Si la suma de `sale_amount` de requests coincide (±5%) con el subtotal de la factura: marcar como "sugerencia"
+- Agrupar requests por proyecto/presupuesto para facilitar selección
+
+---
+
+## Fase 2: Modificaciones al Modelo de Datos
+
+### Opción A: Vincular requests existentes (Recomendada)
+Actualizar `financial_requests.billed_invoice_id` con el ID de la factura correspondiente.
+
+**Ventajas**:
+- Usa la estructura existente
+- La tabla de facturas ya muestra correctamente proyectos/presupuestos/contratos
+- Compatible con el flujo normal de facturación
+
+### Flujo:
+```sql
+UPDATE financial_requests 
+SET billed_invoice_id = 'factura-uuid'
+WHERE id IN ('request-1', 'request-2', ...);
 ```
 
 ---
 
-## Cambio 2: Función `addSingleRequest` en LiquidacionDetalle.tsx
+## Fase 3: Reporting por Proyecto/Cliente
 
-**Archivo:** `src/pages/LiquidacionDetalle.tsx` (líneas 81-96)
+Una vez reconciliadas las facturas, el sistema ya tiene toda la información para:
 
-```typescript
-// Antes
-const { data: liquidation, error: fetchError } = await supabase
-  .from('liquidations')
-  .select('total_amount')
-  ...
-const newTotal = (Number(liquidation.total_amount) || 0) + cost;
-const { error: updateError } = await supabase
-  .from('liquidations')
-  .update({ total_amount: newTotal })
-  ...
+1. **P&L por Proyecto**: 
+   - Ingresos: SUM(sale_amount) de requests vinculados a factura
+   - Costes: SUM(cost_to_agency) de los mismos requests
+   - Margen: Ingresos - Costes
 
-// Después - incluir subtotal y recálculo de impuestos
-const { data: liquidation, error: fetchError } = await supabase
-  .from('liquidations')
-  .select('subtotal, tax_rate')
-  ...
-const newSubtotal = (Number(liquidation.subtotal) || 0) + cost;
-const taxRate = liquidation.tax_rate || 0;
-const newTaxAmount = (newSubtotal * taxRate) / 100;
-const newTotal = newSubtotal + newTaxAmount;
+2. **P&L por Cliente**: Agrupar proyectos por cliente
 
-const { error: updateError } = await supabase
-  .from('liquidations')
-  .update({ 
-    subtotal: newSubtotal,
-    tax_amount: newTaxAmount,
-    total_amount: newTotal 
-  })
-  ...
-```
+3. **P&L Mensual**: Filtrar por `invoice_date` o período de los requests
 
 ---
 
-## Cambio 3: Función `removeItemMutation` en LiquidacionDetalle.tsx
+## Cambios Técnicos
 
-**Archivo:** `src/pages/LiquidacionDetalle.tsx` (líneas 409-416)
+### Nuevos Componentes:
 
-```typescript
-// Antes
-const newTotal = (liquidation?.calculated_total || 0) - (Number(item.total) || 0);
-const { error: liquidationError } = await supabase
-  .from('liquidations')
-  .update({ total_amount: Math.max(0, newTotal) })
-  ...
+| Archivo | Descripción |
+|---------|-------------|
+| `src/pages/FacturasReconciliar.tsx` | Página principal de reconciliación |
+| `src/components/invoices/ReconciliationTable.tsx` | Tabla de facturas pendientes de asociar |
+| `src/components/invoices/RequestSelector.tsx` | Selector de requests para asociar a factura |
+| `src/hooks/useUnassignedInvoices.tsx` | Hook para obtener facturas sin requests vinculados |
+| `src/hooks/useAvailableRequests.tsx` | Hook para obtener requests sin facturar por cliente |
 
-// Después - recalcular subtotal, impuestos y total
-const currentSubtotal = Number(liquidation?.subtotal) || 0;
-const taxRate = liquidation?.tax_rate || 0;
-const newSubtotal = Math.max(0, currentSubtotal - (Number(item.total) || 0));
-const newTaxAmount = (newSubtotal * taxRate) / 100;
-const newTotal = newSubtotal + newTaxAmount;
-
-const { error: liquidationError } = await supabase
-  .from('liquidations')
-  .update({ 
-    subtotal: newSubtotal,
-    tax_amount: newTaxAmount,
-    total_amount: newTotal 
-  })
-  ...
-```
-
----
-
-## Archivos a Modificar
+### Modificaciones:
 
 | Archivo | Cambio |
 |---------|--------|
-| `supabase/functions/upload-specialist-invoice/index.ts` | Calcular subtotal desde items reales |
-| `src/pages/LiquidacionDetalle.tsx` | Actualizar subtotal en addSingleRequest y removeItemMutation |
+| `src/App.tsx` | Nueva ruta `/facturas/reconciliar` |
+| `src/pages/Facturas.tsx` | Botón "Reconciliar facturas" en toolbar |
 
 ---
 
-## Corrección de Datos Existentes
+## Flujo de Usuario
 
-Para arreglar la liquidación de Iolanda (datos ya incorrectos), se debe ejecutar manualmente:
-
-```sql
-UPDATE liquidations 
-SET subtotal = 2360.75,
-    tax_amount = (2360.75 * tax_rate / 100),
-    total_amount = 2360.75 + (2360.75 * tax_rate / 100)
-WHERE id = '89222442-2e8c-4541-ae81-4d9058080965';
+```text
++------------------+     +----------------------+     +-------------------+
+| Lista Facturas   | --> | Reconciliar Facturas | --> | Factura Asociada  |
+| (ver sin asociar)|     | (seleccionar requests)|     | (ver proyectos)   |
++------------------+     +----------------------+     +-------------------+
+                                   |
+                                   v
+                         +--------------------+
+                         | Sugerencias        |
+                         | automáticas por:   |
+                         | - Cliente          |
+                         | - Importe similar  |
+                         | - Fecha cercana    |
+                         +--------------------+
 ```
 
 ---
 
-## Resultado Esperado
+## Estructura Visual de la Página de Reconciliación
 
-1. Al subir la factura (2.360,75 €), el sistema comparará con la suma real de items (2.360,75 €)
-2. Los importes coincidirán y se mostrará "Importes verificados" en lugar de "Discrepancia de importes"
-3. Futuras operaciones de añadir/eliminar items mantendrán los totales sincronizados
+```text
++------------------------------------------------------------------------+
+| Reconciliar Facturas                                      [X facturas] |
++------------------------------------------------------------------------+
+| Factura: 2026/8  | Cliente: ASENDIA HQ  | Subtotal: 1.403,62€          |
++------------------------------------------------------------------------+
+| Requests disponibles del cliente:                                      |
+| +--------------------------------------------------------------------+ |
+| | □ REQ-2026-103 | Proyecto SendNow    | PRE-2026-004 | 140€         | |
+| | □ REQ-2026-104 | Proyecto SendNow    | PRE-2026-004 | 140€         | |
+| | □ REQ-2026-097 | Switzerland...      | PRE-2025-201 | 210€         | |
+| | ☑ REQ-2026-100 | Switzerland...      | PRE-2025-201 | 490€         | |
+| | ☑ REQ-2026-105 | Newsletter Q4 USA   | CON-2025-001 | 913€         | |
+| +--------------------------------------------------------------------+ |
+| Suma seleccionada: 1.403,00€  [Diferencia: 0,62€]     [Asociar]        |
++------------------------------------------------------------------------+
+```
 
+---
+
+## Beneficios
+
+1. **Control financiero completo**: Cada € facturado queda trazado a un proyecto
+2. **P&L real**: Margen por proyecto = Ingresos facturados - Costes (liquidaciones)
+3. **Histórico reconciliado**: Las facturas antiguas quedan igualmente asociadas
+4. **Datos ya disponibles**: No requiere nuevas tablas, solo vincular registros existentes
+
+---
+
+## Archivos a Crear/Modificar
+
+### Nuevos archivos:
+- `src/pages/FacturasReconciliar.tsx`
+- `src/components/invoices/ReconciliationRow.tsx`
+- `src/components/invoices/RequestCheckboxList.tsx`
+- `src/hooks/useUnassignedInvoices.tsx`
+- `src/hooks/useAvailableRequestsForReconciliation.tsx`
+
+### Archivos a modificar:
+- `src/App.tsx` (nueva ruta)
+- `src/pages/Facturas.tsx` (botón de acceso)

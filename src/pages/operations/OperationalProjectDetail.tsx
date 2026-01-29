@@ -18,6 +18,8 @@ import { OperationalRequestFormModal } from '@/components/operations/Operational
 import { MilestoneRow } from '@/components/operations/MilestoneRow';
 import { toast } from 'sonner';
 import GoogleDriveIcon from '@/assets/icons8-google-drive.svg';
+import { useProjectPnL } from '@/hooks/useEntityPnL';
+import { FinancialControllingCard } from '@/components/shared/FinancialControllingCard';
 
 const statusColors = {
   pending: 'bg-yellow-500',
@@ -50,6 +52,7 @@ export default function OperationalProjectDetail() {
   const [filterService, setFilterService] = useState<string>('all');
 
   const { data: project, isLoading } = useOperationalProject(id || null);
+  const { data: pnl, isLoading: loadingPnL } = useProjectPnL(id || '');
 
   // Fetch specialists list
   const { data: specialists = [] } = useQuery({
@@ -358,6 +361,13 @@ export default function OperationalProjectDetail() {
             )}
           </CardContent>
         </Card>
+
+        {/* Financial Controlling Card */}
+        <FinancialControllingCard 
+          data={pnl}
+          isLoading={loadingPnL}
+          title="Controlling Financiero del Proyecto"
+        />
 
         {/* Milestones y Tareas - Unified Section */}
         <Card>

@@ -7,12 +7,14 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Download, FileBarChart, TrendingUp, Users, DollarSign, Receipt, Wallet } from 'lucide-react';
+import { Download, FileBarChart, TrendingUp, Users, DollarSign, Receipt, Wallet, FolderKanban } from 'lucide-react';
 import { toast } from 'sonner';
 import { downloadExcel, formatCurrency } from '@/utils/excel/excelExporter';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useConsolidatedPnL } from '@/hooks/useEntityPnL';
+import { Badge } from '@/components/ui/badge';
 
-type ReportType = 'revenue_vs_costs' | 'margin_by_client' | 'liquidations_by_specialist' | 'requests_summary';
+type ReportType = 'revenue_vs_costs' | 'margin_by_client' | 'liquidations_by_specialist' | 'requests_summary' | 'pnl_by_project';
 
 export default function Reportes() {
   const [selectedReport, setSelectedReport] = useState<ReportType>('revenue_vs_costs');
@@ -203,6 +205,50 @@ export default function Reportes() {
   });
 
   const handleExportReport = () => {
+    // For P&L by project, use consolidated data
+    if (selectedReport === 'pnl_by_project') {
+      if (!consolidatedPnL || consolidatedPnL.items.length === 0) {
+        toast.error('No hay datos para exportar');
+        return;
+      }
+
+      const data: any[][] = [
+        ['Reporte P&L por Proyecto', '', '', '', '', new Date().toLocaleDateString('es-ES')],
+        [],
+        ['Cliente', 'Tipo', 'Nombre', 'Ingr. Facturado', 'Costes Liq.', 'Margen', '%'],
+      ];
+
+      consolidatedPnL.items.forEach((item) => {
+        const marginPercent = item.pnl.invoicedRevenue > 0 
+          ? (item.pnl.realMargin / item.pnl.invoicedRevenue) * 100 
+          : 0;
+        data.push([
+          item.clientName,
+          item.type === 'project' ? 'Proyecto' : 'Presupuesto',
+          item.name,
+          formatCurrency(item.pnl.invoicedRevenue),
+          formatCurrency(item.pnl.liquidatedCosts),
+          formatCurrency(item.pnl.realMargin),
+          `${marginPercent.toFixed(1)}%`,
+        ]);
+      });
+
+      data.push([]);
+      data.push([
+        'TOTAL', 
+        '', 
+        '', 
+        formatCurrency(consolidatedPnL.totals.invoicedRevenue),
+        formatCurrency(consolidatedPnL.totals.liquidatedCosts),
+        formatCurrency(consolidatedPnL.totals.realMargin),
+        `${consolidatedPnL.totals.realMarginPercent.toFixed(1)}%`,
+      ]);
+
+      downloadExcel(data, `reporte_pnl_proyectos_${new Date().getFullYear()}`);
+      toast.success('Reporte exportado a Excel');
+      return;
+    }
+
     if (!reportData) {
       toast.error('No hay datos para exportar');
       return;
@@ -352,6 +398,9 @@ export default function Reportes() {
     toast.success('Reporte exportado a Excel');
   };
 
+  // Consolidated P&L query
+  const { data: consolidatedPnL, isLoading: loadingPnL } = useConsolidatedPnL();
+
   const reports = [
     {
       id: 'revenue_vs_costs' as ReportType,
@@ -376,6 +425,12 @@ export default function Reportes() {
       title: 'Resumen de Solicitudes',
       description: 'Estado y rentabilidad de solicitudes',
       icon: FileBarChart,
+    },
+    {
+      id: 'pnl_by_project' as ReportType,
+      title: 'P&L por Proyecto',
+      description: 'Cuenta de resultados por proyecto y presupuesto',
+      icon: FolderKanban,
     },
   ];
 
@@ -489,7 +544,85 @@ export default function Reportes() {
               </div>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
+              {selectedReport === 'pnl_by_project' ? (
+                loadingPnL ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                ) : consolidatedPnL && consolidatedPnL.items.length > 0 ? (
+                  <div className="space-y-4">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Cliente</TableHead>
+                          <TableHead>Proyecto / Presupuesto</TableHead>
+                          <TableHead className="text-right">Ingr. Facturado</TableHead>
+                          <TableHead className="text-right">Costes Liq.</TableHead>
+                          <TableHead className="text-right">Margen</TableHead>
+                          <TableHead className="text-right">%</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {consolidatedPnL.items.map((item) => {
+                          const marginPercent = item.pnl.invoicedRevenue > 0 
+                            ? (item.pnl.realMargin / item.pnl.invoicedRevenue) * 100 
+                            : 0;
+                          return (
+                            <TableRow key={`${item.type}-${item.id}`}>
+                              <TableCell className="font-medium">{item.clientName}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-xs">
+                                    {item.type === 'project' ? 'Proyecto' : 'Presupuesto'}
+                                  </Badge>
+                                  {item.name}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right text-green-600 font-medium">
+                                {formatCurrency(item.pnl.invoicedRevenue)}
+                              </TableCell>
+                              <TableCell className="text-right text-red-600 font-medium">
+                                {formatCurrency(item.pnl.liquidatedCosts)}
+                              </TableCell>
+                              <TableCell className={`text-right font-bold ${item.pnl.realMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {formatCurrency(item.pnl.realMargin)}
+                              </TableCell>
+                              <TableCell className={`text-right ${marginPercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {marginPercent.toFixed(1)}%
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                        {/* Totals Row */}
+                        <TableRow className="bg-muted/50 font-bold">
+                          <TableCell colSpan={2}>TOTAL</TableCell>
+                          <TableCell className="text-right text-green-600">
+                            {formatCurrency(consolidatedPnL.totals.invoicedRevenue)}
+                          </TableCell>
+                          <TableCell className="text-right text-red-600">
+                            {formatCurrency(consolidatedPnL.totals.liquidatedCosts)}
+                          </TableCell>
+                          <TableCell className={`text-right ${consolidatedPnL.totals.realMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatCurrency(consolidatedPnL.totals.realMargin)}
+                          </TableCell>
+                          <TableCell className={`text-right ${consolidatedPnL.totals.realMarginPercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {consolidatedPnL.totals.realMarginPercent.toFixed(1)}%
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                    <p className="text-xs text-muted-foreground">
+                      {consolidatedPnL.items.length} proyectos/presupuestos | {consolidatedPnL.totals.totalRequests} requests totales
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-6">
+                    No hay proyectos o presupuestos con datos financieros
+                  </p>
+                )
+              ) : isLoading ? (
                 <p className="text-muted-foreground">Cargando datos del reporte...</p>
               ) : (
                 <p className="text-sm text-muted-foreground">

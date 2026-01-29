@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, Trash2, CloudOff, Cloud, FileDown, Users, FileSignature, ExternalLink, FolderKanban, ListChecks } from 'lucide-react';
+import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, Trash2, CloudOff, Cloud, FileDown, Users, FileSignature, ExternalLink, FolderKanban, ListChecks, PiggyBank } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { generateBudgetPDF } from '@/utils/pdf/budgetPDFGenerator';
 import { useBudgetDetail } from '@/hooks/useBudgetDetail';
@@ -30,6 +30,8 @@ import { useApproveBudget } from '@/hooks/useApproveBudget';
 import { useCreateProjectWithActivities } from '@/hooks/useCreateProjectWithActivities';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { BudgetContextTab } from '@/components/budgets/BudgetContextTab';
+import { useBudgetPnL } from '@/hooks/useEntityPnL';
+import { FinancialControllingCard } from '@/components/shared/FinancialControllingCard';
 
 export default function PresupuestoDetalle() {
   const { id } = useParams<{ id: string }>();
@@ -37,6 +39,7 @@ export default function PresupuestoDetalle() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data, isLoading } = useBudgetDetail(id);
+  const { data: pnl, isLoading: loadingPnL } = useBudgetPnL(id || '');
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [isEditingDocUrl, setIsEditingDocUrl] = useState(false);
   const [docUrlInput, setDocUrlInput] = useState('');
@@ -887,11 +890,23 @@ export default function PresupuestoDetalle() {
         </div>
 
         <Tabs defaultValue="resumen" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="resumen">Resumen</TabsTrigger>
+            <TabsTrigger value="controlling" className="flex items-center gap-1">
+              <PiggyBank className="h-4 w-4" />
+              Controlling
+            </TabsTrigger>
             <TabsTrigger value="contexto">Contexto</TabsTrigger>
             <TabsTrigger value="economico">Detalle Económico</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="controlling" className="space-y-6">
+            <FinancialControllingCard 
+              data={pnl}
+              isLoading={loadingPnL}
+              title="Controlling Financiero del Presupuesto"
+            />
+          </TabsContent>
 
           <TabsContent value="resumen" className="space-y-6">
             <Card>

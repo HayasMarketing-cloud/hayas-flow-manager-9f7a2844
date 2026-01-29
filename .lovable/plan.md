@@ -175,10 +175,11 @@ Añadir campo `invoice_ids` a la tabla `sales_commissions`
 
 ## Resumen de Cambios
 
-| Archivo | Tipo | Descripción |
-|---------|------|-------------|
-| Migración SQL | Nuevo | Crear tabla `sales_commissions` con campo `invoice_ids` |
-| `CommissionFormModal.tsx` | Modificar | Añadir selector de facturas e importe editable |
-| `Comisiones.tsx` | Modificar | Mostrar facturas vinculadas y filtro por tipo |
-| `useEntityPnL.tsx` | Modificar | Sumar comisiones al P&L del proyecto |
+| Archivo | Tipo | Descripción | Estado |
+|---------|------|-------------|--------|
+| Migración SQL | Nuevo | Crear tabla `sales_commissions` con campo `invoice_ids` | ✅ Completado |
+| `CommissionFormModal.tsx` | Modificar | Añadir selector de facturas e importe editable | ✅ Completado |
+| `Comisiones.tsx` | Modificar | Mostrar facturas vinculadas y filtro por tipo | ✅ Completado |
+| `CommissionTableView.tsx` | Modificar | Mostrar tipo de comisión y facturas | ✅ Completado |
+| `useEntityPnL.tsx` | Modificar | Sumar comisiones al P&L del proyecto | ⏳ Pendiente |
 

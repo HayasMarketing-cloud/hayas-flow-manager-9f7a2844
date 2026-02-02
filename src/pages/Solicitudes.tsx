@@ -69,6 +69,7 @@ const Solicitudes = () => {
           contract:contracts(id, title, code),
           invoice:invoices(id, code, status),
           liquidation:liquidations(id, code, status),
+          client_contact:client_contacts(id, name),
           operational_request:operational_requests!financial_request_id(
             id,
             operational_project:operational_projects(id, name)

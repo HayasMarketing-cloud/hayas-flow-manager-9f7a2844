@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ChevronDown, ChevronUp, Check, AlertCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Check, AlertCircle, FileText, FileSignature, FolderKanban } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +18,12 @@ interface ReconciliationRowProps {
   invoice: UnassignedInvoice;
 }
 
+interface EntitySummary {
+  budgets: Map<string, { code: string; title: string; count: number; total: number }>;
+  contracts: Map<string, { code: string; title: string; count: number; total: number }>;
+  projects: Map<string, { name: string; count: number; total: number }>;
+}
+
 export function ReconciliationRow({ invoice }: ReconciliationRowProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
@@ -32,6 +38,76 @@ export function ReconciliationRow({ invoice }: ReconciliationRowProps) {
     return availableRequests
       .filter(r => selectedRequestIds.includes(r.id))
       .reduce((sum, r) => sum + (r.sale_amount || 0), 0);
+  }, [availableRequests, selectedRequestIds]);
+
+  // Calculate summary of budgets, contracts and projects being invoiced
+  const entitySummary = useMemo<EntitySummary>(() => {
+    const summary: EntitySummary = {
+      budgets: new Map(),
+      contracts: new Map(),
+      projects: new Map(),
+    };
+
+    if (!availableRequests) return summary;
+
+    const selectedRequests = availableRequests.filter(r => selectedRequestIds.includes(r.id));
+
+    for (const req of selectedRequests) {
+      const amount = req.sale_amount || 0;
+
+      // Budget summary
+      if (req.budget) {
+        const existing = summary.budgets.get(req.budget.id);
+        if (existing) {
+          existing.count++;
+          existing.total += amount;
+        } else {
+          summary.budgets.set(req.budget.id, {
+            code: req.budget.code,
+            title: req.budget.title,
+            count: 1,
+            total: amount,
+          });
+        }
+      }
+
+      // Contract summary
+      if (req.contract) {
+        const existing = summary.contracts.get(req.contract.id);
+        if (existing) {
+          existing.count++;
+          existing.total += amount;
+        } else {
+          summary.contracts.set(req.contract.id, {
+            code: req.contract.code,
+            title: req.contract.title,
+            count: 1,
+            total: amount,
+          });
+        }
+      }
+
+      // Project summary
+      if (req.operational_request && req.operational_request.length > 0) {
+        const opReq = req.operational_request[0];
+        if (opReq.operational_project) {
+          const projectId = opReq.operational_project.id;
+          const existing = summary.projects.get(projectId);
+          if (existing) {
+            existing.count++;
+            existing.total += amount;
+          } else {
+            summary.projects.set(projectId, {
+              name: opReq.operational_project.name,
+              count: 1,
+              total: amount,
+            });
+          }
+        }
+      }
+    }
+
+    return summary;
   }, [availableRequests, selectedRequestIds]);
 
   // Calculate difference
@@ -231,6 +307,55 @@ export function ReconciliationRow({ invoice }: ReconciliationRowProps) {
                   onSelect={handleSelectRequest}
                   onSelectAll={handleSelectAll}
                 />
+
+                {/* Entity summary - budgets, contracts and projects being invoiced */}
+                {selectedRequestIds.length > 0 && (entitySummary.budgets.size > 0 || entitySummary.contracts.size > 0 || entitySummary.projects.size > 0) && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                    <p className="text-sm font-medium text-blue-900">Resumen de entidades a facturar:</p>
+                    
+                    {entitySummary.budgets.size > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        <div className="flex items-center gap-1 text-sm text-blue-800">
+                          <FileText className="h-4 w-4" />
+                          <span className="font-medium">Presupuestos:</span>
+                        </div>
+                        {Array.from(entitySummary.budgets.values()).map((budget, idx) => (
+                          <Badge key={idx} variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200">
+                            {budget.code} ({budget.count} sol. · {formatCurrency(budget.total)})
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {entitySummary.contracts.size > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        <div className="flex items-center gap-1 text-sm text-blue-800">
+                          <FileSignature className="h-4 w-4" />
+                          <span className="font-medium">Contratos:</span>
+                        </div>
+                        {Array.from(entitySummary.contracts.values()).map((contract, idx) => (
+                          <Badge key={idx} variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200">
+                            {contract.code} ({contract.count} sol. · {formatCurrency(contract.total)})
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {entitySummary.projects.size > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        <div className="flex items-center gap-1 text-sm text-blue-800">
+                          <FolderKanban className="h-4 w-4" />
+                          <span className="font-medium">Proyectos:</span>
+                        </div>
+                        {Array.from(entitySummary.projects.values()).map((project, idx) => (
+                          <Badge key={idx} variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                            {project.name} ({project.count} sol. · {formatCurrency(project.total)})
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Summary bar */}
                 <div className="flex items-center justify-between bg-muted/50 rounded-lg p-4">

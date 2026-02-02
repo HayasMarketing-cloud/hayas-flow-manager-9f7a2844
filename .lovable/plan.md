@@ -1,125 +1,91 @@
 
+# Plan: Añadir Estado "Facturado" a Presupuestos
 
-# Plan: Integrar Comisiones en el P&L del Proyecto
+## Objetivo
 
-## Situación Actual
+Añadir un nuevo estado "Facturado" para presupuestos que indica que se ha emitido factura al cliente. Este estado puede marcarse:
+- **Automáticamente**: Cuando todas las solicitudes del presupuesto tienen una factura asociada
+- **Manualmente**: Desde el formulario de edición del presupuesto
 
-El P&L actual calcula:
-- **Ingresos**: `SUM(sale_amount)` de `financial_requests`
-- **Costes**: `SUM(cost_to_agency)` de `financial_requests` (liquidados)
-- **Margen**: `Ingresos - Costes`
+El seguimiento de la factura (cobro) se realizará desde la sección Facturas.
 
-Las comisiones están en `sales_commissions` con:
-- `budget_id`: Vincula la comisión al presupuesto
-- `contract_id`: Vincula la comisión al contrato
-- `commission_amount`: Importe de la comisión
-- `commission_type`: am, pm, sales
+---
+
+## Flujo de Estados de Presupuesto (Actualizado)
+
+```text
+┌──────────┐    ┌─────────┐    ┌──────────┐    ┌───────────┐
+│ Pendiente│───▸│ Enviado │───▸│ Aprobado │───▸│ Facturado │
+└──────────┘    └─────────┘    └──────────┘    └───────────┘
+                                    │
+                               ┌────▼────┐
+                               │Rechazado│
+                               └─────────┘
+```
 
 ---
 
 ## Cambios Propuestos
 
-### 1. Extender la interfaz `EntityPnL`
+### 1. Actualizar utilidades de estado (`src/lib/budget-utils.ts`)
 
-Añadir nuevos campos para comisiones:
+Añadir color y label para el nuevo estado:
 
-```typescript
-export interface EntityPnL {
-  // ... campos existentes ...
-  
-  // Comisiones (nuevo)
-  commissionCosts: number;       // Total comisiones del proyecto
-  commissionAM: number;          // Comisiones AM
-  commissionPM: number;          // Comisiones PM
-  commissionSales: number;       // Comisiones de venta
-  
-  // Margen ajustado (nuevo)
-  totalCosts: number;            // liquidatedCosts + commissionCosts
-  adjustedMargin: number;        // invoicedRevenue - totalCosts
-  adjustedMarginPercent: number;
-}
+| Estado | Color | Label |
+|--------|-------|-------|
+| `pending` | Gris | Pendiente |
+| `sent` | Azul | Enviado |
+| `approved` | Verde | Aprobado |
+| `rejected` | Rojo | Rechazado |
+| **`invoiced`** | **Morado/Púrpura** | **Facturado** |
+
+### 2. Actualizar filtros en Presupuestos (`src/pages/Presupuestos.tsx`)
+
+Añadir opción "Facturado" al dropdown de filtro de estados:
+
+```text
+┌─────────────────────────┐
+│ Todos los estados       │
+├─────────────────────────┤
+│ ✓ Todos los estados     │
+│   Pendiente             │
+│   Enviado               │
+│   Aprobado              │
+│   Rechazado             │
+│   Facturado  ← NUEVO    │
+└─────────────────────────┘
 ```
 
-### 2. Modificar `useProjectPnL` y `useBudgetPnL`
+### 3. Actualizar formulario de presupuesto (`src/components/budgets/BudgetFormModal.tsx`)
 
-Añadir query para obtener comisiones:
+Añadir opción "Facturado" al selector de estado manual.
 
-```typescript
-// Para presupuesto
-const { data: commissions } = await supabase
-  .from('sales_commissions')
-  .select('commission_type, commission_amount')
-  .eq('budget_id', budgetId);
+### 4. Lógica de actualización automática (Opcional - Recomendado)
 
-// Para proyecto (a través del presupuesto vinculado)
-const { data: project } = await supabase
-  .from('operational_projects')
-  .select('budget_id')
-  .eq('id', projectId)
-  .single();
+Crear un mecanismo para marcar automáticamente el presupuesto como "Facturado" cuando:
 
-const { data: commissions } = await supabase
-  .from('sales_commissions')
-  .select('commission_type, commission_amount')
-  .eq('budget_id', project.budget_id);
+**Opción A - Trigger de base de datos (más fiable)**:
+```sql
+-- Trigger que detecta cuando todas las requests de un budget tienen invoice
+CREATE OR REPLACE FUNCTION check_budget_fully_invoiced()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Verificar si todas las requests del budget tienen billed_invoice_id
+  IF NOT EXISTS (
+    SELECT 1 FROM financial_requests 
+    WHERE budget_id = NEW.budget_id 
+    AND billed_invoice_id IS NULL
+  ) THEN
+    UPDATE budgets SET status = 'invoiced' 
+    WHERE id = NEW.budget_id AND status = 'approved';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 ```
 
-### 3. Actualizar cálculo de P&L
-
-```typescript
-const calculatePnLWithCommissions = (data: any[], commissions: any[]) => {
-  const basePnL = calculatePnL(data);
-  
-  const commissionAM = commissions
-    .filter(c => c.commission_type === 'am')
-    .reduce((sum, c) => sum + c.commission_amount, 0);
-  
-  const commissionPM = commissions
-    .filter(c => c.commission_type === 'pm')
-    .reduce((sum, c) => sum + c.commission_amount, 0);
-  
-  const commissionSales = commissions
-    .filter(c => c.commission_type === 'sales')
-    .reduce((sum, c) => sum + c.commission_amount, 0);
-  
-  const commissionCosts = commissionAM + commissionPM + commissionSales;
-  const totalCosts = basePnL.liquidatedCosts + commissionCosts;
-  const adjustedMargin = basePnL.invoicedRevenue - totalCosts;
-  
-  return {
-    ...basePnL,
-    commissionCosts,
-    commissionAM,
-    commissionPM,
-    commissionSales,
-    totalCosts,
-    adjustedMargin,
-    adjustedMarginPercent: basePnL.invoicedRevenue > 0 
-      ? (adjustedMargin / basePnL.invoicedRevenue) * 100 
-      : 0,
-  };
-};
-```
-
----
-
-## 4. Actualizar `FinancialControllingCard`
-
-Mostrar desglose de comisiones en la sección de costes:
-
-```
-COSTES
-├── Especialistas (liquidados):   900,00 €
-├── Comisiones:                   169,00 €
-│   ├── AM (5%):                   84,50 €
-│   ├── PM (5%):                   84,50 €
-│   └── Venta:                      0,00 €
-└── Total Costes:               1.069,00 €
-
-MARGEN
-├── Real (Fact - Liq):            600,00 € (40%)
-└── Ajustado (con comisiones):    431,00 € (29%)
-```
+**Opción B - Verificación en el frontend (más simple)**:
+Al reconciliar facturas, verificar si el presupuesto asociado queda completamente facturado y ofrecer actualizarlo.
 
 ---
 
@@ -127,44 +93,100 @@ MARGEN
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/hooks/useEntityPnL.tsx` | Añadir query de comisiones, extender interfaz, ajustar cálculo |
-| `src/components/shared/FinancialControllingCard.tsx` | Mostrar desglose de comisiones y margen ajustado |
+| `src/lib/budget-utils.ts` | Añadir color y label para `invoiced` |
+| `src/pages/Presupuestos.tsx` | Añadir opción de filtro "Facturado" |
+| `src/components/budgets/BudgetFormModal.tsx` | Añadir opción de estado "Facturado" |
+| `src/components/budgets/BudgetCard.tsx` | Sin cambios (ya usa BudgetStatusBadge) |
+| `src/components/budgets/BudgetTableView.tsx` | Sin cambios (ya usa BudgetStatusBadge) |
+| `src/pages/PresupuestoDetalle.tsx` | Verificar que muestra el nuevo estado |
+
+## Archivo Nuevo (Opcional)
+
+| Archivo | Descripción |
+|---------|-------------|
+| Migración SQL | Trigger para actualización automática del estado |
 
 ---
 
-## Visualización Propuesta
+## Visualización del Nuevo Estado
 
+```text
+┌────────────────────────────────────────────────────────────────┐
+│ Presupuesto: Marketing Q1 2026                                 │
+│ Cliente: Asendia Spain                        ┌──────────────┐ │
+│ Monto: 5.200,00 €                             │  Facturado   │ │
+│                                               └──────────────┘ │
+│ (badge color: púrpura/morado)                                  │
+└────────────────────────────────────────────────────────────────┘
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│ Controlling Financiero                                          │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  INGRESOS                          COSTES                       │
-│  Estimado:    2.500€               Especialistas:   900€        │
-│  Facturado:   1.500€ (60%)         Comisiones:      169€        │
-│  Pendiente:   1.000€               ├─ AM:            85€        │
-│  ████████░░░░░░                    ├─ PM:            85€        │
-│                                    └─ Venta:          0€        │
-│                                    Total:          1.069€       │
-│                                    █████████░░░                 │
-├─────────────────────────────────────────────────────────────────┤
-│  MARGEN                                                         │
-│  ┌───────────────────┐  ┌───────────────────┐                   │
-│  │ Real              │  │ Ajustado          │                   │
-│  │ 600€ (40%)        │  │ 431€ (29%)        │                   │
-│  │ (sin comisiones)  │  │ (con comisiones)  │                   │
-│  └───────────────────┘  └───────────────────┘                   │
-│                                                                 │
-│  15 requests | 12 facturados | 10 liquidados | 3 comisiones     │
-└─────────────────────────────────────────────────────────────────┘
-```
+
+---
+
+## Secuencia de Implementación
+
+1. **Paso 1**: Actualizar `budget-utils.ts` con nuevo color y label
+2. **Paso 2**: Actualizar dropdown de filtros en `Presupuestos.tsx`
+3. **Paso 3**: Actualizar selector de estado en `BudgetFormModal.tsx`
+4. **Paso 4 (Opcional)**: Crear trigger de base de datos para automatización
+5. **Paso 5**: Añadir lógica en reconciliación para actualizar estado automáticamente
 
 ---
 
 ## Consideraciones
 
-1. **Comisiones de venta**: Se vinculan al contrato o presupuesto directamente
-2. **Comisiones AM/PM**: Se calculan sobre facturas pero se vinculan al presupuesto
-3. **Proyectos sin presupuesto**: No tendrán comisiones (se pueden añadir manualmente después)
-4. **Reporte consolidado**: También se actualizará `useConsolidatedPnL` para incluir comisiones
+1. **No requiere migración de esquema**: El campo `status` es TEXT, no enum, por lo que acepta cualquier valor
+2. **Retrocompatibilidad**: Los presupuestos existentes mantienen su estado actual
+3. **Workflow natural**: Pendiente → Enviado → Aprobado → Facturado
+4. **Seguimiento de cobro**: Una vez facturado, el estado de pago se gestiona desde Facturas (pendiente/pagada)
 
+---
+
+## Sección Técnica
+
+### Cambio en `budget-utils.ts`
+
+```typescript
+export const getBudgetStatusColor = (status: BudgetStatus): string => {
+  const colors: Record<string, string> = {
+    pending: 'bg-muted text-muted-foreground',
+    sent: 'bg-blue-500 text-white',
+    approved: 'bg-green-500 text-white',
+    rejected: 'bg-destructive text-destructive-foreground',
+    invoiced: 'bg-purple-500 text-white',  // NUEVO
+  };
+  return colors[status] || 'bg-muted text-muted-foreground';
+};
+
+export const getBudgetStatusLabel = (status: BudgetStatus): string => {
+  const labels: Record<string, string> = {
+    pending: 'Pendiente',
+    sent: 'Enviado',
+    approved: 'Aprobado',
+    rejected: 'Rechazado',
+    invoiced: 'Facturado',  // NUEVO
+  };
+  return labels[status] || status;
+};
+```
+
+### Automatización (ReconciliationRow.tsx)
+
+```typescript
+// Después de asociar solicitudes a factura, verificar si el budget queda completamente facturado
+const checkBudgetFullyInvoiced = async (budgetId: string) => {
+  const { data } = await supabase
+    .from('financial_requests')
+    .select('id, billed_invoice_id')
+    .eq('budget_id', budgetId);
+  
+  const allInvoiced = data?.every(r => r.billed_invoice_id !== null);
+  
+  if (allInvoiced) {
+    await supabase
+      .from('budgets')
+      .update({ status: 'invoiced' })
+      .eq('id', budgetId)
+      .eq('status', 'approved'); // Solo actualizar si estaba aprobado
+  }
+};
+```

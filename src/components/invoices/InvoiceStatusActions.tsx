@@ -9,7 +9,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { ChevronDown, Send, Check, AlertTriangle, X, Loader2 } from 'lucide-react';
+import { ChevronDown, Send, Check, AlertTriangle, X, Loader2, Undo2 } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
 
 type InvoiceStatus = Database['public']['Enums']['invoice_status'];
@@ -23,9 +23,25 @@ interface InvoiceStatusActionsProps {
 const statusTransitions: Record<InvoiceStatus, InvoiceStatus[]> = {
   draft: ['sent', 'cancelled'],
   sent: ['paid', 'overdue', 'cancelled'],
-  paid: [],
+  paid: ['sent'],  // Allow reverting to pending
   overdue: ['paid', 'cancelled'],
   cancelled: [],
+};
+
+// Get label for transition - special case for reverting paid invoices
+const getTransitionLabel = (from: InvoiceStatus, to: InvoiceStatus, defaultLabels: Record<InvoiceStatus, string>): string => {
+  if (from === 'paid' && to === 'sent') {
+    return 'Revertir a Pendiente';
+  }
+  return defaultLabels[to];
+};
+
+// Get icon for transition - special case for reverting
+const getTransitionIcon = (from: InvoiceStatus, to: InvoiceStatus, defaultIcons: Record<InvoiceStatus, React.ReactNode>): React.ReactNode => {
+  if (from === 'paid' && to === 'sent') {
+    return <Undo2 className="h-4 w-4" />;
+  }
+  return defaultIcons[to];
 };
 
 // === FACTURAS EMITIDAS A CLIENTES ===
@@ -61,6 +77,20 @@ export function InvoiceStatusActions({ invoiceId, currentStatus, compact = false
         updates.sent_at = new Date().toISOString();
       } else if (newStatus === 'paid') {
         updates.paid_at = new Date().toISOString();
+      } else if (newStatus === 'sent' && currentStatus === 'paid') {
+        // REVERTING: clear paid_at and remove payment links
+        updates.paid_at = null;
+        
+        // Delete invoice_payments records for this invoice
+        const { error: deleteError } = await supabase
+          .from('invoice_payments')
+          .delete()
+          .eq('invoice_id', invoiceId);
+        
+        if (deleteError) {
+          console.error('Error deleting invoice_payments:', deleteError);
+          // Continue anyway - the payment link might not exist
+        }
       }
 
       const { error } = await supabase
@@ -69,10 +99,16 @@ export function InvoiceStatusActions({ invoiceId, currentStatus, compact = false
         .eq('id', invoiceId);
 
       if (error) throw error;
+      
+      return newStatus;
     },
-    onSuccess: (_, newStatus) => {
-      toast.success(`Factura marcada como ${statusLabels[newStatus]}`);
+    onSuccess: (newStatus) => {
+      const message = currentStatus === 'paid' && newStatus === 'sent'
+        ? 'Factura revertida a Pendiente de cobro'
+        : `Factura marcada como ${statusLabels[newStatus]}`;
+      toast.success(message);
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
     },
     onError: (error) => {
       console.error('Error updating invoice status:', error);
@@ -149,8 +185,8 @@ export function InvoiceStatusActions({ invoiceId, currentStatus, compact = false
             key={status}
             onClick={() => updateStatusMutation.mutate(status)}
           >
-            {statusIcons[status]}
-            <span className="ml-2">{statusLabels[status]}</span>
+            {getTransitionIcon(currentStatus, status, statusIcons)}
+            <span className="ml-2">{getTransitionLabel(currentStatus, status, statusLabels)}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

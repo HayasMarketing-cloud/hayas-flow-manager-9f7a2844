@@ -1,223 +1,159 @@
 
+# Plan: Permitir Revertir Estado de Facturas Cobradas
 
-# Plan: Registro de Cobros con Conciliación de Múltiples Facturas
+## Problema Identificado
 
-## Situación Actual
+Actualmente las facturas con estado "Cobrada" (paid):
+1. No muestran el menú de cambio de estado (porque `statusTransitions['paid'] = []`)
+2. No pueden ser seleccionadas para operaciones masivas (checkbox deshabilitado)
+3. No hay forma de "desconciliar" una factura para re-asociarla a un pago diferente
 
-El sistema permite seleccionar múltiples facturas y marcarlas como "Cobradas" simultáneamente, pero:
-- No se guarda referencia de la transferencia/cobro
-- No hay trazabilidad del pago recibido
-- No se puede consultar "qué facturas se pagaron con X transferencia"
+## Solución Propuesta
 
-## Propuesta: Nueva Tabla de Cobros (Payments)
+Añadir la posibilidad de revertir el estado de una factura "Cobrada" a "Pendiente de cobro" (sent), permitiendo:
+- Corregir errores de conciliación
+- Re-asociar facturas a pagos diferentes
+- Volver a seleccionar la factura para operaciones bulk
 
-Crear una entidad `payments` que represente cada abono/transferencia recibida, y vincular las facturas a ese pago.
+### Consideraciones
 
-### Nuevo Modelo de Datos
-
-```text
-┌─────────────┐     ┌─────────────────────────┐     ┌─────────────┐
-│   Invoice   │◄────│   invoice_payments      │────►│   Payment   │
-│             │ N:1 │   invoice_id            │ 1:N │             │
-│             │     │   payment_id            │     │ amount      │
-│             │     │   allocated_amount      │     │ reference   │
-└─────────────┘     └─────────────────────────┘     │ payment_date│
-                                                     └─────────────┘
-```
-
-### Nueva Tabla: payments
-
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| id | uuid | PK |
-| code | varchar | Código autogenerado (PAG-2026-001) |
-| payment_date | date | Fecha del cobro/transferencia |
-| amount | numeric | Importe total recibido |
-| reference | text | Referencia bancaria/concepto |
-| payment_method | enum | bank_transfer, credit_card, etc. |
-| bank_account | text | Cuenta bancaria (opcional) |
-| notes | text | Notas adicionales |
-| created_at | timestamp | Fecha de registro |
-
-### Nueva Tabla: invoice_payments
-
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| id | uuid | PK |
-| invoice_id | uuid | FK → invoices |
-| payment_id | uuid | FK → payments |
-| allocated_amount | numeric | Importe asignado de este pago a esta factura |
-| created_at | timestamp | Fecha de creación |
-
----
-
-## Flujo de Usuario Propuesto
-
-### 1. Seleccionar Facturas
-
-El usuario selecciona múltiples facturas pendientes de cobro en la tabla (como ya funciona ahora).
-
-### 2. Registrar Cobro
-
-Al hacer clic en "Registrar Cobro", se abre un modal mejorado:
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│ Registrar Cobro                                             │
-├─────────────────────────────────────────────────────────────┤
-│ Facturas a conciliar:                                       │
-│ ┌───────────────────────────────────────────────────────┐   │
-│ │ 2025/152  │ Asendia HQ │ CON-2025-001 │ 1.207,50 €   │   │
-│ │ 2025/153  │ Asendia HQ │ PRE-2025-204 │ 2.100,00 €   │   │
-│ └───────────────────────────────────────────────────────┘   │
-│                                                             │
-│ Total facturas:          3.307,50 €                         │
-│                                                             │
-│ ─────────────────────────────────────────────────────────── │
-│ Datos del Cobro                                             │
-│ ─────────────────────────────────────────────────────────── │
-│                                                             │
-│ Fecha de cobro *        [02/02/2026        ]                │
-│                                                             │
-│ Importe recibido *      [3307.50           ] EUR            │
-│                                                             │
-│ Referencia bancaria     [TRF-ASENDIA-FEB26 ]                │
-│                                                             │
-│ Método de pago          [Transferencia ▼   ]                │
-│                                                             │
-│ Notas                   [                  ]                │
-│                                                             │
-│ ─────────────────────────────────────────────────────────── │
-│ Balance:                                                    │
-│   Importe recibido:     3.307,50 €                          │
-│   Total facturas:       3.307,50 €                          │
-│   Diferencia:           0,00 € ✅                           │
-│                                                             │
-├─────────────────────────────────────────────────────────────┤
-│            [Cancelar]              [Registrar Cobro]        │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 3. Resultado
-
-- Se crea un registro en `payments` con el código PAG-2026-001
-- Se crean N registros en `invoice_payments` vinculando cada factura
-- Las facturas se marcan como `paid` con la fecha del cobro
-- Se puede consultar el cobro y ver todas las facturas asociadas
-
----
-
-## Vista de Cobros (Opcional - Fase 2)
-
-Una página "Cobros" donde ver:
-- Historial de todos los cobros recibidos
-- Facturas asociadas a cada cobro
-- Filtros por fecha, cliente, referencia
+Al revertir una factura cobrada:
+1. Se debe eliminar el vínculo con el pago existente (si lo hay) en `invoice_payments`
+2. Se debe limpiar la fecha de cobro (`paid_at = null`)
+3. Opcionalmente mostrar una advertencia si hay un pago asociado
 
 ---
 
 ## Cambios por Archivo
 
-### Base de Datos
+### `src/components/invoices/InvoiceStatusActions.tsx`
+
 | Cambio | Descripción |
 |--------|-------------|
-| Nueva tabla | `payments` - Registro de cobros recibidos |
-| Nueva tabla | `invoice_payments` - Relación N:M con importes |
-| Nueva secuencia | Para código PAG-YYYY-XXX |
+| Línea 26 | Añadir transición `paid: ['sent']` para permitir revertir a "Enviada" |
+| Nueva lógica | Al cambiar de `paid` a `sent`, limpiar `paid_at` y eliminar vínculos en `invoice_payments` |
 
-### Nuevos Componentes
-| Archivo | Descripción |
-|---------|-------------|
-| `src/hooks/usePayments.tsx` | Hook para gestionar pagos |
-| `src/components/invoices/PaymentRegistrationModal.tsx` | Modal mejorado con datos de pago |
+### `src/components/invoices/InvoiceTableView.tsx` (Opcional)
 
-### Componentes a Modificar
-| Archivo | Cambio |
-|---------|--------|
-| `BulkPaymentModal.tsx` | Reemplazar por PaymentRegistrationModal (o mejorar) |
-| `Facturas.tsx` | Usar el nuevo modal |
+| Cambio | Descripción |
+|--------|-------------|
+| Mantener como está | Las facturas cobradas no necesitan seleccionarse para pagos masivos, solo cambiar estado individualmente |
+
+---
+
+## Nueva UI
+
+En la tabla de facturas, al hacer clic en el menú de acciones de una factura "Cobrada":
+
+```text
+┌──────────────────────┐
+│ ↩ Revertir a Enviada │  ← Nueva opción
+└──────────────────────┘
+```
+
+También se podría añadir un icono de advertencia si la factura está vinculada a un pago.
+
+---
+
+## Flujo de Reversión
+
+```text
+Usuario hace clic en "Revertir a Enviada"
+           │
+           ▼
+    ¿Tiene pago asociado?
+           │
+     ┌─────┴─────┐
+     │           │
+    Sí          No
+     │           │
+     ▼           ▼
+ Eliminar     Actualizar
+ registro     status='sent'
+ invoice_     paid_at=null
+ payments
+     │           │
+     └─────┬─────┘
+           │
+           ▼
+   Toast: "Factura revertida"
+   Actualizar lista
+```
 
 ---
 
 ## Sección Técnica
 
-### SQL: Nuevas Tablas
-
-```sql
--- Tabla de cobros
-CREATE TABLE payments (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  code VARCHAR NOT NULL,
-  payment_date DATE NOT NULL,
-  amount NUMERIC NOT NULL CHECK (amount > 0),
-  reference TEXT,
-  payment_method payment_method DEFAULT 'bank_transfer',
-  bank_account TEXT,
-  notes TEXT,
-  created_by UUID NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Relación N:M con facturas
-CREATE TABLE invoice_payments (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE RESTRICT,
-  payment_id UUID NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
-  allocated_amount NUMERIC NOT NULL CHECK (allocated_amount > 0),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  
-  UNIQUE(invoice_id, payment_id)
-);
-
--- Secuencia para códigos de pago
-INSERT INTO sequences (name, prefix, year, current_value)
-VALUES ('payment', 'PAG', EXTRACT(YEAR FROM NOW()), 0);
-```
-
-### RLS Policies
-
-```sql
--- Payments: Finance and admin can manage
-CREATE POLICY "Finance and admin can manage payments"
-  ON payments FOR ALL
-  USING (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'finanzas'))
-  WITH CHECK (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'finanzas'));
-
--- Invoice_payments: same as invoices
-CREATE POLICY "Finance and admin can manage invoice_payments"
-  ON invoice_payments FOR ALL
-  USING (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'finanzas'))
-  WITH CHECK (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'finanzas'));
-```
-
-### Lógica del Modal
+### Cambio en statusTransitions
 
 ```typescript
-interface PaymentRegistration {
-  payment_date: string;
-  amount: number;
-  reference?: string;
-  payment_method: 'bank_transfer' | 'credit_card' | 'stripe' | 'sdd';
-  notes?: string;
-  invoice_ids: string[];
-}
+const statusTransitions: Record<InvoiceStatus, InvoiceStatus[]> = {
+  draft: ['sent', 'cancelled'],
+  sent: ['paid', 'overdue', 'cancelled'],
+  paid: ['sent'],  // ← NUEVO: permitir revertir
+  overdue: ['paid', 'cancelled'],
+  cancelled: [],
+};
+```
 
-// Al registrar:
-// 1. Crear payment con código generado
-// 2. Crear invoice_payments para cada factura
-// 3. Actualizar invoices.status = 'paid' y paid_at
+### Nueva Lógica de Mutación
+
+```typescript
+const updateStatusMutation = useMutation({
+  mutationFn: async (newStatus: InvoiceStatus) => {
+    setIsUpdating(true);
+    const updates: Record<string, any> = { status: newStatus };
+    
+    if (newStatus === 'sent' && currentStatus === 'draft') {
+      updates.sent_at = new Date().toISOString();
+    } else if (newStatus === 'paid') {
+      updates.paid_at = new Date().toISOString();
+    } else if (newStatus === 'sent' && currentStatus === 'paid') {
+      // REVERTIR: limpiar paid_at y eliminar vínculos de pago
+      updates.paid_at = null;
+      
+      // Eliminar registros de invoice_payments
+      await supabase
+        .from('invoice_payments')
+        .delete()
+        .eq('invoice_id', invoiceId);
+    }
+
+    const { error } = await supabase
+      .from('invoices')
+      .update(updates)
+      .eq('id', invoiceId);
+
+    if (error) throw error;
+  },
+  // ...
+});
+```
+
+### Label para la Transición
+
+```typescript
+// Añadir label específico para la reversión
+const getTransitionLabel = (from: InvoiceStatus, to: InvoiceStatus): string => {
+  if (from === 'paid' && to === 'sent') {
+    return 'Revertir a Pendiente';
+  }
+  return statusLabels[to];
+};
 ```
 
 ---
 
 ## Resumen de Cambios
 
-| Área | Tipo | Descripción |
-|------|------|-------------|
-| DB | Nueva tabla | `payments` - Registro de cobros |
-| DB | Nueva tabla | `invoice_payments` - Vínculo N:M con facturas |
-| DB | Nueva secuencia | PAG-YYYY-XXX |
-| UI | Nuevo modal | Registro de cobro con referencia y método |
-| Lógica | Modificar | Vincular facturas al cobro y marcarlas como pagadas |
+| Archivo | Tipo | Descripción |
+|---------|------|-------------|
+| `InvoiceStatusActions.tsx` | Modificar | Añadir transición `paid → sent` con limpieza de datos |
 
+---
+
+## Alternativa: Menú Contextual en la Tabla
+
+También se podría añadir un botón específico "Revertir cobro" que solo aparezca para facturas cobradas, separado del menú de estados. Esto sería más explícito pero requiere más cambios de UI.
+
+**Recomendación**: Implementar la solución en `InvoiceStatusActions` ya que es la forma consistente de manejar cambios de estado y requiere mínimos cambios.

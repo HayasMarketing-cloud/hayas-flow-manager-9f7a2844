@@ -1,185 +1,170 @@
 
 
-# Plan: Comisiones Basadas en Facturas Emitidas
+# Plan: Integrar Comisiones en el P&L del Proyecto
 
-## Workflow Real Capturado
+## Situación Actual
 
-El flujo de comisiones AM/PM se basa en **facturas ya emitidas**, no en presupuestos estimados:
+El P&L actual calcula:
+- **Ingresos**: `SUM(sale_amount)` de `financial_requests`
+- **Costes**: `SUM(cost_to_agency)` de `financial_requests` (liquidados)
+- **Margen**: `Ingresos - Costes`
 
+Las comisiones están en `sales_commissions` con:
+- `budget_id`: Vincula la comisión al presupuesto
+- `contract_id`: Vincula la comisión al contrato
+- `commission_amount`: Importe de la comisión
+- `commission_type`: am, pm, sales
+
+---
+
+## Cambios Propuestos
+
+### 1. Extender la interfaz `EntityPnL`
+
+Añadir nuevos campos para comisiones:
+
+```typescript
+export interface EntityPnL {
+  // ... campos existentes ...
+  
+  // Comisiones (nuevo)
+  commissionCosts: number;       // Total comisiones del proyecto
+  commissionAM: number;          // Comisiones AM
+  commissionPM: number;          // Comisiones PM
+  commissionSales: number;       // Comisiones de venta
+  
+  // Margen ajustado (nuevo)
+  totalCosts: number;            // liquidatedCosts + commissionCosts
+  adjustedMargin: number;        // invoicedRevenue - totalCosts
+  adjustedMarginPercent: number;
+}
 ```
-1. Emites una o varias facturas a un cliente
-2. Seleccionas la(s) factura(s) 
-3. El sistema sugiere el importe base (subtotal de las facturas)
-4. Puedes editar el importe antes de calcular
-5. Aplicas el porcentaje de comisión
-6. Se genera la comisión para AM y/o PM
+
+### 2. Modificar `useProjectPnL` y `useBudgetPnL`
+
+Añadir query para obtener comisiones:
+
+```typescript
+// Para presupuesto
+const { data: commissions } = await supabase
+  .from('sales_commissions')
+  .select('commission_type, commission_amount')
+  .eq('budget_id', budgetId);
+
+// Para proyecto (a través del presupuesto vinculado)
+const { data: project } = await supabase
+  .from('operational_projects')
+  .select('budget_id')
+  .eq('id', projectId)
+  .single();
+
+const { data: commissions } = await supabase
+  .from('sales_commissions')
+  .select('commission_type, commission_amount')
+  .eq('budget_id', project.budget_id);
+```
+
+### 3. Actualizar cálculo de P&L
+
+```typescript
+const calculatePnLWithCommissions = (data: any[], commissions: any[]) => {
+  const basePnL = calculatePnL(data);
+  
+  const commissionAM = commissions
+    .filter(c => c.commission_type === 'am')
+    .reduce((sum, c) => sum + c.commission_amount, 0);
+  
+  const commissionPM = commissions
+    .filter(c => c.commission_type === 'pm')
+    .reduce((sum, c) => sum + c.commission_amount, 0);
+  
+  const commissionSales = commissions
+    .filter(c => c.commission_type === 'sales')
+    .reduce((sum, c) => sum + c.commission_amount, 0);
+  
+  const commissionCosts = commissionAM + commissionPM + commissionSales;
+  const totalCosts = basePnL.liquidatedCosts + commissionCosts;
+  const adjustedMargin = basePnL.invoicedRevenue - totalCosts;
+  
+  return {
+    ...basePnL,
+    commissionCosts,
+    commissionAM,
+    commissionPM,
+    commissionSales,
+    totalCosts,
+    adjustedMargin,
+    adjustedMarginPercent: basePnL.invoicedRevenue > 0 
+      ? (adjustedMargin / basePnL.invoicedRevenue) * 100 
+      : 0,
+  };
+};
 ```
 
 ---
 
-## Cambios en el Esquema de Base de Datos
+## 4. Actualizar `FinancialControllingCard`
 
-### Nueva tabla: `sales_commissions`
-
-```sql
-CREATE TABLE public.sales_commissions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  
-  -- Tipo de comisión
-  commission_type TEXT NOT NULL CHECK (commission_type IN ('sales', 'am', 'pm')),
-  
-  -- Beneficiario
-  seller_user_id UUID NOT NULL,
-  
-  -- Origen de entidad (proyecto/presupuesto/contrato)
-  contract_id UUID REFERENCES contracts(id),
-  budget_id UUID REFERENCES budgets(id),
-  
-  -- NUEVO: Facturas sobre las que se calcula
-  invoice_ids UUID[] DEFAULT '{}',  -- Array de IDs de facturas
-  
-  -- Cálculo
-  base_amount NUMERIC NOT NULL DEFAULT 0,      -- Editable: puede diferir del subtotal
-  commission_percentage NUMERIC NOT NULL,
-  commission_amount NUMERIC NOT NULL,
-  
-  -- Estado
-  status TEXT NOT NULL DEFAULT 'pending',
-  paid_at TIMESTAMPTZ,
-  notes TEXT,
-  
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-```
-
-**Cambio clave**: Campo `invoice_ids` (array) para vincular comisiones con las facturas base.
-
----
-
-## Interfaz de Nueva Comisión (Mejorada)
-
-### Paso 1: Seleccionar tipo y beneficiario
+Mostrar desglose de comisiones en la sección de costes:
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│ Nueva Comisión                                                   │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│ Tipo de comisión:  [AM ▼]     Beneficiario:  [Iolanda ▼]        │
-│                                                                  │
-│ Origen (proyecto/presupuesto):  [ePAQ GO Translations ▼]        │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
-```
+COSTES
+├── Especialistas (liquidados):   900,00 €
+├── Comisiones:                   169,00 €
+│   ├── AM (5%):                   84,50 €
+│   ├── PM (5%):                   84,50 €
+│   └── Venta:                      0,00 €
+└── Total Costes:               1.069,00 €
 
-### Paso 2: Seleccionar facturas base
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│ Facturas base para el cálculo:                                   │
-├──────────────────────────────────────────────────────────────────┤
-│ ☑ 2026/4 - Asendia Spain - 1.410,00 € (27 ene 2026)             │
-│ ☑ 2026/7 - Asendia HQ - 280,00 € (25 ene 2026)                  │
-│ ☐ 2026/8 - Asendia HQ - 1.403,62 € (24 ene 2026)                │
-├──────────────────────────────────────────────────────────────────┤
-│ Subtotal facturas seleccionadas: 1.690,00 €                      │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-### Paso 3: Calcular comisión (con importe editable)
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│ Cálculo de comisión:                                             │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│ Importe base:    [ 1.690,00 ] €   ← Editable                    │
-│ Porcentaje:      [    5,00 ] %    ← Editable                    │
-│                    ────────────                                  │
-│ Comisión:            84,50 €      ← Calculado automáticamente   │
-│                                                                  │
-│ Notas: [                                              ]          │
-│                                                                  │
-│ [Cancelar]                              [Guardar Comisión]       │
-└──────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Flujo para AM y PM Simultáneos
-
-Cuando el proyecto tiene AM y PM distintos:
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│ Generar comisiones para: ePAQ GO Translations                    │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│ AM: Iolanda      PM: Rubén                                       │
-│                                                                  │
-│ Facturas seleccionadas: 1.690,00 €                               │
-│                                                                  │
-│ ┌────────────────────────────────────────────────────────────┐   │
-│ │ ☑ Comisión AM (Iolanda)                                    │   │
-│ │   Importe base: [ 1.690,00 ] €   Porcentaje: [ 5 ] %       │   │
-│ │   Comisión: 84,50 €                                        │   │
-│ └────────────────────────────────────────────────────────────┘   │
-│                                                                  │
-│ ┌────────────────────────────────────────────────────────────┐   │
-│ │ ☑ Comisión PM (Rubén)                                      │   │
-│ │   Importe base: [ 1.690,00 ] €   Porcentaje: [ 5 ] %       │   │
-│ │   Comisión: 84,50 €                                        │   │
-│ └────────────────────────────────────────────────────────────┘   │
-│                                                                  │
-│ Total comisiones: 169,00 €                                       │
-│                                                                  │
-│ [Cancelar]                         [Generar 2 comisiones]        │
-└──────────────────────────────────────────────────────────────────┘
+MARGEN
+├── Real (Fact - Liq):            600,00 € (40%)
+└── Ajustado (con comisiones):    431,00 € (29%)
 ```
 
 ---
 
 ## Archivos a Modificar
 
-### 1. Crear migración SQL
-Añadir campo `invoice_ids` a la tabla `sales_commissions`
-
-### 2. `src/components/commissions/CommissionFormModal.tsx`
-- Añadir selector múltiple de facturas
-- Mostrar subtotal de facturas seleccionadas
-- Permitir editar importe base antes de calcular
-- Añadir campo `commission_type` (sales, am, pm)
-
-### 3. `src/pages/Comisiones.tsx`
-- Mostrar columna "Facturas" con códigos vinculados
-- Filtro por tipo de comisión
-
-### 4. Nueva feature: Generación conjunta AM+PM
-- Botón "Generar comisiones AM/PM" desde el detalle de proyecto
-- Seleccionar facturas una vez, generar ambas comisiones
+| Archivo | Cambio |
+|---------|--------|
+| `src/hooks/useEntityPnL.tsx` | Añadir query de comisiones, extender interfaz, ajustar cálculo |
+| `src/components/shared/FinancialControllingCard.tsx` | Mostrar desglose de comisiones y margen ajustado |
 
 ---
 
-## Beneficios del Enfoque
+## Visualización Propuesta
 
-| Aspecto | Beneficio |
-|---------|-----------|
-| **Trazabilidad** | Cada comisión queda vinculada a facturas específicas |
-| **Flexibilidad** | El importe base es editable (por si hay descuentos, ajustes, etc.) |
-| **Auditoría** | Se puede ver qué facturas generaron qué comisiones |
-| **Workflow real** | Coincide con cómo realmente se calculan las comisiones |
-| **P&L preciso** | Las comisiones reflejan ingresos reales, no estimados |
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Controlling Financiero                                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  INGRESOS                          COSTES                       │
+│  Estimado:    2.500€               Especialistas:   900€        │
+│  Facturado:   1.500€ (60%)         Comisiones:      169€        │
+│  Pendiente:   1.000€               ├─ AM:            85€        │
+│  ████████░░░░░░                    ├─ PM:            85€        │
+│                                    └─ Venta:          0€        │
+│                                    Total:          1.069€       │
+│                                    █████████░░░                 │
+├─────────────────────────────────────────────────────────────────┤
+│  MARGEN                                                         │
+│  ┌───────────────────┐  ┌───────────────────┐                   │
+│  │ Real              │  │ Ajustado          │                   │
+│  │ 600€ (40%)        │  │ 431€ (29%)        │                   │
+│  │ (sin comisiones)  │  │ (con comisiones)  │                   │
+│  └───────────────────┘  └───────────────────┘                   │
+│                                                                 │
+│  15 requests | 12 facturados | 10 liquidados | 3 comisiones     │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Resumen de Cambios
+## Consideraciones
 
-| Archivo | Tipo | Descripción | Estado |
-|---------|------|-------------|--------|
-| Migración SQL | Nuevo | Crear tabla `sales_commissions` con campo `invoice_ids` | ✅ Completado |
-| `CommissionFormModal.tsx` | Modificar | Añadir selector de facturas e importe editable | ✅ Completado |
-| `Comisiones.tsx` | Modificar | Mostrar facturas vinculadas y filtro por tipo | ✅ Completado |
-| `CommissionTableView.tsx` | Modificar | Mostrar tipo de comisión y facturas | ✅ Completado |
-| `useEntityPnL.tsx` | Modificar | Sumar comisiones al P&L del proyecto | ⏳ Pendiente |
+1. **Comisiones de venta**: Se vinculan al contrato o presupuesto directamente
+2. **Comisiones AM/PM**: Se calculan sobre facturas pero se vinculan al presupuesto
+3. **Proyectos sin presupuesto**: No tendrán comisiones (se pueden añadir manualmente después)
+4. **Reporte consolidado**: También se actualizará `useConsolidatedPnL` para incluir comisiones
 

@@ -1,106 +1,222 @@
 
 
-# Plan: Cambiar "Pagada" a "Cobrada" en Facturas a Clientes
+# Plan: Corregir Modal de Importar Factura
 
-## Objetivo
+## Problemas Identificados
 
-Actualizar la terminología en la sección de Facturas emitidas a clientes, cambiando "Pagada" por "Cobrada" y "Pendiente de pago" por "Pendiente de cobro", ya que esto refleja mejor la realidad del negocio (se cobra a clientes, se paga a proveedores).
+### 1. Problema de Maquetación (Visible en la imagen)
+La tabla de revisión tiene **11 columnas** con anchos fijos que exceden el contenedor:
+- Código (w-32), Cliente (w-48), Contrato (w-36), Presupuesto (w-36), Proyecto (w-36), Fecha, Subtotal (w-24), IVA (w-16), Total, Estado (w-28), Acciones (w-20)
+- Total aproximado: ~400px+ que no cabe en el modal
 
-## Cambios de Terminología
+### 2. Problema Funcional Crítico
+El guardado (`saveMutation`) **NO ESTÁ GUARDANDO** los nuevos campos de asociación directa:
+- `budget_id` - Campo nuevo, NO se guarda
+- `contract_id` - Campo nuevo, NO se guarda  
+- `billing_period_month` - Campo nuevo, NO se guarda
+- `billing_period_year` - Campo nuevo, NO se guarda
 
-| Término Actual | Nuevo Término |
-|----------------|---------------|
-| Pagada | Cobrada |
-| Pagadas | Cobradas |
-| Pendiente de pago | Pendiente de cobro |
-| Marcar Pagada | Marcar Cobrada |
-| Marcar como Pagadas | Marcar como Cobradas |
-| marcadas como pagadas | marcadas como cobradas |
+Los selectores de Contrato/Presupuesto/Proyecto están presentes pero se ignoran al guardar.
 
-## Archivos a Modificar
+### 3. Terminología Incorrecta
+El selector de estado muestra "Pagada" pero debería mostrar **"Cobrada"** según el cambio reciente.
 
-### 1. `src/lib/invoice-utils.ts`
-Centro de la lógica de estados. Renombrar las funciones para usar terminología de cobro:
-- `getInvoiceStatusLabel()`: Cambiar "Pagada" → "Cobrada"
-- `getInvoiceStatusLabel()`: Cambiar "Pendiente de pago" → "Pendiente de cobro"
-- Añadir comentarios para clarificar que estos son términos específicos para facturas **emitidas** a clientes
+---
 
-### 2. `src/components/invoices/InvoiceStatusActions.tsx`
-Botones de acción de estado:
-- Línea 34: `paid: 'Pagada'` → `paid: 'Cobrada'`
-- Línea 72: Mensaje toast "marcada como Pagada" → "marcada como Cobrada"
-- Línea 104: Botón "Marcar Pagada" → "Marcar Cobrada"
+## Solución Propuesta
 
-### 3. `src/pages/Facturas.tsx`
-Listado principal de facturas:
-- Línea 55: Toast "marcadas como pagadas" → "marcadas como cobradas"
-- Línea 293: SelectItem "Pagada" → "Cobrada"
-- Línea 451: Botón bulk "Marcar como Pagadas" → "Marcar como Cobradas"
+### Fase 1: Simplificar la Tabla
 
-### 4. `src/components/invoices/BulkPaymentModal.tsx`
-Modal de cobro masivo:
-- Línea 55: Toast "marcadas como pagadas" → "marcadas como cobradas"
-- Título del modal: Considerar cambiar "Registrar Pago Masivo" → "Registrar Cobro Masivo"
-- Labels: "Facturas a marcar como pagadas" → "Facturas a marcar como cobradas"
-- Botón: "Registrar Pago" → "Registrar Cobro"
+Reducir columnas visibles y hacerla responsiva:
 
-### 5. `src/pages/Reportes.tsx`
-Sección de reportes:
-- Línea 736: Condición de texto "Pagada" → "Cobrada"
+| Columna | Ancho | Acción |
+|---------|-------|--------|
+| Código | w-28 | Mantener (reducir) |
+| Cliente | w-40 | Mantener (reducir) |
+| Contrato | ELIMINAR | Mover a expandible |
+| Presupuesto | ELIMINAR | Mover a expandible |
+| Proyecto | ELIMINAR | Mover a expandible |
+| Fecha | w-24 | Mantener |
+| Subtotal | w-24 | Mantener |
+| IVA | w-16 | Mantener |
+| Total | w-24 | Mantener |
+| Estado | w-28 | Mantener |
+| Acciones | w-16 | Mantener |
 
-## Nota sobre Diferenciación de Facturas
+**Nueva estructura**: 8 columnas principales + sección expandible para asociaciones.
 
-Se añadirán comentarios en el código para clarificar que:
-- **Facturas a clientes (emitidas)**: Se "cobran" - Status "Cobrada" / "Pendiente de cobro"
-- **Facturas de proveedores (recibidas)**: Se "pagan" - Status "Pagada" / "Pendiente de pago" (a implementar en el futuro)
+### Fase 2: Corregir el Guardado
 
-Esto prepara la base para cuando se implemente la gestión de facturas de proveedores.
+Actualizar `saveMutation` para incluir los campos de asociación:
+
+```typescript
+// Añadir al insert
+budget_id: invoice.editedBudgetId ?? null,
+contract_id: invoice.editedContractId ?? null,
+billing_period_month: invoice.editedBillingMonth ?? null,
+billing_period_year: invoice.editedBillingYear ?? null,
+```
+
+También actualizar el estado del presupuesto si se asocia.
+
+### Fase 3: Añadir Selector de Período
+
+Cuando se selecciona un contrato, mostrar selectores de mes/año para el período de facturación.
+
+### Fase 4: Terminología
+
+Cambiar "Pagada" → "Cobrada" en el selector de estado.
+
+---
+
+## Cambios por Archivo
+
+### `src/components/invoices/ExtractedInvoiceRow.tsx`
+
+1. **Reducir columnas principales** de 11 a 8
+2. **Mover asociaciones a sección expandible** junto con líneas de factura
+3. **Añadir selectores de mes/año** cuando se selecciona contrato
+4. **Cambiar estado** "Pagada" → "Cobrada"
+5. **Añadir campos** `editedBillingMonth` y `editedBillingYear` al tipo `ExtractedInvoice`
+
+### `src/components/invoices/InvoiceUploadModal.tsx`
+
+1. **Actualizar cabeceras de tabla** (reducir a 8 columnas)
+2. **Actualizar saveMutation** para guardar:
+   - `budget_id`
+   - `contract_id` 
+   - `billing_period_month`
+   - `billing_period_year`
+3. **Añadir lógica** para actualizar estado del presupuesto a 'invoiced'
+
+---
+
+## Nueva Estructura Visual
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Revisar Datos Extraídos                                                     │
+│ Se extrajeron 1 factura(s). Revisa los datos antes de guardar.             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Código   │ Cliente        │ Fecha    │ Subtotal │ IVA  │ Total   │ Estado  │▼│
+├──────────┼────────────────┼──────────┼──────────┼──────┼─────────┼─────────┼─┤
+│ 2026/5   │ Asendia Germany│ 3/1/2026 │ 1070,52  │ 21%  │ 1295,33 │ Enviada │≡│
+├──────────┴────────────────┴──────────┴──────────┴──────┴─────────┴─────────┴─┤
+│ ▼ Expandido:                                                                 │
+│   Asociar a:                                                                 │
+│   ○ Presupuesto: [Selector ▼]                                               │
+│   ○ Contrato:    [Selector ▼] Período: [Enero ▼] [2026 ▼]                   │
+│                                                                              │
+│   Líneas de factura: ...                                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+│ [Cancelar]                                    [Importar 1 Factura(s)] │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
 
 ## Sección Técnica
 
-### Cambio en invoice-utils.ts
+### Nuevo Tipo ExtractedInvoice
 
 ```typescript
-// === FACTURAS EMITIDAS A CLIENTES ===
-// Para facturas emitidas usamos terminología de "cobro" (ingresos)
-// Nota: Las futuras facturas de proveedores usarán terminología de "pago" (gastos)
-
-export const getInvoiceStatusLabel = (status: InvoiceStatus): string => {
-  if (status === 'paid') {
-    return 'Cobrada';  // Cliente invoice = collected
-  }
-  return 'Pendiente de cobro';
-};
+export interface ExtractedInvoice {
+  // ... campos existentes ...
+  editedBillingMonth?: number | null;
+  editedBillingYear?: number | null;
+}
 ```
 
-### Cambio en InvoiceStatusActions.tsx
+### Guardado Actualizado
 
 ```typescript
-const statusLabels: Record<InvoiceStatus, string> = {
-  draft: 'Borrador',
-  sent: 'Enviada',
-  paid: 'Cobrada',  // Changed from 'Pagada'
-  overdue: 'Vencida',
-  cancelled: 'Cancelada',
-};
+const budgetId = invoice.editedBudgetId ?? null;
+const contractId = invoice.editedContractId ?? null;
+const billingMonth = invoice.editedBillingMonth ?? null;
+const billingYear = invoice.editedBillingYear ?? null;
+
+const { data: createdInvoice, error: invoiceError } = await supabase
+  .from('invoices')
+  .insert({
+    code,
+    client_id: clientId!,
+    invoice_date: data.invoice_date,
+    due_date: data.due_date,
+    subtotal,
+    tax_rate: taxRate,
+    tax_amount: taxAmount,
+    total_amount: total,
+    status: invoiceStatus,
+    notes: `Importada automáticamente desde PDF: ${invoice.fileName}`,
+    sent_at: ...,
+    paid_at: ...,
+    // NUEVOS CAMPOS
+    budget_id: budgetId,
+    contract_id: contractId,
+    billing_period_month: billingMonth,
+    billing_period_year: billingYear,
+  })
+  .select()
+  .single();
+
+// Si se asocia a presupuesto, marcarlo como facturado
+if (budgetId) {
+  await supabase
+    .from('budgets')
+    .update({ status: 'invoiced' })
+    .eq('id', budgetId)
+    .eq('status', 'approved');
+}
 ```
 
-### Cambio en BulkPaymentModal.tsx
+### Sección Expandible con Asociaciones
 
 ```typescript
-<DialogTitle className="flex items-center gap-2">
-  <CreditCard className="h-5 w-5" />
-  Registrar Cobro Masivo  {/* Changed from 'Pago Masivo' */}
-</DialogTitle>
+{expanded && (
+  <tr className="bg-muted/30">
+    <td colSpan={8} className="px-4 py-3">
+      <div className="space-y-4">
+        {/* Selector de tipo de asociación */}
+        <div className="flex flex-wrap gap-4">
+          <div className="flex-1 min-w-[200px]">
+            <Label>Presupuesto</Label>
+            <Select value={budgetId || 'none'} ...>
+              ...
+            </Select>
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <Label>Contrato + Período</Label>
+            <div className="flex gap-2">
+              <Select value={contractId || 'none'} ...>...</Select>
+              {contractId && (
+                <>
+                  <Select value={billingMonth} ...>{/* Meses */}</Select>
+                  <Select value={billingYear} ...>{/* Años */}</Select>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        {/* Líneas de factura */}
+        {data.line_items && data.line_items.length > 0 && (
+          <div>
+            <p className="text-sm font-medium">Líneas:</p>
+            ...
+          </div>
+        )}
+      </div>
+    </td>
+  </tr>
+)}
 ```
+
+---
 
 ## Resumen de Archivos
 
-| Archivo | Tipo de Cambio |
-|---------|---------------|
-| `src/lib/invoice-utils.ts` | Labels de estado + comentarios |
-| `src/components/invoices/InvoiceStatusActions.tsx` | Labels, botones, toasts |
-| `src/pages/Facturas.tsx` | Selectores, botones, toasts |
-| `src/components/invoices/BulkPaymentModal.tsx` | Título, labels, botón, toast |
-| `src/pages/Reportes.tsx` | Texto de estado |
+| Archivo | Cambio |
+|---------|--------|
+| `src/components/invoices/ExtractedInvoiceRow.tsx` | Simplificar columnas, mover asociaciones a expandible, añadir período, terminología |
+| `src/components/invoices/InvoiceUploadModal.tsx` | Actualizar headers, corregir saveMutation con budget_id/contract_id/período |
 

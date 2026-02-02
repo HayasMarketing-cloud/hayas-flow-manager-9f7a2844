@@ -7,24 +7,65 @@ export interface EntityPnL {
   invoicedRevenue: number;
   pendingToInvoice: number;
   
-  // Costs
+  // Costs (specialists)
   estimatedCosts: number;
   liquidatedCosts: number;
   pendingToLiquidate: number;
   
-  // Margin
+  // Commissions
+  commissionCosts: number;
+  commissionAM: number;
+  commissionPM: number;
+  commissionSales: number;
+  
+  // Total costs (specialists + commissions)
+  totalCosts: number;
+  
+  // Margin (without commissions)
   realMargin: number;
   realMarginPercent: number;
   estimatedMargin: number;
   estimatedMarginPercent: number;
   
+  // Adjusted margin (with commissions)
+  adjustedMargin: number;
+  adjustedMarginPercent: number;
+  
   // Counters
   totalRequests: number;
   invoicedRequests: number;
   liquidatedRequests: number;
+  commissionsCount: number;
 }
 
-const calculatePnL = (data: any[]): EntityPnL => {
+interface CommissionData {
+  commission_type: string;
+  commission_amount: number;
+}
+
+const calculateCommissions = (commissions: CommissionData[]) => {
+  const commissionAM = commissions
+    .filter(c => c.commission_type === 'am')
+    .reduce((sum, c) => sum + (c.commission_amount || 0), 0);
+  
+  const commissionPM = commissions
+    .filter(c => c.commission_type === 'pm')
+    .reduce((sum, c) => sum + (c.commission_amount || 0), 0);
+  
+  const commissionSales = commissions
+    .filter(c => c.commission_type === 'sales')
+    .reduce((sum, c) => sum + (c.commission_amount || 0), 0);
+
+  return {
+    commissionAM,
+    commissionPM,
+    commissionSales,
+    commissionCosts: commissionAM + commissionPM + commissionSales,
+    commissionsCount: commissions.length,
+  };
+};
+
+const calculatePnL = (data: any[], commissions: CommissionData[] = []): EntityPnL => {
   const estimatedRevenue = data.reduce((sum, r) => sum + (r.sale_amount || 0), 0);
   const invoicedRevenue = data.reduce((sum, r) => 
     sum + (r.billed_invoice_id ? (r.sale_amount || 0) : 0), 0);
@@ -32,8 +73,12 @@ const calculatePnL = (data: any[]): EntityPnL => {
   const liquidatedCosts = data.reduce((sum, r) => 
     sum + (r.liquidation_id ? (r.cost_to_agency || 0) : 0), 0);
 
+  const commissionData = calculateCommissions(commissions);
+  const totalCosts = liquidatedCosts + commissionData.commissionCosts;
+
   const realMargin = invoicedRevenue - liquidatedCosts;
   const estimatedMargin = estimatedRevenue - estimatedCosts;
+  const adjustedMargin = invoicedRevenue - totalCosts;
 
   return {
     estimatedRevenue,
@@ -42,10 +87,14 @@ const calculatePnL = (data: any[]): EntityPnL => {
     estimatedCosts,
     liquidatedCosts,
     pendingToLiquidate: estimatedCosts - liquidatedCosts,
+    ...commissionData,
+    totalCosts,
     realMargin,
     realMarginPercent: invoicedRevenue > 0 ? (realMargin / invoicedRevenue) * 100 : 0,
     estimatedMargin,
     estimatedMarginPercent: estimatedRevenue > 0 ? (estimatedMargin / estimatedRevenue) * 100 : 0,
+    adjustedMargin,
+    adjustedMarginPercent: invoicedRevenue > 0 ? (adjustedMargin / invoicedRevenue) * 100 : 0,
     totalRequests: data.length,
     invoicedRequests: data.filter(r => r.billed_invoice_id).length,
     liquidatedRequests: data.filter(r => r.liquidation_id).length,
@@ -58,6 +107,15 @@ export const useProjectPnL = (projectId: string) => {
     queryFn: async () => {
       if (!projectId) return null;
 
+      // Get project's budget_id for commissions
+      const { data: project, error: projError } = await supabase
+        .from('operational_projects')
+        .select('budget_id, contract_id')
+        .eq('id', projectId)
+        .single();
+
+      if (projError) throw projError;
+
       // Get financial_requests via operational_requests for this project
       const { data: operationalRequests, error: orError } = await supabase
         .from('operational_requests')
@@ -66,8 +124,27 @@ export const useProjectPnL = (projectId: string) => {
         .not('financial_request_id', 'is', null);
 
       if (orError) throw orError;
+      
+      // Fetch commissions for this project's budget or contract
+      let commissions: CommissionData[] = [];
+      if (project?.budget_id || project?.contract_id) {
+        let query = supabase
+          .from('sales_commissions')
+          .select('commission_type, commission_amount');
+        
+        if (project.budget_id) {
+          query = query.eq('budget_id', project.budget_id);
+        } else if (project.contract_id) {
+          query = query.eq('contract_id', project.contract_id);
+        }
+        
+        const { data: commData, error: commError } = await query;
+        if (commError) throw commError;
+        commissions = commData || [];
+      }
+
       if (!operationalRequests?.length) {
-        return calculatePnL([]);
+        return calculatePnL([], commissions);
       }
 
       const financialRequestIds = operationalRequests
@@ -75,7 +152,7 @@ export const useProjectPnL = (projectId: string) => {
         .filter(Boolean) as string[];
 
       if (!financialRequestIds.length) {
-        return calculatePnL([]);
+        return calculatePnL([], commissions);
       }
 
       const { data: financialRequests, error: frError } = await supabase
@@ -85,7 +162,7 @@ export const useProjectPnL = (projectId: string) => {
 
       if (frError) throw frError;
 
-      return calculatePnL(financialRequests || []);
+      return calculatePnL(financialRequests || [], commissions);
     },
     enabled: !!projectId,
   });
@@ -97,6 +174,7 @@ export const useBudgetPnL = (budgetId: string) => {
     queryFn: async () => {
       if (!budgetId) return null;
 
+      // Fetch financial requests
       const { data: financialRequests, error } = await supabase
         .from('financial_requests')
         .select('id, sale_amount, cost_to_agency, billed_invoice_id, liquidation_id')
@@ -104,7 +182,15 @@ export const useBudgetPnL = (budgetId: string) => {
 
       if (error) throw error;
 
-      return calculatePnL(financialRequests || []);
+      // Fetch commissions for this budget
+      const { data: commissions, error: commError } = await supabase
+        .from('sales_commissions')
+        .select('commission_type, commission_amount')
+        .eq('budget_id', budgetId);
+
+      if (commError) throw commError;
+
+      return calculatePnL(financialRequests || [], commissions || []);
     },
     enabled: !!budgetId,
   });

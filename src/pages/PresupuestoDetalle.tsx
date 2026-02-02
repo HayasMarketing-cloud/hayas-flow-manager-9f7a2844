@@ -971,6 +971,7 @@ export default function PresupuestoDetalle() {
                             <SelectItem value="sent">Enviado</SelectItem>
                             <SelectItem value="approved">Aprobado</SelectItem>
                             <SelectItem value="rejected">Rechazado</SelectItem>
+                            <SelectItem value="invoiced">Facturado</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -1036,8 +1037,20 @@ export default function PresupuestoDetalle() {
                               <SelectItem value="sent">Enviado</SelectItem>
                               <SelectItem value="approved">Aprobado</SelectItem>
                               <SelectItem value="rejected">Rechazado</SelectItem>
+                              <SelectItem value="invoiced">Facturado</SelectItem>
                             </SelectContent>
                           </Select>
+                          {budget.status === 'approved' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+                              onClick={() => handleStatusChange('invoiced')}
+                            >
+                              <FileText className="h-4 w-4 mr-2" />
+                              Marcar como Facturado
+                            </Button>
+                          )}
                         </div>
                       </div>
                       <div>

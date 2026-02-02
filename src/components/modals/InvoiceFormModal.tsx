@@ -19,8 +19,14 @@ import { FileDown, Plus, Briefcase, FileText, MinusCircle } from 'lucide-react';
 import { generateInvoicePDF } from '@/utils/pdf/invoicePDFGenerator';
 import { InvoiceItemsEditor, type InvoiceItem } from '@/components/invoices/InvoiceItemsEditor';
 import { useRequestsForPeriod } from '@/hooks/useRequestsForPeriod';
-import { useBudgetsForInvoice } from '@/hooks/useBudgetsForInvoice';
 import { useContractsForInvoice } from '@/hooks/useContractsForInvoice';
+import { BudgetAllocationEditor } from '@/components/invoices/BudgetAllocationEditor';
+import { 
+  useInvoiceAllocations, 
+  useAvailableBudgetsWithAllocations,
+  useSaveInvoiceAllocations,
+  BudgetAllocation 
+} from '@/hooks/useInvoiceBudgetAllocations';
 
 const invoiceSchema = z.object({
   code: z.string().optional(),
@@ -34,7 +40,7 @@ const invoiceSchema = z.object({
 });
 
 type InvoiceFormData = z.infer<typeof invoiceSchema>;
-type AssociationType = 'budget' | 'contract' | 'none';
+type AssociationType = 'budgets' | 'contract' | 'none';
 
 interface InvoiceFormModalProps {
   isOpen: boolean;
@@ -72,7 +78,7 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
 
   // Association state
   const [associationType, setAssociationType] = useState<AssociationType>('none');
-  const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
+  const [budgetAllocations, setBudgetAllocations] = useState<BudgetAllocation[]>([]);
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   const [billingMonth, setBillingMonth] = useState<number | null>(null);
   const [billingYear, setBillingYear] = useState<number | null>(null);
@@ -109,9 +115,11 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
     },
   });
 
-  // Fetch budgets and contracts for association
-  const { data: availableBudgets = [] } = useBudgetsForInvoice(clientId, invoice?.id);
+  // Fetch budgets with allocation info and contracts for association
+  const { data: availableBudgets = [] } = useAvailableBudgetsWithAllocations(clientId, invoice?.id);
   const { data: availableContracts = [] } = useContractsForInvoice(clientId);
+  const { data: existingAllocations = [] } = useInvoiceAllocations(invoice?.id);
+  const saveAllocationsMutation = useSaveInvoiceAllocations();
 
   // Fetch requests for period (for line items creation)
   const { data: availableRequests = [] } = useRequestsForPeriod(
@@ -146,10 +154,28 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
       setManualSubtotal(invoice.subtotal || 0);
       setEditedTaxRate(invoice.tax_rate ?? 21);
 
-      // Load association data
-      if (invoice.budget_id) {
-        setAssociationType('budget');
-        setSelectedBudgetId(invoice.budget_id);
+      // Load association data - check for allocations first, then legacy budget_id
+      if (existingAllocations.length > 0) {
+        setAssociationType('budgets');
+        setBudgetAllocations(existingAllocations);
+        setSelectedContractId(null);
+        setBillingMonth(null);
+        setBillingYear(null);
+      } else if (invoice.budget_id) {
+        // Legacy single budget - convert to allocation format
+        const budget = availableBudgets.find(b => b.id === invoice.budget_id);
+        if (budget) {
+          setAssociationType('budgets');
+          setBudgetAllocations([{
+            budget_id: budget.id,
+            budget_code: budget.code,
+            budget_title: budget.title,
+            budget_total: budget.total_amount,
+            allocated_amount: invoice.total_amount || 0,
+            budget_invoiced_amount: budget.invoiced_amount,
+            budget_remaining: budget.remaining_amount,
+          }]);
+        }
         setSelectedContractId(null);
         setBillingMonth(null);
         setBillingYear(null);
@@ -158,10 +184,10 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
         setSelectedContractId(invoice.contract_id);
         setBillingMonth(invoice.billing_period_month);
         setBillingYear(invoice.billing_period_year);
-        setSelectedBudgetId(null);
+        setBudgetAllocations([]);
       } else {
         setAssociationType('none');
-        setSelectedBudgetId(null);
+        setBudgetAllocations([]);
         setSelectedContractId(null);
         setBillingMonth(null);
         setBillingYear(null);
@@ -176,12 +202,12 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
       setManualSubtotal(0);
       setEditedTaxRate(21);
       setAssociationType('none');
-      setSelectedBudgetId(null);
+      setBudgetAllocations([]);
       setSelectedContractId(null);
       setBillingMonth(null);
       setBillingYear(null);
     }
-  }, [invoice, mode, reset]);
+  }, [invoice, mode, reset, existingAllocations, availableBudgets]);
 
   // Load existing invoice items when editing
   useEffect(() => {
@@ -216,13 +242,12 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
         sequence_name: 'invoices',
       });
 
-      // Prepare association fields
-      const budgetId = associationType === 'budget' ? selectedBudgetId : null;
+      // Prepare association fields - now using allocations table for budgets
       const contractId = associationType === 'contract' ? selectedContractId : null;
       const periodMonthValue = associationType === 'contract' ? billingMonth : null;
       const periodYearValue = associationType === 'contract' ? billingYear : null;
 
-      // Create invoice
+      // Create invoice (without budget_id - we'll use allocations table)
       const { data: newInvoice, error: invoiceError } = await supabase
         .from('invoices')
         .insert({
@@ -236,7 +261,7 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
           total_amount: totalAmount,
           notes: data.notes || null,
           status: 'draft',
-          budget_id: budgetId,
+          budget_id: null, // Legacy field - keeping null, using allocations instead
           contract_id: contractId,
           billing_period_month: periodMonthValue,
           billing_period_year: periodYearValue,
@@ -245,6 +270,14 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
         .single();
 
       if (invoiceError) throw invoiceError;
+
+      // Save budget allocations if any
+      if (associationType === 'budgets' && budgetAllocations.length > 0) {
+        await saveAllocationsMutation.mutateAsync({
+          invoiceId: newInvoice.id,
+          allocations: budgetAllocations,
+        });
+      }
 
       // Create invoice items
       for (const item of invoiceItems) {
@@ -272,15 +305,6 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
         }
       }
 
-      // Update budget status to 'invoiced' if linked
-      if (budgetId) {
-        await supabase
-          .from('budgets')
-          .update({ status: 'invoiced' })
-          .eq('id', budgetId)
-          .eq('status', 'approved');
-      }
-
       return newInvoice;
     },
     onSuccess: () => {
@@ -300,15 +324,9 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
   const updateMutation = useMutation({
     mutationFn: async (data: InvoiceFormData) => {
       // Prepare association fields
-      const budgetId = associationType === 'budget' ? selectedBudgetId : null;
       const contractId = associationType === 'contract' ? selectedContractId : null;
       const periodMonthValue = associationType === 'contract' ? billingMonth : null;
       const periodYearValue = associationType === 'contract' ? billingYear : null;
-
-      // If changing association, reset old budget status if needed
-      if (invoice.budget_id && invoice.budget_id !== budgetId) {
-        // Old budget is being unlinked - could revert to approved, but keeping invoiced is safer
-      }
 
       // Update invoice
       const updateData: any = {
@@ -320,7 +338,7 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
         tax_amount: taxAmount,
         total_amount: totalAmount,
         notes: data.notes || null,
-        budget_id: budgetId,
+        budget_id: null, // Legacy field - keeping null, using allocations instead
         contract_id: contractId,
         billing_period_month: periodMonthValue,
         billing_period_year: periodYearValue,
@@ -337,6 +355,20 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
         .eq('id', invoice.id);
 
       if (invoiceError) throw invoiceError;
+
+      // Save budget allocations
+      if (associationType === 'budgets') {
+        await saveAllocationsMutation.mutateAsync({
+          invoiceId: invoice.id,
+          allocations: budgetAllocations,
+        });
+      } else {
+        // Clear allocations if not using budgets
+        await saveAllocationsMutation.mutateAsync({
+          invoiceId: invoice.id,
+          allocations: [],
+        });
+      }
 
       // Delete old items
       await supabase.from('invoice_items').delete().eq('invoice_id', invoice.id);
@@ -363,15 +395,6 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
             })
             .in('id', item.request_ids);
         }
-      }
-
-      // Update budget status to 'invoiced' if newly linked
-      if (budgetId && budgetId !== invoice.budget_id) {
-        await supabase
-          .from('budgets')
-          .update({ status: 'invoiced' })
-          .eq('id', budgetId)
-          .eq('status', 'approved');
       }
     },
     onSuccess: () => {
@@ -514,7 +537,7 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
                   setValue('client_id', value);
                   // Reset associations when client changes
                   setAssociationType('none');
-                  setSelectedBudgetId(null);
+                  setBudgetAllocations([]);
                   setSelectedContractId(null);
                 }}
                 disabled={disabled}
@@ -552,7 +575,7 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
                 value={associationType}
                 onValueChange={(value: AssociationType) => {
                   setAssociationType(value);
-                  if (value !== 'budget') setSelectedBudgetId(null);
+                  if (value !== 'budgets') setBudgetAllocations([]);
                   if (value !== 'contract') {
                     setSelectedContractId(null);
                     setBillingMonth(null);
@@ -562,39 +585,17 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
                 disabled={disabled}
                 className="space-y-3"
               >
-                {/* Budget Option */}
+                {/* Budget Option - now with multi-allocation */}
                 <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                  <RadioGroupItem value="budget" id="budget" className="mt-1" />
+                  <RadioGroupItem value="budgets" id="budgets" className="mt-1" />
                   <div className="flex-1 space-y-2">
-                    <Label htmlFor="budget" className="flex items-center gap-2 cursor-pointer font-medium">
+                    <Label htmlFor="budgets" className="flex items-center gap-2 cursor-pointer font-medium">
                       <FileText className="h-4 w-4 text-purple-600" />
-                      Presupuesto
+                      Presupuesto(s)
                     </Label>
-                    {associationType === 'budget' && (
-                      <Select
-                        value={selectedBudgetId || ''}
-                        onValueChange={setSelectedBudgetId}
-                        disabled={disabled}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Seleccionar presupuesto" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableBudgets.length === 0 ? (
-                            <SelectItem value="_none" disabled>
-                              No hay presupuestos disponibles
-                            </SelectItem>
-                          ) : (
-                            availableBudgets.map((budget) => (
-                              <SelectItem key={budget.id} value={budget.id}>
-                                {budget.code} - {budget.title}
-                                {budget.total_amount && ` (${budget.total_amount.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })})`}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Permite asociar múltiples presupuestos con importes específicos
+                    </p>
                   </div>
                 </div>
 
@@ -683,7 +684,16 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
             </Card>
           )}
 
-          {/* Period Selection for line items (only in create mode) */}
+          {/* Budget Allocation Editor - shown when budgets association is selected */}
+          {clientId && associationType === 'budgets' && (
+            <BudgetAllocationEditor
+              invoiceTotal={totalAmount}
+              allocations={budgetAllocations}
+              availableBudgets={availableBudgets}
+              onAllocationsChange={setBudgetAllocations}
+              disabled={disabled}
+            />
+          )}
           {mode === 'create' && (
             <Card className="p-4 space-y-3">
               <h3 className="font-medium">Período para buscar solicitudes</h3>

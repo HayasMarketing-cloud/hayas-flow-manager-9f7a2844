@@ -32,6 +32,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { BudgetContextTab } from '@/components/budgets/BudgetContextTab';
 import { useBudgetPnL } from '@/hooks/useEntityPnL';
 import { FinancialControllingCard } from '@/components/shared/FinancialControllingCard';
+import { BudgetLinkedInvoicesCard } from '@/components/budgets/BudgetLinkedInvoicesCard';
 
 export default function PresupuestoDetalle() {
   const { id } = useParams<{ id: string }>();
@@ -1483,6 +1484,14 @@ export default function PresupuestoDetalle() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Linked Invoices Card */}
+            {budget.status === 'approved' || budget.status === 'invoiced' ? (
+              <BudgetLinkedInvoicesCard 
+                budgetId={budget.id} 
+                budgetTotal={totalPresupuestado} 
+              />
+            ) : null}
           </TabsContent>
         </Tabs>
       </div>

@@ -16,7 +16,7 @@ import { InvoiceCard } from '@/components/invoices/InvoiceCard';
 import { InvoiceTableView } from '@/components/invoices/InvoiceTableView';
 import { InvoiceFormModal } from '@/components/modals/InvoiceFormModal';
 import { InvoiceUploadModal } from '@/components/invoices/InvoiceUploadModal';
-import { BulkPaymentModal } from '@/components/invoices/BulkPaymentModal';
+import { PaymentRegistrationModal } from '@/components/invoices/PaymentRegistrationModal';
 import { useInvoiceFilters, PeriodType, InvoiceStatusFilter } from '@/hooks/useInvoiceFilters';
 import { formatCurrency } from '@/lib/invoice-utils';
 
@@ -474,7 +474,7 @@ export default function Facturas() {
         onClose={() => setUploadModalOpen(false)}
       />
 
-      <BulkPaymentModal
+      <PaymentRegistrationModal
         isOpen={bulkPaymentModalOpen}
         onClose={() => setBulkPaymentModalOpen(false)}
         invoices={selectedInvoices}

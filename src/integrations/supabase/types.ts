@@ -822,6 +822,45 @@ export type Database = {
           },
         ]
       }
+      invoice_payments: {
+        Row: {
+          allocated_amount: number
+          created_at: string | null
+          id: string
+          invoice_id: string
+          payment_id: string
+        }
+        Insert: {
+          allocated_amount: number
+          created_at?: string | null
+          id?: string
+          invoice_id: string
+          payment_id: string
+        }
+        Update: {
+          allocated_amount?: number
+          created_at?: string | null
+          id?: string
+          invoice_id?: string
+          payment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_payments_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           billing_period_month: number | null
@@ -1324,6 +1363,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      payments: {
+        Row: {
+          amount: number
+          bank_account: string | null
+          code: string
+          created_at: string | null
+          created_by: string
+          id: string
+          notes: string | null
+          payment_date: string
+          payment_method: Database["public"]["Enums"]["payment_method"] | null
+          reference: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          bank_account?: string | null
+          code: string
+          created_at?: string | null
+          created_by: string
+          id?: string
+          notes?: string | null
+          payment_date: string
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          reference?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          bank_account?: string | null
+          code?: string
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          notes?: string | null
+          payment_date?: string
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          reference?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       profiles: {
         Row: {

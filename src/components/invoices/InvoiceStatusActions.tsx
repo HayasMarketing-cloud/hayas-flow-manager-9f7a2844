@@ -28,10 +28,12 @@ const statusTransitions: Record<InvoiceStatus, InvoiceStatus[]> = {
   cancelled: [],
 };
 
+// === FACTURAS EMITIDAS A CLIENTES ===
+// Para facturas emitidas usamos terminología de "cobro" (ingresos)
 const statusLabels: Record<InvoiceStatus, string> = {
   draft: 'Borrador',
   sent: 'Enviada',
-  paid: 'Pagada',
+  paid: 'Cobrada',  // Changed from 'Pagada' - cliente invoices are "collected"
   overdue: 'Vencida',
   cancelled: 'Cancelada',
 };
@@ -101,7 +103,7 @@ export function InvoiceStatusActions({ invoiceId, currentStatus, compact = false
           ) : (
             <Check className="h-4 w-4 mr-1" />
           )}
-          Marcar Pagada
+          Marcar Cobrada
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

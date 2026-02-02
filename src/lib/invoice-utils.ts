@@ -2,21 +2,25 @@ import { Database } from '@/integrations/supabase/types';
 
 type InvoiceStatus = Database['public']['Enums']['invoice_status'];
 
-// Simplified status display - only "Pagada" and "Pendiente de pago"
+// === FACTURAS EMITIDAS A CLIENTES ===
+// Para facturas emitidas usamos terminología de "cobro" (ingresos)
+// Nota: Las futuras facturas de proveedores usarán terminología de "pago" (gastos)
+
+// Simplified status display - only "Cobrada" and "Pendiente de cobro"
 export const getInvoiceStatusColor = (status: InvoiceStatus): string => {
   if (status === 'paid') {
     return 'bg-green-500 text-white';
   }
-  // All other statuses are considered "Pendiente de pago"
+  // All other statuses are considered "Pendiente de cobro"
   return 'bg-amber-500 text-white';
 };
 
 export const getInvoiceStatusLabel = (status: InvoiceStatus): string => {
   if (status === 'paid') {
-    return 'Pagada';
+    return 'Cobrada';  // Client invoice = collected
   }
-  // All other statuses are considered "Pendiente de pago"
-  return 'Pendiente de pago';
+  // All other statuses are considered "Pendiente de cobro"
+  return 'Pendiente de cobro';
 };
 
 // Check if invoice is pending payment (not paid)

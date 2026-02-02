@@ -1,277 +1,147 @@
 
 
-# Plan: Asociación Múltiple entre Facturas y Presupuestos con Conciliación de Importes
+# Plan: Corregir Visibilidad de Presupuestos Parcialmente Facturados
 
-## Situación Actual
+## Problema Identificado
 
-El modelo actual tiene una **relación 1:1** entre facturas y presupuestos:
+Al intentar asociar la factura 2026/8 al presupuesto PRE-2025-203 (que ya tiene una factura parcial asociada), el presupuesto aparece en el dropdown pero **no es seleccionable**.
 
-```text
-┌─────────────┐         ┌─────────────┐
-│   Invoice   │────────►│   Budget    │
-│  budget_id  │   1:1   │             │
-└─────────────┘         └─────────────┘
+### Análisis Técnico
+
+El sistema actual ya soporta asociaciones múltiples (N:M entre facturas y presupuestos), pero hay un problema en la lógica de filtrado:
+
+En `BudgetAllocationEditor.tsx` línea 133:
+```typescript
+disabled={budget.is_fully_invoiced}
 ```
 
-Esto **NO permite**:
-- 2 facturas asociadas a 1 presupuesto
-- 1 factura asociada a 2 presupuestos
-- Tracking del importe conciliado vs pendiente
+Este flag se calcula en `useInvoiceBudgetAllocations.tsx` línea 260:
+```typescript
+is_fully_invoiced: remaining <= 0
+```
+
+El problema es que `is_fully_invoiced` se usa para **deshabilitar** el SelectItem, lo cual impide seleccionar presupuestos que ya tienen alguna factura aunque tengan importe pendiente.
 
 ---
 
-## Propuesta: Nueva Tabla de Conciliación
+## Solución Propuesta
 
-Crear una tabla intermedia `invoice_budget_allocations` que permita:
-- N facturas → 1 presupuesto
-- 1 factura → N presupuestos
-- Registrar el importe asignado de cada relación
+### Cambio 1: Ajustar la Lógica de `is_fully_invoiced`
 
-### Nuevo Modelo de Datos
+El flag solo debe ser `true` cuando el importe restante es realmente cero o negativo. Actualmente parece funcionar correctamente según el código, pero añadiré logging para debug y verificaré el cálculo.
 
-```text
-┌─────────────┐     ┌─────────────────────────┐     ┌─────────────┐
-│   Invoice   │◄────│ invoice_budget_allocations │────►│   Budget    │
-│  (eliminar  │ N:1 │   invoice_id             │ 1:N │             │
-│  budget_id) │     │   budget_id              │     │             │
-│             │     │   allocated_amount       │     │ total_amount│
-└─────────────┘     └─────────────────────────┘     └─────────────┘
-```
+### Cambio 2: Mostrar Indicador Visual sin Deshabilitar
 
-### Nueva Tabla: invoice_budget_allocations
+En lugar de deshabilitar completamente los presupuestos "fully invoiced", mostrarlos con un indicador visual diferente pero permitir la selección (útil para casos de sobre-facturación intencional o correcciones).
 
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| id | uuid | PK |
-| invoice_id | uuid | FK → invoices |
-| budget_id | uuid | FK → budgets |
-| allocated_amount | numeric | Importe asignado de esta factura a este presupuesto |
-| notes | text | Notas opcionales |
-| created_at | timestamp | Fecha de creación |
+### Cambio 3: Mejorar el Feedback Visual
+
+Mostrar claramente:
+- Importe total del presupuesto
+- Importe ya facturado (de otras facturas)
+- Importe restante disponible
+- Indicador de estado (Disponible / Parcialmente facturado / Completamente facturado)
 
 ---
 
-## Indicadores de Conciliación
+## Cambios por Archivo
 
-### Para Presupuestos
+### `src/components/invoices/BudgetAllocationEditor.tsx`
 
-```text
-Presupuesto: PRE-2026-001
-Total: €10.000
+| Línea | Cambio |
+|-------|--------|
+| 133 | Quitar `disabled={budget.is_fully_invoiced}` - permitir siempre la selección |
+| 139-141 | Mejorar el badge para mostrar estado más claro |
+| Nuevo | Añadir indicador de advertencia si el presupuesto ya está 100% facturado |
 
-Facturas asociadas:
-├── FAC-2026-015: €6.000 ✓
-└── FAC-2026-018: €4.000 ✓
+### `src/hooks/useInvoiceBudgetAllocations.tsx`
 
-Facturado: €10.000 / €10.000 = 100% ✅
-```
-
-### Para Facturas
-
-```text
-Factura: FAC-2026-018
-Total: €5.000
-
-Presupuestos asociados:
-├── PRE-2026-001: €4.000
-└── PRE-2026-002: €1.000
-
-Asignado: €5.000 / €5.000 = 100% ✅
-```
-
-### Estado de Conciliación
-
-| % Asignado | Estado | Color |
-|------------|--------|-------|
-| 0% | Sin asignar | Gris |
-| 1-99% | Parcial | Amarillo |
-| 100% | Completo | Verde |
-| >100% | Exceso | Rojo |
+| Cambio | Descripción |
+|--------|-------------|
+| Línea 260 | Verificar que el cálculo de `remaining` usa tolerancia decimal (evitar falsos positivos por redondeo) |
+| Debug | Añadir console.log temporal para verificar los valores calculados |
 
 ---
 
-## Cambios en UI
-
-### 1. Selector de Presupuestos Múltiple
-
-En el modal de factura, reemplazar el selector único por una lista donde puedas:
-- Añadir múltiples presupuestos
-- Especificar el importe asignado de cada uno
-- Ver el balance (importe factura - total asignado)
+## Nueva UI del Selector
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│ Asociar a Presupuestos                                      │
+│ Seleccionar presupuesto...                              [▼] │
 ├─────────────────────────────────────────────────────────────┤
-│ Importe factura: €5.000,00                                  │
-│                                                             │
-│ [+ Añadir Presupuesto]                                      │
-│                                                             │
-│ ┌───────────────────┬────────────────┬──────────┬─────────┐ │
-│ │ Presupuesto       │ Total Presup.  │ Asignado │ 🗑      │ │
-│ ├───────────────────┼────────────────┼──────────┼─────────┤ │
-│ │ PRE-2026-001      │ €10.000        │ [4000]   │ ×       │ │
-│ │ PRE-2026-002      │ €2.000         │ [1000]   │ ×       │ │
-│ └───────────────────┴────────────────┴──────────┴─────────┘ │
-│                                                             │
-│ Total asignado: €5.000 / €5.000  ✅ Conciliado             │
+│ PRE-2026-007 - Localization epaq Brochure                   │
+│   Total: 700,00 € | Disp: 700,00 € ✓                       │
+├─────────────────────────────────────────────────────────────┤
+│ PRE-2025-203 - Localización contenidos e-PAQ GO            │
+│   Total: 1197,89 € | Facturado: 600,00 € | Disp: 597,89 € ⚠│
+├─────────────────────────────────────────────────────────────┤
+│ PRE-2025-100 - Otro Presupuesto (ya completado)            │
+│   Total: 500,00 € | Facturado: 500,00 € | Disp: 0,00 € ⛔   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 2. Vista en Tabla de Facturas
-
-Mostrar indicador de conciliación:
-
-| Código | Cliente | Total | Conciliación | Estado |
-|--------|---------|-------|--------------|--------|
-| FAC-001 | Asendia | €5.000 | 100% ✅ | Cobrada |
-| FAC-002 | Hayas | €3.000 | 50% ⚠️ | Enviada |
-
-### 3. Vista en Detalle de Presupuesto
-
-Mostrar facturas vinculadas con importes:
-
-```text
-Estado de Facturación
-─────────────────────
-Total presupuesto: €10.000,00
-
-Facturas vinculadas:
-• FAC-2026-015  │ €6.000  │ Cobrada  │ [Ver]
-• FAC-2026-018  │ €4.000  │ Enviada  │ [Ver]
-                ─────────
-Facturado:      €10.000,00 (100%) ✅
-Pendiente:      €0,00
-```
-
----
-
-## Migración de Datos
-
-1. Crear tabla `invoice_budget_allocations`
-2. Migrar datos existentes: Para cada factura con `budget_id`, crear allocation con `allocated_amount = total_amount`
-3. Eliminar columna `budget_id` de `invoices` (o deprecarla)
-
----
-
-## Archivos a Modificar/Crear
-
-### Base de Datos
-- Nueva tabla: `invoice_budget_allocations`
-- Migración de datos existentes
-
-### Nuevos Componentes
-| Archivo | Descripción |
-|---------|-------------|
-| `src/hooks/useInvoiceBudgetAllocations.tsx` | Hook para gestionar allocations |
-| `src/components/invoices/BudgetAllocationEditor.tsx` | Editor de asignaciones múltiples |
-| `src/components/invoices/AllocationStatusBadge.tsx` | Badge de estado de conciliación |
-
-### Componentes a Modificar
-| Archivo | Cambio |
-|---------|--------|
-| `InvoiceFormModal.tsx` | Reemplazar selector único por BudgetAllocationEditor |
-| `InvoiceTableView.tsx` | Añadir columna de conciliación |
-| `ExtractedInvoiceRow.tsx` | Actualizar para allocations |
-| `InvoiceUploadModal.tsx` | Actualizar para allocations |
-| `PresupuestoDetalle.tsx` | Mostrar facturas vinculadas con importes |
-| `useBudgetsForInvoice.tsx` | Calcular % facturado y pendiente |
+Leyenda:
+- ✓ Verde: Disponible completamente
+- ⚠ Amarillo: Parcialmente facturado, aún tiene disponible
+- ⛔ Rojo: Completamente facturado (pero seleccionable con advertencia)
 
 ---
 
 ## Sección Técnica
 
-### SQL: Nueva Tabla
+### Nuevo Código para BudgetAllocationEditor
 
-```sql
-CREATE TABLE invoice_budget_allocations (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
-  budget_id UUID NOT NULL REFERENCES budgets(id) ON DELETE RESTRICT,
-  allocated_amount NUMERIC NOT NULL CHECK (allocated_amount > 0),
-  notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
+```typescript
+// Línea 129-145 - Reemplazar SelectItem
+{unallocatedBudgets.map(budget => {
+  const isPartiallyInvoiced = budget.invoiced_amount > 0 && !budget.is_fully_invoiced;
+  const isFullyInvoiced = budget.is_fully_invoiced;
   
-  -- Un presupuesto solo puede aparecer una vez por factura
-  UNIQUE(invoice_id, budget_id)
-);
-
--- Trigger para updated_at
-CREATE TRIGGER update_invoice_budget_allocations_updated_at
-  BEFORE UPDATE ON invoice_budget_allocations
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- RLS
-ALTER TABLE invoice_budget_allocations ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Finance and admin can manage allocations"
-  ON invoice_budget_allocations FOR ALL
-  USING (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'finanzas'))
-  WITH CHECK (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'finanzas'));
+  return (
+    <SelectItem 
+      key={budget.id} 
+      value={budget.id}
+      // Ya no deshabilitamos - solo mostramos advertencia
+    >
+      <div className="flex flex-col gap-1 py-1">
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{budget.code}</span>
+          <span className="text-muted-foreground">-</span>
+          <span className="truncate max-w-[150px]">{budget.title}</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span>Total: {formatCurrency(budget.total_amount)}</span>
+          {budget.invoiced_amount > 0 && (
+            <span className="text-muted-foreground">
+              | Facturado: {formatCurrency(budget.invoiced_amount)}
+            </span>
+          )}
+          <Badge 
+            variant={isFullyInvoiced ? "destructive" : isPartiallyInvoiced ? "secondary" : "outline"} 
+            className="text-xs"
+          >
+            Disp: {formatCurrency(budget.remaining_amount)}
+          </Badge>
+        </div>
+      </div>
+    </SelectItem>
+  );
+})}
 ```
 
-### SQL: Migración de Datos Existentes
-
-```sql
--- Migrar budget_id existentes a allocations
-INSERT INTO invoice_budget_allocations (invoice_id, budget_id, allocated_amount)
-SELECT 
-  id AS invoice_id,
-  budget_id,
-  total_amount AS allocated_amount
-FROM invoices
-WHERE budget_id IS NOT NULL;
-```
-
-### Hook: useInvoiceBudgetAllocations
+### Tolerancia Decimal en Hook
 
 ```typescript
-interface BudgetAllocation {
-  id?: string;
-  invoice_id: string;
-  budget_id: string;
-  budget_code: string;
-  budget_title: string;
-  budget_total: number;
-  allocated_amount: number;
-  budget_invoiced_amount: number; // Ya facturado de este presupuesto
-  budget_remaining: number; // Pendiente de facturar
-}
-
-interface AllocationSummary {
-  total_allocated: number;
-  invoice_remaining: number; // invoice.total - total_allocated
-  is_fully_allocated: boolean;
-}
-```
-
-### Componente: BudgetAllocationEditor
-
-```typescript
-interface BudgetAllocationEditorProps {
-  invoiceTotal: number;
-  allocations: BudgetAllocation[];
-  availableBudgets: Budget[];
-  onAllocationsChange: (allocations: BudgetAllocation[]) => void;
-  disabled?: boolean;
-}
-
-// Permite añadir presupuestos, editar importes, ver balance
+// useInvoiceBudgetAllocations.tsx línea 260
+is_fully_invoiced: remaining <= 0.01, // Tolerancia de 1 céntimo
 ```
 
 ---
 
 ## Resumen de Cambios
 
-| Área | Tipo | Descripción |
-|------|------|-------------|
-| DB | Nueva tabla | `invoice_budget_allocations` |
-| DB | Migración | Mover datos de `budget_id` a allocations |
-| UI | Nuevo componente | Editor de allocations múltiples |
-| UI | Nuevo componente | Badge de estado de conciliación |
-| UI | Modificación | Modal de factura con multi-select |
-| UI | Modificación | Tabla de facturas con columna conciliación |
-| UI | Modificación | Detalle de presupuesto con facturas vinculadas |
-| Hooks | Nuevo | Gestión de allocations y cálculos |
+| Archivo | Tipo | Descripción |
+|---------|------|-------------|
+| `BudgetAllocationEditor.tsx` | Modificar | Quitar disabled, mejorar UI del selector |
+| `useInvoiceBudgetAllocations.tsx` | Modificar | Añadir tolerancia decimal al cálculo |
 

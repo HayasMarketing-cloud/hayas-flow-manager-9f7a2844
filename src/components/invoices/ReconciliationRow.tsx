@@ -88,11 +88,57 @@ export function ReconciliationRow({ invoice }: ReconciliationRowProps) {
     setSelectedRequestIds(suggestedRequestIds);
   };
 
+  // Check if all requests from a budget are now invoiced and update budget status
+  const checkAndUpdateBudgetStatus = async (budgetIds: string[]) => {
+    const uniqueBudgetIds = [...new Set(budgetIds.filter(Boolean))];
+    
+    for (const budgetId of uniqueBudgetIds) {
+      // Get all requests for this budget
+      const { data: budgetRequests } = await supabase
+        .from('financial_requests')
+        .select('id, billed_invoice_id')
+        .eq('budget_id', budgetId);
+      
+      if (!budgetRequests || budgetRequests.length === 0) continue;
+      
+      // Check if all requests have an invoice
+      const allInvoiced = budgetRequests.every(r => r.billed_invoice_id !== null);
+      
+      if (allInvoiced) {
+        // Update budget status to invoiced (only if currently approved)
+        const { error } = await supabase
+          .from('budgets')
+          .update({ status: 'invoiced' })
+          .eq('id', budgetId)
+          .eq('status', 'approved');
+        
+        if (!error) {
+          // Get budget info for toast
+          const { data: budget } = await supabase
+            .from('budgets')
+            .select('code, title')
+            .eq('id', budgetId)
+            .single();
+          
+          if (budget) {
+            toast.success(`Presupuesto ${budget.code} marcado como Facturado automáticamente`);
+          }
+        }
+      }
+    }
+  };
+
   const associateMutation = useMutation({
     mutationFn: async () => {
       if (selectedRequestIds.length === 0) {
         throw new Error('Selecciona al menos una solicitud');
       }
+
+      // Get budget_ids from selected requests before updating
+      const { data: requestsWithBudgets } = await supabase
+        .from('financial_requests')
+        .select('id, budget_id')
+        .in('id', selectedRequestIds);
 
       const { error } = await supabase
         .from('financial_requests')
@@ -100,11 +146,18 @@ export function ReconciliationRow({ invoice }: ReconciliationRowProps) {
         .in('id', selectedRequestIds);
 
       if (error) throw error;
+
+      // Return budget_ids for status check
+      return requestsWithBudgets?.map(r => r.budget_id).filter(Boolean) as string[] || [];
     },
-    onSuccess: () => {
+    onSuccess: async (budgetIds) => {
+      // Check and update budget statuses
+      await checkAndUpdateBudgetStatus(budgetIds);
+      
       queryClient.invalidateQueries({ queryKey: ['unassigned-invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['available-requests-for-reconciliation'] });
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
       toast.success(`${selectedRequestIds.length} solicitudes asociadas a factura ${invoice.code}`);
       setSelectedRequestIds([]);
       setIsOpen(false);

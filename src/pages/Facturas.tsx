@@ -4,8 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, LayoutGrid, Table as TableIcon, X, Download, Upload, CreditCard, Link2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, LayoutGrid, Table as TableIcon, X, Download, Upload, CreditCard } from 'lucide-react';
 import { exportInvoicesToExcel } from '@/utils/excel/invoicesExporter';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -69,14 +68,8 @@ export default function Facturas() {
         .select(`
           *,
           client:clients(id, name, code),
-          linked_requests:financial_requests!billed_invoice_id(
-            id,
-            budget:budgets(id, code, title),
-            contract:contracts(id, code, title),
-            operational_request:operational_requests(
-              operational_project:operational_projects(id, name)
-            )
-          )
+          budget:budgets(id, code, title),
+          contract:contracts(id, code, title)
         `)
         .order('due_date', { ascending: true, nullsFirst: false });
 
@@ -254,12 +247,6 @@ export default function Facturas() {
             )}
           </div>
           <div className="flex gap-2">
-            <Link to="/facturas/reconciliar">
-              <Button variant="outline">
-                <Link2 className="h-4 w-4 mr-2" />
-                Reconciliar
-              </Button>
-            </Link>
             <Button variant="outline" onClick={handleUpload}>
               <Upload className="h-4 w-4 mr-2" />
               Importar Factura

@@ -8,6 +8,7 @@ export const getBudgetStatusColor = (status: BudgetStatus): string => {
     sent: 'bg-blue-500 text-white',
     approved: 'bg-green-500 text-white',
     rejected: 'bg-destructive text-destructive-foreground',
+    invoiced: 'bg-purple-500 text-white',
   };
   return colors[status] || 'bg-muted text-muted-foreground';
 };
@@ -18,6 +19,7 @@ export const getBudgetStatusLabel = (status: BudgetStatus): string => {
     sent: 'Enviado',
     approved: 'Aprobado',
     rejected: 'Rechazado',
+    invoiced: 'Facturado',
   };
   return labels[status] || status;
 };

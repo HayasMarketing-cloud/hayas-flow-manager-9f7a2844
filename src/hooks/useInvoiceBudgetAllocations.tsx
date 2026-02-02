@@ -198,16 +198,22 @@ export const useSaveInvoiceAllocations = () => {
         }
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['invoice-allocations'] });
       queryClient.invalidateQueries({ queryKey: ['budget-allocations'] });
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
       queryClient.invalidateQueries({ queryKey: ['budgets-for-invoice'] });
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      
+      // Log success for debugging
+      console.log(`[SaveAllocations] Saved ${variables.allocations.length} allocations for invoice ${variables.invoiceId}`);
+      if (variables.allocations.length > 0) {
+        toast.success(`${variables.allocations.length} asignación(es) de presupuesto guardada(s)`);
+      }
     },
-    onError: (error) => {
-      console.error('Error saving allocations:', error);
-      toast.error('Error al guardar las asignaciones');
+    onError: (error, variables) => {
+      console.error('[SaveAllocations] Error saving allocations:', error, 'Variables:', variables);
+      toast.error('Error al guardar las asignaciones de presupuesto');
     },
   });
 };

@@ -326,11 +326,17 @@ export function InvoiceUploadModal({ isOpen, onClose }: InvoiceUploadModalProps)
         const subtotal = invoice.editedSubtotal ?? data.subtotal;
         const taxRate = invoice.editedTaxRate ?? data.tax_rate;
         const invoiceStatus = invoice.editedInvoiceStatus ?? 'sent';
+        
+        // New association fields
+        const budgetId = invoice.editedBudgetId ?? null;
+        const contractId = invoice.editedContractId ?? null;
+        const billingMonth = invoice.editedBillingMonth ?? null;
+        const billingYear = invoice.editedBillingYear ?? null;
 
         const taxAmount = subtotal * (taxRate / 100);
         const total = subtotal + taxAmount;
 
-        // Create invoice
+        // Create invoice with new association fields
         const { data: createdInvoice, error: invoiceError } = await supabase
           .from('invoices')
           .insert({
@@ -348,12 +354,26 @@ export function InvoiceUploadModal({ isOpen, onClose }: InvoiceUploadModalProps)
               ? new Date().toISOString() 
               : null,
             paid_at: invoiceStatus === 'paid' ? new Date().toISOString() : null,
+            // Association fields
+            budget_id: budgetId,
+            contract_id: contractId,
+            billing_period_month: billingMonth,
+            billing_period_year: billingYear,
           })
           .select()
           .single();
 
         if (invoiceError) {
           throw new Error(`Error guardando ${code}: ${invoiceError.message}`);
+        }
+
+        // If budget is associated, mark it as invoiced
+        if (budgetId) {
+          await supabase
+            .from('budgets')
+            .update({ status: 'invoiced' })
+            .eq('id', budgetId)
+            .eq('status', 'approved');
         }
 
         // Upload PDF to storage
@@ -518,21 +538,18 @@ export function InvoiceUploadModal({ isOpen, onClose }: InvoiceUploadModalProps)
               </Alert>
             )}
 
-            <div className="max-h-[400px] overflow-auto rounded-md border">
+            <div className="max-h-[500px] overflow-auto rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Contrato</TableHead>
-                    <TableHead>Presupuesto</TableHead>
-                    <TableHead>Proyecto</TableHead>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Subtotal</TableHead>
-                    <TableHead>IVA</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="w-20"></TableHead>
+                    <TableHead className="w-[120px]">Código</TableHead>
+                    <TableHead className="w-[180px]">Cliente</TableHead>
+                    <TableHead className="w-[90px]">Fecha</TableHead>
+                    <TableHead className="w-[110px]">Subtotal</TableHead>
+                    <TableHead className="w-[80px]">IVA</TableHead>
+                    <TableHead className="w-[100px] text-right">Total</TableHead>
+                    <TableHead className="w-[100px]">Estado</TableHead>
+                    <TableHead className="w-[70px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

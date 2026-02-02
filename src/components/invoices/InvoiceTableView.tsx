@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { InvoiceStatusBadge } from './InvoiceStatusBadge';
 import { InvoiceStatusActions } from './InvoiceStatusActions';
 import { AllocationStatusBadge } from './AllocationStatusBadge';
+import { InvoiceOriginCell } from './InvoiceOriginCell';
 import { Edit, Eye, FileText, AlertCircle, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/invoice-utils';
 import { format } from 'date-fns';
@@ -51,7 +52,24 @@ export const InvoiceTableView = ({
   const someSelected = selectableInvoices.some(inv => selectedIds.includes(inv.id)) && !allSelected;
 
   const renderAssociation = (invoice: any) => {
-    // Direct budget association
+    // First check for budget allocations (N:M relationship - preferred method)
+    const allocations = invoice.invoice_budget_allocations || [];
+    if (allocations.length > 0) {
+      // Map allocations to budget items for InvoiceOriginCell
+      const budgetItems = allocations
+        .filter((a: any) => a.budget) // Only include allocations with valid budget data
+        .map((a: any) => ({
+          id: a.budget.id,
+          code: a.budget.code,
+          title: a.budget.title,
+        }));
+      
+      if (budgetItems.length > 0) {
+        return <InvoiceOriginCell items={budgetItems} type="budget" />;
+      }
+    }
+
+    // Direct budget association (legacy)
     if (invoice.budget_id && invoice.budget) {
       return (
         <TooltipProvider>

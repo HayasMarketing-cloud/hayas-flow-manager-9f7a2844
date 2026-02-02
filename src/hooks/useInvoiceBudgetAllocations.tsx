@@ -203,6 +203,7 @@ export const useSaveInvoiceAllocations = () => {
       queryClient.invalidateQueries({ queryKey: ['budget-allocations'] });
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
       queryClient.invalidateQueries({ queryKey: ['budgets-for-invoice'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
     },
     onError: (error) => {
       console.error('Error saving allocations:', error);

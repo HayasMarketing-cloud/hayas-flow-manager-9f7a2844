@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, LayoutGrid, Table as TableIcon, X, Download, Upload, CreditCard } from 'lucide-react';
+import { Plus, LayoutGrid, Table as TableIcon, X, Download, Upload, CreditCard, Undo2 } from 'lucide-react';
 import { exportInvoicesToExcel } from '@/utils/excel/invoicesExporter';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -30,6 +30,7 @@ export default function Facturas() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<any>(null);
+  const [revertDialogOpen, setRevertDialogOpen] = useState(false);
 
   const queryClient = useQueryClient();
   const { canAccessFinance, loading: rolesLoading } = useUserRole();
@@ -69,7 +70,13 @@ export default function Facturas() {
           *,
           client:clients(id, name, code),
           budget:budgets(id, code, title),
-          contract:contracts(id, code, title)
+          contract:contracts(id, code, title),
+          invoice_budget_allocations(
+            id,
+            budget_id,
+            allocated_amount,
+            budget:budgets(id, code, title)
+          )
         `)
         .order('due_date', { ascending: true, nullsFirst: false });
 
@@ -120,9 +127,9 @@ export default function Facturas() {
   });
 
   // Selection derived state (must be above any conditional return to avoid hook-order issues)
-  // Selectable = all invoices that are not paid (pending payment)
+  // Selectable = all invoices (including paid ones for reverting)
   const selectableInvoices = useMemo(
-    () => (invoices || []).filter((inv) => inv.status !== 'paid'),
+    () => invoices || [],
     [invoices]
   );
 
@@ -133,6 +140,20 @@ export default function Facturas() {
 
   const selectedTotal = useMemo(
     () => selectedInvoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0),
+    [selectedInvoices]
+  );
+
+  // Check if selected invoices contain paid or unpaid for conditional buttons
+  const hasSelectedPaid = useMemo(
+    () => selectedInvoices.some(inv => inv.status === 'paid'),
+    [selectedInvoices]
+  );
+  const hasSelectedUnpaid = useMemo(
+    () => selectedInvoices.some(inv => inv.status !== 'paid'),
+    [selectedInvoices]
+  );
+  const selectedPaidInvoices = useMemo(
+    () => selectedInvoices.filter(inv => inv.status === 'paid'),
     [selectedInvoices]
   );
 
@@ -154,6 +175,49 @@ export default function Facturas() {
 
   const handleBulkPaymentSuccess = () => {
     setSelectedIds([]);
+  };
+
+  // Mutation to revert paid invoices to sent status
+  const revertMutation = useMutation({
+    mutationFn: async (invoiceIds: string[]) => {
+      // Delete invoice_payments links for these invoices
+      const { error: deleteError } = await supabase
+        .from('invoice_payments')
+        .delete()
+        .in('invoice_id', invoiceIds);
+      
+      if (deleteError) throw deleteError;
+
+      // Update invoices to 'sent' status and clear paid_at
+      const { error: updateError } = await supabase
+        .from('invoices')
+        .update({ status: 'sent', paid_at: null })
+        .in('id', invoiceIds);
+      
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-payments'] });
+      toast.success('Facturas revertidas a Pendiente de cobro');
+      setSelectedIds([]);
+      setRevertDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast.error('Error al revertir: ' + error.message);
+    }
+  });
+
+  const handleBulkRevert = () => {
+    setRevertDialogOpen(true);
+  };
+
+  const confirmBulkRevert = () => {
+    const paidIds = selectedPaidInvoices.map(inv => inv.id);
+    if (paidIds.length > 0) {
+      revertMutation.mutate(paidIds);
+    }
   };
 
   const deleteMutation = useMutation({
@@ -441,15 +505,35 @@ export default function Facturas() {
             </span>
             <span className="text-primary-foreground/80">|</span>
             <span>{formatCurrency(selectedTotal)}</span>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setBulkPaymentModalOpen(true)}
-              className="ml-2"
-            >
-              <CreditCard className="h-4 w-4 mr-2" />
-              Marcar como Cobradas
-            </Button>
+            
+            {/* Revert to pending - only for paid invoices */}
+            {hasSelectedPaid && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleBulkRevert}
+                className="ml-2"
+              >
+                <Undo2 className="h-4 w-4 mr-2" />
+                Revertir a Pendiente {selectedPaidInvoices.length < selectedIds.length ? `(${selectedPaidInvoices.length})` : ''}
+              </Button>
+            )}
+            
+            {/* Mark as paid - only for unpaid invoices */}
+            {hasSelectedUnpaid && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setBulkPaymentModalOpen(true)}
+                className="ml-2"
+                disabled={hasSelectedPaid} // Disable if any paid invoice is selected
+                title={hasSelectedPaid ? 'No se puede registrar cobro para facturas ya cobradas' : ''}
+              >
+                <CreditCard className="h-4 w-4 mr-2" />
+                Marcar como Cobradas
+              </Button>
+            )}
+            
             <Button
               variant="ghost"
               size="sm"
@@ -490,6 +574,16 @@ export default function Facturas() {
         cancelText="Cancelar"
         onConfirm={confirmDelete}
         variant="destructive"
+      />
+
+      <ConfirmDialog
+        open={revertDialogOpen}
+        onOpenChange={setRevertDialogOpen}
+        title={`¿Revertir ${selectedPaidInvoices.length} factura${selectedPaidInvoices.length > 1 ? 's' : ''} a Pendiente de cobro?`}
+        description="Se eliminarán los vínculos con pagos registrados y las facturas volverán al estado 'Enviada'. Podrás volver a registrar un cobro para asociarlas a un nuevo pago."
+        confirmText="Revertir"
+        cancelText="Cancelar"
+        onConfirm={confirmBulkRevert}
       />
     </AppLayout>
   );

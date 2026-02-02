@@ -779,8 +779,12 @@ export type Database = {
       }
       invoices: {
         Row: {
+          billing_period_month: number | null
+          billing_period_year: number | null
+          budget_id: string | null
           client_id: string
           code: string
+          contract_id: string | null
           created_at: string
           due_date: string | null
           id: string
@@ -797,8 +801,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          billing_period_month?: number | null
+          billing_period_year?: number | null
+          budget_id?: string | null
           client_id: string
           code: string
+          contract_id?: string | null
           created_at?: string
           due_date?: string | null
           id?: string
@@ -815,8 +823,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          billing_period_month?: number | null
+          billing_period_year?: number | null
+          budget_id?: string | null
           client_id?: string
           code?: string
+          contract_id?: string | null
           created_at?: string
           due_date?: string | null
           id?: string
@@ -834,10 +846,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "invoices_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "invoices_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
             referencedColumns: ["id"]
           },
         ]

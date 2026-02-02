@@ -11,13 +11,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { FileDown, Plus } from 'lucide-react';
+import { FileDown, Plus, Briefcase, FileText, MinusCircle } from 'lucide-react';
 import { generateInvoicePDF } from '@/utils/pdf/invoicePDFGenerator';
 import { InvoiceItemsEditor, type InvoiceItem } from '@/components/invoices/InvoiceItemsEditor';
 import { useRequestsForPeriod } from '@/hooks/useRequestsForPeriod';
+import { useBudgetsForInvoice } from '@/hooks/useBudgetsForInvoice';
+import { useContractsForInvoice } from '@/hooks/useContractsForInvoice';
 
 const invoiceSchema = z.object({
   code: z.string().optional(),
@@ -31,6 +34,7 @@ const invoiceSchema = z.object({
 });
 
 type InvoiceFormData = z.infer<typeof invoiceSchema>;
+type AssociationType = 'budget' | 'contract' | 'none';
 
 interface InvoiceFormModalProps {
   isOpen: boolean;
@@ -38,6 +42,24 @@ interface InvoiceFormModalProps {
   invoice?: any;
   mode: 'create' | 'edit' | 'view';
 }
+
+const months = [
+  { value: 1, label: 'Enero' },
+  { value: 2, label: 'Febrero' },
+  { value: 3, label: 'Marzo' },
+  { value: 4, label: 'Abril' },
+  { value: 5, label: 'Mayo' },
+  { value: 6, label: 'Junio' },
+  { value: 7, label: 'Julio' },
+  { value: 8, label: 'Agosto' },
+  { value: 9, label: 'Septiembre' },
+  { value: 10, label: 'Octubre' },
+  { value: 11, label: 'Noviembre' },
+  { value: 12, label: 'Diciembre' },
+];
+
+const currentYear = new Date().getFullYear();
+const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
 export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceFormModalProps) {
   const queryClient = useQueryClient();
@@ -47,6 +69,13 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
   const [pricePerHour, setPricePerHour] = useState<number>(0);
   const [manualSubtotal, setManualSubtotal] = useState<number>(0);
   const [editedTaxRate, setEditedTaxRate] = useState<number>(21);
+
+  // Association state
+  const [associationType, setAssociationType] = useState<AssociationType>('none');
+  const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
+  const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
+  const [billingMonth, setBillingMonth] = useState<number | null>(null);
+  const [billingYear, setBillingYear] = useState<number | null>(null);
 
   const {
     register,
@@ -80,7 +109,11 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
     },
   });
 
-  // Fetch requests for period
+  // Fetch budgets and contracts for association
+  const { data: availableBudgets = [] } = useBudgetsForInvoice(clientId, invoice?.id);
+  const { data: availableContracts = [] } = useContractsForInvoice(clientId);
+
+  // Fetch requests for period (for line items creation)
   const { data: availableRequests = [] } = useRequestsForPeriod(
     clientId,
     periodMonth,
@@ -112,6 +145,27 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
       // Load manual subtotal and tax rate from invoice for imported invoices
       setManualSubtotal(invoice.subtotal || 0);
       setEditedTaxRate(invoice.tax_rate ?? 21);
+
+      // Load association data
+      if (invoice.budget_id) {
+        setAssociationType('budget');
+        setSelectedBudgetId(invoice.budget_id);
+        setSelectedContractId(null);
+        setBillingMonth(null);
+        setBillingYear(null);
+      } else if (invoice.contract_id) {
+        setAssociationType('contract');
+        setSelectedContractId(invoice.contract_id);
+        setBillingMonth(invoice.billing_period_month);
+        setBillingYear(invoice.billing_period_year);
+        setSelectedBudgetId(null);
+      } else {
+        setAssociationType('none');
+        setSelectedBudgetId(null);
+        setSelectedContractId(null);
+        setBillingMonth(null);
+        setBillingYear(null);
+      }
     } else {
       reset({
         tax_rate: 21,
@@ -121,6 +175,11 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
       setSelectedRequestIds([]);
       setManualSubtotal(0);
       setEditedTaxRate(21);
+      setAssociationType('none');
+      setSelectedBudgetId(null);
+      setSelectedContractId(null);
+      setBillingMonth(null);
+      setBillingYear(null);
     }
   }, [invoice, mode, reset]);
 
@@ -157,6 +216,12 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
         sequence_name: 'invoices',
       });
 
+      // Prepare association fields
+      const budgetId = associationType === 'budget' ? selectedBudgetId : null;
+      const contractId = associationType === 'contract' ? selectedContractId : null;
+      const periodMonthValue = associationType === 'contract' ? billingMonth : null;
+      const periodYearValue = associationType === 'contract' ? billingYear : null;
+
       // Create invoice
       const { data: newInvoice, error: invoiceError } = await supabase
         .from('invoices')
@@ -171,6 +236,10 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
           total_amount: totalAmount,
           notes: data.notes || null,
           status: 'draft',
+          budget_id: budgetId,
+          contract_id: contractId,
+          billing_period_month: periodMonthValue,
+          billing_period_year: periodYearValue,
         })
         .select()
         .single();
@@ -203,12 +272,23 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
         }
       }
 
+      // Update budget status to 'invoiced' if linked
+      if (budgetId) {
+        await supabase
+          .from('budgets')
+          .update({ status: 'invoiced' })
+          .eq('id', budgetId)
+          .eq('status', 'approved');
+      }
+
       return newInvoice;
     },
     onSuccess: () => {
       toast.success('Factura creada correctamente');
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['requests-for-period'] });
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      queryClient.invalidateQueries({ queryKey: ['budgets-for-invoice'] });
       onClose();
     },
     onError: (error) => {
@@ -219,6 +299,17 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
 
   const updateMutation = useMutation({
     mutationFn: async (data: InvoiceFormData) => {
+      // Prepare association fields
+      const budgetId = associationType === 'budget' ? selectedBudgetId : null;
+      const contractId = associationType === 'contract' ? selectedContractId : null;
+      const periodMonthValue = associationType === 'contract' ? billingMonth : null;
+      const periodYearValue = associationType === 'contract' ? billingYear : null;
+
+      // If changing association, reset old budget status if needed
+      if (invoice.budget_id && invoice.budget_id !== budgetId) {
+        // Old budget is being unlinked - could revert to approved, but keeping invoiced is safer
+      }
+
       // Update invoice
       const updateData: any = {
         client_id: data.client_id,
@@ -229,6 +320,10 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
         tax_amount: taxAmount,
         total_amount: totalAmount,
         notes: data.notes || null,
+        budget_id: budgetId,
+        contract_id: contractId,
+        billing_period_month: periodMonthValue,
+        billing_period_year: periodYearValue,
       };
 
       // Allow code update if provided
@@ -269,11 +364,22 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
             .in('id', item.request_ids);
         }
       }
+
+      // Update budget status to 'invoiced' if newly linked
+      if (budgetId && budgetId !== invoice.budget_id) {
+        await supabase
+          .from('budgets')
+          .update({ status: 'invoiced' })
+          .eq('id', budgetId)
+          .eq('status', 'approved');
+      }
     },
     onSuccess: () => {
       toast.success('Factura actualizada correctamente');
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['requests-for-period'] });
+      queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      queryClient.invalidateQueries({ queryKey: ['budgets-for-invoice'] });
       onClose();
     },
     onError: (error) => {
@@ -358,6 +464,12 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
       return;
     }
 
+    // Validate contract association requires period
+    if (associationType === 'contract' && selectedContractId && (!billingMonth || !billingYear)) {
+      toast.error('Selecciona el mes y año de facturación para el contrato');
+      return;
+    }
+
     if (mode === 'create') {
       createMutation.mutate(data);
     } else if (mode === 'edit') {
@@ -367,24 +479,6 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
 
   // Allow editing in edit mode regardless of status (for imported invoices)
   const disabled = mode === 'view';
-
-  const months = [
-    { value: 1, label: 'Enero' },
-    { value: 2, label: 'Febrero' },
-    { value: 3, label: 'Marzo' },
-    { value: 4, label: 'Abril' },
-    { value: 5, label: 'Mayo' },
-    { value: 6, label: 'Junio' },
-    { value: 7, label: 'Julio' },
-    { value: 8, label: 'Agosto' },
-    { value: 9, label: 'Septiembre' },
-    { value: 10, label: 'Octubre' },
-    { value: 11, label: 'Noviembre' },
-    { value: 12, label: 'Diciembre' },
-  ];
-
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -416,7 +510,13 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
               <Label>Cliente *</Label>
               <Select
                 value={watch('client_id')}
-                onValueChange={(value) => setValue('client_id', value)}
+                onValueChange={(value) => {
+                  setValue('client_id', value);
+                  // Reset associations when client changes
+                  setAssociationType('none');
+                  setSelectedBudgetId(null);
+                  setSelectedContractId(null);
+                }}
                 disabled={disabled}
               >
                 <SelectTrigger>
@@ -444,10 +544,152 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
             </div>
           </div>
 
-          {/* Period Selection */}
+          {/* Association Selector */}
+          {clientId && (
+            <Card className="p-4 space-y-4">
+              <h3 className="font-medium">Asociar factura a:</h3>
+              <RadioGroup
+                value={associationType}
+                onValueChange={(value: AssociationType) => {
+                  setAssociationType(value);
+                  if (value !== 'budget') setSelectedBudgetId(null);
+                  if (value !== 'contract') {
+                    setSelectedContractId(null);
+                    setBillingMonth(null);
+                    setBillingYear(null);
+                  }
+                }}
+                disabled={disabled}
+                className="space-y-3"
+              >
+                {/* Budget Option */}
+                <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                  <RadioGroupItem value="budget" id="budget" className="mt-1" />
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="budget" className="flex items-center gap-2 cursor-pointer font-medium">
+                      <FileText className="h-4 w-4 text-purple-600" />
+                      Presupuesto
+                    </Label>
+                    {associationType === 'budget' && (
+                      <Select
+                        value={selectedBudgetId || ''}
+                        onValueChange={setSelectedBudgetId}
+                        disabled={disabled}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Seleccionar presupuesto" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableBudgets.length === 0 ? (
+                            <SelectItem value="_none" disabled>
+                              No hay presupuestos disponibles
+                            </SelectItem>
+                          ) : (
+                            availableBudgets.map((budget) => (
+                              <SelectItem key={budget.id} value={budget.id}>
+                                {budget.code} - {budget.title}
+                                {budget.total_amount && ` (${budget.total_amount.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })})`}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                </div>
+
+                {/* Contract Option */}
+                <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                  <RadioGroupItem value="contract" id="contract" className="mt-1" />
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="contract" className="flex items-center gap-2 cursor-pointer font-medium">
+                      <Briefcase className="h-4 w-4 text-blue-600" />
+                      Contrato + Período
+                    </Label>
+                    {associationType === 'contract' && (
+                      <div className="space-y-3">
+                        <Select
+                          value={selectedContractId || ''}
+                          onValueChange={setSelectedContractId}
+                          disabled={disabled}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Seleccionar contrato" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableContracts.length === 0 ? (
+                              <SelectItem value="_none" disabled>
+                                No hay contratos activos
+                              </SelectItem>
+                            ) : (
+                              availableContracts.map((contract) => (
+                                <SelectItem key={contract.id} value={contract.id}>
+                                  {contract.code} - {contract.title}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                        {selectedContractId && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <Select
+                              value={billingMonth?.toString() || ''}
+                              onValueChange={(v) => setBillingMonth(parseInt(v))}
+                              disabled={disabled}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Mes" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {months.map((m) => (
+                                  <SelectItem key={m.value} value={m.value.toString()}>
+                                    {m.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Select
+                              value={billingYear?.toString() || ''}
+                              onValueChange={(v) => setBillingYear(parseInt(v))}
+                              disabled={disabled}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Año" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {years.map((y) => (
+                                  <SelectItem key={y} value={y.toString()}>
+                                    {y}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* None Option */}
+                <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                  <RadioGroupItem value="none" id="none" className="mt-1" />
+                  <Label htmlFor="none" className="flex items-center gap-2 cursor-pointer font-medium">
+                    <MinusCircle className="h-4 w-4 text-muted-foreground" />
+                    Sin asociar (facturas históricas)
+                  </Label>
+                </div>
+              </RadioGroup>
+            </Card>
+          )}
+
+          {/* Period Selection for line items (only in create mode) */}
           {mode === 'create' && (
             <Card className="p-4 space-y-3">
-              <h3 className="font-medium">Período a facturar</h3>
+              <h3 className="font-medium">Período para buscar solicitudes</h3>
+              <p className="text-sm text-muted-foreground">
+                Selecciona un período para cargar las solicitudes completadas y crear líneas de factura
+              </p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Mes</Label>

@@ -1,48 +1,15 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { InvoiceStatusBadge } from './InvoiceStatusBadge';
 import { InvoiceStatusActions } from './InvoiceStatusActions';
-import { InvoiceOriginCell } from './InvoiceOriginCell';
 import { Edit, Eye, FileText, AlertCircle, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/invoice-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-interface OriginItem {
-  id: string;
-  name?: string;
-  code?: string;
-  title?: string;
-}
-
-// Helper functions to extract unique items from linked requests
-const getUniqueProjects = (invoice: any): OriginItem[] => {
-  if (!invoice.linked_requests) return [];
-  const projects = invoice.linked_requests
-    .flatMap((r: any) => r.operational_request || [])
-    .map((or: any) => or.operational_project)
-    .filter(Boolean);
-  // Deduplicate by id
-  return [...new Map(projects.map((p: any) => [p.id, p])).values()] as OriginItem[];
-};
-
-const getUniqueBudgets = (invoice: any): OriginItem[] => {
-  if (!invoice.linked_requests) return [];
-  const budgets = invoice.linked_requests
-    .map((r: any) => r.budget)
-    .filter(Boolean);
-  return [...new Map(budgets.map((b: any) => [b.id, b])).values()] as OriginItem[];
-};
-
-const getUniqueContracts = (invoice: any): OriginItem[] => {
-  if (!invoice.linked_requests) return [];
-  const contracts = invoice.linked_requests
-    .map((r: any) => r.contract)
-    .filter(Boolean);
-  return [...new Map(contracts.map((c: any) => [c.id, c])).values()] as OriginItem[];
-};
 interface InvoiceTableViewProps {
   invoices: any[];
   onView: (invoice: any) => void;
@@ -57,6 +24,11 @@ interface InvoiceTableViewProps {
 // Selectable = all invoices that are not paid (pending payment)
 const isSelectableStatus = (status: string) => status !== 'paid';
 
+const months = [
+  'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+  'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
+];
+
 export const InvoiceTableView = ({ 
   invoices, 
   onView, 
@@ -70,6 +42,59 @@ export const InvoiceTableView = ({
   const selectableInvoices = invoices.filter(inv => isSelectableStatus(inv.status));
   const allSelected = selectableInvoices.length > 0 && selectableInvoices.every(inv => selectedIds.includes(inv.id));
   const someSelected = selectableInvoices.some(inv => selectedIds.includes(inv.id)) && !allSelected;
+
+  const renderAssociation = (invoice: any) => {
+    // Direct budget association
+    if (invoice.budget_id && invoice.budget) {
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 cursor-pointer">
+                {invoice.budget.code}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="font-medium">Presupuesto</p>
+              <p className="text-sm">{invoice.budget.title}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+
+    // Direct contract association
+    if (invoice.contract_id && invoice.contract) {
+      const periodLabel = invoice.billing_period_month && invoice.billing_period_year
+        ? `${months[invoice.billing_period_month - 1]} ${invoice.billing_period_year}`
+        : '';
+      
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex flex-col gap-1">
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 cursor-pointer">
+                  {invoice.contract.code}
+                </Badge>
+                {periodLabel && (
+                  <span className="text-xs text-muted-foreground">{periodLabel}</span>
+                )}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="font-medium">Contrato</p>
+              <p className="text-sm">{invoice.contract.title}</p>
+              {periodLabel && <p className="text-sm">Período: {periodLabel}</p>}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+
+    // No association
+    return <span className="text-muted-foreground text-sm">Sin asociar</span>;
+  };
 
   return (
     <div className="rounded-md border">
@@ -86,9 +111,7 @@ export const InvoiceTableView = ({
             </TableHead>
             <TableHead>Código</TableHead>
             <TableHead>Cliente</TableHead>
-            <TableHead>Proyecto</TableHead>
-            <TableHead>Presupuesto</TableHead>
-            <TableHead>Contrato</TableHead>
+            <TableHead>Asociación</TableHead>
             <TableHead>Fecha</TableHead>
             <TableHead>Vencimiento</TableHead>
             <TableHead className="text-right">Subtotal</TableHead>
@@ -102,7 +125,7 @@ export const InvoiceTableView = ({
         <TableBody>
           {invoices.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={14} className="text-center text-muted-foreground">
+              <TableCell colSpan={12} className="text-center text-muted-foreground">
                 No hay facturas para mostrar
               </TableCell>
             </TableRow>
@@ -126,15 +149,7 @@ export const InvoiceTableView = ({
                   </TableCell>
                   <TableCell className="font-medium">{invoice.code}</TableCell>
                   <TableCell>{invoice.client?.name || '-'}</TableCell>
-                  <TableCell>
-                    <InvoiceOriginCell items={getUniqueProjects(invoice)} type="project" />
-                  </TableCell>
-                  <TableCell>
-                    <InvoiceOriginCell items={getUniqueBudgets(invoice)} type="budget" />
-                  </TableCell>
-                  <TableCell>
-                    <InvoiceOriginCell items={getUniqueContracts(invoice)} type="contract" />
-                  </TableCell>
+                  <TableCell>{renderAssociation(invoice)}</TableCell>
                   <TableCell>
                     {format(new Date(invoice.invoice_date), 'dd/MM/yyyy', { locale: es })}
                   </TableCell>

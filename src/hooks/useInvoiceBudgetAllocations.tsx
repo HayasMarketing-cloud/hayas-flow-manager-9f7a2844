@@ -257,7 +257,7 @@ export const useAvailableBudgetsWithAllocations = (clientId?: string, excludeInv
           invoiced_amount: budgetInvoiced,
           remaining_amount: remaining,
           status: b.status,
-          is_fully_invoiced: remaining <= 0,
+          is_fully_invoiced: remaining <= 0.01, // Tolerancia de 1 céntimo para evitar falsos positivos por redondeo
         };
       });
     },

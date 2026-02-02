@@ -126,22 +126,39 @@ export function BudgetAllocationEditor({
                 <SelectValue placeholder="Seleccionar presupuesto..." />
               </SelectTrigger>
               <SelectContent>
-                {unallocatedBudgets.map(budget => (
-                  <SelectItem 
-                    key={budget.id} 
-                    value={budget.id}
-                    disabled={budget.is_fully_invoiced}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span>{budget.code}</span>
-                      <span className="text-muted-foreground">-</span>
-                      <span className="truncate max-w-[150px]">{budget.title}</span>
-                      <Badge variant="outline" className="ml-auto text-xs">
-                        Disp: {formatCurrency(budget.remaining_amount)}
-                      </Badge>
-                    </div>
-                  </SelectItem>
-                ))}
+                {unallocatedBudgets.map(budget => {
+                  const isPartiallyInvoiced = budget.invoiced_amount > 0 && !budget.is_fully_invoiced;
+                  const isFullyInvoiced = budget.is_fully_invoiced;
+                  
+                  return (
+                    <SelectItem 
+                      key={budget.id} 
+                      value={budget.id}
+                    >
+                      <div className="flex flex-col gap-1 py-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{budget.code}</span>
+                          <span className="text-muted-foreground">-</span>
+                          <span className="truncate max-w-[150px]">{budget.title}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span>Total: {formatCurrency(budget.total_amount)}</span>
+                          {budget.invoiced_amount > 0 && (
+                            <span className="text-muted-foreground">
+                              | Fact: {formatCurrency(budget.invoiced_amount)}
+                            </span>
+                          )}
+                          <Badge 
+                            variant={isFullyInvoiced ? "destructive" : isPartiallyInvoiced ? "secondary" : "outline"} 
+                            className="text-xs"
+                          >
+                            Disp: {formatCurrency(budget.remaining_amount)}
+                          </Badge>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>

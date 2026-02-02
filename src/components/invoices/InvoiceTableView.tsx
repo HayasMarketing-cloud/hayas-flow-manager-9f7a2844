@@ -24,8 +24,8 @@ interface InvoiceTableViewProps {
   onSelectOne: (id: string, checked: boolean) => void;
 }
 
-// Selectable = all invoices that are not paid (pending payment)
-const isSelectableStatus = (status: string) => status !== 'paid';
+// All invoices can be selected (including paid ones for reverting)
+const isSelectableStatus = (status: string) => true;
 
 const months = [
   'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',

@@ -8,7 +8,7 @@ import { EntityPnL } from '@/hooks/useEntityPnL';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
-
+import { useUserRole } from '@/hooks/useUserRole';
 interface FinancialControllingCardProps {
   data: EntityPnL | null | undefined;
   isLoading?: boolean;
@@ -23,7 +23,12 @@ export function FinancialControllingCard({
   className,
 }: FinancialControllingCardProps) {
   const [commissionsOpen, setCommissionsOpen] = useState(false);
+  const { canAccessFinance } = useUserRole();
 
+  // Only admin and finanzas can see this component
+  if (!canAccessFinance()) {
+    return null;
+  }
   if (isLoading) {
     return (
       <Card className={className}>

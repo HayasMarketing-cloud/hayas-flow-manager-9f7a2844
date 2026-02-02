@@ -4,11 +4,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { InvoiceStatusBadge } from './InvoiceStatusBadge';
 import { InvoiceStatusActions } from './InvoiceStatusActions';
+import { AllocationStatusBadge } from './AllocationStatusBadge';
 import { Edit, Eye, FileText, AlertCircle, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/invoice-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useInvoiceAllocationSummaries } from '@/hooks/useInvoiceAllocationSummaries';
+import { useMemo } from 'react';
 
 interface InvoiceTableViewProps {
   invoices: any[];
@@ -39,6 +42,10 @@ export const InvoiceTableView = ({
   onSelectAll,
   onSelectOne
 }: InvoiceTableViewProps) => {
+  // Get allocation summaries for all invoices
+  const invoiceIds = useMemo(() => invoices.map(inv => inv.id), [invoices]);
+  const { data: allocationSummaries } = useInvoiceAllocationSummaries(invoiceIds);
+
   const selectableInvoices = invoices.filter(inv => isSelectableStatus(inv.status));
   const allSelected = selectableInvoices.length > 0 && selectableInvoices.every(inv => selectedIds.includes(inv.id));
   const someSelected = selectableInvoices.some(inv => selectedIds.includes(inv.id)) && !allSelected;
@@ -112,6 +119,7 @@ export const InvoiceTableView = ({
             <TableHead>Código</TableHead>
             <TableHead>Cliente</TableHead>
             <TableHead>Asociación</TableHead>
+            <TableHead>Conciliación</TableHead>
             <TableHead>Fecha</TableHead>
             <TableHead>Vencimiento</TableHead>
             <TableHead className="text-right">Subtotal</TableHead>
@@ -125,7 +133,7 @@ export const InvoiceTableView = ({
         <TableBody>
           {invoices.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={12} className="text-center text-muted-foreground">
+              <TableCell colSpan={13} className="text-center text-muted-foreground">
                 No hay facturas para mostrar
               </TableCell>
             </TableRow>
@@ -133,6 +141,7 @@ export const InvoiceTableView = ({
             invoices.map((invoice) => {
               const canSelect = isSelectableStatus(invoice.status);
               const isSelected = selectedIds.includes(invoice.id);
+              const allocationSummary = allocationSummaries?.get(invoice.id);
               
               return (
                 <TableRow key={invoice.id} className={isSelected ? 'bg-muted/50' : ''}>
@@ -150,6 +159,18 @@ export const InvoiceTableView = ({
                   <TableCell className="font-medium">{invoice.code}</TableCell>
                   <TableCell>{invoice.client?.name || '-'}</TableCell>
                   <TableCell>{renderAssociation(invoice)}</TableCell>
+                  <TableCell>
+                    {allocationSummary && allocationSummary.allocation_count > 0 ? (
+                      <AllocationStatusBadge
+                        percentage={allocationSummary.percentage}
+                        allocatedAmount={allocationSummary.total_allocated}
+                        totalAmount={invoice.total_amount}
+                        compact
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     {format(new Date(invoice.invoice_date), 'dd/MM/yyyy', { locale: es })}
                   </TableCell>

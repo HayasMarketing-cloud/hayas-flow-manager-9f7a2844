@@ -723,6 +723,51 @@ export type Database = {
           },
         ]
       }
+      invoice_budget_allocations: {
+        Row: {
+          allocated_amount: number
+          budget_id: string
+          created_at: string | null
+          id: string
+          invoice_id: string
+          notes: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          allocated_amount: number
+          budget_id: string
+          created_at?: string | null
+          id?: string
+          invoice_id: string
+          notes?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          allocated_amount?: number
+          budget_id?: string
+          created_at?: string | null
+          id?: string
+          invoice_id?: string
+          notes?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_budget_allocations_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_budget_allocations_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoice_items: {
         Row: {
           aggregated_request_ids: string[] | null

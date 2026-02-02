@@ -1,10 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
-import { TrendingUp, TrendingDown, Receipt, Wallet, PiggyBank, FileText } from 'lucide-react';
+import { TrendingUp, TrendingDown, Receipt, Wallet, PiggyBank, FileText, Users } from 'lucide-react';
 import { formatCurrency } from '@/lib/request-utils';
 import { cn } from '@/lib/utils';
 import { EntityPnL } from '@/hooks/useEntityPnL';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown } from 'lucide-react';
+import { useState } from 'react';
 
 interface FinancialControllingCardProps {
   data: EntityPnL | null | undefined;
@@ -19,6 +22,8 @@ export function FinancialControllingCard({
   title = 'Controlling Financiero',
   className,
 }: FinancialControllingCardProps) {
+  const [commissionsOpen, setCommissionsOpen] = useState(false);
+
   if (isLoading) {
     return (
       <Card className={className}>
@@ -62,12 +67,13 @@ export function FinancialControllingCard({
     ? (data.invoicedRevenue / data.estimatedRevenue) * 100 
     : 0;
   
-  const liquidatedPercent = data.estimatedCosts > 0 
-    ? (data.liquidatedCosts / data.estimatedCosts) * 100 
+  const totalCostsPercent = data.estimatedCosts > 0 
+    ? (data.totalCosts / (data.estimatedCosts + data.commissionCosts)) * 100 
     : 0;
 
-  const marginIsPositive = data.realMargin >= 0;
+  const adjustedMarginIsPositive = data.adjustedMargin >= 0;
   const estimatedMarginIsPositive = data.estimatedMargin >= 0;
+  const hasCommissions = data.commissionCosts > 0;
 
   return (
     <Card className={className}>
@@ -121,36 +127,72 @@ export function FinancialControllingCard({
             </div>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Estimado:</span>
-                <span className="font-medium">{formatCurrency(data.estimatedCosts)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Liquidado:</span>
+                <span className="text-muted-foreground">Especialistas:</span>
                 <span className="font-medium text-red-600">
                   {formatCurrency(data.liquidatedCosts)}
-                  <span className="text-xs text-muted-foreground ml-1">
-                    ({liquidatedPercent.toFixed(0)}%)
-                  </span>
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Pendiente:</span>
-                <span className={cn(
-                  "font-medium",
-                  data.pendingToLiquidate > 0 ? "text-amber-600" : "text-muted-foreground"
-                )}>
-                  {formatCurrency(data.pendingToLiquidate)}
+              
+              {/* Commissions breakdown */}
+              {hasCommissions ? (
+                <Collapsible open={commissionsOpen} onOpenChange={setCommissionsOpen}>
+                  <CollapsibleTrigger className="flex justify-between w-full group">
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      Comisiones
+                      <ChevronDown className={cn(
+                        "h-3 w-3 transition-transform",
+                        commissionsOpen && "rotate-180"
+                      )} />
+                    </span>
+                    <span className="font-medium text-orange-600">
+                      {formatCurrency(data.commissionCosts)}
+                    </span>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pl-4 pt-1 space-y-1">
+                    {data.commissionAM > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">AM:</span>
+                        <span>{formatCurrency(data.commissionAM)}</span>
+                      </div>
+                    )}
+                    {data.commissionPM > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">PM:</span>
+                        <span>{formatCurrency(data.commissionPM)}</span>
+                      </div>
+                    )}
+                    {data.commissionSales > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Venta:</span>
+                        <span>{formatCurrency(data.commissionSales)}</span>
+                      </div>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+              ) : (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Comisiones:</span>
+                  <span className="font-medium text-muted-foreground">
+                    {formatCurrency(0)}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex justify-between pt-1 border-t">
+                <span className="text-muted-foreground font-medium">Total:</span>
+                <span className="font-bold text-red-600">
+                  {formatCurrency(data.totalCosts)}
                 </span>
               </div>
             </div>
-            <Progress value={liquidatedPercent} className="h-2" />
+            <Progress value={totalCostsPercent} className="h-2" />
           </div>
         </div>
 
         {/* Margin Section */}
         <div className="pt-4 border-t">
           <div className="flex items-center gap-2 mb-3">
-            {marginIsPositive ? (
+            {adjustedMarginIsPositive ? (
               <TrendingUp className="h-4 w-4 text-green-600" />
             ) : (
               <TrendingDown className="h-4 w-4 text-red-600" />
@@ -159,18 +201,20 @@ export function FinancialControllingCard({
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="p-3 rounded-lg bg-muted/50">
-              <p className="text-xs text-muted-foreground mb-1">Real (Fact. - Liq.)</p>
+              <p className="text-xs text-muted-foreground mb-1">
+                {hasCommissions ? 'Ajustado (con comisiones)' : 'Real (Fact. - Costes)'}
+              </p>
               <p className={cn(
                 "text-lg font-bold",
-                marginIsPositive ? "text-green-600" : "text-red-600"
+                adjustedMarginIsPositive ? "text-green-600" : "text-red-600"
               )}>
-                {formatCurrency(data.realMargin)}
+                {formatCurrency(data.adjustedMargin)}
               </p>
               <p className={cn(
                 "text-sm",
-                marginIsPositive ? "text-green-600" : "text-red-600"
+                adjustedMarginIsPositive ? "text-green-600" : "text-red-600"
               )}>
-                {data.realMarginPercent.toFixed(1)}%
+                {data.adjustedMarginPercent.toFixed(1)}%
               </p>
             </div>
             <div className="p-3 rounded-lg bg-muted/50">
@@ -192,7 +236,7 @@ export function FinancialControllingCard({
         </div>
 
         {/* Counters */}
-        <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground pt-2 border-t">
+        <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground pt-2 border-t flex-wrap">
           <div className="flex items-center gap-1">
             <FileText className="h-3 w-3" />
             <span>{data.totalRequests} requests</span>
@@ -201,6 +245,15 @@ export function FinancialControllingCard({
           <span>{data.invoicedRequests} facturados</span>
           <span>|</span>
           <span>{data.liquidatedRequests} liquidados</span>
+          {hasCommissions && (
+            <>
+              <span>|</span>
+              <div className="flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                <span>{data.commissionsCount} comisiones</span>
+              </div>
+            </>
+          )}
         </div>
       </CardContent>
     </Card>

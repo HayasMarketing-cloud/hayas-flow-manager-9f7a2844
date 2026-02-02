@@ -733,7 +733,7 @@ export default function Reportes() {
                                     inv.status === 'sent' ? 'bg-blue-100 text-blue-700' :
                                     'bg-gray-100 text-gray-700'
                                   }`}>
-                                    {inv.status === 'paid' ? 'Pagada' : inv.status === 'sent' ? 'Enviada' : inv.status}
+                                    {inv.status === 'paid' ? 'Cobrada' : inv.status === 'sent' ? 'Enviada' : inv.status}
                                   </span>
                                 </TableCell>
                                 <TableCell className="text-right font-medium">{formatCurrency(inv.subtotal)}</TableCell>

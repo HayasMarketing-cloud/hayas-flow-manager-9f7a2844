@@ -289,8 +289,8 @@ export default function Facturas() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos los estados</SelectItem>
-                    <SelectItem value="pending">Pendiente de pago</SelectItem>
-                    <SelectItem value="paid">Pagada</SelectItem>
+                    <SelectItem value="pending">Pendiente de cobro</SelectItem>
+                    <SelectItem value="paid">Cobrada</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -448,7 +448,7 @@ export default function Facturas() {
               className="ml-2"
             >
               <CreditCard className="h-4 w-4 mr-2" />
-              Marcar como Pagadas
+              Marcar como Cobradas
             </Button>
             <Button
               variant="ghost"

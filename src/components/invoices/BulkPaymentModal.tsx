@@ -52,7 +52,7 @@ export const BulkPaymentModal = ({ isOpen, onClose, invoices, onSuccess }: BulkP
 
       if (error) throw error;
 
-      toast.success(`${invoices.length} facturas marcadas como pagadas`);
+      toast.success(`${invoices.length} facturas marcadas como cobradas`);
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       onSuccess();
       handleClose();
@@ -77,13 +77,13 @@ export const BulkPaymentModal = ({ isOpen, onClose, invoices, onSuccess }: BulkP
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
-            Registrar Pago Masivo
+            Registrar Cobro Masivo
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div>
-            <Label className="text-sm font-medium">Facturas a marcar como pagadas:</Label>
+            <Label className="text-sm font-medium">Facturas a marcar como cobradas:</Label>
             <ScrollArea className="h-32 mt-2 rounded-md border">
               <div className="p-3 space-y-2">
                 {invoices.map((invoice) => (
@@ -101,7 +101,7 @@ export const BulkPaymentModal = ({ isOpen, onClose, invoices, onSuccess }: BulkP
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="paymentDate">Fecha de pago *</Label>
+            <Label htmlFor="paymentDate">Fecha de cobro *</Label>
             <Input
               id="paymentDate"
               type="date"
@@ -147,7 +147,7 @@ export const BulkPaymentModal = ({ isOpen, onClose, invoices, onSuccess }: BulkP
           </Button>
           <Button onClick={handleSubmit} disabled={isLoading}>
             {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Registrar Pago
+            Registrar Cobro
           </Button>
         </DialogFooter>
       </DialogContent>

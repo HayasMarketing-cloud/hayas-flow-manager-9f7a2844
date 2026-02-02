@@ -1,147 +1,223 @@
 
 
-# Plan: Corregir Visibilidad de Presupuestos Parcialmente Facturados
+# Plan: Registro de Cobros con Conciliación de Múltiples Facturas
 
-## Problema Identificado
+## Situación Actual
 
-Al intentar asociar la factura 2026/8 al presupuesto PRE-2025-203 (que ya tiene una factura parcial asociada), el presupuesto aparece en el dropdown pero **no es seleccionable**.
+El sistema permite seleccionar múltiples facturas y marcarlas como "Cobradas" simultáneamente, pero:
+- No se guarda referencia de la transferencia/cobro
+- No hay trazabilidad del pago recibido
+- No se puede consultar "qué facturas se pagaron con X transferencia"
 
-### Análisis Técnico
+## Propuesta: Nueva Tabla de Cobros (Payments)
 
-El sistema actual ya soporta asociaciones múltiples (N:M entre facturas y presupuestos), pero hay un problema en la lógica de filtrado:
+Crear una entidad `payments` que represente cada abono/transferencia recibida, y vincular las facturas a ese pago.
 
-En `BudgetAllocationEditor.tsx` línea 133:
-```typescript
-disabled={budget.is_fully_invoiced}
+### Nuevo Modelo de Datos
+
+```text
+┌─────────────┐     ┌─────────────────────────┐     ┌─────────────┐
+│   Invoice   │◄────│   invoice_payments      │────►│   Payment   │
+│             │ N:1 │   invoice_id            │ 1:N │             │
+│             │     │   payment_id            │     │ amount      │
+│             │     │   allocated_amount      │     │ reference   │
+└─────────────┘     └─────────────────────────┘     │ payment_date│
+                                                     └─────────────┘
 ```
 
-Este flag se calcula en `useInvoiceBudgetAllocations.tsx` línea 260:
-```typescript
-is_fully_invoiced: remaining <= 0
-```
+### Nueva Tabla: payments
 
-El problema es que `is_fully_invoiced` se usa para **deshabilitar** el SelectItem, lo cual impide seleccionar presupuestos que ya tienen alguna factura aunque tengan importe pendiente.
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| id | uuid | PK |
+| code | varchar | Código autogenerado (PAG-2026-001) |
+| payment_date | date | Fecha del cobro/transferencia |
+| amount | numeric | Importe total recibido |
+| reference | text | Referencia bancaria/concepto |
+| payment_method | enum | bank_transfer, credit_card, etc. |
+| bank_account | text | Cuenta bancaria (opcional) |
+| notes | text | Notas adicionales |
+| created_at | timestamp | Fecha de registro |
+
+### Nueva Tabla: invoice_payments
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| id | uuid | PK |
+| invoice_id | uuid | FK → invoices |
+| payment_id | uuid | FK → payments |
+| allocated_amount | numeric | Importe asignado de este pago a esta factura |
+| created_at | timestamp | Fecha de creación |
 
 ---
 
-## Solución Propuesta
+## Flujo de Usuario Propuesto
 
-### Cambio 1: Ajustar la Lógica de `is_fully_invoiced`
+### 1. Seleccionar Facturas
 
-El flag solo debe ser `true` cuando el importe restante es realmente cero o negativo. Actualmente parece funcionar correctamente según el código, pero añadiré logging para debug y verificaré el cálculo.
+El usuario selecciona múltiples facturas pendientes de cobro en la tabla (como ya funciona ahora).
 
-### Cambio 2: Mostrar Indicador Visual sin Deshabilitar
+### 2. Registrar Cobro
 
-En lugar de deshabilitar completamente los presupuestos "fully invoiced", mostrarlos con un indicador visual diferente pero permitir la selección (útil para casos de sobre-facturación intencional o correcciones).
+Al hacer clic en "Registrar Cobro", se abre un modal mejorado:
 
-### Cambio 3: Mejorar el Feedback Visual
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ Registrar Cobro                                             │
+├─────────────────────────────────────────────────────────────┤
+│ Facturas a conciliar:                                       │
+│ ┌───────────────────────────────────────────────────────┐   │
+│ │ 2025/152  │ Asendia HQ │ CON-2025-001 │ 1.207,50 €   │   │
+│ │ 2025/153  │ Asendia HQ │ PRE-2025-204 │ 2.100,00 €   │   │
+│ └───────────────────────────────────────────────────────┘   │
+│                                                             │
+│ Total facturas:          3.307,50 €                         │
+│                                                             │
+│ ─────────────────────────────────────────────────────────── │
+│ Datos del Cobro                                             │
+│ ─────────────────────────────────────────────────────────── │
+│                                                             │
+│ Fecha de cobro *        [02/02/2026        ]                │
+│                                                             │
+│ Importe recibido *      [3307.50           ] EUR            │
+│                                                             │
+│ Referencia bancaria     [TRF-ASENDIA-FEB26 ]                │
+│                                                             │
+│ Método de pago          [Transferencia ▼   ]                │
+│                                                             │
+│ Notas                   [                  ]                │
+│                                                             │
+│ ─────────────────────────────────────────────────────────── │
+│ Balance:                                                    │
+│   Importe recibido:     3.307,50 €                          │
+│   Total facturas:       3.307,50 €                          │
+│   Diferencia:           0,00 € ✅                           │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│            [Cancelar]              [Registrar Cobro]        │
+└─────────────────────────────────────────────────────────────┘
+```
 
-Mostrar claramente:
-- Importe total del presupuesto
-- Importe ya facturado (de otras facturas)
-- Importe restante disponible
-- Indicador de estado (Disponible / Parcialmente facturado / Completamente facturado)
+### 3. Resultado
+
+- Se crea un registro en `payments` con el código PAG-2026-001
+- Se crean N registros en `invoice_payments` vinculando cada factura
+- Las facturas se marcan como `paid` con la fecha del cobro
+- Se puede consultar el cobro y ver todas las facturas asociadas
+
+---
+
+## Vista de Cobros (Opcional - Fase 2)
+
+Una página "Cobros" donde ver:
+- Historial de todos los cobros recibidos
+- Facturas asociadas a cada cobro
+- Filtros por fecha, cliente, referencia
 
 ---
 
 ## Cambios por Archivo
 
-### `src/components/invoices/BudgetAllocationEditor.tsx`
-
-| Línea | Cambio |
-|-------|--------|
-| 133 | Quitar `disabled={budget.is_fully_invoiced}` - permitir siempre la selección |
-| 139-141 | Mejorar el badge para mostrar estado más claro |
-| Nuevo | Añadir indicador de advertencia si el presupuesto ya está 100% facturado |
-
-### `src/hooks/useInvoiceBudgetAllocations.tsx`
-
+### Base de Datos
 | Cambio | Descripción |
 |--------|-------------|
-| Línea 260 | Verificar que el cálculo de `remaining` usa tolerancia decimal (evitar falsos positivos por redondeo) |
-| Debug | Añadir console.log temporal para verificar los valores calculados |
+| Nueva tabla | `payments` - Registro de cobros recibidos |
+| Nueva tabla | `invoice_payments` - Relación N:M con importes |
+| Nueva secuencia | Para código PAG-YYYY-XXX |
 
----
+### Nuevos Componentes
+| Archivo | Descripción |
+|---------|-------------|
+| `src/hooks/usePayments.tsx` | Hook para gestionar pagos |
+| `src/components/invoices/PaymentRegistrationModal.tsx` | Modal mejorado con datos de pago |
 
-## Nueva UI del Selector
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│ Seleccionar presupuesto...                              [▼] │
-├─────────────────────────────────────────────────────────────┤
-│ PRE-2026-007 - Localization epaq Brochure                   │
-│   Total: 700,00 € | Disp: 700,00 € ✓                       │
-├─────────────────────────────────────────────────────────────┤
-│ PRE-2025-203 - Localización contenidos e-PAQ GO            │
-│   Total: 1197,89 € | Facturado: 600,00 € | Disp: 597,89 € ⚠│
-├─────────────────────────────────────────────────────────────┤
-│ PRE-2025-100 - Otro Presupuesto (ya completado)            │
-│   Total: 500,00 € | Facturado: 500,00 € | Disp: 0,00 € ⛔   │
-└─────────────────────────────────────────────────────────────┘
-```
-
-Leyenda:
-- ✓ Verde: Disponible completamente
-- ⚠ Amarillo: Parcialmente facturado, aún tiene disponible
-- ⛔ Rojo: Completamente facturado (pero seleccionable con advertencia)
+### Componentes a Modificar
+| Archivo | Cambio |
+|---------|--------|
+| `BulkPaymentModal.tsx` | Reemplazar por PaymentRegistrationModal (o mejorar) |
+| `Facturas.tsx` | Usar el nuevo modal |
 
 ---
 
 ## Sección Técnica
 
-### Nuevo Código para BudgetAllocationEditor
+### SQL: Nuevas Tablas
 
-```typescript
-// Línea 129-145 - Reemplazar SelectItem
-{unallocatedBudgets.map(budget => {
-  const isPartiallyInvoiced = budget.invoiced_amount > 0 && !budget.is_fully_invoiced;
-  const isFullyInvoiced = budget.is_fully_invoiced;
+```sql
+-- Tabla de cobros
+CREATE TABLE payments (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  code VARCHAR NOT NULL,
+  payment_date DATE NOT NULL,
+  amount NUMERIC NOT NULL CHECK (amount > 0),
+  reference TEXT,
+  payment_method payment_method DEFAULT 'bank_transfer',
+  bank_account TEXT,
+  notes TEXT,
+  created_by UUID NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Relación N:M con facturas
+CREATE TABLE invoice_payments (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE RESTRICT,
+  payment_id UUID NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+  allocated_amount NUMERIC NOT NULL CHECK (allocated_amount > 0),
+  created_at TIMESTAMPTZ DEFAULT now(),
   
-  return (
-    <SelectItem 
-      key={budget.id} 
-      value={budget.id}
-      // Ya no deshabilitamos - solo mostramos advertencia
-    >
-      <div className="flex flex-col gap-1 py-1">
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{budget.code}</span>
-          <span className="text-muted-foreground">-</span>
-          <span className="truncate max-w-[150px]">{budget.title}</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs">
-          <span>Total: {formatCurrency(budget.total_amount)}</span>
-          {budget.invoiced_amount > 0 && (
-            <span className="text-muted-foreground">
-              | Facturado: {formatCurrency(budget.invoiced_amount)}
-            </span>
-          )}
-          <Badge 
-            variant={isFullyInvoiced ? "destructive" : isPartiallyInvoiced ? "secondary" : "outline"} 
-            className="text-xs"
-          >
-            Disp: {formatCurrency(budget.remaining_amount)}
-          </Badge>
-        </div>
-      </div>
-    </SelectItem>
-  );
-})}
+  UNIQUE(invoice_id, payment_id)
+);
+
+-- Secuencia para códigos de pago
+INSERT INTO sequences (name, prefix, year, current_value)
+VALUES ('payment', 'PAG', EXTRACT(YEAR FROM NOW()), 0);
 ```
 
-### Tolerancia Decimal en Hook
+### RLS Policies
+
+```sql
+-- Payments: Finance and admin can manage
+CREATE POLICY "Finance and admin can manage payments"
+  ON payments FOR ALL
+  USING (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'finanzas'))
+  WITH CHECK (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'finanzas'));
+
+-- Invoice_payments: same as invoices
+CREATE POLICY "Finance and admin can manage invoice_payments"
+  ON invoice_payments FOR ALL
+  USING (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'finanzas'))
+  WITH CHECK (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'finanzas'));
+```
+
+### Lógica del Modal
 
 ```typescript
-// useInvoiceBudgetAllocations.tsx línea 260
-is_fully_invoiced: remaining <= 0.01, // Tolerancia de 1 céntimo
+interface PaymentRegistration {
+  payment_date: string;
+  amount: number;
+  reference?: string;
+  payment_method: 'bank_transfer' | 'credit_card' | 'stripe' | 'sdd';
+  notes?: string;
+  invoice_ids: string[];
+}
+
+// Al registrar:
+// 1. Crear payment con código generado
+// 2. Crear invoice_payments para cada factura
+// 3. Actualizar invoices.status = 'paid' y paid_at
 ```
 
 ---
 
 ## Resumen de Cambios
 
-| Archivo | Tipo | Descripción |
-|---------|------|-------------|
-| `BudgetAllocationEditor.tsx` | Modificar | Quitar disabled, mejorar UI del selector |
-| `useInvoiceBudgetAllocations.tsx` | Modificar | Añadir tolerancia decimal al cálculo |
+| Área | Tipo | Descripción |
+|------|------|-------------|
+| DB | Nueva tabla | `payments` - Registro de cobros |
+| DB | Nueva tabla | `invoice_payments` - Vínculo N:M con facturas |
+| DB | Nueva secuencia | PAG-YYYY-XXX |
+| UI | Nuevo modal | Registro de cobro con referencia y método |
+| Lógica | Modificar | Vincular facturas al cobro y marcarlas como pagadas |
 

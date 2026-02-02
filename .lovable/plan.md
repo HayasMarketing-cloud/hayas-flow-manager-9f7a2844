@@ -1,101 +1,55 @@
 
 ## Objetivo
-Añadir la columna "Solicitado por" (Request By / client_contact) a la exportación CSV de requests.
+Asegurar que las asociaciones de presupuesto se muestren correctamente en el listado de facturas después de guardar.
 
 ---
 
-## Diagnóstico
+## Diagnóstico del problema
 
-### Situación actual:
-1. **En la base de datos**: Los requests (`financial_requests`) tienen un campo `client_contact_id` que referencia a `client_contacts`.
-2. **En la página de detalle** (`SolicitudDetalle.tsx`): Se muestra correctamente el "Contacto Solicitante" cuando existe.
-3. **En la query del listado** (`Solicitudes.tsx`): **NO** se está haciendo join a `client_contacts`, por lo que el campo no está disponible para exportar.
-4. **En el exportador** (`requestsExporter.ts`): No existe una columna para el contacto solicitante.
+### Verificación de datos en base de datos:
+He consultado la base de datos y confirmado:
+- **Factura 2025/157**: ✅ Tiene asignación guardada (allocated_amount: 2241.81, budget: PRE-2026-001)
+- **Factura 2026/8**: ❌ **NO tiene ninguna asignación guardada** (0 registros en `invoice_budget_allocations`)
 
-### Columna "Origen" en el listado:
-La columna "Origen" que muestra "HubSpot Reques..." en la interfaz en realidad muestra el nombre del `client_contact` asociado al request.
+### Conclusión:
+La asignación que mencionas haber hecho **no se guardó en la base de datos**. Esto puede deberse a:
 
----
-
-## Cambios a realizar
-
-### 1. Actualizar la query en `src/pages/Solicitudes.tsx`
-Añadir el join a `client_contacts` para tener el dato disponible:
-
-```diff
-  let query = supabase
-    .from('financial_requests')
-    .select(`
-      *,
-      client:clients(id, name, code),
-      service:services(id, name),
-      specialist:specialists(id, name),
-      budget:budgets(id, title, code, client_contact_id),
-      contract:contracts(id, title, code),
-      invoice:invoices(id, code, status),
-      liquidation:liquidations(id, code, status),
-+     client_contact:client_contacts(id, name),
-      operational_request:operational_requests!financial_request_id(
-        id,
-        operational_project:operational_projects(id, name)
-      )
-    `)
-```
-
-### 2. Actualizar el exportador `src/utils/excel/requestsExporter.ts`
-Añadir columna "Solicitado por":
-
-**Headers:**
-```typescript
-const headers = [
-  'Código',
-  'Título',
-  'Cliente',
-  'Servicio',
-  'Especialista',
-  'Ref. Partner',
-+ 'Solicitado por',  // Nueva columna
-  'Estado',
-  'Cantidad',
-  'Precio Unit.',
-  'Total',
-  'Coste',
-  'Margen',
-  'Fecha Creación',
-  'Completado',
-  'Facturado',
-  'Liquidado',
-];
-```
-
-**Filas de datos:**
-```typescript
-const rows = requests.map((request) => [
-  request.code || '-',
-  request.title || '-',
-  request.client?.name || '-',
-  request.service?.name || '-',
-  request.specialist?.name || '-',
-  request.partner_reference || '-',
-+ request.client_contact?.name || '-',  // Nueva columna
-  request.status || '-',
-  // ... resto igual
-]);
-```
-
-**Fila de totales:**
-Ajustar para que tenga el número correcto de columnas vacías (una más).
+1. **No hiciste clic en "Guardar"** después de añadir la asignación en el editor
+2. **Hubo un error silencioso** durante el guardado que no mostró mensaje
+3. **El tipo de asociación no estaba seleccionado correctamente** (el RadioGroup en "Presupuesto(s)")
 
 ---
 
-## Archivos a modificar
+## Lo que debes hacer ahora
 
-| Archivo | Cambio |
-|---------|--------|
-| `src/pages/Solicitudes.tsx` | Añadir join a `client_contacts` en la query |
-| `src/utils/excel/requestsExporter.ts` | Añadir columna "Solicitado por" |
+### Paso 1: Editar la factura 2026/8 de nuevo
+1. Abre la factura 2026/8 en modo edición
+2. Selecciona el RadioButton **"Presupuesto(s)"** en la sección de asociación
+3. En el editor de asignaciones que aparece debajo, selecciona **PRE-2026-001** en el dropdown
+4. Introduce el importe **1403.62** (o el que corresponda)
+5. Haz clic en el botón **"+"** para añadir la asignación
+6. **Importante**: Haz clic en el botón **"Guardar"** del formulario
+
+### Paso 2: Verificar en el listado
+Al volver al listado de facturas, la columna "Asociación" debería mostrar "PRE-2026-001" para ambas facturas.
 
 ---
 
-## Resultado esperado
-Al exportar el listado de requests a CSV, aparecerá una nueva columna "Solicitado por" con el nombre del contacto asociado a cada request.
+## Posible mejora a implementar
+
+Si después de seguir estos pasos sigue sin funcionar, podría haber un bug en:
+- La lógica de guardado cuando `associationType = 'budgets'`
+- Un error silencioso que no se está mostrando
+
+En ese caso, implementaría:
+1. **Logging adicional** en `useSaveInvoiceAllocations` para detectar errores
+2. **Mensaje de confirmación** que muestre exactamente cuántas asignaciones se guardaron
+3. **Verificación pre-guardado** de que hay asignaciones cuando se selecciona "Presupuesto(s)"
+
+---
+
+## ¿Quieres que pruebe la asociación de nuevo?
+Si confirmas que sí guardaste correctamente pero sigue sin funcionar, procederé a:
+1. Añadir logs detallados para depurar el problema
+2. Verificar la lógica de RLS que pueda estar bloqueando la inserción
+3. Revisar si hay algún error en la mutation de guardado

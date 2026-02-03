@@ -375,6 +375,25 @@ const Solicitudes = () => {
           
           if (error) throw error;
         }
+      } else if (field === 'unit_price') {
+        // Special handling for unit_price: recalculate sale_amount based on quantity
+        const selectedRequests = requests?.filter(r => selectedIds.includes(r.id)) || [];
+        
+        for (const request of selectedRequests) {
+          const quantity = request.quantity || 1;
+          const newSaleAmount = value * quantity;
+          
+          const { error } = await supabase
+            .from('financial_requests')
+            .update({ 
+              unit_price: value,
+              sale_amount: newSaleAmount,
+              sale_type: 'fixed'
+            })
+            .eq('id', request.id);
+          
+          if (error) throw error;
+        }
       } else {
         const { error } = await supabase
           .from('financial_requests')
@@ -733,6 +752,41 @@ const Solicitudes = () => {
                     confirmBulkEdit('cost_rate', value, `${value.toFixed(2)} €/h (recalcula coste total)`);
                   } else {
                     toast.error('Introduce una tarifa válida');
+                  }
+                }}
+              >
+                Aplicar
+              </Button>
+            </div>
+            
+            {/* Precio unitario (unit_price) */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Precio unit.:</span>
+              <Input
+                id="bulk-unit-price-input"
+                type="number"
+                placeholder="0.00"
+                className="w-[100px] h-8"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const value = parseFloat((e.target as HTMLInputElement).value);
+                    if (!isNaN(value) && value >= 0) {
+                      confirmBulkEdit('unit_price', value, `${value.toFixed(2)} € (recalcula importe venta)`);
+                    }
+                  }
+                }}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => {
+                  const input = document.getElementById('bulk-unit-price-input') as HTMLInputElement;
+                  const value = parseFloat(input?.value || '');
+                  if (!isNaN(value) && value >= 0) {
+                    confirmBulkEdit('unit_price', value, `${value.toFixed(2)} € (recalcula importe venta)`);
+                  } else {
+                    toast.error('Introduce un precio válido');
                   }
                 }}
               >

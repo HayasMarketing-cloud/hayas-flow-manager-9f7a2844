@@ -900,7 +900,7 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
           {/* Additional Info */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Fecha de Vencimiento</Label>
+              <Label>Fecha de Facturación</Label>
               <Input type="date" {...register('due_date')} disabled={disabled} />
             </div>
 

@@ -82,6 +82,9 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   const [billingMonth, setBillingMonth] = useState<number | null>(null);
   const [billingYear, setBillingYear] = useState<number | null>(null);
+  
+  // Flag to prevent re-initialization from async data changes (race condition fix)
+  const [hasInitializedAssociations, setHasInitializedAssociations] = useState(false);
 
   const {
     register,
@@ -140,6 +143,12 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
     .filter((r) => selectedRequestIds.includes(r.id))
     .reduce((sum, r) => sum + (r.hours || 0), 0);
 
+  // Reset initialization flag when invoice changes
+  useEffect(() => {
+    setHasInitializedAssociations(false);
+  }, [invoice?.id]);
+
+  // Effect 1: Initialize form data (synchronous from invoice)
   useEffect(() => {
     if (invoice && mode !== 'create') {
       reset({
@@ -153,6 +162,35 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
       // Load manual subtotal and tax rate from invoice for imported invoices
       setManualSubtotal(invoice.subtotal || 0);
       setEditedTaxRate(invoice.tax_rate ?? 21);
+    } else if (mode === 'create') {
+      reset({
+        tax_rate: 21,
+        invoice_date: new Date().toISOString().split('T')[0],
+      });
+      setInvoiceItems([]);
+      setSelectedRequestIds([]);
+      setManualSubtotal(0);
+      setEditedTaxRate(21);
+      setAssociationType('none');
+      setBudgetAllocations([]);
+      setSelectedContractId(null);
+      setBillingMonth(null);
+      setBillingYear(null);
+      setHasInitializedAssociations(true); // Mark as initialized for create mode
+    }
+  }, [invoice, mode, reset]);
+
+  // Effect 2: Initialize associations (depends on async data, runs only ONCE per invoice)
+  useEffect(() => {
+    // Only initialize once when we have the required data
+    if (invoice && mode !== 'create' && !hasInitializedAssociations && 
+        existingAllocations !== undefined && availableBudgets !== undefined) {
+      
+      console.log('[InvoiceFormModal] Initializing associations for invoice:', invoice.id, {
+        existingAllocations: existingAllocations.length,
+        hasLegacyBudgetId: !!invoice.budget_id,
+        hasContractId: !!invoice.contract_id,
+      });
 
       // Load association data - check for allocations first, then legacy budget_id
       if (existingAllocations.length > 0) {
@@ -192,22 +230,11 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
         setBillingMonth(null);
         setBillingYear(null);
       }
-    } else {
-      reset({
-        tax_rate: 21,
-        invoice_date: new Date().toISOString().split('T')[0],
-      });
-      setInvoiceItems([]);
-      setSelectedRequestIds([]);
-      setManualSubtotal(0);
-      setEditedTaxRate(21);
-      setAssociationType('none');
-      setBudgetAllocations([]);
-      setSelectedContractId(null);
-      setBillingMonth(null);
-      setBillingYear(null);
+
+      // Mark as initialized to prevent re-runs from async data changes
+      setHasInitializedAssociations(true);
     }
-  }, [invoice, mode, reset, existingAllocations, availableBudgets]);
+  }, [invoice, mode, existingAllocations, availableBudgets, hasInitializedAssociations]);
 
   // Load existing invoice items when editing
   useEffect(() => {

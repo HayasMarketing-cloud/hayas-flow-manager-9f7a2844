@@ -105,9 +105,7 @@ export const useProjectMilestones = (filters?: MilestoneFilters) => {
       if (filters?.status) {
         query = query.eq('status', filters.status as 'pending' | 'in_progress' | 'in_review' | 'completed');
       }
-      if (filters?.searchTerm) {
-        query = query.or(`name.ilike.%${filters.searchTerm}%,operational_project.name.ilike.%${filters.searchTerm}%`);
-      }
+      // Search term is handled via post-filtering to support project name search
       if (filters?.month) {
         const [year, month] = filters.month.split('-');
         const startDate = `${year}-${month}-01`;
@@ -118,7 +116,7 @@ export const useProjectMilestones = (filters?: MilestoneFilters) => {
       const { data, error } = await query;
       if (error) throw error;
 
-      // Post-filter by contract/budget if needed (can't filter nested relations easily)
+      // Post-filter by contract/budget/searchTerm (can't filter nested relations easily)
       let results = (data || []) as any[];
       
       if (filters?.contractId) {
@@ -126,6 +124,15 @@ export const useProjectMilestones = (filters?: MilestoneFilters) => {
       }
       if (filters?.budgetId) {
         results = results.filter(m => m.operational_project?.budget?.id === filters.budgetId);
+      }
+      
+      // Post-filter by search term (searches milestone name and project name)
+      if (filters?.searchTerm) {
+        const term = filters.searchTerm.toLowerCase();
+        results = results.filter(m => 
+          m.name.toLowerCase().includes(term) || 
+          m.operational_project?.name?.toLowerCase().includes(term)
+        );
       }
 
       return results as MilestoneWithDetails[];

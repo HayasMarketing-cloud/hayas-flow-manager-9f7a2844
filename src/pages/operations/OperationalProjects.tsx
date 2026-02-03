@@ -14,8 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { OperationalProjectFormModal } from '@/components/operations/OperationalProjectFormModal';
-import { MilestoneTrackingTable } from '@/components/operations/MilestoneTrackingTable';
-import { useProjectMilestones } from '@/hooks/useProjectMilestones';
+import { HierarchicalTrackingTable } from '@/components/operations/HierarchicalTrackingTable';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,
@@ -183,15 +182,15 @@ export default function OperationalProjects() {
     setContractFilter('all');
   };
 
-  // Milestones for tracking view
-  const { data: milestones, isLoading: milestonesLoading } = useProjectMilestones({
+  // Build filter object for tracking view
+  const trackingFilters = {
     clientId: clientFilter === 'all' ? undefined : clientFilter,
     specialistId: specialistFilter === 'all' ? undefined : specialistFilter,
     status: statusFilter === 'all' ? undefined : statusFilter,
     budgetId: budgetFilter === 'all' ? undefined : budgetFilter,
     contractId: contractFilter === 'all' ? undefined : contractFilter,
     searchTerm: searchTerm || undefined,
-  });
+  };
 
   // Fetch specialists for filter
   const { data: specialists } = useQuery({
@@ -526,9 +525,8 @@ export default function OperationalProjects() {
 
           {/* Tracking View */}
           <TabsContent value="tracking" className="mt-4">
-            <MilestoneTrackingTable
-              milestones={milestones || []}
-              isLoading={milestonesLoading}
+            <HierarchicalTrackingTable
+              filters={trackingFilters}
               hasFilters={hasActiveFilters}
             />
           </TabsContent>

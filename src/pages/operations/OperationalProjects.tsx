@@ -56,6 +56,8 @@ export default function OperationalProjects() {
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [specialistFilter, setSpecialistFilter] = useState<string>('all');
+  const [budgetFilter, setBudgetFilter] = useState<string>('all');
+  const [contractFilter, setContractFilter] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<string>('cards');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<any>(null);
@@ -133,13 +135,61 @@ export default function OperationalProjects() {
     enabled: !!projects && projects.length > 0,
   });
 
-  const hasActiveFilters = !!(searchTerm || clientFilter !== 'all' || statusFilter !== 'all' || specialistFilter !== 'all');
+  const hasActiveFilters = !!(
+    searchTerm || 
+    clientFilter !== 'all' || 
+    statusFilter !== 'all' || 
+    specialistFilter !== 'all' ||
+    budgetFilter !== 'all' ||
+    contractFilter !== 'all'
+  );
+
+  // Budgets for the selected client (for tracking tab filter)
+  const { data: clientBudgets } = useQuery({
+    queryKey: ['client-budgets-filter', clientFilter],
+    queryFn: async () => {
+      if (clientFilter === 'all') return [];
+      const { data, error } = await supabase
+        .from('budgets')
+        .select('id, title, code')
+        .eq('client_id', clientFilter)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: clientFilter !== 'all',
+  });
+
+  // Contracts for the selected client (for tracking tab filter)
+  const { data: clientContracts } = useQuery({
+    queryKey: ['client-contracts-filter', clientFilter],
+    queryFn: async () => {
+      if (clientFilter === 'all') return [];
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('id, title, code')
+        .eq('client_id', clientFilter)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: clientFilter !== 'all',
+  });
+
+  // Handler for client change - reset dependent filters
+  const handleClientChange = (value: string) => {
+    setClientFilter(value);
+    setBudgetFilter('all');
+    setContractFilter('all');
+  };
 
   // Milestones for tracking view
   const { data: milestones, isLoading: milestonesLoading } = useProjectMilestones({
     clientId: clientFilter === 'all' ? undefined : clientFilter,
     specialistId: specialistFilter === 'all' ? undefined : specialistFilter,
     status: statusFilter === 'all' ? undefined : statusFilter,
+    budgetId: budgetFilter === 'all' ? undefined : budgetFilter,
+    contractId: contractFilter === 'all' ? undefined : contractFilter,
     searchTerm: searchTerm || undefined,
   });
 
@@ -232,7 +282,7 @@ export default function OperationalProjects() {
                   />
                 </div>
 
-                <Select value={clientFilter} onValueChange={setClientFilter}>
+                <Select value={clientFilter} onValueChange={handleClientChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos los clientes" />
                   </SelectTrigger>
@@ -260,19 +310,53 @@ export default function OperationalProjects() {
                 </Select>
 
                 {activeTab === 'tracking' && (
-                  <Select value={specialistFilter} onValueChange={setSpecialistFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todos los especialistas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los especialistas</SelectItem>
-                      {specialists?.map((specialist) => (
-                        <SelectItem key={specialist.id} value={specialist.id}>
-                          {specialist.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <>
+                    <Select value={specialistFilter} onValueChange={setSpecialistFilter}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todos los especialistas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos los especialistas</SelectItem>
+                        {specialists?.map((specialist) => (
+                          <SelectItem key={specialist.id} value={specialist.id}>
+                            {specialist.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {clientFilter !== 'all' && (
+                      <>
+                        <Select value={budgetFilter} onValueChange={setBudgetFilter}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Todos los presupuestos" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todos los presupuestos</SelectItem>
+                            {clientBudgets?.map((budget) => (
+                              <SelectItem key={budget.id} value={budget.id}>
+                                {budget.code} - {budget.title}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <Select value={contractFilter} onValueChange={setContractFilter}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Todos los contratos" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todos los contratos</SelectItem>
+                            {clientContracts?.map((contract) => (
+                              <SelectItem key={contract.id} value={contract.id}>
+                                {contract.code} - {contract.title}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </>
+                    )}
+                  </>
                 )}
               </div>
             </CardContent>

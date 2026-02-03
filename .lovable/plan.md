@@ -2,91 +2,75 @@
 
 ## Problema Identificado
 
-La factura 2026/8 no muestra la asociación a presupuesto porque **nunca se guardó en la base de datos**. El problema está en el modal de edición de facturas.
+El problema tiene **dos causas principales**:
 
-### Diagnóstico
+### Causa 1: La tecla Enter envía el formulario principal prematuramente
 
-**Verificación en base de datos:**
-- `invoice_budget_allocations` para factura 2026/8: **0 registros**
-- `invoices.budget_id` para factura 2026/8: **null**
-- `invoices.contract_id` para factura 2026/8: **null**
-
-Esto confirma que cuando el usuario "guardó" la asociación, la operación no se ejecutó correctamente.
-
-### Causa Raíz: Race Condition en useEffect
-
-El `useEffect` en `InvoiceFormModal.tsx` (líneas 143-210) tiene dependencias problemáticas:
-
-```typescript
-useEffect(() => {
-  if (invoice && mode !== 'create') {
-    // ...carga datos...
-    if (existingAllocations.length > 0) {
-      setAssociationType('budgets');
-    } else if (invoice.contract_id) {
-      setAssociationType('contract');
-    } else {
-      setAssociationType('none'); // ⚠️ PROBLEMA: Se resetea a 'none'
-    }
-  }
-}, [invoice, mode, reset, existingAllocations, availableBudgets]); // ⚠️ Dependencias asíncronas
-```
+Cuando el usuario pulsa Enter en el campo "Importe" del editor de asignaciones, en lugar de añadir la asignación a la tabla, el evento `Enter` propaga hacia arriba y **envía el formulario principal** (`<form onSubmit>`). 
 
 **Secuencia del bug:**
+1. Usuario selecciona presupuesto y escribe importe
+2. Pulsa Enter (pensando que añade la asignación)
+3. El formulario principal se envía
+4. En ese momento `budgetAllocations = []` (vacío) porque nunca se pulsó el botón +
+5. Se guarda la factura sin ninguna asignación
 
-1. Usuario abre factura 2026/8 (sin asociaciones previas)
-2. `useEffect` se ejecuta → `existingAllocations = []` → `associationType = 'none'`
-3. Usuario selecciona "Presupuesto(s)" y añade una asignación → `associationType = 'budgets'`
-4. Mientras el usuario trabaja, `availableBudgets` termina de cargar (query asíncrono)
-5. El `useEffect` se RE-EJECUTA por el cambio en `availableBudgets`
-6. Como `existingAllocations` sigue vacío → `associationType = 'none'` **¡SE RESETEA!**
-7. Usuario hace clic en "Guardar" con `associationType = 'none'`
-8. El código en línea 365-370 ejecuta: `allocations: []` (array vacío)
+### Causa 2: Guardar con tipo "budgets" pero sin asignaciones efectivas
+
+Aunque el usuario haya seleccionado `associationType = 'budgets'`, si `budgetAllocations` está vacío (porque no pulsó el botón + o porque Enter envió el form antes), el código actual guarda un array vacío:
+
+```typescript
+if (associationType === 'budgets') {
+  await saveAllocationsMutation.mutateAsync({
+    invoiceId: invoice.id,
+    allocations: budgetAllocations, // ← Puede ser []
+  });
+}
+```
 
 ---
 
 ## Solución Propuesta
 
-### Cambio 1: Evitar re-ejecución innecesaria del useEffect
+### 1. Prevenir que Enter envíe el formulario desde el editor de asignaciones
 
-Añadir un flag `hasInitialized` para que el efecto solo inicialice el estado **una vez** al abrir el modal, y no reaccione a cambios posteriores de los datos asíncronos:
+En `BudgetAllocationEditor.tsx`, añadir `onKeyDown` al campo de importe para:
+- Prevenir la propagación del evento Enter
+- Opcionalmente, ejecutar la acción de añadir asignación
 
 ```typescript
-const [hasInitialized, setHasInitialized] = useState(false);
-
-useEffect(() => {
-  // Solo inicializar una vez cuando tenemos los datos necesarios
-  if (invoice && mode !== 'create' && !hasInitialized && 
-      existingAllocations !== undefined && availableBudgets !== undefined) {
-    
-    // ... lógica de inicialización ...
-    
-    setHasInitialized(true);
-  }
-}, [invoice, mode, existingAllocations, availableBudgets, hasInitialized]);
-
-// Reset flag cuando cambia el invoice
-useEffect(() => {
-  setHasInitialized(false);
-}, [invoice?.id]);
+<Input
+  type="number"
+  ...
+  onKeyDown={(e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      // Si hay un presupuesto seleccionado, añadir la asignación
+      if (selectedBudgetId) {
+        handleAddAllocation();
+      }
+    }
+  }}
+/>
 ```
 
-### Cambio 2: Separar inicialización de form y asociaciones
+### 2. Validar que existan asignaciones antes de guardar
 
-Dividir el `useEffect` monolítico en dos efectos separados:
-1. **Efecto para datos del formulario** (síncronos desde `invoice`)
-2. **Efecto para asociaciones** (dependiente de datos asíncronos, pero con protección contra re-reseteo)
-
-### Cambio 3: Añadir logging de depuración
-
-Agregar logs en `useSaveInvoiceAllocations` para detectar cuando se guardan arrays vacíos:
+En `InvoiceFormModal.tsx`, en la función `onSubmit`, añadir validación:
 
 ```typescript
-console.log(`[SaveAllocations] Guardando ${allocations.length} asignaciones para factura ${invoiceId}`);
-if (allocations.length === 0) {
-  console.warn('[SaveAllocations] ⚠️ Se está guardando un array vacío de asignaciones');
+if (associationType === 'budgets' && budgetAllocations.length === 0) {
+  toast.error('Añade al menos una asignación de presupuesto o selecciona "Sin asociar"');
+  return;
 }
 ```
+
+### 3. Añadir logs de depuración (temporal)
+
+Añadir console.logs en puntos clave para verificar el estado al guardar:
+- Justo antes de llamar a `updateMutation.mutate(data)`
+- En el `mutationFn` de `updateMutation`
 
 ---
 
@@ -94,17 +78,14 @@ if (allocations.length === 0) {
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/components/modals/InvoiceFormModal.tsx` | Añadir flag `hasInitialized` y separar useEffects |
-| `src/hooks/useInvoiceBudgetAllocations.tsx` | Añadir logs de depuración (opcional pero recomendado) |
+| `src/components/invoices/BudgetAllocationEditor.tsx` | Añadir `onKeyDown` para prevenir Enter y añadir asignación |
+| `src/components/modals/InvoiceFormModal.tsx` | Añadir validación de asignaciones vacías + logs de depuración |
 
 ---
 
 ## Resultado Esperado
 
-1. El usuario abre la factura 2026/8 en modo edición
-2. Selecciona "Presupuesto(s)" y añade una asignación
-3. Los datos asíncronos (`availableBudgets`) terminan de cargar
-4. **El estado `associationType` NO se resetea** porque `hasInitialized = true`
-5. El usuario guarda y la asignación se persiste correctamente
-6. La columna "Asociación" muestra el presupuesto vinculado
+1. Cuando el usuario pulsa Enter en el campo de importe, la asignación se añade a la tabla (en lugar de enviar el formulario)
+2. Si el usuario intenta guardar con "Presupuesto(s)" seleccionado pero sin asignaciones, aparece un error claro
+3. Los logs de consola permitirán verificar el estado exacto al momento de guardar
 

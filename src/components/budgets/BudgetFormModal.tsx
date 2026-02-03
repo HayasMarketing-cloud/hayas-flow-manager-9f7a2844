@@ -40,6 +40,7 @@ export const BudgetFormModal = ({
     description: '',
     valid_until: '',
     estimated_invoice_date: '',
+    client_po_number: '',
     status: 'pending',
     accepted_document_url: '',
     am_user_id: '',
@@ -122,6 +123,7 @@ export const BudgetFormModal = ({
         description: budget.description || '',
         valid_until: budget.valid_until || '',
         estimated_invoice_date: budget.estimated_invoice_date || '',
+        client_po_number: budget.client_po_number || '',
         status: budget.status || 'pending',
         accepted_document_url: budget.accepted_document_url || '',
         am_user_id: budget.am_user_id || '',
@@ -136,6 +138,7 @@ export const BudgetFormModal = ({
         description: '',
         valid_until: '',
         estimated_invoice_date: '',
+        client_po_number: '',
         status: 'pending',
         accepted_document_url: '',
         am_user_id: '',
@@ -495,6 +498,23 @@ export const BudgetFormModal = ({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* PO Number / Client Reference */}
+            <div className="col-span-2 space-y-2">
+              <Label htmlFor="client_po_number">
+                PO Number / Referencia Cliente
+              </Label>
+              <Input
+                id="client_po_number"
+                placeholder="Introduce el número de orden de compra o referencia"
+                value={formData.client_po_number}
+                onChange={(e) => setFormData({ ...formData, client_po_number: e.target.value })}
+                disabled={!canEdit}
+              />
+              <p className="text-xs text-muted-foreground">
+                Opcional. Si no se indica, se mostrará "Pendiente" en el PDF
+              </p>
             </div>
           </div>
 

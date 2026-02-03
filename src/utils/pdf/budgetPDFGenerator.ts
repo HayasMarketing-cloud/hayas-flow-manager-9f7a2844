@@ -9,6 +9,7 @@ interface BudgetPDFData {
     valid_until?: string | null;
     created_at: string;
     total_amount?: number | null;
+    client_po_number?: string | null;
     client: {
       id: string;
       name: string;
@@ -78,7 +79,7 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   doc.text(`Tel: ${company.phone}`, 55, 37);
   doc.text(company.email, 55, 43);
 
-  // Título - Derecha (QUOTE + Cliente + Título + Código)
+  // Título - Derecha (QUOTE + Cliente + Título + Código + PO)
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.text('QUOTE', pageWidth - 15, 18, { align: 'right' });
@@ -96,19 +97,24 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   doc.setFontSize(10);
   doc.text(data.budget.code, pageWidth - 15, 40, { align: 'right' });
 
+  // PO Number / Client Reference
+  const poNumber = data.budget.client_po_number || 'Pendiente';
+  doc.setFontSize(9);
+  doc.text(`PO/Ref: ${poNumber}`, pageWidth - 15, 46, { align: 'right' });
+
   // Línea divisoria
   doc.setLineWidth(0.5);
-  doc.line(15, 50, pageWidth - 15, 50);
+  doc.line(15, 52, pageWidth - 15, 52);
 
   // Client information
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('CLIENT', 15, 60);
+  doc.text('CLIENT', 15, 62);
 
   doc.setFont('helvetica', 'normal');
-  doc.text(data.budget.client.name, 15, 67);
+  doc.text(data.budget.client.name, 15, 69);
   
-  let clientInfoY = 67;
+  let clientInfoY = 69;
   if (data.budget.client.tax_id) {
     clientInfoY += 7;
     doc.text(`Tax ID: ${data.budget.client.tax_id}`, 15, clientInfoY);
@@ -123,10 +129,10 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   }
 
   // Quote validity (right side)
-  let validUntilY = 60;
+  let validUntilY = 62;
   if (data.budget.valid_until) {
     doc.setFont('helvetica', 'bold');
-    doc.text('Valid until:', pageWidth - 60, 60);
+    doc.text('Valid until:', pageWidth - 60, 62);
     doc.setFont('helvetica', 'normal');
     const validUntilDate = new Date(data.budget.valid_until);
     const formattedDate = validUntilDate.toLocaleDateString('en-US', {
@@ -134,8 +140,8 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
       month: 'long',
       year: 'numeric'
     });
-    doc.text(formattedDate, pageWidth - 60, 67);
-    validUntilY = 67;
+    doc.text(formattedDate, pageWidth - 60, 69);
+    validUntilY = 69;
   }
 
   // Full quote title (below client and validity)

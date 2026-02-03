@@ -1,91 +1,40 @@
+## Añadir columna "Fecha de Facturación" a listado de presupuestos
 
+### Contexto
+La tabla de presupuestos (`BudgetTableView`) actualmente muestra las columnas: Código, Título, Cliente, Monto Total, Estado, Válido Hasta y Acciones. El campo `estimated_invoice_date` ya existe en la base de datos.
 
-## Problema Identificado
+### Cambios a realizar
 
-El problema tiene **dos causas principales**:
+**1. Tabla de presupuestos (`BudgetTableView.tsx`)**
+- **Reemplazar** la columna "Válido Hasta" por "Fecha Facturación"
+- Mostrar `estimated_invoice_date` formateada con `date-fns` o "-" si no está definida
+- El `colSpan` se mantiene en 7 (no cambia el número de columnas)
 
-### Causa 1: La tecla Enter envía el formulario principal prematuramente
+**2. Vista de tarjetas (`BudgetCard.tsx`)**
+- **Reemplazar** el campo "Válido Hasta" por "Fecha Facturación"
+- Mantener la grilla de `grid-cols-2`
+- Mostrar "No especificado" si el campo está vacío
 
-Cuando el usuario pulsa Enter en el campo "Importe" del editor de asignaciones, en lugar de añadir la asignación a la tabla, el evento `Enter` propaga hacia arriba y **envía el formulario principal** (`<form onSubmit>`). 
+### Resultado visual esperado
 
-**Secuencia del bug:**
-1. Usuario selecciona presupuesto y escribe importe
-2. Pulsa Enter (pensando que añade la asignación)
-3. El formulario principal se envía
-4. En ese momento `budgetAllocations = []` (vacío) porque nunca se pulsó el botón +
-5. Se guarda la factura sin ninguna asignación
+**Tabla:**
+| Código | Título | Cliente | Monto Total | Estado | Fecha Facturación | Acciones |
 
-### Causa 2: Guardar con tipo "budgets" pero sin asignaciones efectivas
-
-Aunque el usuario haya seleccionado `associationType = 'budgets'`, si `budgetAllocations` está vacío (porque no pulsó el botón + o porque Enter envió el form antes), el código actual guarda un array vacío:
-
-```typescript
-if (associationType === 'budgets') {
-  await saveAllocationsMutation.mutateAsync({
-    invoiceId: invoice.id,
-    allocations: budgetAllocations, // ← Puede ser []
-  });
-}
+**Tarjeta:**
+```
+┌─────────────────────────────────────────┐
+│  PRE-2026-010                           │
+│  Trade fair participation...  [Aprobado]│
+│  Asendia Germany                        │
+├─────────────────────────────────────────┤
+│  Monto Total        Fecha Facturación   │
+│  280,00 €           15 Feb 2026         │
+└─────────────────────────────────────────┘
 ```
 
----
-
-## Solución Propuesta
-
-### 1. Prevenir que Enter envíe el formulario desde el editor de asignaciones
-
-En `BudgetAllocationEditor.tsx`, añadir `onKeyDown` al campo de importe para:
-- Prevenir la propagación del evento Enter
-- Opcionalmente, ejecutar la acción de añadir asignación
-
-```typescript
-<Input
-  type="number"
-  ...
-  onKeyDown={(e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      e.stopPropagation();
-      // Si hay un presupuesto seleccionado, añadir la asignación
-      if (selectedBudgetId) {
-        handleAddAllocation();
-      }
-    }
-  }}
-/>
-```
-
-### 2. Validar que existan asignaciones antes de guardar
-
-En `InvoiceFormModal.tsx`, en la función `onSubmit`, añadir validación:
-
-```typescript
-if (associationType === 'budgets' && budgetAllocations.length === 0) {
-  toast.error('Añade al menos una asignación de presupuesto o selecciona "Sin asociar"');
-  return;
-}
-```
-
-### 3. Añadir logs de depuración (temporal)
-
-Añadir console.logs en puntos clave para verificar el estado al guardar:
-- Justo antes de llamar a `updateMutation.mutate(data)`
-- En el `mutationFn` de `updateMutation`
-
----
-
-## Archivos a Modificar
+### Archivos a modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/components/invoices/BudgetAllocationEditor.tsx` | Añadir `onKeyDown` para prevenir Enter y añadir asignación |
-| `src/components/modals/InvoiceFormModal.tsx` | Añadir validación de asignaciones vacías + logs de depuración |
-
----
-
-## Resultado Esperado
-
-1. Cuando el usuario pulsa Enter en el campo de importe, la asignación se añade a la tabla (en lugar de enviar el formulario)
-2. Si el usuario intenta guardar con "Presupuesto(s)" seleccionado pero sin asignaciones, aparece un error claro
-3. Los logs de consola permitirán verificar el estado exacto al momento de guardar
-
+| `src/components/budgets/BudgetTableView.tsx` | Reemplazar "Válido Hasta" por "Fecha Facturación" |
+| `src/components/budgets/BudgetCard.tsx` | Reemplazar "Válido Hasta" por "Fecha Facturación" |

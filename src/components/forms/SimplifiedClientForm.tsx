@@ -27,6 +27,7 @@ const clientSchema = z.object({
   country: z.string().trim().max(100, 'Máximo 100 caracteres').optional(),
   drive_folder_url: z.string().trim().url('URL inválida').optional().or(z.literal('')),
   notes: z.string().trim().max(1000, 'Máximo 1000 caracteres').optional(),
+  default_hourly_rate: z.coerce.number().min(0, 'No puede ser negativo').optional().nullable(),
 });
 
 type ClientFormValues = z.infer<typeof clientSchema>;
@@ -57,6 +58,7 @@ export const SimplifiedClientForm = ({
       country: initialData?.country || '',
       drive_folder_url: initialData?.drive_folder_url || '',
       notes: initialData?.notes || '',
+      default_hourly_rate: initialData?.default_hourly_rate ?? null,
     },
   });
 
@@ -87,6 +89,7 @@ export const SimplifiedClientForm = ({
         tax_id: values.tax_id || null,
         drive_folder_url: values.drive_folder_url || null,
         notes: values.notes || null,
+        default_hourly_rate: values.default_hourly_rate ?? null,
       };
 
       if (initialData?.id) {
@@ -116,6 +119,7 @@ export const SimplifiedClientForm = ({
           country: dataToSave.country,
           drive_folder_url: dataToSave.drive_folder_url,
           notes: dataToSave.notes,
+          default_hourly_rate: dataToSave.default_hourly_rate,
           created_by: user.id,
         } as any);
 
@@ -270,6 +274,33 @@ export const SimplifiedClientForm = ({
                   type="url" 
                   placeholder="https://drive.google.com/..." 
                   {...field} 
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="default_hourly_rate"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Tarifa hora por defecto (€)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  name={field.name}
+                  ref={field.ref}
+                  onBlur={field.onBlur}
+                  value={field.value !== null && field.value !== undefined ? field.value : ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    field.onChange(val === '' ? null : parseFloat(val));
+                  }}
                 />
               </FormControl>
               <FormMessage />

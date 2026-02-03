@@ -298,6 +298,7 @@ export type Database = {
           country: string | null
           created_at: string
           created_by: string
+          default_hourly_rate: number | null
           drive_folder_url: string | null
           email: string | null
           expected_payment_day: number | null
@@ -320,6 +321,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           created_by: string
+          default_hourly_rate?: number | null
           drive_folder_url?: string | null
           email?: string | null
           expected_payment_day?: number | null
@@ -342,6 +344,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           created_by?: string
+          default_hourly_rate?: number | null
           drive_folder_url?: string | null
           email?: string | null
           expected_payment_day?: number | null

@@ -45,13 +45,16 @@ export interface MilestoneFilters {
 export const useProjectMilestones = (filters?: MilestoneFilters) => {
   const { assignedClientIds, isLoading: assignedLoading, needsFiltering } = useAssignedClients();
   const { specialistId: currentSpecialistId, isLoading: specialistLoading } = useCurrentSpecialist();
-  const { isSpecialist } = useUserRole();
+  const { isSpecialist, isAdmin, canAccessFinance } = useUserRole();
+  
+  // Specialist should only see their milestones if they DON'T have elevated access
+  const shouldFilterBySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && currentSpecialistId;
 
   return useQuery({
-    queryKey: ['project-milestones', filters, assignedClientIds, currentSpecialistId, needsFiltering, isSpecialist()],
+    queryKey: ['project-milestones', filters, assignedClientIds, currentSpecialistId, needsFiltering, shouldFilterBySpecialist],
     queryFn: async (): Promise<MilestoneWithDetails[]> => {
-      // For AM/PM filtering
-      if (needsFiltering && (!assignedClientIds || assignedClientIds.length === 0)) {
+      // For AM/PM filtering - only return empty if we're still waiting for data
+      if (needsFiltering && assignedClientIds.length === 0) {
         return [];
       }
 
@@ -90,8 +93,8 @@ export const useProjectMilestones = (filters?: MilestoneFilters) => {
         query = query.in('client_id', assignedClientIds);
       }
 
-      // Specialist can only see their assigned milestones
-      if (isSpecialist() && currentSpecialistId) {
+      // Specialist without elevated access can only see their assigned milestones
+      if (shouldFilterBySpecialist) {
         query = query.eq('assignee_specialist_id', currentSpecialistId);
       }
 

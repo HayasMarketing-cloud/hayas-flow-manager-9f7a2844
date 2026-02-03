@@ -1,192 +1,110 @@
 
 
-## Objetivo
-Corregir los filtros de la pestaña "Seguimiento" en Proyectos Operativos y añadir filtros de Presupuesto y Contrato cuando se seleccione un cliente.
+## Problema Identificado
+
+La factura 2026/8 no muestra la asociación a presupuesto porque **nunca se guardó en la base de datos**. El problema está en el modal de edición de facturas.
+
+### Diagnóstico
+
+**Verificación en base de datos:**
+- `invoice_budget_allocations` para factura 2026/8: **0 registros**
+- `invoices.budget_id` para factura 2026/8: **null**
+- `invoices.contract_id` para factura 2026/8: **null**
+
+Esto confirma que cuando el usuario "guardó" la asociación, la operación no se ejecutó correctamente.
+
+### Causa Raíz: Race Condition en useEffect
+
+El `useEffect` en `InvoiceFormModal.tsx` (líneas 143-210) tiene dependencias problemáticas:
+
+```typescript
+useEffect(() => {
+  if (invoice && mode !== 'create') {
+    // ...carga datos...
+    if (existingAllocations.length > 0) {
+      setAssociationType('budgets');
+    } else if (invoice.contract_id) {
+      setAssociationType('contract');
+    } else {
+      setAssociationType('none'); // ⚠️ PROBLEMA: Se resetea a 'none'
+    }
+  }
+}, [invoice, mode, reset, existingAllocations, availableBudgets]); // ⚠️ Dependencias asíncronas
+```
+
+**Secuencia del bug:**
+
+1. Usuario abre factura 2026/8 (sin asociaciones previas)
+2. `useEffect` se ejecuta → `existingAllocations = []` → `associationType = 'none'`
+3. Usuario selecciona "Presupuesto(s)" y añade una asignación → `associationType = 'budgets'`
+4. Mientras el usuario trabaja, `availableBudgets` termina de cargar (query asíncrono)
+5. El `useEffect` se RE-EJECUTA por el cambio en `availableBudgets`
+6. Como `existingAllocations` sigue vacío → `associationType = 'none'` **¡SE RESETEA!**
+7. Usuario hace clic en "Guardar" con `associationType = 'none'`
+8. El código en línea 365-370 ejecuta: `allocations: []` (array vacío)
 
 ---
 
-## Diagnóstico del problema
+## Solución Propuesta
 
-### Problema 1: Búsqueda en relaciones anidadas
-En el hook `useProjectMilestones.tsx`, la línea 109 usa:
+### Cambio 1: Evitar re-ejecución innecesaria del useEffect
+
+Añadir un flag `hasInitialized` para que el efecto solo inicialice el estado **una vez** al abrir el modal, y no reaccione a cambios posteriores de los datos asíncronos:
+
 ```typescript
-query.or(`name.ilike.%${filters.searchTerm}%,operational_project.name.ilike.%${filters.searchTerm}%`)
+const [hasInitialized, setHasInitialized] = useState(false);
+
+useEffect(() => {
+  // Solo inicializar una vez cuando tenemos los datos necesarios
+  if (invoice && mode !== 'create' && !hasInitialized && 
+      existingAllocations !== undefined && availableBudgets !== undefined) {
+    
+    // ... lógica de inicialización ...
+    
+    setHasInitialized(true);
+  }
+}, [invoice, mode, existingAllocations, availableBudgets, hasInitialized]);
+
+// Reset flag cuando cambia el invoice
+useEffect(() => {
+  setHasInitialized(false);
+}, [invoice?.id]);
 ```
 
-Esto es **inválido** en Supabase/PostgREST - no se puede buscar en relaciones anidadas con `ilike`. La búsqueda solo funciona en columnas directas de la tabla.
+### Cambio 2: Separar inicialización de form y asociaciones
 
-### Problema 2: Faltan filtros de presupuesto y contrato
-La UI de la pestaña "Seguimiento" no incluye selectores para filtrar por presupuesto o contrato cuando se selecciona un cliente.
+Dividir el `useEffect` monolítico en dos efectos separados:
+1. **Efecto para datos del formulario** (síncronos desde `invoice`)
+2. **Efecto para asociaciones** (dependiente de datos asíncronos, pero con protección contra re-reseteo)
 
----
+### Cambio 3: Añadir logging de depuración
 
-## Cambios a realizar
+Agregar logs en `useSaveInvoiceAllocations` para detectar cuando se guardan arrays vacíos:
 
-### 1. Corregir búsqueda en `src/hooks/useProjectMilestones.tsx`
-
-**Cambio en líneas 108-110:**
 ```typescript
-// Antes (INCORRECTO)
-if (filters?.searchTerm) {
-  query = query.or(`name.ilike.%${filters.searchTerm}%,operational_project.name.ilike.%${filters.searchTerm}%`);
+console.log(`[SaveAllocations] Guardando ${allocations.length} asignaciones para factura ${invoiceId}`);
+if (allocations.length === 0) {
+  console.warn('[SaveAllocations] ⚠️ Se está guardando un array vacío de asignaciones');
 }
-
-// Después (CORRECTO) - Solo buscar en columnas directas
-if (filters?.searchTerm) {
-  query = query.ilike('name', `%${filters.searchTerm}%`);
-}
-```
-
-La búsqueda en el nombre del proyecto se realizará mediante post-filtrado junto con los otros filtros de relaciones anidadas (contrato/presupuesto).
-
-**Añadir post-filtrado por nombre de proyecto (líneas ~122-131):**
-```typescript
-// Añadir al post-filtrado existente
-if (filters?.searchTerm) {
-  const term = filters.searchTerm.toLowerCase();
-  results = results.filter(m => 
-    m.name.toLowerCase().includes(term) || 
-    m.operational_project?.name?.toLowerCase().includes(term)
-  );
-}
-```
-
-### 2. Añadir estados para filtros en `src/pages/operations/OperationalProjects.tsx`
-
-**Nuevos estados (después de línea 58):**
-```typescript
-const [budgetFilter, setBudgetFilter] = useState<string>('all');
-const [contractFilter, setContractFilter] = useState<string>('all');
-```
-
-**Nuevas queries para presupuestos y contratos del cliente seleccionado:**
-```typescript
-// Presupuestos del cliente seleccionado
-const { data: clientBudgets } = useQuery({
-  queryKey: ['client-budgets-filter', clientFilter],
-  queryFn: async () => {
-    if (clientFilter === 'all') return [];
-    const { data, error } = await supabase
-      .from('budgets')
-      .select('id, title, code')
-      .eq('client_id', clientFilter)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data;
-  },
-  enabled: clientFilter !== 'all',
-});
-
-// Contratos del cliente seleccionado  
-const { data: clientContracts } = useQuery({
-  queryKey: ['client-contracts-filter', clientFilter],
-  queryFn: async () => {
-    if (clientFilter === 'all') return [];
-    const { data, error } = await supabase
-      .from('contracts')
-      .select('id, title, code')
-      .eq('client_id', clientFilter)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data;
-  },
-  enabled: clientFilter !== 'all',
-});
-```
-
-**Limpiar filtros al cambiar cliente:**
-```typescript
-// Handler para cambio de cliente
-const handleClientChange = (value: string) => {
-  setClientFilter(value);
-  setBudgetFilter('all');
-  setContractFilter('all');
-};
-```
-
-### 3. Actualizar UI de filtros
-
-**Añadir filtros condicionales en el grid (dentro del `<Card>` de filtros):**
-
-Cambiar el grid a 5 columnas cuando hay filtros adicionales y añadir:
-```tsx
-{activeTab === 'tracking' && clientFilter !== 'all' && (
-  <>
-    <Select value={budgetFilter} onValueChange={setBudgetFilter}>
-      <SelectTrigger>
-        <SelectValue placeholder="Todos los presupuestos" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">Todos los presupuestos</SelectItem>
-        {clientBudgets?.map((budget) => (
-          <SelectItem key={budget.id} value={budget.id}>
-            {budget.code} - {budget.title}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-
-    <Select value={contractFilter} onValueChange={setContractFilter}>
-      <SelectTrigger>
-        <SelectValue placeholder="Todos los contratos" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">Todos los contratos</SelectItem>
-        {clientContracts?.map((contract) => (
-          <SelectItem key={contract.id} value={contract.id}>
-            {contract.code} - {contract.title}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  </>
-)}
-```
-
-### 4. Pasar filtros al hook `useProjectMilestones`
-
-**Actualizar llamada al hook (línea ~139-144):**
-```typescript
-const { data: milestones, isLoading: milestonesLoading } = useProjectMilestones({
-  clientId: clientFilter === 'all' ? undefined : clientFilter,
-  specialistId: specialistFilter === 'all' ? undefined : specialistFilter,
-  status: statusFilter === 'all' ? undefined : statusFilter,
-  budgetId: budgetFilter === 'all' ? undefined : budgetFilter,
-  contractId: contractFilter === 'all' ? undefined : contractFilter,
-  searchTerm: searchTerm || undefined,
-});
-```
-
-### 5. Actualizar `hasActiveFilters`
-
-**Actualizar cálculo (línea ~136):**
-```typescript
-const hasActiveFilters = !!(
-  searchTerm || 
-  clientFilter !== 'all' || 
-  statusFilter !== 'all' || 
-  specialistFilter !== 'all' ||
-  budgetFilter !== 'all' ||
-  contractFilter !== 'all'
-);
 ```
 
 ---
 
-## Archivos a modificar
+## Archivos a Modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/hooks/useProjectMilestones.tsx` | Corregir búsqueda y añadir post-filtrado por nombre de proyecto |
-| `src/pages/operations/OperationalProjects.tsx` | Añadir estados, queries y UI para filtros de presupuesto y contrato |
+| `src/components/modals/InvoiceFormModal.tsx` | Añadir flag `hasInitialized` y separar useEffects |
+| `src/hooks/useInvoiceBudgetAllocations.tsx` | Añadir logs de depuración (opcional pero recomendado) |
 
 ---
 
-## Resultado esperado
+## Resultado Esperado
 
-1. Al seleccionar un cliente en la pestaña "Seguimiento", aparecen dos filtros adicionales: **Presupuesto** y **Contrato**
-2. La búsqueda por texto funciona correctamente (busca en nombre de milestone y nombre de proyecto)
-3. Al cambiar de cliente, los filtros de presupuesto y contrato se limpian automáticamente
-4. Todos los filtros funcionan combinados para refinar la vista de milestones
+1. El usuario abre la factura 2026/8 en modo edición
+2. Selecciona "Presupuesto(s)" y añade una asignación
+3. Los datos asíncronos (`availableBudgets`) terminan de cargar
+4. **El estado `associationType` NO se resetea** porque `hasInitialized = true`
+5. El usuario guarda y la asignación se persiste correctamente
+6. La columna "Asociación" muestra el presupuesto vinculado
 

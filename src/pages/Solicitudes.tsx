@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, LayoutGrid, Table as TableIcon, Download, Trash2, Receipt, X } from 'lucide-react';
+import { Plus, Search, LayoutGrid, Table as TableIcon, Download, Trash2, Receipt, FileText, X } from 'lucide-react';
 import { exportRequestsToExcel } from '@/utils/excel/requestsExporter';
 import { toast } from 'sonner';
 import { useState } from 'react';
@@ -23,6 +23,7 @@ import { useRequestFilters } from '@/hooks/useRequestFilters';
 import { useUserRole } from '@/hooks/useUserRole';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { AddToLiquidationModal } from '@/components/liquidations/AddToLiquidationModal';
+import { AddToInvoiceModal } from '@/components/invoices/AddToInvoiceModal';
 import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
 
 const Solicitudes = () => {
@@ -34,6 +35,7 @@ const Solicitudes = () => {
   const [requestToDelete, setRequestToDelete] = useState<any>(null);
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const [addToLiquidationOpen, setAddToLiquidationOpen] = useState(false);
+  const [addToInvoiceOpen, setAddToInvoiceOpen] = useState(false);
   const [bulkEditConfirmOpen, setBulkEditConfirmOpen] = useState(false);
   const [pendingBulkEdit, setPendingBulkEdit] = useState<{ field: string; value: any; label: string } | null>(null);
   const queryClient = useQueryClient();
@@ -749,6 +751,14 @@ const Solicitudes = () => {
               Añadir a Liquidación
             </Button>
             <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddToInvoiceOpen(true)}
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Añadir a Facturación
+            </Button>
+            <Button
               variant="destructive"
               size="sm"
               onClick={() => setBulkDeleteConfirmOpen(true)}
@@ -884,6 +894,16 @@ const Solicitudes = () => {
       <AddToLiquidationModal
         open={addToLiquidationOpen}
         onOpenChange={setAddToLiquidationOpen}
+        requestIds={selectedIds}
+        onSuccess={() => {
+          setSelectedIds([]);
+          queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
+        }}
+      />
+
+      <AddToInvoiceModal
+        open={addToInvoiceOpen}
+        onOpenChange={setAddToInvoiceOpen}
         requestIds={selectedIds}
         onSuccess={() => {
           setSelectedIds([]);

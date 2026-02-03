@@ -16,6 +16,7 @@ import { RequestProcessTimeline } from '@/components/requests/RequestProcessTime
 import { RequestFormModal } from '@/components/modals/RequestFormModal';
 import { RequestProjectCreationModal } from '@/components/requests/RequestProjectCreationModal';
 import { AddToLiquidationModal } from '@/components/liquidations/AddToLiquidationModal';
+import { AddToInvoiceModal } from '@/components/invoices/AddToInvoiceModal';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
@@ -56,6 +57,7 @@ const SolicitudDetalle = () => {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [addToLiquidationModalOpen, setAddToLiquidationModalOpen] = useState(false);
+  const [addToInvoiceModalOpen, setAddToInvoiceModalOpen] = useState(false);
 
   const createProjectMutation = useCreateProjectFromRequest();
 
@@ -609,12 +611,23 @@ const SolicitudDetalle = () => {
                     <div className="flex items-center gap-6">
                       <div>
                         <p className="text-sm text-muted-foreground mb-1">Factura</p>
-                        <FlowStatusCell
-                          type="invoice"
-                          linkedId={request.billed_invoice_id}
-                          linkedCode={request.invoice?.code}
-                          linkedStatus={request.invoice?.status}
-                        />
+                        <div className="flex items-center gap-2">
+                          <FlowStatusCell
+                            type="invoice"
+                            linkedId={request.billed_invoice_id}
+                            linkedCode={request.invoice?.code}
+                            linkedStatus={request.invoice?.status}
+                          />
+                          {!request.billed_invoice_id && canAccessFinance() && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => setAddToInvoiceModalOpen(true)}
+                            >
+                              + Factura
+                            </Button>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground mb-1">Liquidación</p>
@@ -781,6 +794,14 @@ const SolicitudDetalle = () => {
       <AddToLiquidationModal
         open={addToLiquidationModalOpen}
         onOpenChange={setAddToLiquidationModalOpen}
+        requestIds={[request.id]}
+        onSuccess={handleRefresh}
+      />
+
+      {/* Add to Invoice Modal */}
+      <AddToInvoiceModal
+        open={addToInvoiceModalOpen}
+        onOpenChange={setAddToInvoiceModalOpen}
         requestIds={[request.id]}
         onSuccess={handleRefresh}
       />

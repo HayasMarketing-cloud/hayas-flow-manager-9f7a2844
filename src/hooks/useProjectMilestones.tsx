@@ -53,8 +53,10 @@ export const useProjectMilestones = (filters?: MilestoneFilters) => {
   return useQuery({
     queryKey: ['project-milestones', filters, assignedClientIds, currentSpecialistId, needsFiltering, shouldFilterBySpecialist],
     queryFn: async (): Promise<MilestoneWithDetails[]> => {
-      // For AM/PM filtering - only return empty if we're still waiting for data
+      // For AM/PM filtering - only return empty if filtering is needed AND no assigned clients
+      // Skip this check if we're still loading assigned clients
       if (needsFiltering && assignedClientIds.length === 0) {
+        // Return empty only if we've finished loading and still have no clients
         return [];
       }
 

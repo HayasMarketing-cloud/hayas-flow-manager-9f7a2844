@@ -122,6 +122,7 @@ export type Database = {
           am_user_id: string | null
           client_contact_id: string | null
           client_id: string
+          client_po_number: string | null
           code: string
           contract_id: string | null
           created_at: string
@@ -142,6 +143,7 @@ export type Database = {
           am_user_id?: string | null
           client_contact_id?: string | null
           client_id: string
+          client_po_number?: string | null
           code?: string
           contract_id?: string | null
           created_at?: string
@@ -162,6 +164,7 @@ export type Database = {
           am_user_id?: string | null
           client_contact_id?: string | null
           client_id?: string
+          client_po_number?: string | null
           code?: string
           contract_id?: string | null
           created_at?: string

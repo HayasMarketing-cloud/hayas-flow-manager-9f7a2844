@@ -216,6 +216,11 @@ export function OperationalRequestFormModal({
   const updateMutation = useMutation({
     mutationFn: async (data: FormData) => {
       if (!requestId) return;
+      
+      const newSpecialistId = data.assignee_specialist_id || null;
+      const oldSpecialistId = request?.assignee_specialist_id || null;
+      const linkedFinancialRequestId = request?.financial_request_id || data.financial_request_id;
+      
       const { error } = await supabase
         .from("operational_requests")
         .update({
@@ -225,7 +230,7 @@ export function OperationalRequestFormModal({
           client_id: data.client_id,
           financial_request_id: data.financial_request_id || null,
           assignee_user_id: data.assignee_user_id || null,
-          assignee_specialist_id: data.assignee_specialist_id || null,
+          assignee_specialist_id: newSpecialistId,
           deadline: data.deadline || null,
           context_url: data.context_url || null,
           reviewer_type: data.reviewer_type || null,
@@ -233,12 +238,22 @@ export function OperationalRequestFormModal({
         })
         .eq("id", requestId);
       if (error) throw error;
+      
+      // Sincronizar specialist_id con financial_request vinculado (si cambió)
+      if (linkedFinancialRequestId && newSpecialistId !== oldSpecialistId) {
+        await supabase
+          .from("financial_requests")
+          .update({ specialist_id: newSpecialistId })
+          .eq("id", linkedFinancialRequestId);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["operational-requests"] });
       queryClient.invalidateQueries({ queryKey: ["operational-request", requestId] });
       queryClient.invalidateQueries({ queryKey: ["operational-projects"] });
       queryClient.invalidateQueries({ queryKey: ["project-operational-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["financial-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["budget-detail"] });
       toast.success("Milestone actualizado");
       onOpenChange(false);
     },

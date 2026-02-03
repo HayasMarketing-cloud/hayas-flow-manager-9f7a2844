@@ -127,6 +127,7 @@ export type Database = {
           created_at: string
           created_by: string
           description: string | null
+          estimated_invoice_date: string | null
           id: string
           pm_user_id: string | null
           proposal_context: Json | null
@@ -146,6 +147,7 @@ export type Database = {
           created_at?: string
           created_by: string
           description?: string | null
+          estimated_invoice_date?: string | null
           id?: string
           pm_user_id?: string | null
           proposal_context?: Json | null
@@ -165,6 +167,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           description?: string | null
+          estimated_invoice_date?: string | null
           id?: string
           pm_user_id?: string | null
           proposal_context?: Json | null

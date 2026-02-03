@@ -39,6 +39,7 @@ export const BudgetFormModal = ({
     contract_id: '',
     description: '',
     valid_until: '',
+    estimated_invoice_date: '',
     status: 'pending',
     accepted_document_url: '',
     am_user_id: '',
@@ -120,6 +121,7 @@ export const BudgetFormModal = ({
         contract_id: budget.contract_id || '',
         description: budget.description || '',
         valid_until: budget.valid_until || '',
+        estimated_invoice_date: budget.estimated_invoice_date || '',
         status: budget.status || 'pending',
         accepted_document_url: budget.accepted_document_url || '',
         am_user_id: budget.am_user_id || '',
@@ -133,6 +135,7 @@ export const BudgetFormModal = ({
         contract_id: '',
         description: '',
         valid_until: '',
+        estimated_invoice_date: '',
         status: 'pending',
         accepted_document_url: '',
         am_user_id: '',
@@ -530,6 +533,22 @@ export const BudgetFormModal = ({
                 </Button>
               )}
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="estimated_invoice_date">
+              Fecha Estimada de Facturación al Cliente
+            </Label>
+            <Input
+              id="estimated_invoice_date"
+              type="date"
+              value={formData.estimated_invoice_date}
+              onChange={(e) => setFormData({ ...formData, estimated_invoice_date: e.target.value })}
+              disabled={!canEdit}
+            />
+            <p className="text-xs text-muted-foreground">
+              Fecha prevista para emitir la factura al cliente
+            </p>
           </div>
 
           <BudgetItemsEditor items={items} onChange={setItems} disabled={!canEdit} />

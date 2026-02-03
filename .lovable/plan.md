@@ -1,138 +1,192 @@
 
 
 ## Objetivo
-Añadir una vista de tabla de milestones (con sus tareas expandibles) en la primera pantalla de Proyectos Operativos. Esta vista permitirá un seguimiento rápido y actualización del estado de milestones/tareas con las columnas solicitadas.
+Corregir los filtros de la pestaña "Seguimiento" en Proyectos Operativos y añadir filtros de Presupuesto y Contrato cuando se seleccione un cliente.
 
 ---
 
-## Diseño de la solución
+## Diagnóstico del problema
 
-### Nuevas vistas en la página de Proyectos
+### Problema 1: Búsqueda en relaciones anidadas
+En el hook `useProjectMilestones.tsx`, la línea 109 usa:
+```typescript
+query.or(`name.ilike.%${filters.searchTerm}%,operational_project.name.ilike.%${filters.searchTerm}%`)
+```
 
-Se implementarán **dos vistas alternativas** controladas por tabs:
-1. **Vista Tarjetas** (actual) - Grid de proyectos con cards
-2. **Vista Seguimiento** (nueva) - Tabla de milestones con tareas expandibles
+Esto es **inválido** en Supabase/PostgREST - no se puede buscar en relaciones anidadas con `ilike`. La búsqueda solo funciona en columnas directas de la tabla.
 
-### Columnas de la tabla de seguimiento
-
-| Columna | Descripción | Origen |
-|---------|-------------|--------|
-| Cliente | Nombre del cliente | `operational_project.client.name` |
-| Proyecto | Nombre del proyecto | `operational_project.name` |
-| Milestone | Nombre del milestone | `operational_request.name` |
-| Presupuesto | Código del presupuesto | `operational_project.budget.code` |
-| Contrato | Código del contrato | `operational_project.contract.code` |
-| Especialista | Nombre del especialista asignado | `operational_request.assignee_specialist.name` |
-| Deadline | Fecha límite del milestone | `operational_request.deadline` |
-| Fecha Facturación | Fecha estimada facturación | `budget.estimated_invoice_date` |
-| Status | Estado del milestone | `operational_request.status` |
-| Tareas | Contador X/Y completadas | Calculado de `tasks` |
-| Acciones | Botón expandir tareas, editar estado | Interactivo |
-
-### Funcionalidades clave
-
-1. **Expandir/Colapsar tareas**: Al hacer clic en una fila de milestone, se expande para mostrar sus tareas
-2. **Actualización rápida de estado**: Cambiar status de milestone/tarea directamente desde la tabla
-3. **Filtros reutilizados**: Usar los mismos filtros que ya existen en `TaskFiltersBar`
-4. **Ordenación por deadline**: Por defecto ordenado por fecha límite ascendente
+### Problema 2: Faltan filtros de presupuesto y contrato
+La UI de la pestaña "Seguimiento" no incluye selectores para filtrar por presupuesto o contrato cuando se selecciona un cliente.
 
 ---
 
 ## Cambios a realizar
 
-### 1. Nuevo hook: `src/hooks/useProjectMilestones.tsx`
+### 1. Corregir búsqueda en `src/hooks/useProjectMilestones.tsx`
 
-Hook que carga todos los milestones (operational_requests) con sus proyectos, clientes, presupuestos, contratos, tareas y fecha de facturación estimada.
-
+**Cambio en líneas 108-110:**
 ```typescript
-// Query que incluye:
-// - operational_requests con project, client, budget (con estimated_invoice_date), contract
-// - Count de tareas totales y completadas
-// - Filtros por cliente, especialista, contrato, presupuesto, mes
-// - Visibilidad basada en rol (Admin/AM/PM/Especialista)
+// Antes (INCORRECTO)
+if (filters?.searchTerm) {
+  query = query.or(`name.ilike.%${filters.searchTerm}%,operational_project.name.ilike.%${filters.searchTerm}%`);
+}
+
+// Después (CORRECTO) - Solo buscar en columnas directas
+if (filters?.searchTerm) {
+  query = query.ilike('name', `%${filters.searchTerm}%`);
+}
 ```
 
-### 2. Nuevo componente: `src/components/operations/MilestoneTrackingTable.tsx`
+La búsqueda en el nombre del proyecto se realizará mediante post-filtrado junto con los otros filtros de relaciones anidadas (contrato/presupuesto).
 
-Tabla principal con:
-- Cabeceras de columnas
-- Filas de milestones con indicadores visuales
-- Expansión para mostrar tareas inline
-- Badges de estado
-- Actualización de estado rápida
+**Añadir post-filtrado por nombre de proyecto (líneas ~122-131):**
+```typescript
+// Añadir al post-filtrado existente
+if (filters?.searchTerm) {
+  const term = filters.searchTerm.toLowerCase();
+  results = results.filter(m => 
+    m.name.toLowerCase().includes(term) || 
+    m.operational_project?.name?.toLowerCase().includes(term)
+  );
+}
+```
 
-### 3. Nuevo componente: `src/components/operations/MilestoneRow.tsx` (actualizado)
+### 2. Añadir estados para filtros en `src/pages/operations/OperationalProjects.tsx`
 
-Fila individual de milestone que:
-- Muestra todas las columnas requeridas
-- Permite expandir para ver tareas
-- Permite cambiar estado del milestone
+**Nuevos estados (después de línea 58):**
+```typescript
+const [budgetFilter, setBudgetFilter] = useState<string>('all');
+const [contractFilter, setContractFilter] = useState<string>('all');
+```
 
-### 4. Modificar: `src/pages/operations/OperationalProjects.tsx`
+**Nuevas queries para presupuestos y contratos del cliente seleccionado:**
+```typescript
+// Presupuestos del cliente seleccionado
+const { data: clientBudgets } = useQuery({
+  queryKey: ['client-budgets-filter', clientFilter],
+  queryFn: async () => {
+    if (clientFilter === 'all') return [];
+    const { data, error } = await supabase
+      .from('budgets')
+      .select('id, title, code')
+      .eq('client_id', clientFilter)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data;
+  },
+  enabled: clientFilter !== 'all',
+});
 
-Añadir:
-- Tabs para alternar entre "Vista Tarjetas" y "Vista Seguimiento"
-- Integración de `MilestoneTrackingTable` en la segunda tab
-- Reutilización de filtros existentes adaptados
+// Contratos del cliente seleccionado  
+const { data: clientContracts } = useQuery({
+  queryKey: ['client-contracts-filter', clientFilter],
+  queryFn: async () => {
+    if (clientFilter === 'all') return [];
+    const { data, error } = await supabase
+      .from('contracts')
+      .select('id, title, code')
+      .eq('client_id', clientFilter)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data;
+  },
+  enabled: clientFilter !== 'all',
+});
+```
+
+**Limpiar filtros al cambiar cliente:**
+```typescript
+// Handler para cambio de cliente
+const handleClientChange = (value: string) => {
+  setClientFilter(value);
+  setBudgetFilter('all');
+  setContractFilter('all');
+};
+```
+
+### 3. Actualizar UI de filtros
+
+**Añadir filtros condicionales en el grid (dentro del `<Card>` de filtros):**
+
+Cambiar el grid a 5 columnas cuando hay filtros adicionales y añadir:
+```tsx
+{activeTab === 'tracking' && clientFilter !== 'all' && (
+  <>
+    <Select value={budgetFilter} onValueChange={setBudgetFilter}>
+      <SelectTrigger>
+        <SelectValue placeholder="Todos los presupuestos" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">Todos los presupuestos</SelectItem>
+        {clientBudgets?.map((budget) => (
+          <SelectItem key={budget.id} value={budget.id}>
+            {budget.code} - {budget.title}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+
+    <Select value={contractFilter} onValueChange={setContractFilter}>
+      <SelectTrigger>
+        <SelectValue placeholder="Todos los contratos" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">Todos los contratos</SelectItem>
+        {clientContracts?.map((contract) => (
+          <SelectItem key={contract.id} value={contract.id}>
+            {contract.code} - {contract.title}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </>
+)}
+```
+
+### 4. Pasar filtros al hook `useProjectMilestones`
+
+**Actualizar llamada al hook (línea ~139-144):**
+```typescript
+const { data: milestones, isLoading: milestonesLoading } = useProjectMilestones({
+  clientId: clientFilter === 'all' ? undefined : clientFilter,
+  specialistId: specialistFilter === 'all' ? undefined : specialistFilter,
+  status: statusFilter === 'all' ? undefined : statusFilter,
+  budgetId: budgetFilter === 'all' ? undefined : budgetFilter,
+  contractId: contractFilter === 'all' ? undefined : contractFilter,
+  searchTerm: searchTerm || undefined,
+});
+```
+
+### 5. Actualizar `hasActiveFilters`
+
+**Actualizar cálculo (línea ~136):**
+```typescript
+const hasActiveFilters = !!(
+  searchTerm || 
+  clientFilter !== 'all' || 
+  statusFilter !== 'all' || 
+  specialistFilter !== 'all' ||
+  budgetFilter !== 'all' ||
+  contractFilter !== 'all'
+);
+```
 
 ---
 
-## Estructura de archivos
+## Archivos a modificar
 
-```
-src/
-├── hooks/
-│   └── useProjectMilestones.tsx         # Nuevo - Query de milestones con detalles
-├── components/
-│   └── operations/
-│       ├── MilestoneTrackingTable.tsx   # Nuevo - Tabla principal
-│       ├── MilestoneTrackingRow.tsx     # Nuevo - Fila expandible
-│       └── MilestoneTasksExpanded.tsx   # Nuevo - Lista de tareas inline
-└── pages/
-    └── operations/
-        └── OperationalProjects.tsx      # Modificado - Añadir tabs y tabla
-```
-
----
-
-## Detalles técnicos
-
-### Query del hook `useProjectMilestones`
-
-```sql
-SELECT 
-  operational_requests.*,
-  operational_project:operational_projects(
-    id, name, status, deadline,
-    client:clients(id, name),
-    contract:contracts(id, title, code),
-    budget:budgets(id, title, code, estimated_invoice_date)
-  ),
-  assignee_specialist:specialists(id, name),
-  tasks(id, status)  -- Para contar completadas/total
-```
-
-### Estados de milestone con colores
-
-- `pending` → Amarillo
-- `in_progress` → Azul  
-- `in_review` → Púrpura
-- `completed` → Verde
-
-### Indicador de deadline
-
-- Normal: texto gris
-- Próximo (< 7 días): texto naranja
-- Vencido: texto rojo con fondo rojo claro
+| Archivo | Cambio |
+|---------|--------|
+| `src/hooks/useProjectMilestones.tsx` | Corregir búsqueda y añadir post-filtrado por nombre de proyecto |
+| `src/pages/operations/OperationalProjects.tsx` | Añadir estados, queries y UI para filtros de presupuesto y contrato |
 
 ---
 
 ## Resultado esperado
 
-1. Al entrar en "Proyectos", el usuario ve dos tabs: **"Tarjetas"** y **"Seguimiento"**
-2. En la tab "Seguimiento" aparece una tabla con todos los milestones filtrados según su rol
-3. Cada fila muestra: Cliente, Proyecto, Milestone, Presupuesto, Contrato, Especialista, Deadline, Fecha Facturación, Status, Tareas (X/Y)
-4. Al hacer clic en una fila, se expande mostrando las tareas del milestone
-5. Se puede cambiar el estado de milestones y tareas directamente desde la tabla
-6. Los filtros permiten buscar por cliente, especialista, contrato, presupuesto, mes
+1. Al seleccionar un cliente en la pestaña "Seguimiento", aparecen dos filtros adicionales: **Presupuesto** y **Contrato**
+2. La búsqueda por texto funciona correctamente (busca en nombre de milestone y nombre de proyecto)
+3. Al cambiar de cliente, los filtros de presupuesto y contrato se limpian automáticamente
+4. Todos los filtros funcionan combinados para refinar la vista de milestones
 

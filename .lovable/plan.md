@@ -1,105 +1,138 @@
 
+
 ## Objetivo
-Añadir el campo "Fecha estimada de Facturación al Cliente" (`estimated_invoice_date`) al formulario de alta y edición de presupuestos.
+Añadir una vista de tabla de milestones (con sus tareas expandibles) en la primera pantalla de Proyectos Operativos. Esta vista permitirá un seguimiento rápido y actualización del estado de milestones/tareas con las columnas solicitadas.
 
 ---
 
-## Diagnóstico
+## Diseño de la solución
 
-### Estado actual de la tabla `budgets`:
-La tabla tiene estos campos:
-- `id`, `client_id`, `title`, `description`, `total_amount`, `status`
-- `valid_until` (fecha de validez del presupuesto)
-- `created_by`, `created_at`, `updated_at`
-- `accepted_document_url`, `code`, `client_contact_id`
-- `am_user_id`, `pm_user_id`, `contract_id`, `proposal_context`
+### Nuevas vistas en la página de Proyectos
 
-**No existe** el campo `estimated_invoice_date`.
+Se implementarán **dos vistas alternativas** controladas por tabs:
+1. **Vista Tarjetas** (actual) - Grid de proyectos con cards
+2. **Vista Seguimiento** (nueva) - Tabla de milestones con tareas expandibles
 
-### Formulario actual (`BudgetFormModal.tsx`):
-El formulario termina con el campo "Enlace a Project HUB" y luego el editor de items. El nuevo campo irá justo antes del editor de items (al final de la sección de datos generales).
+### Columnas de la tabla de seguimiento
+
+| Columna | Descripción | Origen |
+|---------|-------------|--------|
+| Cliente | Nombre del cliente | `operational_project.client.name` |
+| Proyecto | Nombre del proyecto | `operational_project.name` |
+| Milestone | Nombre del milestone | `operational_request.name` |
+| Presupuesto | Código del presupuesto | `operational_project.budget.code` |
+| Contrato | Código del contrato | `operational_project.contract.code` |
+| Especialista | Nombre del especialista asignado | `operational_request.assignee_specialist.name` |
+| Deadline | Fecha límite del milestone | `operational_request.deadline` |
+| Fecha Facturación | Fecha estimada facturación | `budget.estimated_invoice_date` |
+| Status | Estado del milestone | `operational_request.status` |
+| Tareas | Contador X/Y completadas | Calculado de `tasks` |
+| Acciones | Botón expandir tareas, editar estado | Interactivo |
+
+### Funcionalidades clave
+
+1. **Expandir/Colapsar tareas**: Al hacer clic en una fila de milestone, se expande para mostrar sus tareas
+2. **Actualización rápida de estado**: Cambiar status de milestone/tarea directamente desde la tabla
+3. **Filtros reutilizados**: Usar los mismos filtros que ya existen en `TaskFiltersBar`
+4. **Ordenación por deadline**: Por defecto ordenado por fecha límite ascendente
 
 ---
 
 ## Cambios a realizar
 
-### 1. Migración de base de datos
-Añadir columna `estimated_invoice_date` a la tabla `budgets`:
+### 1. Nuevo hook: `src/hooks/useProjectMilestones.tsx`
 
-```sql
-ALTER TABLE public.budgets 
-ADD COLUMN estimated_invoice_date date;
+Hook que carga todos los milestones (operational_requests) con sus proyectos, clientes, presupuestos, contratos, tareas y fecha de facturación estimada.
 
-COMMENT ON COLUMN public.budgets.estimated_invoice_date 
-IS 'Fecha estimada en que se facturará al cliente';
-```
-
-### 2. Modificar formulario (`src/components/budgets/BudgetFormModal.tsx`)
-
-**A. Añadir al estado inicial (líneas 35-46):**
 ```typescript
-const [formData, setFormData] = useState({
-  title: '',
-  client_id: '',
-  client_contact_id: '',
-  contract_id: '',
-  description: '',
-  valid_until: '',
-  estimated_invoice_date: '',  // ← Nuevo campo
-  status: 'pending',
-  accepted_document_url: '',
-  am_user_id: '',
-  pm_user_id: '',
-});
+// Query que incluye:
+// - operational_requests con project, client, budget (con estimated_invoice_date), contract
+// - Count de tareas totales y completadas
+// - Filtros por cliente, especialista, contrato, presupuesto, mes
+// - Visibilidad basada en rol (Admin/AM/PM/Especialista)
 ```
 
-**B. Cargar valor en useEffect (líneas 114-143):**
-```typescript
-if (budget) {
-  setFormData({
-    // ... campos existentes
-    estimated_invoice_date: budget.estimated_invoice_date || '',
-  });
-} else {
-  setFormData({
-    // ... campos existentes
-    estimated_invoice_date: '',
-  });
-}
-```
+### 2. Nuevo componente: `src/components/operations/MilestoneTrackingTable.tsx`
 
-**C. Añadir campo en el formulario (después de "Enlace a Project HUB", antes del BudgetItemsEditor):**
-```tsx
-<div className="space-y-2">
-  <Label htmlFor="estimated_invoice_date">
-    Fecha Estimada de Facturación al Cliente
-  </Label>
-  <Input
-    id="estimated_invoice_date"
-    type="date"
-    value={formData.estimated_invoice_date}
-    onChange={(e) => setFormData({ ...formData, estimated_invoice_date: e.target.value })}
-    disabled={!canEdit}
-  />
-  <p className="text-xs text-muted-foreground">
-    Fecha prevista para emitir la factura al cliente
-  </p>
-</div>
-```
+Tabla principal con:
+- Cabeceras de columnas
+- Filas de milestones con indicadores visuales
+- Expansión para mostrar tareas inline
+- Badges de estado
+- Actualización de estado rápida
 
-**D. Incluir en `cleanedFormData` (línea 195-201):**
-El campo ya se incluirá automáticamente porque está en `formData` y se pasa con el spread operator.
+### 3. Nuevo componente: `src/components/operations/MilestoneRow.tsx` (actualizado)
+
+Fila individual de milestone que:
+- Muestra todas las columnas requeridas
+- Permite expandir para ver tareas
+- Permite cambiar estado del milestone
+
+### 4. Modificar: `src/pages/operations/OperationalProjects.tsx`
+
+Añadir:
+- Tabs para alternar entre "Vista Tarjetas" y "Vista Seguimiento"
+- Integración de `MilestoneTrackingTable` en la segunda tab
+- Reutilización de filtros existentes adaptados
 
 ---
 
-## Archivos a modificar
+## Estructura de archivos
 
-| Archivo | Cambio |
-|---------|--------|
-| Base de datos | Migración: añadir columna `estimated_invoice_date` |
-| `src/components/budgets/BudgetFormModal.tsx` | Añadir campo al estado, useEffect y UI |
+```
+src/
+├── hooks/
+│   └── useProjectMilestones.tsx         # Nuevo - Query de milestones con detalles
+├── components/
+│   └── operations/
+│       ├── MilestoneTrackingTable.tsx   # Nuevo - Tabla principal
+│       ├── MilestoneTrackingRow.tsx     # Nuevo - Fila expandible
+│       └── MilestoneTasksExpanded.tsx   # Nuevo - Lista de tareas inline
+└── pages/
+    └── operations/
+        └── OperationalProjects.tsx      # Modificado - Añadir tabs y tabla
+```
+
+---
+
+## Detalles técnicos
+
+### Query del hook `useProjectMilestones`
+
+```sql
+SELECT 
+  operational_requests.*,
+  operational_project:operational_projects(
+    id, name, status, deadline,
+    client:clients(id, name),
+    contract:contracts(id, title, code),
+    budget:budgets(id, title, code, estimated_invoice_date)
+  ),
+  assignee_specialist:specialists(id, name),
+  tasks(id, status)  -- Para contar completadas/total
+```
+
+### Estados de milestone con colores
+
+- `pending` → Amarillo
+- `in_progress` → Azul  
+- `in_review` → Púrpura
+- `completed` → Verde
+
+### Indicador de deadline
+
+- Normal: texto gris
+- Próximo (< 7 días): texto naranja
+- Vencido: texto rojo con fondo rojo claro
 
 ---
 
 ## Resultado esperado
-Al crear o editar un presupuesto, aparecerá un campo de fecha "Fecha Estimada de Facturación al Cliente" al final de la sección de datos generales (justo antes del editor de líneas de presupuesto).
+
+1. Al entrar en "Proyectos", el usuario ve dos tabs: **"Tarjetas"** y **"Seguimiento"**
+2. En la tab "Seguimiento" aparece una tabla con todos los milestones filtrados según su rol
+3. Cada fila muestra: Cliente, Proyecto, Milestone, Presupuesto, Contrato, Especialista, Deadline, Fecha Facturación, Status, Tareas (X/Y)
+4. Al hacer clic en una fila, se expande mostrando las tareas del milestone
+5. Se puede cambiar el estado de milestones y tareas directamente desde la tabla
+6. Los filtros permiten buscar por cliente, especialista, contrato, presupuesto, mes
+

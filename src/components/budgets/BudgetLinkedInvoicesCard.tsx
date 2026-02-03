@@ -8,15 +8,17 @@ import { InvoiceStatusBadge } from '@/components/invoices/InvoiceStatusBadge';
 import { formatCurrency } from '@/lib/budget-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Eye, Receipt } from 'lucide-react';
+import { Eye, Receipt, Calendar, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 
 interface BudgetLinkedInvoicesCardProps {
   budgetId: string;
   budgetTotal: number;
+  estimatedInvoiceDate?: string | null;
 }
 
-export function BudgetLinkedInvoicesCard({ budgetId, budgetTotal }: BudgetLinkedInvoicesCardProps) {
+export function BudgetLinkedInvoicesCard({ budgetId, budgetTotal, estimatedInvoiceDate }: BudgetLinkedInvoicesCardProps) {
   const navigate = useNavigate();
   const { data: allocations, isLoading } = useBudgetAllocations(budgetId);
 
@@ -51,6 +53,19 @@ export function BudgetLinkedInvoicesCard({ budgetId, budgetTotal }: BudgetLinked
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Estimated Invoice Date */}
+        <div className="flex items-center gap-2 text-sm">
+          <Calendar className="h-4 w-4 text-muted-foreground" />
+          <span className="text-muted-foreground">Fecha de facturación prevista:</span>
+          {estimatedInvoiceDate ? (
+            <span className="font-medium">
+              {format(new Date(estimatedInvoiceDate), 'dd/MM/yyyy', { locale: es })}
+            </span>
+          ) : (
+            <span className="text-muted-foreground italic">No especificada</span>
+          )}
+        </div>
+
         {/* Summary */}
         <BudgetAllocationStatus
           invoicedAmount={totalInvoiced}
@@ -67,6 +82,7 @@ export function BudgetLinkedInvoicesCard({ budgetId, budgetTotal }: BudgetLinked
                   <TableHead>Fecha</TableHead>
                   <TableHead className="text-right">Importe Asignado</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead className="w-10">Doc</TableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -91,6 +107,31 @@ export function BudgetLinkedInvoicesCard({ budgetId, budgetTotal }: BudgetLinked
                       </TableCell>
                       <TableCell>
                         <InvoiceStatusBadge status={invoice.status} />
+                      </TableCell>
+                      <TableCell>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              {invoice.pdf_url ? (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => window.open(invoice.pdf_url, '_blank')}
+                                >
+                                  <FileText className="h-4 w-4 text-primary" />
+                                </Button>
+                              ) : (
+                                <div className="h-8 w-8 flex items-center justify-center">
+                                  <FileText className="h-4 w-4 text-muted-foreground/40" />
+                                </div>
+                              )}
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {invoice.pdf_url ? 'Ver documento' : 'Sin documento'}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </TableCell>
                       <TableCell>
                         <Button

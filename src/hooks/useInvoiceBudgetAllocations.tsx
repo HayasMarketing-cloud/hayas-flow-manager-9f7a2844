@@ -96,7 +96,7 @@ export const useBudgetAllocations = (budgetId?: string) => {
           budget_id,
           allocated_amount,
           notes,
-          invoice:invoices(id, code, status, total_amount, invoice_date)
+          invoice:invoices(id, code, status, total_amount, invoice_date, pdf_url)
         `)
         .eq('budget_id', budgetId);
 

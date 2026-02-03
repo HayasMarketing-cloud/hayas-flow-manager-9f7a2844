@@ -1489,7 +1489,8 @@ export default function PresupuestoDetalle() {
             {budget.status === 'approved' || budget.status === 'invoiced' ? (
               <BudgetLinkedInvoicesCard 
                 budgetId={budget.id} 
-                budgetTotal={totalPresupuestado} 
+                budgetTotal={totalPresupuestado}
+                estimatedInvoiceDate={budget.estimated_invoice_date}
               />
             ) : null}
           </TabsContent>

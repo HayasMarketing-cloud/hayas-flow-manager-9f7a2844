@@ -502,6 +502,13 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
   };
 
   const onSubmit = (data: InvoiceFormData) => {
+    // Debug log to verify state at submission time
+    console.log('[InvoiceFormModal] onSubmit called', {
+      associationType,
+      budgetAllocationsCount: budgetAllocations.length,
+      budgetAllocations: budgetAllocations.map(a => ({ budget_id: a.budget_id, amount: a.allocated_amount })),
+    });
+
     // For new invoices require items, for edit allow manual subtotal (imported invoices)
     if (mode === 'create' && invoiceItems.length === 0) {
       toast.error('Añade al menos una línea a la factura');
@@ -511,6 +518,12 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
     // For edit mode without items, require manual subtotal > 0
     if (mode === 'edit' && invoiceItems.length === 0 && manualSubtotal <= 0) {
       toast.error('El subtotal debe ser mayor a 0');
+      return;
+    }
+
+    // Validate budget association requires at least one allocation
+    if (associationType === 'budgets' && budgetAllocations.length === 0) {
+      toast.error('Añade al menos una asignación de presupuesto o selecciona "Sin asociar"');
       return;
     }
 

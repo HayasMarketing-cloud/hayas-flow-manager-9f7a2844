@@ -175,6 +175,15 @@ export function BudgetAllocationEditor({
               }
               value={allocationAmount}
               onChange={(e) => setAllocationAmount(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (selectedBudgetId) {
+                    handleAddAllocation();
+                  }
+                }
+              }}
             />
           </div>
           <Button

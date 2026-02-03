@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Search, Briefcase, Edit, Trash2, Eye, MoreVertical } from 'lucide-react';
+import { Plus, Search, Briefcase, Edit, Trash2, Eye, MoreVertical, LayoutGrid, Table2 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useOperationalProjects, useDeleteOperationalProject } from '@/hooks/useOperationalProjects';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -14,6 +14,9 @@ import { Badge } from '@/components/ui/badge';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { OperationalProjectFormModal } from '@/components/operations/OperationalProjectFormModal';
+import { MilestoneTrackingTable } from '@/components/operations/MilestoneTrackingTable';
+import { useProjectMilestones } from '@/hooks/useProjectMilestones';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +55,8 @@ export default function OperationalProjects() {
   const [searchTerm, setSearchTerm] = useState('');
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [specialistFilter, setSpecialistFilter] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<string>('cards');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<any>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
@@ -128,7 +133,29 @@ export default function OperationalProjects() {
     enabled: !!projects && projects.length > 0,
   });
 
-  const hasActiveFilters = searchTerm || clientFilter !== 'all' || statusFilter !== 'all';
+  const hasActiveFilters = !!(searchTerm || clientFilter !== 'all' || statusFilter !== 'all' || specialistFilter !== 'all');
+
+  // Milestones for tracking view
+  const { data: milestones, isLoading: milestonesLoading } = useProjectMilestones({
+    clientId: clientFilter === 'all' ? undefined : clientFilter,
+    specialistId: specialistFilter === 'all' ? undefined : specialistFilter,
+    status: statusFilter === 'all' ? undefined : statusFilter,
+    searchTerm: searchTerm || undefined,
+  });
+
+  // Fetch specialists for filter
+  const { data: specialists } = useQuery({
+    queryKey: ['specialists-active'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('specialists')
+        .select('id, name')
+        .eq('active', true)
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const handleCreate = () => {
     setSelectedProject(null);
@@ -176,51 +203,83 @@ export default function OperationalProjects() {
           </Button>
         </div>
 
-        {/* Filters */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar proyectos..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+        {/* View Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <TabsList>
+              <TabsTrigger value="cards" className="flex items-center gap-2">
+                <LayoutGrid className="h-4 w-4" />
+                Tarjetas
+              </TabsTrigger>
+              <TabsTrigger value="tracking" className="flex items-center gap-2">
+                <Table2 className="h-4 w-4" />
+                Seguimiento
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          {/* Filters */}
+          <Card className="mt-4">
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={activeTab === 'cards' ? "Buscar proyectos..." : "Buscar milestones..."}
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+
+                <Select value={clientFilter} onValueChange={setClientFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos los clientes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los clientes</SelectItem>
+                    {clients?.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos los estados" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los estados</SelectItem>
+                    <SelectItem value="pending">Pendiente</SelectItem>
+                    <SelectItem value="in_progress">En Progreso</SelectItem>
+                    <SelectItem value="in_review">En Revisión</SelectItem>
+                    <SelectItem value="completed">Completado</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {activeTab === 'tracking' && (
+                  <Select value={specialistFilter} onValueChange={setSpecialistFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos los especialistas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los especialistas</SelectItem>
+                      {specialists?.map((specialist) => (
+                        <SelectItem key={specialist.id} value={specialist.id}>
+                          {specialist.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
+            </CardContent>
+          </Card>
 
-              <Select value={clientFilter} onValueChange={setClientFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos los clientes" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los clientes</SelectItem>
-                  {clients?.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos los estados" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los estados</SelectItem>
-                  <SelectItem value="pending">Pendiente</SelectItem>
-                  <SelectItem value="in_progress">En Progreso</SelectItem>
-                  <SelectItem value="in_review">En Revisión</SelectItem>
-                  <SelectItem value="completed">Completado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Projects Grid */}
+          {/* Cards View */}
+          <TabsContent value="cards" className="mt-4">
         {isLoading ? (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {[...Array(6)].map((_, i) => (
@@ -379,8 +438,18 @@ export default function OperationalProjects() {
             })}
           </div>
         )}
-      </div>
+          </TabsContent>
 
+          {/* Tracking View */}
+          <TabsContent value="tracking" className="mt-4">
+            <MilestoneTrackingTable
+              milestones={milestones || []}
+              isLoading={milestonesLoading}
+              hasFilters={hasActiveFilters}
+            />
+          </TabsContent>
+        </Tabs>
+      </div>
       <OperationalProjectFormModal
         open={modalOpen}
         onOpenChange={setModalOpen}

@@ -1,148 +1,183 @@
 
-## Plan: Edición Masiva de Precio Unitario (unit_price)
+## Plan: Vista Seguimiento con Tabla Jerárquica Proyecto → Milestone → Tareas
 
-### Resumen
-Añadir funcionalidad de edición masiva para actualizar el campo `unit_price` (precio unitario/precio al cliente) de múltiples requests seleccionados, recalculando automáticamente el `sale_amount` (importe de venta).
+### Diagnóstico del Problema Actual
 
----
+El mensaje "No hay milestones" aparece porque:
 
-### Análisis del patrón existente
+1. **Datos existen**: La base de datos tiene 11 proyectos operativos con 76+ milestones
+2. **Lógica de filtrado de roles**: El hook `useProjectMilestones` tiene esta condición:
+   ```typescript
+   if (needsFiltering && assignedClientIds.length === 0) {
+     return [];
+   }
+   ```
+   Si el usuario es AM/PM sin clientes asignados directamente (via contratos/presupuestos), retorna vacío aunque los proyectos existan.
 
-La edición masiva de `cost_rate` ya implementa este patrón:
-- Campo de input numérico en la barra de acciones masivas
-- Botón "Aplicar" que llama a `confirmBulkEdit`
-- `bulkUpdateMutation` con caso especial que:
-  1. Itera sobre los requests seleccionados
-  2. Actualiza el campo Y recalcula el campo derivado (`cost_to_agency = cost_rate × hours`)
+3. **Posible causa**: El usuario actual puede tener rol admin o finanzas, pero la lógica no está considerando todos los casos correctamente.
 
----
+### Solución Propuesta
 
-### Lógica de cálculo
+Crear una nueva tabla jerárquica con 3 niveles de desplegables:
 
-Para requests con `sale_type = 'fixed'`:
 ```text
-sale_amount = unit_price × quantity
+▼ Proyecto: "Localización contenidos – HS 2 PAGES"        | ASENDIA HQ | En Progreso | 18 hitos
+   ▼ Milestone: "Translation EN>FR"                       | Iolanda | 15/02 | Pendiente | 3 tareas
+      ☐ Tarea 1: "Traducir sección 1"                     | Pendiente
+      ☐ Tarea 2: "Review interno"                         | En Progreso
+      ☑ Tarea 3: "Entrega final"                          | Completado
+   ▶ Milestone: "Translation EN>DE" ...
+▼ Proyecto: "Hubspot Requests"
+   ...
 ```
 
-**Comportamiento de la edición masiva:**
-- Al cambiar `unit_price`, recalcular `sale_amount` para cada request usando su `quantity` individual
-- Solo afecta a requests que tengan `sale_type = 'fixed'`
-- Los requests con `sale_type = 'hourly'` mantienen su `sale_amount` basado en `sale_hours × sale_rate`
-
 ---
 
-### Cambios a realizar
+### Cambios a Realizar
 
-#### 1. Modificar `bulkUpdateMutation` en Solicitudes.tsx
+#### 1. Corregir Hook `useProjectMilestones`
 
-Añadir caso especial para `unit_price`:
+El problema está en la lógica de filtrado. Para admin/finanzas no debería aplicar `needsFiltering`:
+
+**Archivo**: `src/hooks/useProjectMilestones.tsx`
+
+Cambio: Verificar que `needsFiltering` solo sea `true` para AM/PM sin acceso elevado:
 
 ```typescript
-// Special handling for unit_price: recalculate sale_amount based on quantity
-if (field === 'unit_price') {
-  const selectedRequests = requests?.filter(r => selectedIds.includes(r.id)) || [];
-  
-  for (const request of selectedRequests) {
-    const quantity = request.quantity || 1;
-    const newSaleAmount = value * quantity;
-    
-    const { error } = await supabase
-      .from('financial_requests')
-      .update({ 
-        unit_price: value,
-        sale_amount: newSaleAmount,
-        sale_type: 'fixed' // Asegurar que el tipo es correcto
-      })
-      .eq('id', request.id);
-    
-    if (error) throw error;
-  }
+// Line 57-59: El problema es que si needsFiltering=true pero assignedLoading=true,
+// la query devuelve vacío prematuramente
+
+// La condición debe ser más específica:
+if (needsFiltering && assignedClientIds.length === 0 && !assignedLoading) {
+  return [];
 }
 ```
 
-#### 2. Añadir campo de input en la barra de edición masiva
+#### 2. Crear Hook `useTrackingData`
 
-Añadir después del campo "Tarifa/hora" (línea ~741):
+Nuevo hook que agrupa milestones por proyecto para la vista de seguimiento:
+
+**Archivo**: `src/hooks/useTrackingData.tsx`
+
+```typescript
+interface ProjectGroup {
+  project: {
+    id: string;
+    name: string;
+    status: string | null;
+    deadline: string | null;
+    client: { id: string; name: string } | null;
+    contract: { id: string; code: string } | null;
+    budget: { id: string; code: string } | null;
+  };
+  milestones: MilestoneWithDetails[];
+  stats: { total: number; completed: number };
+}
+```
+
+Este hook:
+- Usa `useProjectMilestones` para obtener los datos
+- Agrupa los milestones por `operational_project_id`
+- Calcula estadísticas de progreso por proyecto
+
+#### 3. Crear Componentes de Tabla Jerárquica
+
+**Archivo 1**: `src/components/operations/HierarchicalTrackingTable.tsx`
+
+Tabla principal con:
+- Estado de filas expandidas por niveles (proyectos y milestones)
+- Botón "Expandir todo" / "Colapsar todo"
+- Columnas: Proyecto/Milestone/Tarea, Cliente, Estado, Especialista, Deadline, Progreso
+
+**Archivo 2**: `src/components/operations/ProjectTrackingRow.tsx`
+
+Fila de nivel 0 (Proyecto):
+- Chevron para expandir/colapsar
+- Nombre del proyecto
+- Badge de estado
+- Barra de progreso global
+- Al expandir, muestra sus milestones
+
+**Archivo 3**: `src/components/operations/MilestoneTrackingRowNested.tsx`
+
+Fila de nivel 1 (Milestone):
+- Indentación visual
+- Chevron para expandir tareas
+- Nombre, especialista, deadline
+- Select para cambiar estado
+- Contador de tareas
+- Al expandir, muestra las tareas inline
+
+**Archivo 4**: `src/components/operations/TaskTrackingRow.tsx`
+
+Fila de nivel 2 (Tarea):
+- Checkbox para marcar completada
+- Nombre, descripción, estado
+- Enlace a contexto si existe
+
+#### 4. Integrar en OperationalProjects.tsx
+
+Modificar la página para usar el nuevo componente:
 
 ```tsx
-{/* Precio unitario (unit_price) */}
-<div className="flex items-center gap-2">
-  <span className="text-sm text-muted-foreground">Precio unit.:</span>
-  <Input
-    id="bulk-unit-price-input"
-    type="number"
-    placeholder="0.00"
-    className="w-[100px] h-8"
-    onKeyDown={(e) => {
-      if (e.key === 'Enter') {
-        const value = parseFloat((e.target as HTMLInputElement).value);
-        if (!isNaN(value) && value >= 0) {
-          confirmBulkEdit('unit_price', value, `${value.toFixed(2)} € (recalcula importe venta)`);
-        }
-      }
+<TabsContent value="tracking">
+  <HierarchicalTrackingTable
+    filters={{
+      clientId: clientFilter === 'all' ? undefined : clientFilter,
+      // ... otros filtros
     }}
   />
-  <Button
-    variant="secondary"
-    size="sm"
-    className="h-8 px-2"
-    onClick={() => {
-      const input = document.getElementById('bulk-unit-price-input') as HTMLInputElement;
-      const value = parseFloat(input?.value || '');
-      if (!isNaN(value) && value >= 0) {
-        confirmBulkEdit('unit_price', value, `${value.toFixed(2)} € (recalcula importe venta)`);
-      } else {
-        toast.error('Introduce un precio válido');
-      }
-    }}
-  >
-    Aplicar
-  </Button>
-</div>
+</TabsContent>
 ```
 
 ---
 
-### Flujo visual
+### Estructura Visual de la Tabla
 
 ```text
-┌────────────────────────────────────────────────────────────────────────────┐
-│  3 requests seleccionados                                                  │
-├────────────────────────────────────────────────────────────────────────────┤
-│                                                                            │
-│  Estado: [Cambiar... ▼]   Fecha: [📅]                                     │
-│                                                                            │
-│  Tarifa/hora: [ 30.00 ] [Aplicar]                                         │
-│                                                                            │
-│  Precio unit.: [ 150.00 ] [Aplicar]  ← NUEVO                              │
-│                                                                            │
-│  ─────────────────────────────────────────────────────────────            │
-│                                                                            │
-│  [Añadir a Liquidación] [Añadir a Facturación] [Eliminar]  [Limpiar]     │
-│                                                                            │
-└────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│ [Expandir todo] [Colapsar todo]                                    Mostrando X items│
+├────────────────────────────────────────────────────────────────────────────────────┤
+│ ▼ Localización HS 2 PAGES          ASENDIA HQ    Pendiente    15/03    ████░░ 67% │
+│   ├─ ▶ Translation EN>FR           Iolanda       Pendiente    10/03    2/5 tareas │
+│   ├─ ▼ Translation EN>DE           Sandra        En Progreso  12/03    4/4 tareas │
+│   │    ├─ ☑ Revisar glosario                     Completado   08/03              │
+│   │    ├─ ☑ Traducir contenido                   Completado   09/03              │
+│   │    ├─ ☐ QA final                             En Progreso  11/03              │
+│   │    └─ ☐ Entrega                              Pendiente    12/03              │
+│   └─ ▶ Translation EN>IT           Ebelyn        Pendiente    14/03    0/3 tareas │
+├────────────────────────────────────────────────────────────────────────────────────┤
+│ ▶ Hubspot Requests                 ASENDIA HQ    En Progreso  20/03    ████░░ 50% │
+├────────────────────────────────────────────────────────────────────────────────────┤
+│ ▶ Videos Europe                    Asendia DE    En Progreso  28/02    ██░░░░ 33% │
+└────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Archivo a modificar
+### Archivos a Crear
+
+| Archivo | Propósito |
+|---------|-----------|
+| `src/hooks/useTrackingData.tsx` | Hook que agrupa milestones por proyecto |
+| `src/components/operations/HierarchicalTrackingTable.tsx` | Tabla principal jerárquica |
+| `src/components/operations/ProjectTrackingRow.tsx` | Fila expandible nivel 0 (Proyecto) |
+| `src/components/operations/MilestoneTrackingRowNested.tsx` | Fila expandible nivel 1 (Milestone) |
+| `src/components/operations/TaskTrackingRow.tsx` | Fila nivel 2 (Tarea) |
+
+### Archivos a Modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/pages/Solicitudes.tsx` | Añadir caso `unit_price` en mutation + input en UI |
-
----
-
-### Consideraciones
-
-1. **Recálculo automático**: Al actualizar `unit_price`, el `sale_amount` se recalcula automáticamente multiplicando por `quantity` de cada request
-2. **Forzar `sale_type = 'fixed'`**: La edición masiva de `unit_price` establece automáticamente el tipo de venta a `fixed` para garantizar consistencia
-3. **Compatibilidad**: Los requests que ya tenían `sale_type = 'hourly'` se convertirán a `fixed` al aplicar esta edición masiva (esto es el comportamiento deseado si estás asignando precio unitario)
+| `src/hooks/useProjectMilestones.tsx` | Corregir lógica de filtrado para admin/finanzas |
+| `src/pages/operations/OperationalProjects.tsx` | Usar nuevo componente `HierarchicalTrackingTable` |
 
 ---
 
 ### Beneficios
 
-- Permite corregir rápidamente los 49 requests que tienen `sale_amount = 0` por falta de precio
-- Workflow idéntico al de edición de tarifa por hora (consistente con UX existente)
-- Recalcula automáticamente el importe de venta sin intervención manual adicional
+1. **Vista jerárquica clara**: Proyecto → Milestone → Tarea con desplegables
+2. **Navegación eficiente**: Expandir/colapsar niveles según necesidad
+3. **Consistencia**: Reutiliza patrones de "Mis Tareas" pero adaptado a tabla
+4. **Funcionalidad completa**: Cambiar estados, ver progreso, acceder a tareas
+5. **Filtros existentes**: Mantiene todos los filtros actuales funcionando

@@ -60,10 +60,10 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
             </p>
           </div>
           <div>
-            <p className="text-muted-foreground">Válido Hasta</p>
+            <p className="text-muted-foreground">Fecha Facturación</p>
             <p className="font-medium">
-              {budget.valid_until
-                ? format(new Date(budget.valid_until), 'dd MMM yyyy', { locale: es })
+              {budget.estimated_invoice_date
+                ? format(new Date(budget.estimated_invoice_date), 'dd MMM yyyy', { locale: es })
                 : 'No especificado'}
             </p>
           </div>

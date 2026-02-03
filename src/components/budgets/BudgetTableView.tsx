@@ -29,7 +29,7 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete
             <TableHead className="min-w-[150px]">Cliente</TableHead>
             <TableHead className="min-w-[120px]">Monto Total</TableHead>
             <TableHead className="min-w-[100px]">Estado</TableHead>
-            <TableHead className="min-w-[120px]">Válido Hasta</TableHead>
+            <TableHead className="min-w-[120px]">Fecha Facturación</TableHead>
             <TableHead className="text-right min-w-[150px]">Acciones</TableHead>
           </TableRow>
         </TableHeader>
@@ -69,8 +69,8 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete
                   <BudgetStatusBadge status={budget.status} />
                 </TableCell>
                 <TableCell>
-                  {budget.valid_until
-                    ? format(new Date(budget.valid_until), 'dd/MM/yyyy', { locale: es })
+                  {budget.estimated_invoice_date
+                    ? format(new Date(budget.estimated_invoice_date), 'dd/MM/yyyy', { locale: es })
                     : '-'}
                 </TableCell>
                 <TableCell className="text-right">

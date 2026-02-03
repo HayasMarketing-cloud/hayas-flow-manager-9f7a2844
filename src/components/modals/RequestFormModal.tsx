@@ -31,13 +31,14 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Loader2, Clock, Euro, User, FileText, ShoppingCart } from 'lucide-react';
+import { Loader2, Clock, Euro, User, FileText, ShoppingCart, Info } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
 import { notifySpecialistAssigned } from '@/lib/notification-utils';
 import { notificationFeedback } from '@/lib/notification-feedback';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDefaultRates, getRateSourceLabel } from '@/hooks/useDefaultRates';
 
 const requestSchema = z.object({
   client_id: z.string().uuid('Selecciona un cliente'),
@@ -82,6 +83,7 @@ export const RequestFormModal = ({
   mode = 'create',
 }: RequestFormModalProps) => {
   const isViewMode = mode === 'view';
+  const isCreateMode = mode === 'create';
   const { logActivity } = useRequestActivityLog();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -127,16 +129,17 @@ export const RequestFormModal = ({
   const costRate = useWatch({ control: form.control, name: 'cost_rate' });
   const fixedCost = useWatch({ control: form.control, name: 'fixed_cost' });
   const selectedClientId = useWatch({ control: form.control, name: 'client_id' });
+  const selectedContractId = useWatch({ control: form.control, name: 'contract_id' });
+  const selectedServiceId = useWatch({ control: form.control, name: 'service_id' });
+  const selectedSpecialistId = useWatch({ control: form.control, name: 'specialist_id' });
 
-  // Calculate sale amount based on sale_type
-  const calculatedSaleAmount = saleType === 'hourly'
-    ? (saleHours || 0) * (saleRate || 0)
-    : (unitPrice || 0) * (quantity || 1);
-
-  // Calculate cost to agency
-  const calculatedCost = costType === 'hourly' 
-    ? (hours || 0) * (costRate || 0)
-    : (fixedCost || 0);
+  // Get default rates based on hierarchy
+  const { data: defaultRates, isLoading: isLoadingRates } = useDefaultRates(
+    selectedClientId || null,
+    selectedContractId || null,
+    selectedServiceId || null,
+    selectedSpecialistId || null
+  );
 
   // Load form data
   const { data: formData } = useQuery({
@@ -145,7 +148,7 @@ export const RequestFormModal = ({
       const [clientsRes, servicesRes, specialistsRes] = await Promise.all([
         supabase
           .from('clients')
-          .select('id, name, code')
+          .select('id, name, code, default_hourly_rate')
           .eq('status', 'active')
           .order('name'),
         supabase
@@ -171,6 +174,24 @@ export const RequestFormModal = ({
       };
     },
   });
+
+  // In create mode, use suggested rates for calculations
+  const effectiveSaleRate = isCreateMode ? (defaultRates?.saleRate ?? 0) : (saleRate || 0);
+  const effectiveCostRate = isCreateMode ? (defaultRates?.costRate ?? 0) : (costRate || 0);
+
+  // Calculate sale amount based on sale_type
+  const calculatedSaleAmount = saleType === 'hourly'
+    ? (saleHours || 0) * effectiveSaleRate
+    : (unitPrice || 0) * (quantity || 1);
+
+  // Calculate cost to agency
+  const calculatedCost = costType === 'hourly' 
+    ? (hours || 0) * effectiveCostRate
+    : (fixedCost || 0);
+
+  // Get names for rate source labels
+  const selectedClient = formData?.clients?.find(c => c.id === selectedClientId);
+  const selectedSpecialist = formData?.specialists?.find(s => s.id === selectedSpecialistId);
 
   // Load contracts for selected client
   const { data: contracts } = useQuery({
@@ -212,14 +233,22 @@ export const RequestFormModal = ({
 
   const mutation = useMutation({
     mutationFn: async (data: RequestFormData) => {
+      // In create mode, apply default rates if not provided
+      const finalSaleRate = isCreateMode && data.sale_type === 'hourly' && !data.sale_rate
+        ? defaultRates?.saleRate ?? 0
+        : data.sale_rate;
+      const finalCostRate = isCreateMode && data.cost_type === 'hourly' && !data.cost_rate
+        ? defaultRates?.costRate ?? 0
+        : data.cost_rate;
+
       // Calculate sale_amount based on sale_type
       const sale_amount = data.sale_type === 'hourly'
-        ? (data.sale_hours || 0) * (data.sale_rate || 0)
+        ? (data.sale_hours || 0) * (finalSaleRate || 0)
         : (data.unit_price || 0) * data.quantity;
 
       // Calculate cost_to_agency based on cost_type
       const cost_to_agency = data.cost_type === 'hourly'
-        ? (data.hours || 0) * (data.cost_rate || 0)
+        ? (data.hours || 0) * (finalCostRate || 0)
         : (data.fixed_cost || 0);
 
       const requestData = {
@@ -236,13 +265,13 @@ export const RequestFormModal = ({
         // Sale fields
         sale_type: data.sale_type,
         unit_price: data.sale_type === 'fixed' ? data.unit_price : null,
-        sale_rate: data.sale_type === 'hourly' ? data.sale_rate : null,
+        sale_rate: data.sale_type === 'hourly' ? finalSaleRate : null,
         sale_hours: data.sale_type === 'hourly' ? data.sale_hours : null,
         sale_amount,
         // Cost fields
         cost_type: data.cost_type,
         hours: data.cost_type === 'hourly' ? data.hours : null,
-        cost_rate: data.cost_type === 'hourly' ? data.cost_rate : null,
+        cost_rate: data.cost_type === 'hourly' ? finalCostRate : null,
         fixed_cost: data.cost_type === 'fixed' ? data.fixed_cost : null,
         cost_to_agency,
         // Partner reference
@@ -785,31 +814,47 @@ export const RequestFormModal = ({
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="sale_rate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tarifa/Hora (€)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="0.00"
-                            {...field}
-                            value={field.value ?? ''}
-                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
-                            disabled={isViewMode}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {/* Show rate input only in edit mode */}
+                  {!isCreateMode ? (
+                    <FormField
+                      control={form.control}
+                      name="sale_rate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tarifa/Hora (€)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              {...field}
+                              value={field.value ?? ''}
+                              onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                              disabled={isViewMode}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : (
+                    <div className="flex flex-col justify-center">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Info className="h-4 w-4" />
+                        <span>
+                          Se aplicará tarifa de{' '}
+                          <span className="font-semibold text-foreground">
+                            {effectiveSaleRate.toFixed(2)} €/h
+                          </span>
+                          {' '}{getRateSourceLabel(defaultRates?.saleRateSource || 'fallback', selectedClient?.name)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="md:col-span-2 text-sm text-muted-foreground">
-                    Importe al cliente: <span className="font-semibold text-foreground">{calculatedSaleAmount.toFixed(2)} €</span>
+                    Importe estimado: <span className="font-semibold text-foreground">{calculatedSaleAmount.toFixed(2)} €</span>
                   </div>
                 </div>
               ) : (
@@ -942,7 +987,7 @@ export const RequestFormModal = ({
                       <FormItem>
                         <FormLabel className="flex items-center gap-2">
                           <Clock className="h-4 w-4" />
-                          Horas *
+                          Horas del especialista
                         </FormLabel>
                         <FormControl>
                           <Input
@@ -969,36 +1014,52 @@ export const RequestFormModal = ({
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="cost_rate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tarifa/Hora (€) *</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="0.00"
-                            name={field.name}
-                            ref={field.ref}
-                            onBlur={field.onBlur}
-                            value={field.value !== null && field.value !== undefined ? field.value : ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              field.onChange(val === '' ? null : parseFloat(val));
-                            }}
-                            disabled={isViewMode}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {/* Show rate input only in edit mode */}
+                  {!isCreateMode ? (
+                    <FormField
+                      control={form.control}
+                      name="cost_rate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tarifa/Hora (€)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              name={field.name}
+                              ref={field.ref}
+                              onBlur={field.onBlur}
+                              value={field.value !== null && field.value !== undefined ? field.value : ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                field.onChange(val === '' ? null : parseFloat(val));
+                              }}
+                              disabled={isViewMode}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : (
+                    <div className="flex flex-col justify-center">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Info className="h-4 w-4" />
+                        <span>
+                          Se aplicará tarifa de{' '}
+                          <span className="font-semibold text-foreground">
+                            {effectiveCostRate.toFixed(2)} €/h
+                          </span>
+                          {' '}{getRateSourceLabel(defaultRates?.costRateSource || 'fallback', selectedSpecialist?.name)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="md:col-span-2 text-sm text-muted-foreground">
-                    Coste calculado: <span className="font-semibold text-foreground">{calculatedCost.toFixed(2)} €</span>
+                    Coste estimado: <span className="font-semibold text-foreground">{calculatedCost.toFixed(2)} €</span>
                   </div>
                 </div>
               ) : (

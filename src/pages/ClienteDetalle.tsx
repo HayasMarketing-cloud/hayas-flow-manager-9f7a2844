@@ -267,7 +267,7 @@ const ClienteDetalle = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {client.email && (
                   <div className="flex items-center gap-2 text-sm">
                     <Mail className="h-4 w-4 text-muted-foreground" />
@@ -288,6 +288,14 @@ const ClienteDetalle = () => {
                         .filter(Boolean)
                         .join(', ')}
                     </span>
+                  </div>
+                )}
+                {client.default_hourly_rate && client.default_hourly_rate > 0 && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Badge variant="outline" className="font-mono">
+                      {client.default_hourly_rate.toFixed(2)} €/h
+                    </Badge>
+                    <span className="text-muted-foreground">Tarifa por defecto</span>
                   </div>
                 )}
               </div>

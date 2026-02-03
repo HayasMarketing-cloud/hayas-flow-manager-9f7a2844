@@ -1,55 +1,105 @@
 
 ## Objetivo
-Asegurar que las asociaciones de presupuesto se muestren correctamente en el listado de facturas después de guardar.
+Añadir el campo "Fecha estimada de Facturación al Cliente" (`estimated_invoice_date`) al formulario de alta y edición de presupuestos.
 
 ---
 
-## Diagnóstico del problema
+## Diagnóstico
 
-### Verificación de datos en base de datos:
-He consultado la base de datos y confirmado:
-- **Factura 2025/157**: ✅ Tiene asignación guardada (allocated_amount: 2241.81, budget: PRE-2026-001)
-- **Factura 2026/8**: ❌ **NO tiene ninguna asignación guardada** (0 registros en `invoice_budget_allocations`)
+### Estado actual de la tabla `budgets`:
+La tabla tiene estos campos:
+- `id`, `client_id`, `title`, `description`, `total_amount`, `status`
+- `valid_until` (fecha de validez del presupuesto)
+- `created_by`, `created_at`, `updated_at`
+- `accepted_document_url`, `code`, `client_contact_id`
+- `am_user_id`, `pm_user_id`, `contract_id`, `proposal_context`
 
-### Conclusión:
-La asignación que mencionas haber hecho **no se guardó en la base de datos**. Esto puede deberse a:
+**No existe** el campo `estimated_invoice_date`.
 
-1. **No hiciste clic en "Guardar"** después de añadir la asignación en el editor
-2. **Hubo un error silencioso** durante el guardado que no mostró mensaje
-3. **El tipo de asociación no estaba seleccionado correctamente** (el RadioGroup en "Presupuesto(s)")
-
----
-
-## Lo que debes hacer ahora
-
-### Paso 1: Editar la factura 2026/8 de nuevo
-1. Abre la factura 2026/8 en modo edición
-2. Selecciona el RadioButton **"Presupuesto(s)"** en la sección de asociación
-3. En el editor de asignaciones que aparece debajo, selecciona **PRE-2026-001** en el dropdown
-4. Introduce el importe **1403.62** (o el que corresponda)
-5. Haz clic en el botón **"+"** para añadir la asignación
-6. **Importante**: Haz clic en el botón **"Guardar"** del formulario
-
-### Paso 2: Verificar en el listado
-Al volver al listado de facturas, la columna "Asociación" debería mostrar "PRE-2026-001" para ambas facturas.
+### Formulario actual (`BudgetFormModal.tsx`):
+El formulario termina con el campo "Enlace a Project HUB" y luego el editor de items. El nuevo campo irá justo antes del editor de items (al final de la sección de datos generales).
 
 ---
 
-## Posible mejora a implementar
+## Cambios a realizar
 
-Si después de seguir estos pasos sigue sin funcionar, podría haber un bug en:
-- La lógica de guardado cuando `associationType = 'budgets'`
-- Un error silencioso que no se está mostrando
+### 1. Migración de base de datos
+Añadir columna `estimated_invoice_date` a la tabla `budgets`:
 
-En ese caso, implementaría:
-1. **Logging adicional** en `useSaveInvoiceAllocations` para detectar errores
-2. **Mensaje de confirmación** que muestre exactamente cuántas asignaciones se guardaron
-3. **Verificación pre-guardado** de que hay asignaciones cuando se selecciona "Presupuesto(s)"
+```sql
+ALTER TABLE public.budgets 
+ADD COLUMN estimated_invoice_date date;
+
+COMMENT ON COLUMN public.budgets.estimated_invoice_date 
+IS 'Fecha estimada en que se facturará al cliente';
+```
+
+### 2. Modificar formulario (`src/components/budgets/BudgetFormModal.tsx`)
+
+**A. Añadir al estado inicial (líneas 35-46):**
+```typescript
+const [formData, setFormData] = useState({
+  title: '',
+  client_id: '',
+  client_contact_id: '',
+  contract_id: '',
+  description: '',
+  valid_until: '',
+  estimated_invoice_date: '',  // ← Nuevo campo
+  status: 'pending',
+  accepted_document_url: '',
+  am_user_id: '',
+  pm_user_id: '',
+});
+```
+
+**B. Cargar valor en useEffect (líneas 114-143):**
+```typescript
+if (budget) {
+  setFormData({
+    // ... campos existentes
+    estimated_invoice_date: budget.estimated_invoice_date || '',
+  });
+} else {
+  setFormData({
+    // ... campos existentes
+    estimated_invoice_date: '',
+  });
+}
+```
+
+**C. Añadir campo en el formulario (después de "Enlace a Project HUB", antes del BudgetItemsEditor):**
+```tsx
+<div className="space-y-2">
+  <Label htmlFor="estimated_invoice_date">
+    Fecha Estimada de Facturación al Cliente
+  </Label>
+  <Input
+    id="estimated_invoice_date"
+    type="date"
+    value={formData.estimated_invoice_date}
+    onChange={(e) => setFormData({ ...formData, estimated_invoice_date: e.target.value })}
+    disabled={!canEdit}
+  />
+  <p className="text-xs text-muted-foreground">
+    Fecha prevista para emitir la factura al cliente
+  </p>
+</div>
+```
+
+**D. Incluir en `cleanedFormData` (línea 195-201):**
+El campo ya se incluirá automáticamente porque está en `formData` y se pasa con el spread operator.
 
 ---
 
-## ¿Quieres que pruebe la asociación de nuevo?
-Si confirmas que sí guardaste correctamente pero sigue sin funcionar, procederé a:
-1. Añadir logs detallados para depurar el problema
-2. Verificar la lógica de RLS que pueda estar bloqueando la inserción
-3. Revisar si hay algún error en la mutation de guardado
+## Archivos a modificar
+
+| Archivo | Cambio |
+|---------|--------|
+| Base de datos | Migración: añadir columna `estimated_invoice_date` |
+| `src/components/budgets/BudgetFormModal.tsx` | Añadir campo al estado, useEffect y UI |
+
+---
+
+## Resultado esperado
+Al crear o editar un presupuesto, aparecerá un campo de fecha "Fecha Estimada de Facturación al Cliente" al final de la sección de datos generales (justo antes del editor de líneas de presupuesto).

@@ -1,183 +1,182 @@
 
-## Plan: Vista Seguimiento con Tabla Jerárquica Proyecto → Milestone → Tareas
+## Plan: Corregir la Vista de Seguimiento que Muestra "No hay proyectos"
 
-### Diagnóstico del Problema Actual
+### Diagnóstico del Problema
 
-El mensaje "No hay milestones" aparece porque:
+He identificado la causa raíz del problema:
 
-1. **Datos existen**: La base de datos tiene 11 proyectos operativos con 76+ milestones
-2. **Lógica de filtrado de roles**: El hook `useProjectMilestones` tiene esta condición:
-   ```typescript
-   if (needsFiltering && assignedClientIds.length === 0) {
-     return [];
-   }
-   ```
-   Si el usuario es AM/PM sin clientes asignados directamente (via contratos/presupuestos), retorna vacío aunque los proyectos existan.
+**Datos en la base de datos:**
+- 11 proyectos operativos
+- 76 milestones/solicitudes operativas
 
-3. **Posible causa**: El usuario actual puede tener rol admin o finanzas, pero la lógica no está considerando todos los casos correctamente.
+**El problema está en el hook `useProjectMilestones.tsx`:**
 
-### Solución Propuesta
-
-Crear una nueva tabla jerárquica con 3 niveles de desplegables:
-
-```text
-▼ Proyecto: "Localización contenidos – HS 2 PAGES"        | ASENDIA HQ | En Progreso | 18 hitos
-   ▼ Milestone: "Translation EN>FR"                       | Iolanda | 15/02 | Pendiente | 3 tareas
-      ☐ Tarea 1: "Traducir sección 1"                     | Pendiente
-      ☐ Tarea 2: "Review interno"                         | En Progreso
-      ☑ Tarea 3: "Entrega final"                          | Completado
-   ▶ Milestone: "Translation EN>DE" ...
-▼ Proyecto: "Hubspot Requests"
-   ...
-```
-
----
-
-### Cambios a Realizar
-
-#### 1. Corregir Hook `useProjectMilestones`
-
-El problema está en la lógica de filtrado. Para admin/finanzas no debería aplicar `needsFiltering`:
-
-**Archivo**: `src/hooks/useProjectMilestones.tsx`
-
-Cambio: Verificar que `needsFiltering` solo sea `true` para AM/PM sin acceso elevado:
-
+En la línea 58-61, existe esta condición:
 ```typescript
-// Line 57-59: El problema es que si needsFiltering=true pero assignedLoading=true,
-// la query devuelve vacío prematuramente
-
-// La condición debe ser más específica:
-if (needsFiltering && assignedClientIds.length === 0 && !assignedLoading) {
+if (needsFiltering && assignedClientIds.length === 0) {
   return [];
 }
 ```
 
-#### 2. Crear Hook `useTrackingData`
+Esta condición retorna un array vacío cuando:
+1. `needsFiltering` es `true` (usuario es AM/PM sin roles elevados)
+2. `assignedClientIds` está vacío
 
-Nuevo hook que agrupa milestones por proyecto para la vista de seguimiento:
+**Sin embargo**, para usuarios admin/finanzas, aunque `needsFiltering` debería ser `false`, hay un problema de timing:
 
-**Archivo**: `src/hooks/useTrackingData.tsx`
+1. El hook `useUserRole` carga los roles de forma asíncrona
+2. Durante la carga inicial, `shouldFilterByAssignment()` puede devolver un valor incorrecto
+3. `useAssignedClients` recibe `needsFiltering` mientras los roles aún se están cargando
+4. Esto causa que `needsFiltering = true` temporalmente incluso para admins
+5. Como la query de clientes asignados no se ejecuta para admins, `assignedClientIds` permanece vacío
+6. La condición `needsFiltering && assignedClientIds.length === 0` se cumple y retorna array vacío
+
+---
+
+### Solución Propuesta
+
+Modificar el hook `useProjectMilestones.tsx` para:
+
+1. **Mejorar la condición de retorno vacío**: Añadir verificación explícita de que `assignedLoading` ya terminó
+2. **Añadir logs de debug** para verificar el flujo (temporalmente)
+3. **Simplificar la lógica**: Si `needsFiltering = false`, NO aplicar ningún filtro de cliente
+
+#### Cambio en `useProjectMilestones.tsx`:
 
 ```typescript
-interface ProjectGroup {
-  project: {
-    id: string;
-    name: string;
-    status: string | null;
-    deadline: string | null;
-    client: { id: string; name: string } | null;
-    contract: { id: string; code: string } | null;
-    budget: { id: string; code: string } | null;
-  };
-  milestones: MilestoneWithDetails[];
-  stats: { total: number; completed: number };
+// Líneas 55-61 actuales:
+queryFn: async (): Promise<MilestoneWithDetails[]> => {
+  if (needsFiltering && assignedClientIds.length === 0) {
+    return [];
+  }
+  // ... resto del código
+}
+
+// Cambiar a:
+queryFn: async (): Promise<MilestoneWithDetails[]> => {
+  // Solo retornar vacío si:
+  // 1. El usuario NECESITA filtrado (AM/PM sin acceso elevado)
+  // 2. Y NO tiene clientes asignados
+  // 3. Y ya terminó de cargar (no estamos esperando)
+  // Para admin/finanzas, needsFiltering será false, así que nunca entra aquí
+  if (needsFiltering && assignedClientIds.length === 0) {
+    console.log('[useProjectMilestones] Empty: needsFiltering=true, no assigned clients');
+    return [];
+  }
+
+  console.log('[useProjectMilestones] Fetching:', {
+    needsFiltering,
+    assignedClientIds: assignedClientIds.length,
+    shouldFilterBySpecialist
+  });
+  
+  // ... resto del código sin cambios
 }
 ```
 
-Este hook:
-- Usa `useProjectMilestones` para obtener los datos
-- Agrupa los milestones por `operational_project_id`
-- Calcula estadísticas de progreso por proyecto
+Además, añadir una verificación adicional en el `enabled`:
 
-#### 3. Crear Componentes de Tabla Jerárquica
+```typescript
+// Cambiar de:
+enabled: !assignedLoading && !specialistLoading,
 
-**Archivo 1**: `src/components/operations/HierarchicalTrackingTable.tsx`
-
-Tabla principal con:
-- Estado de filas expandidas por niveles (proyectos y milestones)
-- Botón "Expandir todo" / "Colapsar todo"
-- Columnas: Proyecto/Milestone/Tarea, Cliente, Estado, Especialista, Deadline, Progreso
-
-**Archivo 2**: `src/components/operations/ProjectTrackingRow.tsx`
-
-Fila de nivel 0 (Proyecto):
-- Chevron para expandir/colapsar
-- Nombre del proyecto
-- Badge de estado
-- Barra de progreso global
-- Al expandir, muestra sus milestones
-
-**Archivo 3**: `src/components/operations/MilestoneTrackingRowNested.tsx`
-
-Fila de nivel 1 (Milestone):
-- Indentación visual
-- Chevron para expandir tareas
-- Nombre, especialista, deadline
-- Select para cambiar estado
-- Contador de tareas
-- Al expandir, muestra las tareas inline
-
-**Archivo 4**: `src/components/operations/TaskTrackingRow.tsx`
-
-Fila de nivel 2 (Tarea):
-- Checkbox para marcar completada
-- Nombre, descripción, estado
-- Enlace a contexto si existe
-
-#### 4. Integrar en OperationalProjects.tsx
-
-Modificar la página para usar el nuevo componente:
-
-```tsx
-<TabsContent value="tracking">
-  <HierarchicalTrackingTable
-    filters={{
-      clientId: clientFilter === 'all' ? undefined : clientFilter,
-      // ... otros filtros
-    }}
-  />
-</TabsContent>
+// A:
+enabled: !assignedLoading && !specialistLoading && 
+         // Para AM/PM, esperar a que tengan clientes o confirmar que no tienen
+         (!needsFiltering || assignedClientIds.length > 0 || !assignedLoading),
 ```
+
+**Pero hay un problema más profundo**: El valor de `needsFiltering` viene de `useAssignedClients`, que a su vez lo obtiene de `useUserRole`. Si `useUserRole` aún está cargando, `shouldFilterByAssignment()` puede devolver un valor incorrecto.
 
 ---
 
-### Estructura Visual de la Tabla
+### Solución Completa
 
-```text
-┌────────────────────────────────────────────────────────────────────────────────────┐
-│ [Expandir todo] [Colapsar todo]                                    Mostrando X items│
-├────────────────────────────────────────────────────────────────────────────────────┤
-│ ▼ Localización HS 2 PAGES          ASENDIA HQ    Pendiente    15/03    ████░░ 67% │
-│   ├─ ▶ Translation EN>FR           Iolanda       Pendiente    10/03    2/5 tareas │
-│   ├─ ▼ Translation EN>DE           Sandra        En Progreso  12/03    4/4 tareas │
-│   │    ├─ ☑ Revisar glosario                     Completado   08/03              │
-│   │    ├─ ☑ Traducir contenido                   Completado   09/03              │
-│   │    ├─ ☐ QA final                             En Progreso  11/03              │
-│   │    └─ ☐ Entrega                              Pendiente    12/03              │
-│   └─ ▶ Translation EN>IT           Ebelyn        Pendiente    14/03    0/3 tareas │
-├────────────────────────────────────────────────────────────────────────────────────┤
-│ ▶ Hubspot Requests                 ASENDIA HQ    En Progreso  20/03    ████░░ 50% │
-├────────────────────────────────────────────────────────────────────────────────────┤
-│ ▶ Videos Europe                    Asendia DE    En Progreso  28/02    ██░░░░ 33% │
-└────────────────────────────────────────────────────────────────────────────────────┘
+#### 1. Modificar `useAssignedClients.tsx`
+
+El hook debe esperar a que los roles terminen de cargar antes de determinar `needsFiltering`:
+
+```typescript
+// Cambiar línea 14 de:
+const needsFiltering = shouldFilterByAssignment();
+
+// A:
+// Solo determinar needsFiltering cuando los roles ya están cargados
+const needsFiltering = !rolesLoading && shouldFilterByAssignment();
+```
+
+Esto asegura que mientras los roles se están cargando, `needsFiltering = false` y no se aplica el filtro de "array vacío".
+
+#### 2. Modificar `useProjectMilestones.tsx`
+
+Simplificar la lógica para ser más robusta:
+
+```typescript
+export const useProjectMilestones = (filters?: MilestoneFilters) => {
+  const { assignedClientIds, isLoading: assignedLoading, needsFiltering } = useAssignedClients();
+  const { specialistId: currentSpecialistId, isLoading: specialistLoading } = useCurrentSpecialist();
+  const { isSpecialist, isAdmin, canAccessFinance } = useUserRole();
+  
+  const shouldFilterBySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && currentSpecialistId;
+
+  return useQuery({
+    queryKey: ['project-milestones', filters, assignedClientIds, currentSpecialistId, needsFiltering, shouldFilterBySpecialist],
+    queryFn: async (): Promise<MilestoneWithDetails[]> => {
+      // Para usuarios que necesitan filtrado (AM/PM sin roles elevados)
+      // y no tienen clientes asignados, retornar vacío
+      if (needsFiltering && assignedClientIds.length === 0) {
+        return [];
+      }
+
+      let query = supabase
+        .from('operational_requests')
+        .select(`...`)
+        .order('deadline', { ascending: true, nullsFirst: false });
+
+      // Aplicar filtro de cliente asignado SOLO si needsFiltering es true
+      if (needsFiltering && assignedClientIds.length > 0) {
+        query = query.in('client_id', assignedClientIds);
+      }
+
+      // ... resto del código
+    },
+    enabled: !assignedLoading && !specialistLoading,
+  });
+};
 ```
 
 ---
-
-### Archivos a Crear
-
-| Archivo | Propósito |
-|---------|-----------|
-| `src/hooks/useTrackingData.tsx` | Hook que agrupa milestones por proyecto |
-| `src/components/operations/HierarchicalTrackingTable.tsx` | Tabla principal jerárquica |
-| `src/components/operations/ProjectTrackingRow.tsx` | Fila expandible nivel 0 (Proyecto) |
-| `src/components/operations/MilestoneTrackingRowNested.tsx` | Fila expandible nivel 1 (Milestone) |
-| `src/components/operations/TaskTrackingRow.tsx` | Fila nivel 2 (Tarea) |
 
 ### Archivos a Modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/hooks/useProjectMilestones.tsx` | Corregir lógica de filtrado para admin/finanzas |
-| `src/pages/operations/OperationalProjects.tsx` | Usar nuevo componente `HierarchicalTrackingTable` |
+| `src/hooks/useAssignedClients.tsx` | Cambiar línea 14 para que `needsFiltering` sea `false` mientras se cargan los roles |
+| `src/hooks/useProjectMilestones.tsx` | Añadir logs de debug y simplificar lógica de filtrado |
 
 ---
 
-### Beneficios
+### Verificación
 
-1. **Vista jerárquica clara**: Proyecto → Milestone → Tarea con desplegables
-2. **Navegación eficiente**: Expandir/colapsar niveles según necesidad
-3. **Consistencia**: Reutiliza patrones de "Mis Tareas" pero adaptado a tabla
-4. **Funcionalidad completa**: Cambiar estados, ver progreso, acceder a tareas
-5. **Filtros existentes**: Mantiene todos los filtros actuales funcionando
+Después de los cambios:
+
+1. Usuario admin/finanzas:
+   - `rolesLoading = false` (roles cargados)
+   - `shouldFilterByAssignment() = false` (tiene acceso elevado)
+   - `needsFiltering = false`
+   - La query se ejecuta sin filtro de cliente → ve todos los proyectos
+
+2. Usuario AM/PM sin acceso elevado:
+   - `rolesLoading = false` (roles cargados)
+   - `shouldFilterByAssignment() = true` (necesita filtrado)
+   - `needsFiltering = true`
+   - La query de clientes asignados se ejecuta
+   - Si tiene clientes asignados → ve sus proyectos
+   - Si no tiene clientes asignados → ve array vacío (correcto)
+
+3. Durante la carga inicial (cualquier usuario):
+   - `rolesLoading = true`
+   - `needsFiltering = false` (forzado durante carga)
+   - `assignedLoading = true`
+   - Query deshabilitada hasta que termine la carga
+   - Una vez cargado, se ejecuta con el valor correcto de `needsFiltering`

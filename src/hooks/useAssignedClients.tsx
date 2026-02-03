@@ -11,7 +11,9 @@ export const useAssignedClients = () => {
   const { user } = useAuth();
   const { shouldFilterByAssignment, loading: rolesLoading } = useUserRole();
   
-  const needsFiltering = shouldFilterByAssignment();
+  // CRITICAL: Only determine needsFiltering when roles are fully loaded
+  // This prevents the race condition where needsFiltering=true temporarily for admins
+  const needsFiltering = !rolesLoading && shouldFilterByAssignment();
 
   const { data: assignedClientIds = [], isLoading } = useQuery({
     queryKey: ['assigned-clients', user?.id],
@@ -63,7 +65,8 @@ export const useUserContractIds = () => {
   const { user } = useAuth();
   const { shouldFilterByAssignment, loading: rolesLoading } = useUserRole();
   
-  const needsFiltering = shouldFilterByAssignment();
+  // CRITICAL: Only determine needsFiltering when roles are fully loaded
+  const needsFiltering = !rolesLoading && shouldFilterByAssignment();
 
   const { data: assignedContractIds = [], isLoading } = useQuery({
     queryKey: ['assigned-contracts', user?.id],
@@ -99,7 +102,8 @@ export const useUserBudgetIds = () => {
   const { user } = useAuth();
   const { shouldFilterByAssignment, loading: rolesLoading } = useUserRole();
   
-  const needsFiltering = shouldFilterByAssignment();
+  // CRITICAL: Only determine needsFiltering when roles are fully loaded
+  const needsFiltering = !rolesLoading && shouldFilterByAssignment();
 
   const { data: assignedBudgetIds = [], isLoading } = useQuery({
     queryKey: ['assigned-budgets', user?.id],

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Search, Briefcase, Edit, Trash2, Eye, MoreVertical, LayoutGrid, Table2 } from 'lucide-react';
+import { Plus, Search, Briefcase, Edit, Trash2, Eye, MoreVertical, LayoutGrid, Table2, AlertTriangle } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useOperationalProjects, useDeleteOperationalProject } from '@/hooks/useOperationalProjects';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -67,12 +67,13 @@ export default function OperationalProjects() {
 
   const { assignedClientIds, isLoading: assignedLoading, needsFiltering } = useAssignedClients();
 
-  const { data: projects, isLoading } = useOperationalProjects({
+  const { data: projects, isLoading, error: projectsError } = useOperationalProjects({
     clientId: clientFilter === 'all' ? undefined : clientFilter,
     status: statusFilter === 'all' ? undefined : statusFilter,
     searchTerm: searchTerm || undefined,
     assignedClientIds: needsFiltering ? assignedClientIds : undefined,
     needsFiltering,
+    enabled: !assignedLoading,
   });
 
   const deleteMutation = useDeleteOperationalProject();
@@ -367,7 +368,13 @@ export default function OperationalProjects() {
 
           {/* Cards View */}
           <TabsContent value="cards" className="mt-4">
-        {isLoading ? (
+        {projectsError ? (
+          <div className="text-center py-12">
+            <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
+            <h3 className="text-lg font-medium mb-2">Error al cargar proyectos</h3>
+            <p className="text-sm text-muted-foreground mb-4">{(projectsError as Error).message}</p>
+          </div>
+        ) : isLoading || assignedLoading ? (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {[...Array(6)].map((_, i) => (
               <Skeleton key={i} className="h-64" />
@@ -380,10 +387,12 @@ export default function OperationalProjects() {
             description={
               hasActiveFilters
                 ? 'Intenta ajustar los filtros de búsqueda'
-                : 'Los proyectos operativos te permiten organizar el trabajo por cliente'
+                : needsFiltering && assignedClientIds.length === 0
+                  ? 'No tienes clientes asignados como AM/PM'
+                  : 'Los proyectos operativos te permiten organizar el trabajo por cliente'
             }
             action={
-              !hasActiveFilters
+              !hasActiveFilters && !(needsFiltering && assignedClientIds.length === 0)
                 ? {
                     label: 'Crear Proyecto',
                     onClick: handleCreate,

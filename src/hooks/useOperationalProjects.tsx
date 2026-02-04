@@ -12,56 +12,46 @@ export const useOperationalProjects = (filters?: {
   searchTerm?: string;
   assignedClientIds?: string[];
   needsFiltering?: boolean;
+  enabled?: boolean;
 }) => {
   const { user } = useAuth();
   
   return useQuery({
     queryKey: ['operational-projects', filters, user?.id],
     queryFn: async () => {
-      // If AM/PM filtering is needed and there are assigned clients
-      if (filters?.needsFiltering) {
-        let query = supabase
-          .from('operational_projects')
-          .select(`
-            *,
-            client:clients(id, name, code, hub_client_url),
-            contract:contracts(id, title),
-            budget:budgets(id, title),
-            owner:profiles!operational_projects_owner_user_id_fkey(id, full_name)
-          `)
-          .order('created_at', { ascending: false });
+      // Select with FK hint for owner (needed because multiple FKs to profiles exist)
+      const selectFields = `
+        id,
+        name,
+        description,
+        status,
+        deadline,
+        drive_folder_url,
+        hub_client_url,
+        hub_project_url,
+        client_id,
+        contract_id,
+        budget_id,
+        owner_user_id,
+        created_at,
+        created_by,
+        client:clients(id, name, code, hub_client_url),
+        contract:contracts(id, title),
+        budget:budgets(id, title),
+        owner:profiles!operational_projects_owner_user_id_fkey(id, full_name)
+      `;
 
-        if (filters.assignedClientIds && filters.assignedClientIds.length > 0) {
-          query = query.in('client_id', filters.assignedClientIds);
-        }
-
-        if (filters?.clientId) {
-          query = query.eq('client_id', filters.clientId);
-        }
-        if (filters?.status) {
-          query = query.eq('status', filters.status as any);
-        }
-        if (filters?.searchTerm) {
-          query = query.ilike('name', `%${filters.searchTerm}%`);
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-        return data;
-      }
-      
-      // Default query for admin/finanzas
       let query = supabase
         .from('operational_projects')
-        .select(`
-          *,
-          client:clients(id, name, code, hub_client_url),
-          contract:contracts(id, title),
-          budget:budgets(id, title),
-          owner:profiles!operational_projects_owner_user_id_fkey(id, full_name)
-        `)
+        .select(selectFields)
         .order('created_at', { ascending: false });
 
+      // Apply AM/PM client filtering if needed
+      if (filters?.needsFiltering && filters.assignedClientIds && filters.assignedClientIds.length > 0) {
+        query = query.in('client_id', filters.assignedClientIds);
+      }
+
+      // Apply user filters
       if (filters?.clientId) {
         query = query.eq('client_id', filters.clientId);
       }
@@ -73,9 +63,16 @@ export const useOperationalProjects = (filters?: {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      
+      if (error) {
+        console.error('Error fetching operational projects:', error);
+        throw error;
+      }
+
+      console.log('Operational projects fetched:', data?.length || 0, 'projects');
+      return data || [];
     },
+    enabled: filters?.enabled !== false,
   });
 };
 

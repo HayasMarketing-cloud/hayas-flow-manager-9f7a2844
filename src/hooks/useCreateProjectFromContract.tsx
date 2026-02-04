@@ -2,6 +2,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+interface TemplateStructure {
+  milestones: Array<{
+    name: string;
+    tasks: string[];
+  }>;
+}
+
 interface CreateProjectFromContractParams {
   projectData: {
     name: string;
@@ -44,38 +51,104 @@ export const useCreateProjectFromContract = () => {
 
       if (projectError) throw projectError;
 
-      // 2. Fetch financial_requests linked to this contract
+      // 2. Fetch financial_requests with service template info
       const { data: financialRequests, error: requestsError } = await supabase
         .from('financial_requests')
-        .select('id, title, description, deadline, specialist_id')
+        .select(`
+          id, 
+          title, 
+          description, 
+          deadline,
+          client_id,
+          specialist_id,
+          service_id,
+          service:services(id, name, template_structure)
+        `)
         .eq('contract_id', projectData.contract_id);
 
       if (requestsError) throw requestsError;
 
-      // 3. Create operational_requests (milestones) for each financial_request
-      if (financialRequests && financialRequests.length > 0) {
-        const operationalRequests = financialRequests.map((fr) => ({
-          operational_project_id: project.id,
-          client_id: projectData.client_id,
-          financial_request_id: fr.id,
-          name: fr.title,
-          description: fr.description,
-          deadline: fr.deadline,
-          assignee_specialist_id: fr.specialist_id,
-          status: 'pending' as const,
-          created_by: projectData.created_by,
-        }));
+      if (!financialRequests || financialRequests.length === 0) {
+        return {
+          project,
+          milestonesCount: 0,
+          tasksCount: 0,
+        };
+      }
 
-        const { error: milestonesError } = await supabase
-          .from('operational_requests')
-          .insert(operationalRequests);
+      let totalMilestones = 0;
+      let totalTasks = 0;
 
-        if (milestonesError) throw milestonesError;
+      // 3. For each financial_request, decide whether to clone from template or create simple milestone
+      for (const fr of financialRequests) {
+        const service = fr.service as unknown as { id: string; name: string; template_structure: TemplateStructure | null } | null;
+        const templateStructure = service?.template_structure;
+
+        if (templateStructure && templateStructure.milestones && templateStructure.milestones.length > 0) {
+          // CASE A: Service has template → clone milestones and tasks
+          for (const milestoneTemplate of templateStructure.milestones) {
+            const { data: opRequest, error: opReqError } = await supabase
+              .from('operational_requests')
+              .insert({
+                operational_project_id: project.id,
+                client_id: fr.client_id,
+                financial_request_id: fr.id,
+                name: milestoneTemplate.name,
+                description: `Milestone de ${fr.title}`,
+                status: 'pending' as const,
+                created_by: projectData.created_by,
+                assignee_specialist_id: fr.specialist_id || null,
+                deadline: fr.deadline,
+              })
+              .select('id')
+              .single();
+
+            if (opReqError) throw opReqError;
+            totalMilestones++;
+
+            // Create tasks from template
+            if (milestoneTemplate.tasks && milestoneTemplate.tasks.length > 0) {
+              const tasksToInsert = milestoneTemplate.tasks.map((taskName, index) => ({
+                operational_request_id: opRequest.id,
+                name: taskName,
+                status: 'pending' as const,
+                order_index: index,
+                assignee_specialist_id: fr.specialist_id || null,
+              }));
+
+              const { error: tasksError } = await supabase
+                .from('tasks')
+                .insert(tasksToInsert);
+
+              if (tasksError) throw tasksError;
+              totalTasks += tasksToInsert.length;
+            }
+          }
+        } else {
+          // CASE B: No template → create 1 simple milestone from request
+          const { error: opReqError } = await supabase
+            .from('operational_requests')
+            .insert({
+              operational_project_id: project.id,
+              client_id: fr.client_id,
+              financial_request_id: fr.id,
+              name: fr.title,
+              description: fr.description || `Milestone generado desde solicitud financiera`,
+              status: 'pending' as const,
+              created_by: projectData.created_by,
+              assignee_specialist_id: fr.specialist_id || null,
+              deadline: fr.deadline,
+            });
+
+          if (opReqError) throw opReqError;
+          totalMilestones++;
+        }
       }
 
       return {
         project,
-        milestonesCount: financialRequests?.length || 0,
+        milestonesCount: totalMilestones,
+        tasksCount: totalTasks,
       };
     },
     onSuccess: (data) => {
@@ -83,9 +156,13 @@ export const useCreateProjectFromContract = () => {
       queryClient.invalidateQueries({ queryKey: ['operational-requests'] });
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
       queryClient.invalidateQueries({ queryKey: ['contract-operational-project'] });
-      toast.success(
-        `Proyecto creado con ${data.milestonesCount} ${data.milestonesCount === 1 ? 'milestone' : 'milestones'}`
-      );
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      
+      let message = `Proyecto creado con ${data.milestonesCount} ${data.milestonesCount === 1 ? 'milestone' : 'milestones'}`;
+      if (data.tasksCount > 0) {
+        message += ` y ${data.tasksCount} tarea(s)`;
+      }
+      toast.success(message);
     },
     onError: (error: any) => {
       toast.error(`Error al crear proyecto: ${error.message}`);

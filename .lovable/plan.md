@@ -1,80 +1,41 @@
 
-
-## Plan: Corregir Checkboxes No Clickables en Vista Seguimiento
+## Plan: Mostrar Checkboxes en Todos los Milestones y Tareas
 
 ### Problema Identificado
 
-Analizando la captura y el código, hay **dos problemas**:
-
-1. **Los milestones que no tienen tareas muestran un círculo que parece ser un RadioButton (no Checkbox)** - Esto es porque no hay checkbox de selección visible; el círculo que se ve es posiblemente un artefacto visual del componente `Checkbox` de Radix que no tiene el handler correcto.
-
-2. **La propagación de props de selección no está llegando correctamente** - En la imagen se ven círculos vacíos en milestones y tareas, pero no son clickables. El problema está en que el código actual usa `<Checkbox>` de Radix pero puede haber un problema con los estilos o el evento `onCheckedChange`.
-
----
-
-### Análisis del Código Actual
+Analizando el código y la captura, el problema es que los checkboxes en milestones y tareas están **condicionados** a la existencia del prop `onSelectChange`:
 
 **`MilestoneTrackingRowNested.tsx` líneas 178-184:**
 ```typescript
 <TableCell className="w-10">
-  {onSelectChange && (
+  {onSelectChange && (   // ← CONDICIONAL - checkbox NO se muestra si onSelectChange es undefined
     <Checkbox
       checked={isSelected}
-      onCheckedChange={onSelectChange}  // ❌ Tipo incorrecto
+      onCheckedChange={() => onSelectChange?.()}
     />
   )}
 </TableCell>
 ```
 
-**Problema:** El prop `onCheckedChange` espera una función `(checked: boolean | 'indeterminate') => void`, pero se está pasando `onSelectChange` que es `() => void`.
-
-**`TaskTrackingRow.tsx` líneas 57-63:**
+**`TaskTrackingRow.tsx` líneas 56-64:**
 ```typescript
 <TableCell className="w-10">
-  {onSelectChange && (
+  {onSelectChange && (   // ← MISMO PROBLEMA
     <Checkbox
       checked={isSelected}
-      onCheckedChange={onSelectChange}  // ❌ Mismo problema
+      onCheckedChange={() => onSelectChange?.()}
     />
   )}
 </TableCell>
 ```
+
+El checkbox del proyecto SÍ aparece porque recibe el prop `onSelectChange` correctamente. Pero para milestones y tareas, el checkbox no aparece cuando `onSelectChange` es `undefined`.
 
 ---
 
 ### Solución
 
-Corregir el tipo de la función callback en todos los componentes afectados:
-
-#### 1. `MilestoneTrackingRowNested.tsx`
-
-```typescript
-// Cambiar línea 182
-<Checkbox
-  checked={isSelected}
-  onCheckedChange={() => onSelectChange()}  // ✅ Wrapper function
-/>
-```
-
-#### 2. `TaskTrackingRow.tsx`
-
-```typescript
-// Cambiar línea 61
-<Checkbox
-  checked={isSelected}
-  onCheckedChange={() => onSelectChange()}  // ✅ Wrapper function
-/>
-```
-
-#### 3. `ProjectTrackingRow.tsx`
-
-```typescript
-// Cambiar línea 90
-<Checkbox
-  checked={isSelected}
-  onCheckedChange={() => onSelectChange()}  // ✅ Wrapper function
-/>
-```
+**Mostrar siempre el checkbox**, independientemente de si hay callback. El checkbox estará visible pero deshabilitado si no hay callback (aunque en nuestro caso siempre habrá callback porque la tabla principal lo pasa).
 
 ---
 
@@ -82,67 +43,60 @@ Corregir el tipo de la función callback en todos los componentes afectados:
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/components/operations/MilestoneTrackingRowNested.tsx` | Línea 182: Cambiar `onCheckedChange={onSelectChange}` a `onCheckedChange={() => onSelectChange?.()}` |
-| `src/components/operations/TaskTrackingRow.tsx` | Línea 61: Cambiar `onCheckedChange={onSelectChange}` a `onCheckedChange={() => onSelectChange?.()}` |
-| `src/components/operations/ProjectTrackingRow.tsx` | Línea 90: Cambiar `onCheckedChange={onSelectChange}` a `onCheckedChange={() => onSelectChange?.()}` |
+| `src/components/operations/MilestoneTrackingRowNested.tsx` | Líneas 178-184: Quitar condicional, mostrar siempre el Checkbox |
+| `src/components/operations/TaskTrackingRow.tsx` | Líneas 56-64: Quitar condicional, mostrar siempre el Checkbox |
 
 ---
 
 ### Cambios Específicos
 
-**MilestoneTrackingRowNested.tsx (línea 180-183):**
+**MilestoneTrackingRowNested.tsx (líneas 178-185):**
 ```typescript
 // ANTES:
-<Checkbox
-  checked={isSelected}
-  onCheckedChange={onSelectChange}
-/>
+<TableCell className="w-10">
+  {onSelectChange && (
+    <Checkbox
+      checked={isSelected}
+      onCheckedChange={() => onSelectChange?.()}
+    />
+  )}
+</TableCell>
 
 // DESPUÉS:
-<Checkbox
-  checked={isSelected}
-  onCheckedChange={() => onSelectChange?.()}
-/>
+<TableCell className="w-10">
+  <Checkbox
+    checked={isSelected}
+    onCheckedChange={() => onSelectChange?.()}
+  />
+</TableCell>
 ```
 
-**TaskTrackingRow.tsx (línea 59-62):**
+**TaskTrackingRow.tsx (líneas 56-64):**
 ```typescript
 // ANTES:
-<Checkbox
-  checked={isSelected}
-  onCheckedChange={onSelectChange}
-/>
+<TableCell className="w-10">
+  {onSelectChange && (
+    <Checkbox
+      checked={isSelected}
+      onCheckedChange={() => onSelectChange?.()}
+    />
+  )}
+</TableCell>
 
 // DESPUÉS:
-<Checkbox
-  checked={isSelected}
-  onCheckedChange={() => onSelectChange?.()}
-/>
-```
-
-**ProjectTrackingRow.tsx (línea 88-91):**
-```typescript
-// ANTES:
-<Checkbox
-  checked={isSelected}
-  onCheckedChange={onSelectChange}
-/>
-
-// DESPUÉS:
-<Checkbox
-  checked={isSelected}
-  onCheckedChange={() => onSelectChange?.()}
-/>
+<TableCell className="w-10">
+  <Checkbox
+    checked={isSelected}
+    onCheckedChange={() => onSelectChange?.()}
+  />
+</TableCell>
 ```
 
 ---
 
 ### Resultado Esperado
 
-Después de estos cambios:
-- ✅ Checkboxes en filas de **proyectos** serán clickables
-- ✅ Checkboxes en filas de **milestones** serán clickables  
-- ✅ Checkboxes en filas de **tareas** serán clickables
-- ✅ La barra de acciones masivas aparecerá al seleccionar cualquier elemento
-- ✅ Se podrán aplicar cambios masivos de estado, especialista y deadline
-
+- Todos los milestones mostrarán un checkbox a la izquierda
+- Todas las tareas (cuando se expande un milestone) mostrarán un checkbox a la izquierda
+- Los checkboxes serán clickables para selección múltiple
+- La barra de acciones masivas aparecerá cuando haya elementos seleccionados

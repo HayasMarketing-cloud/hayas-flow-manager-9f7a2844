@@ -1,89 +1,260 @@
 
-## Plan: Edición Inline en Vista Seguimiento + Botón Crear Tareas
 
-### Resumen
-Añadiremos capacidades de edición rápida directamente en la tabla de "Vista Seguimiento" para permitir:
-1. **Edición inline** de campos clave (especialista, deadline, estado) tanto a nivel de proyecto como de milestone
-2. **Botón "Añadir tarea"** visible en cada fila de milestone para crear tareas rápidamente sin expandir
-3. **Operaciones en bulk** (selección múltiple + actualización masiva de estado)
+## Plan: Automatización de Requests y Proyectos Recurrentes desde Contratos
 
-### Cambios a Implementar
+### Resumen Ejecutivo
 
-#### 1. Milestone Tracking Row - Edición Inline + Botón Tareas
-**Archivo**: `src/components/operations/MilestoneTrackingRowNested.tsx`
+Automatizar la generación mensual de requests y proyectos operativos desde contratos activos con `enable_auto_requests = true`. El proceso se ejecutará automáticamente el día 1 de cada mes mediante un cron job.
 
-Modificaciones:
-- Convertir la celda de "Especialista" a un **Select inline editable**
-- Convertir "Deadline" a un **Input type=date editable**
-- El "Estado" ya tiene un Select, mantenerlo
-- Añadir un **botón "+" (Plus)** al lado del contador de tareas para crear una tarea rápidamente
-- Al hacer clic en "+", mostrar un **input inline** para escribir el nombre de la tarea y crearla con Enter
+---
 
-#### 2. Project Tracking Row - Estado Editable
-**Archivo**: `src/components/operations/ProjectTrackingRow.tsx`
+### Estado Actual
 
-Modificaciones:
-- Convertir el Badge de estado a un **Select inline** para cambiar el estado del proyecto directamente
-- Añadir **Deadline editable** para proyectos
+| Componente | Estado |
+|------------|--------|
+| Campo `enable_auto_requests` | Ya existe en `contracts` |
+| Edge function `generate-monthly-requests` | Existe pero es manual y no crea proyectos |
+| Campo `work_month/work_year` en requests | No existe |
+| Campo `work_month/work_year` en projects | No existe |
+| Cron job para ejecución automática | No existe |
+| Detección de duplicados | No existe |
 
-#### 3. Hierarchical Tracking Table - Bulk Actions
-**Archivo**: `src/components/operations/HierarchicalTrackingTable.tsx`
+---
 
-Modificaciones:
-- Añadir columna de checkboxes para selección
-- Añadir barra de acciones en bulk cuando hay selección (cambiar estado en masa)
-- Mantener la barra de progreso/contadores existente
+### Impacto en lo Existente
 
-#### 4. Hooks de Mutación - Reutilizar existentes + nuevos
-- Reutilizar `useUpdateMilestoneStatus` de `useProjectMilestones.tsx`
-- Crear `useUpdateMilestone` para actualizar campos adicionales (specialist, deadline)
-- Crear `useUpdateProjectStatus` para actualizar estado de proyecto
-- Reutilizar `useRequestTasks` para crear tareas inline
+**Bajo impacto** - Los cambios son aditivos:
 
-#### 5. Task Tracking Row - Mejoras
-**Archivo**: `src/components/operations/TaskTrackingRow.tsx`
+1. **Base de datos**: Añadir 2 columnas a `financial_requests` y 2 a `operational_projects`
+2. **Edge function**: Extender la existente para:
+   - Ejecutarse sin `contract_id` (procesa todos los contratos activos)
+   - Añadir campo `work_month/work_year`
+   - Crear proyecto operativo automáticamente
+   - Detectar duplicados para no regenerar
+3. **Cron**: Configurar pg_cron para ejecutar el día 1
 
-Añadir:
-- Celda editable para **especialista asignado** a la tarea
-- **Deadline editable** para tareas
+---
 
-### Detalle de Cambios por Archivo
+### Nuevo Campo: Mes de Trabajo
 
-| Archivo | Cambio |
-|---------|--------|
-| `src/components/operations/MilestoneTrackingRowNested.tsx` | Select inline para especialista, input date para deadline, botón + para crear tareas, input inline de nueva tarea |
-| `src/components/operations/ProjectTrackingRow.tsx` | Select inline para estado del proyecto, input date para deadline |
-| `src/components/operations/TaskTrackingRow.tsx` | Select para especialista, input date para deadline |
-| `src/components/operations/HierarchicalTrackingTable.tsx` | Columna de checkboxes, barra de bulk actions |
-| `src/hooks/useProjectMilestones.tsx` | Nuevo hook `useUpdateMilestone` para campos adicionales |
-| `src/hooks/useOperationalProjects.tsx` | Nuevo hook `useUpdateProjectField` |
+```text
+financial_requests:
+  + work_month (INTEGER, nullable) -- 1-12
+  + work_year  (INTEGER, nullable) -- 2025, 2026...
 
-### Mockup Visual (Milestone Row)
-
-```
-[v] [>] Desarrollo de app web benchmark...  | Ariel Odasso [v]  | 15/01 [📅] | Pendiente [v] | [2/5 tareas] [+]
-                                              ↑ Select          ↑ Date picker  ↑ Select       ↑ Crear tarea
+operational_projects:
+  + work_month (INTEGER, nullable) -- 1-12
+  + work_year  (INTEGER, nullable) -- 2025, 2026...
 ```
 
-### Flujo de Crear Tarea Inline
+**Comportamiento:**
+- Requests/proyectos creados el 1 de febrero → `work_month = 2, work_year = 2026`
+- Permite agrupar y filtrar por período de trabajo
+- Alineado con `period_month/period_year` de liquidations e invoices
 
-1. Usuario hace clic en botón "+" junto al contador de tareas
-2. Aparece un input debajo del milestone: `[ Nueva tarea... ]`
-3. Usuario escribe nombre y presiona Enter
-4. Tarea se crea con:
-   - Especialista: heredado del milestone
-   - Deadline: heredado del milestone  
-   - Estado: "pending"
-5. Input desaparece y contador se actualiza
+---
 
-### Notas Técnicas
+### Flujo de Ejecución Automática
 
-- Los Select inline usarán estilos compactos (`h-7 w-[130px] text-xs`)
-- Los inputs de fecha usarán formato ISO para enviar al backend
-- Las mutaciones usarán `toast.success` para feedback
-- Se mantiene sincronización bidireccional milestone ↔ financial_request para especialista
-- Los cambios en bulk invalidarán queries de `project-milestones` y `operational-projects`
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│                     DÍA 1 DE CADA MES (00:05)                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  1. Cron pg_cron invoca edge function                               │
+│          │                                                          │
+│          ▼                                                          │
+│  2. Buscar contratos con:                                           │
+│     • status = 'active'                                             │
+│     • enable_auto_requests = true                                   │
+│     • start_date <= hoy                                             │
+│     • end_date IS NULL O end_date >= hoy                            │
+│          │                                                          │
+│          ▼                                                          │
+│  3. Por cada contrato:                                              │
+│     ┌────────────────────────────────────────────────────────┐      │
+│     │ a. Verificar si ya existen requests para este mes      │      │
+│     │    (work_month = mes actual, work_year = año actual)   │      │
+│     │                                                        │      │
+│     │ b. Si NO existen:                                      │      │
+│     │    • Crear requests con work_month/work_year           │      │
+│     │    • Crear proyecto operativo con work_month/work_year │      │
+│     │    • Clonar milestones/tareas desde templates          │      │
+│     └────────────────────────────────────────────────────────┘      │
+│          │                                                          │
+│          ▼                                                          │
+│  4. Retornar resumen:                                               │
+│     • Contratos procesados                                          │
+│     • Requests generados                                            │
+│     • Proyectos creados                                             │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Detección de Duplicados
+
+Para evitar regenerar requests del mismo mes:
+
+```sql
+-- Verificar si ya existen requests para el contrato + mes
+SELECT COUNT(*) FROM financial_requests 
+WHERE contract_id = $1 
+  AND work_month = $2 
+  AND work_year = $3;
+```
+
+Si `count > 0`, se omite ese contrato para ese mes.
+
+---
+
+### Cambios Técnicos
+
+#### 1. Migración de Base de Datos
+
+```sql
+-- Añadir campos de período de trabajo a financial_requests
+ALTER TABLE public.financial_requests 
+  ADD COLUMN IF NOT EXISTS work_month INTEGER,
+  ADD COLUMN IF NOT EXISTS work_year INTEGER;
+
+-- Añadir campos de período de trabajo a operational_projects
+ALTER TABLE public.operational_projects 
+  ADD COLUMN IF NOT EXISTS work_month INTEGER,
+  ADD COLUMN IF NOT EXISTS work_year INTEGER;
+
+-- Índice para búsqueda rápida de duplicados
+CREATE INDEX IF NOT EXISTS idx_requests_work_period 
+  ON financial_requests(contract_id, work_month, work_year);
+
+CREATE INDEX IF NOT EXISTS idx_projects_work_period 
+  ON operational_projects(contract_id, work_month, work_year);
+```
+
+#### 2. Edge Function Actualizada
+
+**Archivo:** `supabase/functions/generate-monthly-requests/index.ts`
+
+**Cambios principales:**
+- Soportar ejecución sin `contract_id` (procesa todos los activos)
+- Añadir `work_month` y `work_year` a cada request creado
+- Crear proyecto operativo con milestones y tareas
+- Validar duplicados antes de crear
+- Retornar estadísticas detalladas
+
+**Pseudocódigo:**
+
+```typescript
+// Si no viene contract_id, buscar todos los contratos activos con auto_requests
+const contracts = contract_id 
+  ? [await getContract(contract_id)]
+  : await getActiveAutoContracts();
+
+const now = new Date();
+const workMonth = now.getMonth() + 1;  // 1-12
+const workYear = now.getFullYear();
+
+for (const contract of contracts) {
+  // Verificar duplicados
+  const existing = await checkExistingRequests(contract.id, workMonth, workYear);
+  if (existing > 0) continue;
+
+  // Crear requests con work_month/work_year
+  const requests = await createMonthlyRequests(contract, workMonth, workYear);
+  
+  // Crear proyecto operativo con milestones
+  await createOperationalProject(contract, requests, workMonth, workYear);
+}
+```
+
+#### 3. Configuración del Cron
+
+```sql
+-- Habilitar extensiones
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net;
+
+-- Programar ejecución el día 1 de cada mes a las 00:05
+SELECT cron.schedule(
+  'generate-monthly-contract-requests',
+  '5 0 1 * *',  -- Minuto 5, Hora 0, Día 1, Cualquier mes, Cualquier día semana
+  $$
+  SELECT net.http_post(
+    url := 'https://zqaeokujqipntjhmbjgi.supabase.co/functions/v1/generate-monthly-requests',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer ANON_KEY"}'::jsonb,
+    body := '{"auto_mode": true}'::jsonb
+  ) AS request_id;
+  $$
+);
+```
+
+#### 4. Actualizar UI de Contratos
+
+**Archivo:** `src/components/contracts/ContractFormModal.tsx`
+
+- Mostrar campos `work_month/work_year` en requests generados
+- Indicador visual de "última generación" en contratos activos
+
+#### 5. Filtros en Vistas
+
+**Archivos afectados:**
+- `src/pages/Solicitudes.tsx` - Añadir filtro por período de trabajo
+- `src/pages/operations/OperationalProjects.tsx` - Añadir filtro por período
+
+---
+
+### Ejemplo de Uso Real
+
+```text
+Contrato: "Plan de Marketing Digital - ASENDIA Spain"
+  └── enable_auto_requests: true
+  └── Servicios mensuales:
+       • Social Media Management
+       • Content Creation
+
+Día 1 de Febrero 2026:
+  ├── CRON ejecuta edge function
+  ├── Crea requests:
+  │    • REQ-2026-045: "Social Media Management - febrero 2026"
+  │    │    work_month: 2, work_year: 2026
+  │    • REQ-2026-046: "Content Creation - febrero 2026"
+  │         work_month: 2, work_year: 2026
+  └── Crea proyecto:
+       • "Plan de Marketing Digital - febrero 2026"
+       • work_month: 2, work_year: 2026
+       • Milestones clonados desde templates de servicios
+```
+
+---
+
+### Archivos a Modificar/Crear
+
+| Archivo | Acción | Descripción |
+|---------|--------|-------------|
+| **Migración SQL** | Crear | Añadir `work_month/work_year` a tablas |
+| `supabase/functions/generate-monthly-requests/index.ts` | Modificar | Lógica de auto-generación + proyectos |
+| `src/components/contracts/ContractFormModal.tsx` | Modificar | UI para mostrar período |
+| `src/pages/Solicitudes.tsx` | Modificar | Filtro por período de trabajo |
+| `src/hooks/useRequestFilters.tsx` | Modificar | Añadir filtro work_month/work_year |
+
+---
+
+### Consideraciones Adicionales
+
+1. **Ejecución manual**: El botón "Generar Requests" seguirá funcionando para generación bajo demanda
+2. **Retrocompatibilidad**: Requests existentes tendrán `work_month = NULL` (no afecta funcionamiento)
+3. **Zona horaria**: El cron usa UTC; considerar ajuste si es necesario
+4. **Logs**: Añadir logging detallado para auditoría
+5. **Notificaciones**: Opcionalmente enviar email al AM/PM cuando se generen automáticamente
+
+---
 
 ### Riesgos
-- Bajo: son modificaciones de UI sobre infraestructura existente
-- Los hooks de mutación ya existen y funcionan correctamente
+
+| Riesgo | Mitigación |
+|--------|------------|
+| Generación duplicada | Verificación previa de existencia |
+| Fallo del cron | Logs + alerta manual |
+| Contrato expirado | Validar `end_date` antes de generar |
+

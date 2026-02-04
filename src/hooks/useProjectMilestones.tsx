@@ -53,13 +53,6 @@ export const useProjectMilestones = (filters?: MilestoneFilters) => {
   return useQuery({
     queryKey: ['project-milestones', filters, assignedClientIds, currentSpecialistId, needsFiltering, shouldFilterBySpecialist],
     queryFn: async (): Promise<MilestoneWithDetails[]> => {
-      // For AM/PM filtering - only return empty if filtering is needed AND no assigned clients
-      // Skip this check if we're still loading assigned clients
-      if (needsFiltering && assignedClientIds.length === 0) {
-        // Return empty only if we've finished loading and still have no clients
-        return [];
-      }
-
       let query = supabase
         .from('operational_requests')
         .select(`
@@ -91,7 +84,7 @@ export const useProjectMilestones = (filters?: MilestoneFilters) => {
         .order('deadline', { ascending: true, nullsFirst: false });
 
       // Apply AM/PM client filtering
-      if (needsFiltering) {
+      if (needsFiltering && assignedClientIds.length > 0) {
         query = query.in('client_id', assignedClientIds);
       }
 

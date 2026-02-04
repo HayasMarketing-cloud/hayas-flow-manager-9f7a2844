@@ -1,11 +1,14 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProjectGroup } from '@/hooks/useTrackingData';
 import { MilestoneTrackingRowNested } from './MilestoneTrackingRowNested';
+import { useUpdateProjectField } from '@/hooks/useOperationalProjects';
 import { cn } from '@/lib/utils';
 
 interface ProjectTrackingRowProps {
@@ -14,14 +17,9 @@ interface ProjectTrackingRowProps {
   onToggle: () => void;
   expandedMilestones: Set<string>;
   onToggleMilestone: (id: string) => void;
+  isSelected?: boolean;
+  onSelectChange?: () => void;
 }
-
-const statusColors = {
-  pending: 'bg-yellow-500',
-  in_progress: 'bg-blue-500',
-  in_review: 'bg-purple-500',
-  completed: 'bg-green-500',
-};
 
 const statusLabels = {
   pending: 'Pendiente',
@@ -36,17 +34,55 @@ export function ProjectTrackingRow({
   onToggle,
   expandedMilestones,
   onToggleMilestone,
+  isSelected = false,
+  onSelectChange,
 }: ProjectTrackingRowProps) {
+  const updateFieldMutation = useUpdateProjectField();
+  
+  const [localStatus, setLocalStatus] = useState(group.project.status || 'pending');
+  const [localDeadline, setLocalDeadline] = useState(group.project.deadline?.split('T')[0] || '');
+
   const progressPercent = group.stats.total > 0 
     ? Math.round((group.stats.completed / group.stats.total) * 100) 
     : 0;
 
-  const status = group.project.status as keyof typeof statusColors || 'pending';
+  const status = group.project.status as keyof typeof statusLabels || 'pending';
+
+  const handleStatusChange = (newStatus: string) => {
+    setLocalStatus(newStatus);
+    updateFieldMutation.mutate({
+      projectId: group.project.id,
+      field: 'status',
+      value: newStatus,
+    });
+  };
+
+  const handleDeadlineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value || null;
+    setLocalDeadline(e.target.value);
+    updateFieldMutation.mutate({
+      projectId: group.project.id,
+      field: 'deadline',
+      value: newValue,
+    });
+  };
+
+  const isOverdue = group.project.deadline && 
+    new Date(group.project.deadline) < new Date() && 
+    group.project.status !== 'completed';
 
   return (
     <Fragment>
       {/* Project Row (Level 0) */}
       <TableRow className="bg-muted/50 hover:bg-muted/70 font-medium border-b-2">
+        <TableCell className="w-10">
+          {onSelectChange && (
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={onSelectChange}
+            />
+          )}
+        </TableCell>
         <TableCell className="w-10">
           <Button
             variant="ghost"
@@ -69,16 +105,20 @@ export function ProjectTrackingRow({
         <TableCell className="text-sm">
           {group.project.client?.name || '-'}
         </TableCell>
+        
+        {/* Deadline - Inline Date Input */}
         <TableCell>
-          {group.project.deadline && (
-            <span className="text-sm">
-              {new Date(group.project.deadline).toLocaleDateString('es-ES', { 
-                day: '2-digit', 
-                month: '2-digit' 
-              })}
-            </span>
-          )}
+          <Input
+            type="date"
+            value={localDeadline}
+            onChange={handleDeadlineChange}
+            className={cn(
+              "h-7 w-[120px] text-xs",
+              isOverdue && "border-destructive text-destructive"
+            )}
+          />
         </TableCell>
+        
         <TableCell>
           {group.project.budget?.estimated_invoice_date && (
             <span className="text-sm">
@@ -89,11 +129,22 @@ export function ProjectTrackingRow({
             </span>
           )}
         </TableCell>
+        
+        {/* Status - Inline Select */}
         <TableCell>
-          <Badge className={cn(statusColors[status], "text-white text-xs")}>
-            {statusLabels[status]}
-          </Badge>
+          <Select value={localStatus} onValueChange={handleStatusChange}>
+            <SelectTrigger className="h-7 w-[130px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pending">Pendiente</SelectItem>
+              <SelectItem value="in_progress">En Progreso</SelectItem>
+              <SelectItem value="in_review">En Revisión</SelectItem>
+              <SelectItem value="completed">Completado</SelectItem>
+            </SelectContent>
+          </Select>
         </TableCell>
+        
         <TableCell>
           <div className="flex items-center gap-2 min-w-[120px]">
             <Progress value={progressPercent} className="h-2 flex-1" />

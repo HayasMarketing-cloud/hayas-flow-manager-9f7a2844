@@ -56,7 +56,11 @@ export const useOperationalProjects = (filters?: {
         query = query.eq('client_id', filters.clientId);
       }
       if (filters?.status) {
-        query = query.eq('status', filters.status as any);
+        if (filters.status === 'not_completed') {
+          query = query.neq('status', 'completed');
+        } else {
+          query = query.eq('status', filters.status as any);
+        }
       }
       if (filters?.searchTerm) {
         query = query.ilike('name', `%${filters.searchTerm}%`);

@@ -160,7 +160,59 @@ export const useUpdateMilestoneStatus = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-milestones'] });
       queryClient.invalidateQueries({ queryKey: ['project-operational-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['tracking-data'] });
       toast.success('Estado actualizado');
+    },
+    onError: (error: any) => {
+      toast.error(`Error: ${error.message}`);
+    },
+  });
+};
+
+// Hook to update milestone fields (specialist, deadline, etc.)
+export const useUpdateMilestone = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ 
+      milestoneId, 
+      updates 
+    }: { 
+      milestoneId: string; 
+      updates: {
+        assignee_specialist_id?: string | null;
+        deadline?: string | null;
+        name?: string;
+      };
+    }) => {
+      const { error } = await supabase
+        .from('operational_requests')
+        .update(updates)
+        .eq('id', milestoneId);
+
+      if (error) throw error;
+
+      // If specialist was updated, also update the linked financial_request
+      if (updates.assignee_specialist_id !== undefined) {
+        const { data: milestone } = await supabase
+          .from('operational_requests')
+          .select('financial_request_id')
+          .eq('id', milestoneId)
+          .single();
+
+        if (milestone?.financial_request_id) {
+          await supabase
+            .from('financial_requests')
+            .update({ specialist_id: updates.assignee_specialist_id })
+            .eq('id', milestone.financial_request_id);
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project-milestones'] });
+      queryClient.invalidateQueries({ queryKey: ['project-operational-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['milestone-tasks'] });
+      toast.success('Milestone actualizado');
     },
     onError: (error: any) => {
       toast.error(`Error: ${error.message}`);

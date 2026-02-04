@@ -224,3 +224,35 @@ export const useDeleteOperationalProject = () => {
     },
   });
 };
+
+// Hook to update a single field on a project (for inline editing)
+export const useUpdateProjectField = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ 
+      projectId, 
+      field, 
+      value 
+    }: { 
+      projectId: string; 
+      field: 'status' | 'deadline'; 
+      value: string | null;
+    }) => {
+      const { error } = await supabase
+        .from('operational_projects')
+        .update({ [field]: value })
+        .eq('id', projectId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['operational-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['project-milestones'] });
+      toast.success('Proyecto actualizado');
+    },
+    onError: (error: any) => {
+      toast.error(`Error: ${error.message}`);
+    },
+  });
+};

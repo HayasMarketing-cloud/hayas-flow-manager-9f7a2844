@@ -45,10 +45,16 @@ export interface MilestoneFilters {
 export const useProjectMilestones = (filters?: MilestoneFilters) => {
   const { assignedClientIds, isLoading: assignedLoading, needsFiltering } = useAssignedClients();
   const { specialistId: currentSpecialistId, isLoading: specialistLoading } = useCurrentSpecialist();
-  const { isSpecialist, isAdmin, canAccessFinance } = useUserRole();
+  const { isSpecialist, isAdmin, canAccessFinance, isAccountManager, isProjectManager } = useUserRole();
   
-  // Specialist should only see their milestones if they DON'T have elevated access
-  const shouldFilterBySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && currentSpecialistId;
+  // Specialist should only see their milestones if they are "pure specialist" 
+  // (no AM/PM roles, no admin/finanzas access) AND have a linked specialist record
+  const shouldFilterBySpecialist = isSpecialist() && 
+    !isAdmin() && 
+    !canAccessFinance() && 
+    !isAccountManager() && 
+    !isProjectManager() && 
+    currentSpecialistId;
 
   return useQuery({
     queryKey: ['project-milestones', filters, assignedClientIds, currentSpecialistId, needsFiltering, shouldFilterBySpecialist],

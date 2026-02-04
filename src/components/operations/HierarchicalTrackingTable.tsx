@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, ChevronDown, ChevronUp, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp, AlertTriangle, RefreshCw, User, Calendar } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -18,6 +18,9 @@ import { MilestoneFilters, useUpdateMilestoneStatus } from '@/hooks/useProjectMi
 import { useUpdateProjectField } from '@/hooks/useOperationalProjects';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
+import { Input } from '@/components/ui/input';
 
 interface HierarchicalTrackingTableProps {
   filters?: MilestoneFilters;
@@ -25,7 +28,7 @@ interface HierarchicalTrackingTableProps {
 }
 
 type SelectionItem = {
-  type: 'project' | 'milestone';
+  type: 'project' | 'milestone' | 'task';
   id: string;
 };
 
@@ -37,10 +40,27 @@ export function HierarchicalTrackingTable({
   const updateMilestoneStatus = useUpdateMilestoneStatus();
   const updateProjectField = useUpdateProjectField();
   
+  // Fetch specialists list for the dropdown
+  const { data: specialists = [] } = useQuery({
+    queryKey: ['specialists-list'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('specialists')
+        .select('id, name')
+        .eq('active', true)
+        .order('name');
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [expandedMilestones, setExpandedMilestones] = useState<Set<string>>(new Set());
   const [selectedItems, setSelectedItems] = useState<SelectionItem[]>([]);
   const [bulkStatus, setBulkStatus] = useState<string>('');
+  const [bulkSpecialist, setBulkSpecialist] = useState<string>('');
+  const [bulkDeadline, setBulkDeadline] = useState<string>('');
 
   const toggleProject = (id: string) => {
     setExpandedProjects(prev => {
@@ -77,7 +97,7 @@ export function HierarchicalTrackingTable({
     setExpandedMilestones(new Set());
   };
 
-  const toggleSelectItem = (type: 'project' | 'milestone', id: string) => {
+  const toggleSelectItem = (type: 'project' | 'milestone' | 'task', id: string) => {
     setSelectedItems(prev => {
       const exists = prev.find(item => item.type === type && item.id === id);
       if (exists) {
@@ -87,37 +107,73 @@ export function HierarchicalTrackingTable({
     });
   };
 
-  const isItemSelected = (type: 'project' | 'milestone', id: string) => {
+  const isItemSelected = (type: 'project' | 'milestone' | 'task', id: string) => {
     return selectedItems.some(item => item.type === type && item.id === id);
   };
 
   const clearSelection = () => {
     setSelectedItems([]);
     setBulkStatus('');
+    setBulkSpecialist('');
+    setBulkDeadline('');
   };
 
   const handleBulkStatusUpdate = async () => {
-    if (!bulkStatus || selectedItems.length === 0) return;
+    if (!bulkStatus && !bulkSpecialist && !bulkDeadline || selectedItems.length === 0) return;
 
     const projectUpdates = selectedItems.filter(i => i.type === 'project');
     const milestoneUpdates = selectedItems.filter(i => i.type === 'milestone');
+    const taskUpdates = selectedItems.filter(i => i.type === 'task');
 
     try {
       // Update projects
       for (const item of projectUpdates) {
-        await updateProjectField.mutateAsync({
-          projectId: item.id,
-          field: 'status',
-          value: bulkStatus,
-        });
+        if (bulkStatus) {
+          await updateProjectField.mutateAsync({
+            projectId: item.id,
+            field: 'status',
+            value: bulkStatus,
+          });
+        }
       }
 
       // Update milestones
       for (const item of milestoneUpdates) {
-        await updateMilestoneStatus.mutateAsync({
-          milestoneId: item.id,
-          status: bulkStatus,
-        });
+        const updates: any = {};
+        if (bulkStatus) updates.status = bulkStatus;
+        if (bulkSpecialist) updates.assignee_specialist_id = bulkSpecialist === 'none' ? null : bulkSpecialist;
+        if (bulkDeadline) updates.deadline = bulkDeadline;
+        
+        if (Object.keys(updates).length > 0) {
+          await updateMilestoneStatus.mutateAsync({
+            milestoneId: item.id,
+            status: updates.status || undefined,
+          });
+          // Handle specialist and deadline updates
+          if (bulkSpecialist || bulkDeadline) {
+            const { error } = await supabase
+              .from('operational_requests')
+              .update(updates)
+              .eq('id', item.id);
+            if (error) throw error;
+          }
+        }
+      }
+
+      // Update tasks
+      for (const item of taskUpdates) {
+        const updates: any = {};
+        if (bulkStatus) updates.status = bulkStatus;
+        if (bulkSpecialist) updates.assignee_specialist_id = bulkSpecialist === 'none' ? null : bulkSpecialist;
+        if (bulkDeadline) updates.deadline = bulkDeadline;
+        
+        if (Object.keys(updates).length > 0) {
+          const { error } = await supabase
+            .from('tasks')
+            .update(updates)
+            .eq('id', item.id);
+          if (error) throw error;
+        }
       }
 
       toast.success(`${selectedItems.length} elementos actualizados`);
@@ -199,31 +255,74 @@ export function HierarchicalTrackingTable({
     <div className="space-y-4">
       {/* Bulk Actions Bar */}
       {hasSelection && (
-        <div className="flex items-center gap-3 p-3 bg-primary/10 rounded-lg border border-primary/20">
-          <span className="text-sm font-medium">
-            {selectedItems.length} seleccionado{selectedItems.length > 1 ? 's' : ''}
-          </span>
-          <Select value={bulkStatus} onValueChange={setBulkStatus}>
-            <SelectTrigger className="h-8 w-[150px] text-xs">
-              <SelectValue placeholder="Cambiar estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pending">Pendiente</SelectItem>
-              <SelectItem value="in_progress">En Progreso</SelectItem>
-              <SelectItem value="in_review">En Revisión</SelectItem>
-              <SelectItem value="completed">Completado</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            size="sm"
-            onClick={handleBulkStatusUpdate}
-            disabled={!bulkStatus || updateMilestoneStatus.isPending || updateProjectField.isPending}
-          >
-            Aplicar
-          </Button>
-          <Button variant="ghost" size="sm" onClick={clearSelection}>
-            Cancelar
-          </Button>
+        <div className="flex flex-wrap items-center gap-3 p-4 bg-primary/10 rounded-lg border border-primary/20">
+          <div className="flex flex-col gap-1 mr-4">
+            <span className="text-sm font-bold">
+              {selectedItems.length} seleccionado{selectedItems.length > 1 ? 's' : ''}
+            </span>
+            <div className="flex gap-2 text-[10px] text-muted-foreground">
+              {selectedItems.filter(i => i.type === 'project').length > 0 && (
+                <span>{selectedItems.filter(i => i.type === 'project').length} proyectos</span>
+              )}
+              {selectedItems.filter(i => i.type === 'milestone').length > 0 && (
+                <span>{selectedItems.filter(i => i.type === 'milestone').length} hitos</span>
+              )}
+              {selectedItems.filter(i => i.type === 'task').length > 0 && (
+                <span>{selectedItems.filter(i => i.type === 'task').length} tareas</span>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Select value={bulkStatus} onValueChange={setBulkStatus}>
+              <SelectTrigger className="h-9 w-[140px] text-xs">
+                <SelectValue placeholder="Cambiar estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Pendiente</SelectItem>
+                <SelectItem value="in_progress">En Progreso</SelectItem>
+                <SelectItem value="in_review">En Revisión</SelectItem>
+                <SelectItem value="completed">Completado</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={bulkSpecialist} onValueChange={setBulkSpecialist}>
+              <SelectTrigger className="h-9 w-[160px] text-xs">
+                <SelectValue placeholder="Asignar especialista" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sin asignar</SelectItem>
+                {specialists.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="flex items-center gap-2 px-2 py-1 bg-background border rounded-md">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <Input
+                type="date"
+                value={bulkDeadline}
+                onChange={(e) => setBulkDeadline(e.target.value)}
+                className="h-7 w-[120px] text-xs border-0 p-0 focus-visible:ring-0"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 ml-auto">
+            <Button
+              size="sm"
+              onClick={handleBulkStatusUpdate}
+              disabled={(!bulkStatus && !bulkSpecialist && !bulkDeadline) || updateMilestoneStatus.isPending || updateProjectField.isPending}
+            >
+              Aplicar Cambios
+            </Button>
+            <Button variant="ghost" size="sm" onClick={clearSelection}>
+              Cancelar
+            </Button>
+          </div>
         </div>
       )}
 
@@ -288,7 +387,7 @@ export function HierarchicalTrackingTable({
               <TableHead>Progreso</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
+           <TableBody>
             {projectGroups.map((group) => (
               <ProjectTrackingRowWithCheckbox
                 key={group.project.id}
@@ -299,6 +398,10 @@ export function HierarchicalTrackingTable({
                 onToggleMilestone={toggleMilestone}
                 isSelected={isItemSelected('project', group.project.id)}
                 onSelectChange={() => toggleSelectItem('project', group.project.id)}
+                selectedMilestoneIds={selectedItems.filter(i => i.type === 'milestone').map(i => i.id)}
+                onMilestoneSelectChange={(id) => toggleSelectItem('milestone', id)}
+                selectedTaskIds={selectedItems.filter(i => i.type === 'task').map(i => i.id)}
+                onTaskSelectChange={(id) => toggleSelectItem('task', id)}
               />
             ))}
           </TableBody>
@@ -317,6 +420,10 @@ function ProjectTrackingRowWithCheckbox({
   onToggleMilestone,
   isSelected,
   onSelectChange,
+  selectedMilestoneIds,
+  onMilestoneSelectChange,
+  selectedTaskIds,
+  onTaskSelectChange,
 }: {
   group: any;
   isExpanded: boolean;
@@ -325,6 +432,10 @@ function ProjectTrackingRowWithCheckbox({
   onToggleMilestone: (id: string) => void;
   isSelected: boolean;
   onSelectChange: () => void;
+  selectedMilestoneIds?: string[];
+  onMilestoneSelectChange?: (id: string) => void;
+  selectedTaskIds?: string[];
+  onTaskSelectChange?: (id: string) => void;
 }) {
   return (
     <ProjectTrackingRow
@@ -335,6 +446,10 @@ function ProjectTrackingRowWithCheckbox({
       onToggleMilestone={onToggleMilestone}
       isSelected={isSelected}
       onSelectChange={onSelectChange}
+      selectedMilestoneIds={selectedMilestoneIds}
+      onMilestoneSelectChange={onMilestoneSelectChange}
+      selectedTaskIds={selectedTaskIds}
+      onTaskSelectChange={onTaskSelectChange}
     />
   );
 }

@@ -54,7 +54,7 @@ export default function OperationalProjects() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [clientFilter, setClientFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('not_completed');
   const [specialistFilter, setSpecialistFilter] = useState<string>('all');
   const [budgetFilter, setBudgetFilter] = useState<string>('all');
   const [contractFilter, setContractFilter] = useState<string>('all');
@@ -139,7 +139,7 @@ export default function OperationalProjects() {
   const hasActiveFilters = !!(
     searchTerm || 
     clientFilter !== 'all' || 
-    statusFilter !== 'all' || 
+    (statusFilter !== 'all' && statusFilter !== 'not_completed') || 
     specialistFilter !== 'all' ||
     budgetFilter !== 'all' ||
     contractFilter !== 'all'
@@ -305,6 +305,7 @@ export default function OperationalProjects() {
                     <SelectValue placeholder="Todos los estados" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="not_completed">Activos (sin completados)</SelectItem>
                     <SelectItem value="all">Todos los estados</SelectItem>
                     <SelectItem value="pending">Pendiente</SelectItem>
                     <SelectItem value="in_progress">En Progreso</SelectItem>

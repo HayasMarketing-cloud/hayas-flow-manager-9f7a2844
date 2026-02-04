@@ -38,6 +38,7 @@ import FirmaLiquidacion from "./pages/FirmaLiquidacion";
 import AccionRequest from "./pages/AccionRequest";
 import TestEmail from "./pages/TestEmail";
 import Notificaciones from "./pages/Notificaciones";
+import GuiaRapida from "./pages/GuiaRapida";
 
 const queryClient = new QueryClient();
 
@@ -102,6 +103,7 @@ const App = () => {
               <Route path="/operaciones/proyectos/:id" element={<ProtectedRoute><OperationalProjectDetail /></ProtectedRoute>} />
               <Route path="/mis-tareas" element={<ProtectedRoute><MyTasks /></ProtectedRoute>} />
               <Route path="/notificaciones" element={<ProtectedRoute><Notificaciones /></ProtectedRoute>} />
+              <Route path="/guia-rapida" element={<ProtectedRoute><GuiaRapida /></ProtectedRoute>} />
               <Route path="/test-email" element={<ProtectedRoute><TestEmail /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>

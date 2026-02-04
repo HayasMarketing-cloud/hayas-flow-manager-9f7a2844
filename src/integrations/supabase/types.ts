@@ -1289,6 +1289,7 @@ export type Database = {
           financial_request_id: string | null
           id: string
           name: string
+          notes: string | null
           operational_project_id: string
           reviewer_type: Database["public"]["Enums"]["reviewer_type"] | null
           status: Database["public"]["Enums"]["operational_status"] | null
@@ -1306,6 +1307,7 @@ export type Database = {
           financial_request_id?: string | null
           id?: string
           name: string
+          notes?: string | null
           operational_project_id: string
           reviewer_type?: Database["public"]["Enums"]["reviewer_type"] | null
           status?: Database["public"]["Enums"]["operational_status"] | null
@@ -1323,6 +1325,7 @@ export type Database = {
           financial_request_id?: string | null
           id?: string
           name?: string
+          notes?: string | null
           operational_project_id?: string
           reviewer_type?: Database["public"]["Enums"]["reviewer_type"] | null
           status?: Database["public"]["Enums"]["operational_status"] | null

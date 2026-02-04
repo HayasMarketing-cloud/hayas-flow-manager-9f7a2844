@@ -1,135 +1,150 @@
 
-## Objetivo (lo que vamos a arreglar)
-Que en **Proyectos Operativos** (Tarjetas y Seguimiento) se muestren proyectos/hitos correctamente según reglas de usuario:
 
-- **Admin**: ve todo.
-- **AM / PM**: ve lo asociado a sus **clientes asignados** (vía contratos/presupuestos).
-- **Especialista**: ve lo asociado a su **especialista asignado** (requests/milestones asignados).
+## Plan: Corrección Definitiva del Problema de Frontend
 
-Ahora mismo la UI muestra “No hay proyectos” **sin error**, lo que indica que las queries están devolviendo 0 filas por (a) permisos/asociaciones o (b) lógica de filtrado/identidad del especialista, no por fallo técnico visible.
+### Diagnóstico Confirmado
+El panel de debug muestra claramente:
+- **RLS funciona**: 11 proyectos y 76 requests visibles en la base de datos
+- **Permisos correctos**: `needsFiltering = false` (Admin ve todo)
+- **Especialista vinculado**: ID correcto
+- **Conclusión del panel**: "Las consultas a la base de datos devuelven datos. Si la UI está vacía, el problema está en el filtrado del frontend."
 
----
+### Causa Raíz Identificada
+El problema está en el hook `useOperationalProjects`. La query usa un **FK hint explícito** para obtener el owner:
 
-## Hallazgos clave (cosas que no estábamos viendo)
-1) **Usuarios con múltiples roles (AM/PM + especialista) pueden quedar filtrados como “solo especialista” en Seguimiento**  
-En `useProjectMilestones`, el filtro “ver solo mis hitos” se activa si el usuario tiene rol especialista y no es admin/finanzas.  
-Pero **no excluye AM/PM**. Si un usuario tiene roles mixtos, puede quedar limitado a `assignee_specialist_id = miEspecialista`, aunque su rol AM/PM debería permitirle ver por cliente asignado.
+```typescript
+owner:profiles!operational_projects_owner_user_id_fkey(id, full_name)
+```
 
-2) **Vinculación “usuario ↔ especialista” puede estar rota en datos**  
-La visibilidad “especialista” en backend depende de que exista un registro en `specialists` con `user_id = auth.uid()`.  
-Hemos visto que **hay especialistas con `user_id` en null**. Eso provoca que, aunque haya requests asignados a ese especialista, el usuario no los vea “como especialista”.
+Aunque la FK existe, cuando PostgREST intenta resolver esta relación junto con otras (client, contract, budget) en una sola query, puede haber problemas de:
+1. **Timeouts silenciosos** en queries complejas
+2. **Errores en la resolución de FK hints** que no se propagan correctamente
+3. **Condiciones de carrera** donde la query se ejecuta antes de que el hook esté completamente estabilizado
 
-3) **Muchos proyectos tienen `owner_user_id` en null** (dato real)  
-Hay políticas que usan `owner_user_id = auth.uid()` para visibilidad. Si este campo está en null, el creador puede no ver lo que creó (según rol). Aunque vuestro modelo principal es AM/PM/Especialista, este campo vacío empeora la trazabilidad y puede dejar a usuarios sin acceso “por propiedad”.
+### Solución: Simplificar la Query y Agregar Manejo de Errores
 
-4) El mensaje “No hay proyectos” hoy **no distingue** entre:
-- “No hay datos”
-- “No tienes asociaciones (AM/PM sin clientes, especialista sin vínculo)”
-- “Estás en un entorno distinto (preview/publicado)”
+#### Cambio 1: Simplificar FK hints en `useOperationalProjects`
+**Archivo**: `src/hooks/useOperationalProjects.tsx`
 
----
+Eliminar los FK hints explícitos y dejar que PostgREST infiera las relaciones:
 
-## Estrategia (en 2 fases)
-### Fase 1 — Diagnóstico en pantalla (sin depender de consola)
-Implementaremos un “panel de diagnóstico” activable con `?debug=1` (solo visible en ese modo) dentro de **/proyectos-operativos** para que, con 1 captura, sepamos exactamente qué está pasando.
+**Antes (líneas 54-62)**:
+```typescript
+let query = supabase
+  .from('operational_projects')
+  .select(`
+    *,
+    client:clients(id, name, code, hub_client_url),
+    contract:contracts(id, title),
+    budget:budgets(id, title),
+    owner:profiles!operational_projects_owner_user_id_fkey(id, full_name)
+  `)
+```
 
-Mostrará:
-- Usuario actual (email + id)
-- Roles detectados (desde `user_roles`)
-- `needsFiltering` + `assignedClientIds.length`
-- `currentSpecialistId` (si existe)
-- Resultados de 2 “consultas sonda”:
-  - `operational_projects` (count/head)
-  - `operational_requests` (count/head)
-- Si count=0: sabremos que es **permisos/asociación**.  
-- Si count>0 pero UI vacío: sabremos que es **filtro UI**.
+**Después**:
+```typescript
+let query = supabase
+  .from('operational_projects')
+  .select(`
+    id,
+    name,
+    description,
+    status,
+    deadline,
+    drive_folder_url,
+    client_id,
+    contract_id,
+    budget_id,
+    owner_user_id,
+    created_at,
+    created_by,
+    client:clients(id, name, code, hub_client_url),
+    contract:contracts(id, title),
+    budget:budgets(id, title),
+    owner:profiles(id, full_name)
+  `)
+```
 
-### Fase 2 — Corrección definitiva según causa (conservando las reglas de negocio)
-En paralelo al panel, aplicaremos correcciones “seguras” que ya encajan con vuestras reglas:
+Cambios clave:
+- Usar campos explícitos en vez de `*` (más predecible)
+- Quitar `!operational_projects_owner_user_id_fkey` - PostgREST puede inferirlo
+- Simplificar la query para reducir fallos
 
-A) **Corregir el filtrado de Seguimiento para usuarios con roles mixtos**
-- Cambiar `shouldFilterBySpecialist` para que SOLO aplique si el usuario es “especialista puro” (sin roles AM/PM) y sin acceso elevado.
-- Resultado: AM/PM que también tengan rol “especialista” no quedarán limitados a “solo mis hitos”.
+#### Cambio 2: Agregar logging y manejo de error explícito
+**Archivo**: `src/hooks/useOperationalProjects.tsx`
 
-B) **Garantizar vínculo usuario-especialista (sin depender de edición manual)**
-Opción recomendada (segura y automática):
-- Backfill + automatización: si un usuario autenticado tiene `auth.email()` y existe un `specialists.email` igual (case-insensitive) con `user_id` vacío, enlazarlo.
-- Hacerlo con una función SQL `SECURITY DEFINER` (o trigger controlado) para evitar abrir permisos peligrosos en `specialists`.
+Agregar console.log para debugging y asegurar que los errores se capturen:
 
-C) **Opcional pero muy recomendable: rellenar `owner_user_id`**
-- Backfill: `owner_user_id = created_by` donde esté null.
-- Trigger en INSERT para que nuevos proyectos tengan `owner_user_id` por defecto.
-- Esto mejora consistencia de “asociación” y evita proyectos “huérfanos”.
+```typescript
+const { data, error } = await query;
 
-D) **Ajuste de Empty State**
-- Si `needsFiltering=true` y `assignedClientIds.length===0`: mostrar “No tienes clientes asignados como AM/PM”.
-- Si rol especialista y `currentSpecialistId===null`: mostrar “Tu usuario no está vinculado a un registro de especialista”.
-- Si Admin y count=0: “No hay proyectos en el sistema” (dato real).
+if (error) {
+  console.error('Error fetching operational projects:', error);
+  throw error;
+}
 
----
+console.log('Operational projects fetched:', data?.length || 0, 'projects');
+return data || [];
+```
 
-## Cambios concretos (archivos)
-### 1) Diagnóstico UI (debug)
-- `src/pages/operations/OperationalProjects.tsx`
-  - Añadir componente/bloque “DebugAccessPanel” visible solo con `?debug=1`.
-- (Opcional) `src/components/operations/HierarchicalTrackingTable.tsx`
-  - Mostrar también un mini-resumen en debug: milestones recibidos, projectGroups, etc.
+#### Cambio 3: Asegurar que el hook espera a que todo esté listo
+**Archivo**: `src/pages/operations/OperationalProjects.tsx`
 
-### 2) Fix roles mixtos (causa probable en Seguimiento)
-- `src/hooks/useProjectMilestones.tsx`
-  - Cambiar:
-    - `shouldFilterBySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && currentSpecialistId`
-  - Por:
-    - `shouldFilterBySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && !isAccountManager() && !isProjectManager() && currentSpecialistId`
-  - (importando `isAccountManager` e `isProjectManager` del hook `useUserRole`)
+Agregar condición `enabled` al hook para evitar queries prematuras:
 
-### 3) Fix vínculo especialista (backend)
-- Nueva migración (Lovable Cloud / database):
-  - Backfill: setear `specialists.user_id` por match de email con profiles cuando sea seguro.
-  - Crear función `link_my_specialist()` que:
-    - Verifica `auth.email()` no null
-    - Busca `specialists` con `lower(email)=lower(auth.email())`
-    - Si encuentra exactamente 1 y `user_id` es null, asigna `user_id=auth.uid()`
-    - Devuelve el id enlazado
-  - (Opcional) Índice único en `lower(email)` si el negocio lo permite (o índice parcial para emails no null).
+El problema es que `useOperationalProjects` no tiene una condición `enabled`. Cuando `assignedLoading` es true, la query ya se está ejecutando pero con valores potencialmente inestables.
 
-- `src/hooks/useCurrentSpecialist.ts`
-  - En vez de depender solo de `eq('user_id', user.id)`, intentar:
-    1) buscar por `user_id`
-    2) si no hay, buscar por email (case-insensitive) y, si existe, invocar `link_my_specialist()` y reconsultar.
+```typescript
+const { data: projects, isLoading, error } = useOperationalProjects({
+  clientId: clientFilter === 'all' ? undefined : clientFilter,
+  status: statusFilter === 'all' ? undefined : statusFilter,
+  searchTerm: searchTerm || undefined,
+  assignedClientIds: needsFiltering ? assignedClientIds : undefined,
+  needsFiltering,
+  enabled: !assignedLoading,  // <-- Nueva prop
+});
+```
 
-### 4) Opcional: consistencia de owner_user_id
-- Nueva migración:
-  - `update operational_projects set owner_user_id = created_by where owner_user_id is null and created_by is not null;`
-  - Trigger para futuros inserts.
+Y en el hook, agregar:
+```typescript
+enabled: filters?.enabled !== false,
+```
 
----
+#### Cambio 4: Mostrar errores en la UI de Tarjetas
+**Archivo**: `src/pages/operations/OperationalProjects.tsx`
 
-## Verificación (muy concreta)
-1) Entrar a `/proyectos-operativos?debug=1` con:
-   - Un **Admin**
-   - Un **AM/PM**
-   - Un **Especialista**
-2) Validar que el panel muestra:
-   - roles correctos
-   - assignedClientIds correcto para AM/PM
-   - specialistId presente para especialistas
-   - counts > 0 cuando corresponda
-3) Comprobar:
-   - Tarjetas lista proyectos correctos
-   - Seguimiento lista proyectos/hitos correctos
-   - Si un usuario no tiene asociación, el mensaje lo explica y no “miente” con “No hay proyectos”.
+Similar a lo que hicimos para Seguimiento, mostrar errores explícitamente:
 
----
+```typescript
+const { data: projects, isLoading, error } = useOperationalProjects({...});
 
-## Decisiones / aclaraciones (no bloqueantes, pero ayudan)
-- ¿PM debe ver “todo” o solo asignados? (Ahora mismo en backend parece que PM podría tener acceso amplio; lo ajustaremos para cumplir exactamente lo que indicas: asociado al usuario.)
-- Confirmar si el vínculo especialista debe ser por **email** (recomendado) o se gestionará manualmente desde Usuarios/Especialistas.
+// En el TabsContent de cards:
+{error ? (
+  <div className="text-center py-12">
+    <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
+    <h3 className="text-lg font-medium mb-2">Error al cargar proyectos</h3>
+    <p className="text-sm text-muted-foreground mb-4">{error.message}</p>
+  </div>
+) : isLoading ? (
+  // skeletons...
+) : // resto...
+}
+```
 
----
+### Archivos a Modificar
 
-## Alcance y riesgo
-- Cambios de frontend: bajo riesgo, solo mejora lógica y diagnóstico.
-- Cambios de backend (link especialista + owner_user_id): controlados y reversibles; mejoran consistencia. Se harán con políticas seguras para no abrir datos.
+| Archivo | Cambio |
+|---------|--------|
+| `src/hooks/useOperationalProjects.tsx` | Simplificar query, agregar logging, agregar `enabled` |
+| `src/pages/operations/OperationalProjects.tsx` | Pasar `enabled`, mostrar errores |
 
-Si quieres que continúe con la implementación, dime en un nuevo mensaje “continúa con la Fase 1 y 2”.
+### Verificación
+1. Navegar a `/proyectos-operativos` como admin
+2. Verificar que los 11 proyectos aparecen en tarjetas
+3. Verificar que el panel de debug ya no dice "UI vacía"
+4. Verificar consola del navegador para logs de "Operational projects fetched: 11 projects"
+
+### Riesgo
+- Bajo: solo simplificamos la query y agregamos manejo de errores
+- Los datos y permisos ya funcionan (confirmado por el panel de debug)
+

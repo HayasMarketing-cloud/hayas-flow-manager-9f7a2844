@@ -1866,6 +1866,7 @@ export type Database = {
         Args: { _liquidation_id: string }
         Returns: boolean
       }
+      link_my_specialist: { Args: never; Returns: string }
     }
     Enums: {
       app_role:

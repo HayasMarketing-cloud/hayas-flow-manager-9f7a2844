@@ -15,6 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { OperationalProjectFormModal } from '@/components/operations/OperationalProjectFormModal';
 import { HierarchicalTrackingTable } from '@/components/operations/HierarchicalTrackingTable';
+import { DebugAccessPanel } from '@/components/operations/DebugAccessPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,
@@ -243,6 +244,9 @@ export default function OperationalProjects() {
       description="Gestión de proyectos operativos por cliente"
     >
       <div className="space-y-6">
+        {/* Debug Panel - only visible with ?debug=1 */}
+        <DebugAccessPanel />
+
         {/* Header */}
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">Proyectos Operativos</h2>

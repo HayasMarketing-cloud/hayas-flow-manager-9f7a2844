@@ -1,147 +1,148 @@
 
 
-## Plan: Selección y Edición Masiva de Milestones y Tareas en Vista Seguimiento
+## Plan: Corregir Checkboxes No Clickables en Vista Seguimiento
 
-### Situación Actual
+### Problema Identificado
 
-La vista de seguimiento (`HierarchicalTrackingTable`) ya tiene implementada:
-- ✅ Selección de **proyectos** con checkbox
-- ✅ Actualización masiva de **estado** para proyectos/milestones seleccionados
-- ❌ No hay checkboxes en filas de **milestones**
-- ❌ No hay checkboxes en filas de **tareas**
-- ❌ Faltan acciones masivas para **especialista** y **deadline**
+Analizando la captura y el código, hay **dos problemas**:
+
+1. **Los milestones que no tienen tareas muestran un círculo que parece ser un RadioButton (no Checkbox)** - Esto es porque no hay checkbox de selección visible; el círculo que se ve es posiblemente un artefacto visual del componente `Checkbox` de Radix que no tiene el handler correcto.
+
+2. **La propagación de props de selección no está llegando correctamente** - En la imagen se ven círculos vacíos en milestones y tareas, pero no son clickables. El problema está en que el código actual usa `<Checkbox>` de Radix pero puede haber un problema con los estilos o el evento `onCheckedChange`.
 
 ---
 
-### Cambios Propuestos
+### Análisis del Código Actual
 
-#### 1. Añadir Checkboxes en Milestones y Tareas
-
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│ ☑ [▼] Proyecto ABC                      │ Estado │ Progreso        │
-├─────────────────────────────────────────────────────────────────────┤
-│   ☑ [▼] Milestone 1       │ Especialista │ Deadline │ Estado │ 2/5 │
-│     ☐   └─ Tarea 1                                                 │
-│     ☐   └─ Tarea 2                                                 │
-│   ☐ [▼] Milestone 2       │ Especialista │ Deadline │ Estado │ 0/3 │
-└─────────────────────────────────────────────────────────────────────┘
+**`MilestoneTrackingRowNested.tsx` líneas 178-184:**
+```typescript
+<TableCell className="w-10">
+  {onSelectChange && (
+    <Checkbox
+      checked={isSelected}
+      onCheckedChange={onSelectChange}  // ❌ Tipo incorrecto
+    />
+  )}
+</TableCell>
 ```
 
-#### 2. Ampliar Barra de Acciones Masivas
+**Problema:** El prop `onCheckedChange` espera una función `(checked: boolean | 'indeterminate') => void`, pero se está pasando `onSelectChange` que es `() => void`.
 
-La barra actual solo permite cambiar estado. Se ampliará con:
+**`TaskTrackingRow.tsx` líneas 57-63:**
+```typescript
+<TableCell className="w-10">
+  {onSelectChange && (
+    <Checkbox
+      checked={isSelected}
+      onCheckedChange={onSelectChange}  // ❌ Mismo problema
+    />
+  )}
+</TableCell>
+```
 
-```text
-┌───────────────────────────────────────────────────────────────────────────────┐
-│ 5 seleccionados │ Estado: [Dropdown▼] │ Especialista: [Dropdown▼] │           │
-│                 │ Deadline: [Date]    │ [Aplicar] [Cancelar]                  │
-└───────────────────────────────────────────────────────────────────────────────┘
+---
+
+### Solución
+
+Corregir el tipo de la función callback en todos los componentes afectados:
+
+#### 1. `MilestoneTrackingRowNested.tsx`
+
+```typescript
+// Cambiar línea 182
+<Checkbox
+  checked={isSelected}
+  onCheckedChange={() => onSelectChange()}  // ✅ Wrapper function
+/>
+```
+
+#### 2. `TaskTrackingRow.tsx`
+
+```typescript
+// Cambiar línea 61
+<Checkbox
+  checked={isSelected}
+  onCheckedChange={() => onSelectChange()}  // ✅ Wrapper function
+/>
+```
+
+#### 3. `ProjectTrackingRow.tsx`
+
+```typescript
+// Cambiar línea 90
+<Checkbox
+  checked={isSelected}
+  onCheckedChange={() => onSelectChange()}  // ✅ Wrapper function
+/>
 ```
 
 ---
 
 ### Archivos a Modificar
 
-| Archivo | Cambios |
-|---------|---------|
-| `HierarchicalTrackingTable.tsx` | Ampliar tipo SelectionItem para incluir 'task', añadir selectores de especialista/deadline en barra masiva |
-| `MilestoneTrackingRowNested.tsx` | Añadir checkbox + props para selección |
-| `TaskTrackingRow.tsx` | Añadir checkbox + props para selección |
-| `ProjectTrackingRow.tsx` | Pasar props de selección a MilestoneTrackingRowNested |
+| Archivo | Cambio |
+|---------|--------|
+| `src/components/operations/MilestoneTrackingRowNested.tsx` | Línea 182: Cambiar `onCheckedChange={onSelectChange}` a `onCheckedChange={() => onSelectChange?.()}` |
+| `src/components/operations/TaskTrackingRow.tsx` | Línea 61: Cambiar `onCheckedChange={onSelectChange}` a `onCheckedChange={() => onSelectChange?.()}` |
+| `src/components/operations/ProjectTrackingRow.tsx` | Línea 90: Cambiar `onCheckedChange={onSelectChange}` a `onCheckedChange={() => onSelectChange?.()}` |
 
 ---
 
-### Detalles Técnicos
+### Cambios Específicos
 
-#### Tipo de Selección Ampliado
-
+**MilestoneTrackingRowNested.tsx (línea 180-183):**
 ```typescript
-type SelectionItem = {
-  type: 'project' | 'milestone' | 'task';
-  id: string;
-};
+// ANTES:
+<Checkbox
+  checked={isSelected}
+  onCheckedChange={onSelectChange}
+/>
+
+// DESPUÉS:
+<Checkbox
+  checked={isSelected}
+  onCheckedChange={() => onSelectChange?.()}
+/>
 ```
 
-#### Nuevas Acciones Masivas
-
+**TaskTrackingRow.tsx (línea 59-62):**
 ```typescript
-const handleBulkSpecialistUpdate = async (specialistId: string | null) => {
-  const milestoneUpdates = selectedItems.filter(i => i.type === 'milestone');
-  const taskUpdates = selectedItems.filter(i => i.type === 'task');
-  
-  // Actualizar milestones
-  for (const item of milestoneUpdates) {
-    await supabase
-      .from('operational_requests')
-      .update({ assignee_specialist_id: specialistId })
-      .eq('id', item.id);
-  }
-  
-  // Actualizar tareas
-  for (const item of taskUpdates) {
-    await supabase
-      .from('tasks')
-      .update({ assignee_specialist_id: specialistId })
-      .eq('id', item.id);
-  }
-};
+// ANTES:
+<Checkbox
+  checked={isSelected}
+  onCheckedChange={onSelectChange}
+/>
 
-const handleBulkDeadlineUpdate = async (deadline: string | null) => {
-  // Similar para deadline...
-};
+// DESPUÉS:
+<Checkbox
+  checked={isSelected}
+  onCheckedChange={() => onSelectChange?.()}
+/>
 ```
 
-#### Props Nuevos en Componentes
-
-**MilestoneTrackingRowNested:**
+**ProjectTrackingRow.tsx (línea 88-91):**
 ```typescript
-interface MilestoneTrackingRowNestedProps {
-  milestone: MilestoneWithDetails;
-  isExpanded: boolean;
-  onToggle: () => void;
-  // Nuevos props:
-  isSelected?: boolean;
-  onSelectChange?: () => void;
-  selectedTaskIds?: string[];
-  onTaskSelectChange?: (taskId: string) => void;
-}
-```
+// ANTES:
+<Checkbox
+  checked={isSelected}
+  onCheckedChange={onSelectChange}
+/>
 
-**TaskTrackingRow:**
-```typescript
-interface TaskTrackingRowProps {
-  task: Task;
-  isLast: boolean;
-  // Nuevos props:
-  isSelected?: boolean;
-  onSelectChange?: () => void;
-}
+// DESPUÉS:
+<Checkbox
+  checked={isSelected}
+  onCheckedChange={() => onSelectChange?.()}
+/>
 ```
 
 ---
 
-### Flujo de Usuario
+### Resultado Esperado
 
-1. Usuario expande proyecto para ver milestones
-2. Marca checkboxes en milestones específicos (o tareas)
-3. Aparece barra de acciones masivas
-4. Selecciona acción: Estado, Especialista, o Deadline
-5. Clic en "Aplicar" → actualización en lote
-6. Tabla se refresca con los cambios
-
----
-
-### UI de la Barra de Acciones
-
-```text
-┌────────────────────────────────────────────────────────────────────────────────┐
-│ 3 milestones, 2 tareas │ Estado: [▼] │ Especialista: [▼] │ Deadline: [📅]     │
-│                        │  [Aplicar]  │ [Cancelar]                             │
-└────────────────────────────────────────────────────────────────────────────────┘
-```
-
-- Muestra desglose por tipo (X proyectos, Y milestones, Z tareas)
-- Solo muestra opciones aplicables al tipo seleccionado
-- Botón "Aplicar" solo activo cuando hay cambio pendiente
+Después de estos cambios:
+- ✅ Checkboxes en filas de **proyectos** serán clickables
+- ✅ Checkboxes en filas de **milestones** serán clickables  
+- ✅ Checkboxes en filas de **tareas** serán clickables
+- ✅ La barra de acciones masivas aparecerá al seleccionar cualquier elemento
+- ✅ Se podrán aplicar cambios masivos de estado, especialista y deadline
 

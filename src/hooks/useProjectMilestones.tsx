@@ -107,7 +107,11 @@ export const useProjectMilestones = (filters?: MilestoneFilters) => {
         query = query.eq('assignee_specialist_id', filters.specialistId);
       }
       if (filters?.status) {
-        query = query.eq('status', filters.status as 'pending' | 'in_progress' | 'in_review' | 'completed');
+        if (filters.status === 'not_completed') {
+          query = query.neq('status', 'completed');
+        } else {
+          query = query.eq('status', filters.status as 'pending' | 'in_progress' | 'in_review' | 'completed');
+        }
       }
       // Search term is handled via post-filtering to support project name search
       if (filters?.month) {

@@ -20,10 +20,6 @@ export const useOperationalProjects = (filters?: {
     queryFn: async () => {
       // If AM/PM filtering is needed and there are assigned clients
       if (filters?.needsFiltering) {
-        if (!filters.assignedClientIds || filters.assignedClientIds.length === 0) {
-          return [];
-        }
-        
         let query = supabase
           .from('operational_projects')
           .select(`
@@ -33,8 +29,11 @@ export const useOperationalProjects = (filters?: {
             budget:budgets(id, title),
             owner:profiles!operational_projects_owner_user_id_fkey(id, full_name)
           `)
-          .in('client_id', filters.assignedClientIds)
           .order('created_at', { ascending: false });
+
+        if (filters.assignedClientIds && filters.assignedClientIds.length > 0) {
+          query = query.in('client_id', filters.assignedClientIds);
+        }
 
         if (filters?.clientId) {
           query = query.eq('client_id', filters.clientId);

@@ -599,6 +599,8 @@ export type Database = {
           title: string
           unit_price: number | null
           updated_at: string
+          work_month: number | null
+          work_year: number | null
         }
         Insert: {
           billed_invoice_id?: string | null
@@ -632,6 +634,8 @@ export type Database = {
           title: string
           unit_price?: number | null
           updated_at?: string
+          work_month?: number | null
+          work_year?: number | null
         }
         Update: {
           billed_invoice_id?: string | null
@@ -665,6 +669,8 @@ export type Database = {
           title?: string
           unit_price?: number | null
           updated_at?: string
+          work_month?: number | null
+          work_year?: number | null
         }
         Relationships: [
           {
@@ -1203,6 +1209,8 @@ export type Database = {
           owner_user_id: string | null
           status: Database["public"]["Enums"]["operational_status"] | null
           updated_at: string | null
+          work_month: number | null
+          work_year: number | null
         }
         Insert: {
           budget_id?: string | null
@@ -1220,6 +1228,8 @@ export type Database = {
           owner_user_id?: string | null
           status?: Database["public"]["Enums"]["operational_status"] | null
           updated_at?: string | null
+          work_month?: number | null
+          work_year?: number | null
         }
         Update: {
           budget_id?: string | null
@@ -1237,6 +1247,8 @@ export type Database = {
           owner_user_id?: string | null
           status?: Database["public"]["Enums"]["operational_status"] | null
           updated_at?: string | null
+          work_month?: number | null
+          work_year?: number | null
         }
         Relationships: [
           {

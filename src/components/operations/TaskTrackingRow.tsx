@@ -58,7 +58,7 @@ export function TaskTrackingRow({
         {onSelectChange && (
           <Checkbox
             checked={isSelected}
-            onCheckedChange={onSelectChange}
+            onCheckedChange={() => onSelectChange?.()}
           />
         )}
       </TableCell>

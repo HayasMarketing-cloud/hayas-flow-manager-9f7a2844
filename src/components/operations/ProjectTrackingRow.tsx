@@ -87,7 +87,7 @@ export function ProjectTrackingRow({
           {onSelectChange && (
             <Checkbox
               checked={isSelected}
-              onCheckedChange={onSelectChange}
+              onCheckedChange={() => onSelectChange?.()}
             />
           )}
         </TableCell>

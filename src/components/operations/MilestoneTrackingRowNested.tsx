@@ -179,7 +179,7 @@ export function MilestoneTrackingRowNested({
           {onSelectChange && (
             <Checkbox
               checked={isSelected}
-              onCheckedChange={onSelectChange}
+              onCheckedChange={() => onSelectChange?.()}
             />
           )}
         </TableCell>

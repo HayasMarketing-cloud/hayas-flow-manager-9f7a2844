@@ -19,6 +19,10 @@ interface ProjectTrackingRowProps {
   onToggleMilestone: (id: string) => void;
   isSelected?: boolean;
   onSelectChange?: () => void;
+  selectedMilestoneIds?: string[];
+  onMilestoneSelectChange?: (id: string) => void;
+  selectedTaskIds?: string[];
+  onTaskSelectChange?: (id: string) => void;
 }
 
 const statusLabels = {
@@ -36,6 +40,10 @@ export function ProjectTrackingRow({
   onToggleMilestone,
   isSelected = false,
   onSelectChange,
+  selectedMilestoneIds = [],
+  onMilestoneSelectChange,
+  selectedTaskIds = [],
+  onTaskSelectChange,
 }: ProjectTrackingRowProps) {
   const updateFieldMutation = useUpdateProjectField();
   
@@ -158,15 +166,19 @@ export function ProjectTrackingRow({
         </TableCell>
       </TableRow>
 
-      {/* Milestones (Level 1) */}
-      {isExpanded && group.milestones.map((milestone) => (
+       {/* Milestones (Level 1) */}
+       {isExpanded && group.milestones.map((milestone) => (
         <MilestoneTrackingRowNested
           key={milestone.id}
           milestone={milestone}
           isExpanded={expandedMilestones.has(milestone.id)}
           onToggle={() => onToggleMilestone(milestone.id)}
+          isSelected={selectedMilestoneIds.includes(milestone.id)}
+          onSelectChange={onMilestoneSelectChange ? () => onMilestoneSelectChange(milestone.id) : undefined}
+          selectedTaskIds={selectedTaskIds}
+          onTaskSelectChange={onTaskSelectChange}
         />
-      ))}
+       ))}
     </Fragment>
   );
 }

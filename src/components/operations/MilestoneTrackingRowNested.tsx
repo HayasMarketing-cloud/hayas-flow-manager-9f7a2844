@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, ExternalLink, Loader2, Plus, X } from 'lucid
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MilestoneWithDetails, useUpdateMilestoneStatus, useUpdateMilestone } from '@/hooks/useProjectMilestones';
 import { TaskTrackingRow } from './TaskTrackingRow';
@@ -16,6 +17,10 @@ interface MilestoneTrackingRowNestedProps {
   milestone: MilestoneWithDetails;
   isExpanded: boolean;
   onToggle: () => void;
+  isSelected?: boolean;
+  onSelectChange?: () => void;
+  selectedTaskIds?: string[];
+  onTaskSelectChange?: (taskId: string) => void;
 }
 
 const statusLabels = {
@@ -28,7 +33,11 @@ const statusLabels = {
 export function MilestoneTrackingRowNested({ 
   milestone, 
   isExpanded, 
-  onToggle 
+  onToggle,
+  isSelected = false,
+  onSelectChange,
+  selectedTaskIds = [],
+  onTaskSelectChange,
 }: MilestoneTrackingRowNestedProps) {
   const queryClient = useQueryClient();
   const updateStatusMutation = useUpdateMilestoneStatus();
@@ -166,7 +175,14 @@ export function MilestoneTrackingRowNested({
   return (
     <Fragment>
       <TableRow className="hover:bg-muted/30 border-b border-border/50">
-        <TableCell className="w-10" />
+        <TableCell className="w-10">
+          {onSelectChange && (
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={onSelectChange}
+            />
+          )}
+        </TableCell>
         <TableCell className="w-10">
           {taskCount > 0 && (
             <Button
@@ -318,12 +334,14 @@ export function MilestoneTrackingRowNested({
               </div>
             </TableCell>
           </TableRow>
-        ) : tasks && tasks.length > 0 ? (
+       ) : tasks && tasks.length > 0 ? (
           tasks.map((task, idx) => (
             <TaskTrackingRow 
               key={task.id} 
               task={task} 
               isLast={idx === tasks.length - 1}
+              isSelected={selectedTaskIds.includes(task.id)}
+              onSelectChange={onTaskSelectChange ? () => onTaskSelectChange(task.id) : undefined}
             />
           ))
         ) : null

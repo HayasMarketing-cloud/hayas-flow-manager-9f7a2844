@@ -19,9 +19,16 @@ interface Task {
 interface TaskTrackingRowProps {
   task: Task;
   isLast: boolean;
+  isSelected?: boolean;
+  onSelectChange?: () => void;
 }
 
-export function TaskTrackingRow({ task, isLast }: TaskTrackingRowProps) {
+export function TaskTrackingRow({ 
+  task, 
+  isLast,
+  isSelected = false,
+  onSelectChange,
+}: TaskTrackingRowProps) {
   const queryClient = useQueryClient();
   const [isUpdating, setIsUpdating] = useState(false);
   
@@ -47,7 +54,14 @@ export function TaskTrackingRow({ task, isLast }: TaskTrackingRowProps) {
 
   return (
     <TableRow className="bg-muted/30 hover:bg-muted/50">
-      <TableCell className="w-10" />
+      <TableCell className="w-10">
+        {onSelectChange && (
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={onSelectChange}
+          />
+        )}
+      </TableCell>
       <TableCell className="w-10" />
       <TableCell colSpan={2} className="pl-16">
         <div className="flex items-center gap-3">

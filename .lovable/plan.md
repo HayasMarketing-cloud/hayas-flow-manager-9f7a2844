@@ -1,182 +1,140 @@
 
-## Plan: Corregir la Vista de Seguimiento que Muestra "No hay proyectos"
+## Plan: Mostrar Requests Asociados en el Detalle de la Factura
 
-### Diagnóstico del Problema
+### Objetivo
+Añadir una tabla al final del detalle de la factura (en modo `view`) que muestre todas las solicitudes (`financial_requests`) asociadas a través del campo `billed_invoice_id`.
 
-He identificado la causa raíz del problema:
-
-**Datos en la base de datos:**
-- 11 proyectos operativos
-- 76 milestones/solicitudes operativas
-
-**El problema está en el hook `useProjectMilestones.tsx`:**
-
-En la línea 58-61, existe esta condición:
-```typescript
-if (needsFiltering && assignedClientIds.length === 0) {
-  return [];
-}
-```
-
-Esta condición retorna un array vacío cuando:
-1. `needsFiltering` es `true` (usuario es AM/PM sin roles elevados)
-2. `assignedClientIds` está vacío
-
-**Sin embargo**, para usuarios admin/finanzas, aunque `needsFiltering` debería ser `false`, hay un problema de timing:
-
-1. El hook `useUserRole` carga los roles de forma asíncrona
-2. Durante la carga inicial, `shouldFilterByAssignment()` puede devolver un valor incorrecto
-3. `useAssignedClients` recibe `needsFiltering` mientras los roles aún se están cargando
-4. Esto causa que `needsFiltering = true` temporalmente incluso para admins
-5. Como la query de clientes asignados no se ejecuta para admins, `assignedClientIds` permanece vacío
-6. La condición `needsFiltering && assignedClientIds.length === 0` se cumple y retorna array vacío
+### Contexto
+- Las solicitudes se vinculan a facturas mediante el campo `billed_invoice_id` en la tabla `financial_requests`
+- Actualmente el modal `InvoiceFormModal` en modo `view` muestra la información de la factura pero no las solicitudes asociadas
+- La factura 2026/14 tiene 18 requests asociados con un total de 1.225,00 €
 
 ---
 
-### Solución Propuesta
+### Cambios a Realizar
 
-Modificar el hook `useProjectMilestones.tsx` para:
+#### 1. Crear Hook `useInvoiceLinkedRequests`
 
-1. **Mejorar la condición de retorno vacío**: Añadir verificación explícita de que `assignedLoading` ya terminó
-2. **Añadir logs de debug** para verificar el flujo (temporalmente)
-3. **Simplificar la lógica**: Si `needsFiltering = false`, NO aplicar ningún filtro de cliente
+**Archivo nuevo**: `src/hooks/useInvoiceLinkedRequests.tsx`
 
-#### Cambio en `useProjectMilestones.tsx`:
+Hook que obtiene todas las solicitudes vinculadas a una factura específica:
 
 ```typescript
-// Líneas 55-61 actuales:
-queryFn: async (): Promise<MilestoneWithDetails[]> => {
-  if (needsFiltering && assignedClientIds.length === 0) {
-    return [];
-  }
-  // ... resto del código
-}
-
-// Cambiar a:
-queryFn: async (): Promise<MilestoneWithDetails[]> => {
-  // Solo retornar vacío si:
-  // 1. El usuario NECESITA filtrado (AM/PM sin acceso elevado)
-  // 2. Y NO tiene clientes asignados
-  // 3. Y ya terminó de cargar (no estamos esperando)
-  // Para admin/finanzas, needsFiltering será false, así que nunca entra aquí
-  if (needsFiltering && assignedClientIds.length === 0) {
-    console.log('[useProjectMilestones] Empty: needsFiltering=true, no assigned clients');
-    return [];
-  }
-
-  console.log('[useProjectMilestones] Fetching:', {
-    needsFiltering,
-    assignedClientIds: assignedClientIds.length,
-    shouldFilterBySpecialist
-  });
-  
-  // ... resto del código sin cambios
-}
-```
-
-Además, añadir una verificación adicional en el `enabled`:
-
-```typescript
-// Cambiar de:
-enabled: !assignedLoading && !specialistLoading,
-
-// A:
-enabled: !assignedLoading && !specialistLoading && 
-         // Para AM/PM, esperar a que tengan clientes o confirmar que no tienen
-         (!needsFiltering || assignedClientIds.length > 0 || !assignedLoading),
-```
-
-**Pero hay un problema más profundo**: El valor de `needsFiltering` viene de `useAssignedClients`, que a su vez lo obtiene de `useUserRole`. Si `useUserRole` aún está cargando, `shouldFilterByAssignment()` puede devolver un valor incorrecto.
-
----
-
-### Solución Completa
-
-#### 1. Modificar `useAssignedClients.tsx`
-
-El hook debe esperar a que los roles terminen de cargar antes de determinar `needsFiltering`:
-
-```typescript
-// Cambiar línea 14 de:
-const needsFiltering = shouldFilterByAssignment();
-
-// A:
-// Solo determinar needsFiltering cuando los roles ya están cargados
-const needsFiltering = !rolesLoading && shouldFilterByAssignment();
-```
-
-Esto asegura que mientras los roles se están cargando, `needsFiltering = false` y no se aplica el filtro de "array vacío".
-
-#### 2. Modificar `useProjectMilestones.tsx`
-
-Simplificar la lógica para ser más robusta:
-
-```typescript
-export const useProjectMilestones = (filters?: MilestoneFilters) => {
-  const { assignedClientIds, isLoading: assignedLoading, needsFiltering } = useAssignedClients();
-  const { specialistId: currentSpecialistId, isLoading: specialistLoading } = useCurrentSpecialist();
-  const { isSpecialist, isAdmin, canAccessFinance } = useUserRole();
-  
-  const shouldFilterBySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && currentSpecialistId;
-
+export const useInvoiceLinkedRequests = (invoiceId?: string) => {
   return useQuery({
-    queryKey: ['project-milestones', filters, assignedClientIds, currentSpecialistId, needsFiltering, shouldFilterBySpecialist],
-    queryFn: async (): Promise<MilestoneWithDetails[]> => {
-      // Para usuarios que necesitan filtrado (AM/PM sin roles elevados)
-      // y no tienen clientes asignados, retornar vacío
-      if (needsFiltering && assignedClientIds.length === 0) {
-        return [];
-      }
-
-      let query = supabase
-        .from('operational_requests')
-        .select(`...`)
-        .order('deadline', { ascending: true, nullsFirst: false });
-
-      // Aplicar filtro de cliente asignado SOLO si needsFiltering es true
-      if (needsFiltering && assignedClientIds.length > 0) {
-        query = query.in('client_id', assignedClientIds);
-      }
-
-      // ... resto del código
+    queryKey: ['invoice-linked-requests', invoiceId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('financial_requests')
+        .select(`
+          id, code, title, sale_amount, status, completed_at,
+          service:services(name),
+          specialist:specialists(name)
+        `)
+        .eq('billed_invoice_id', invoiceId)
+        .order('code');
+      
+      if (error) throw error;
+      return data || [];
     },
-    enabled: !assignedLoading && !specialistLoading,
+    enabled: !!invoiceId,
   });
 };
 ```
 
+#### 2. Crear Componente `InvoiceLinkedRequestsTable`
+
+**Archivo nuevo**: `src/components/invoices/InvoiceLinkedRequestsTable.tsx`
+
+Componente de tabla con las columnas:
+- Código
+- Título
+- Servicio
+- Especialista
+- Importe Venta
+- Fecha Completado
+
+Incluye:
+- Suma total de importes en el footer
+- Enlace clickable al código para navegar al detalle
+- Estado vacío si no hay requests
+
+#### 3. Modificar `InvoiceFormModal.tsx`
+
+Añadir la sección de requests asociados justo antes del resumen de totales (línea ~942), visible solo en modo `view`:
+
+```tsx
+{/* Linked Requests - only in view mode */}
+{mode === 'view' && invoice && (
+  <InvoiceLinkedRequestsTable invoiceId={invoice.id} />
+)}
+
+{/* Summary */}
+<Card className="p-4 space-y-2">
+  ...
+</Card>
+```
+
 ---
+
+### Diseño de la Tabla
+
+```text
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│ Solicitudes Vinculadas (18)                                                        │
+├──────────────┬─────────────────────┬───────────────┬────────────┬──────────────────┤
+│ Código       │ Título              │ Servicio      │ Especia.   │ Importe    │ Fech│
+├──────────────┼─────────────────────┼───────────────┼────────────┼──────────────────┤
+│ REQ-2025-058 │ Newsletter Setup    │ Traducción    │ Iolanda    │ 75,00 €    │ 15/0│
+│ REQ-2025-059 │ Landing Review      │ Revisión      │ Sandra     │ 50,00 €    │ 16/0│
+│ ...          │ ...                 │ ...           │ ...        │ ...        │ ... │
+├──────────────┴─────────────────────┴───────────────┴────────────┼──────────────────┤
+│                                                          Total: │ 1.225,00 €       │
+└─────────────────────────────────────────────────────────────────┴──────────────────┘
+```
+
+---
+
+### Archivos a Crear
+
+| Archivo | Propósito |
+|---------|-----------|
+| `src/hooks/useInvoiceLinkedRequests.tsx` | Hook para obtener requests por `billed_invoice_id` |
+| `src/components/invoices/InvoiceLinkedRequestsTable.tsx` | Componente de tabla de requests |
 
 ### Archivos a Modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/hooks/useAssignedClients.tsx` | Cambiar línea 14 para que `needsFiltering` sea `false` mientras se cargan los roles |
-| `src/hooks/useProjectMilestones.tsx` | Añadir logs de debug y simplificar lógica de filtrado |
+| `src/components/modals/InvoiceFormModal.tsx` | Importar y renderizar `InvoiceLinkedRequestsTable` en modo view |
 
 ---
 
-### Verificación
+### Detalles Técnicos
 
-Después de los cambios:
+**Query SQL equivalente:**
+```sql
+SELECT 
+  fr.id, fr.code, fr.title, fr.sale_amount, fr.status, fr.completed_at,
+  s.name as service_name,
+  sp.name as specialist_name
+FROM financial_requests fr
+LEFT JOIN services s ON fr.service_id = s.id
+LEFT JOIN specialists sp ON fr.specialist_id = sp.id
+WHERE fr.billed_invoice_id = '<invoice_id>'
+ORDER BY fr.code;
+```
 
-1. Usuario admin/finanzas:
-   - `rolesLoading = false` (roles cargados)
-   - `shouldFilterByAssignment() = false` (tiene acceso elevado)
-   - `needsFiltering = false`
-   - La query se ejecuta sin filtro de cliente → ve todos los proyectos
+**Cálculo del total:**
+```typescript
+const totalAmount = requests.reduce((sum, r) => sum + (r.sale_amount || 0), 0);
+```
 
-2. Usuario AM/PM sin acceso elevado:
-   - `rolesLoading = false` (roles cargados)
-   - `shouldFilterByAssignment() = true` (necesita filtrado)
-   - `needsFiltering = true`
-   - La query de clientes asignados se ejecuta
-   - Si tiene clientes asignados → ve sus proyectos
-   - Si no tiene clientes asignados → ve array vacío (correcto)
+---
 
-3. Durante la carga inicial (cualquier usuario):
-   - `rolesLoading = true`
-   - `needsFiltering = false` (forzado durante carga)
-   - `assignedLoading = true`
-   - Query deshabilitada hasta que termine la carga
-   - Una vez cargado, se ejecuta con el valor correcto de `needsFiltering`
+### Beneficios
+
+1. **Trazabilidad completa**: Ver qué solicitudes componen una factura
+2. **Verificación de importes**: Confirmar que la suma coincide con el subtotal
+3. **Navegación rápida**: Click en el código para ir al detalle de la solicitud
+4. **Consistencia visual**: Usa los mismos componentes de tabla del sistema

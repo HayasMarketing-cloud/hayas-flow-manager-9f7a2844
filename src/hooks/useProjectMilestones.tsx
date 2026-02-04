@@ -75,17 +75,17 @@ export const useProjectMilestones = (filters?: MilestoneFilters) => {
           assignee_user_id,
           client_id,
           created_at,
-          operational_project:operational_projects!operational_requests_operational_project_id_fkey(
+          operational_project:operational_projects(
             id,
             name,
             status,
             deadline,
-            client:clients!operational_projects_client_id_fkey(id, name),
-            contract:contracts!operational_projects_contract_id_fkey(id, title, code),
-            budget:budgets!operational_projects_budget_id_fkey(id, title, code, estimated_invoice_date)
+            client:clients(id, name),
+            contract:contracts(id, title, code),
+            budget:budgets(id, title, code, estimated_invoice_date)
           ),
-          assignee_specialist:specialists!operational_requests_assignee_specialist_id_fkey(id, name),
-          client:clients!operational_requests_client_id_fkey(id, name),
+          assignee_specialist:specialists(id, name),
+          client:clients(id, name),
           tasks(id, status)
         `)
         .order('deadline', { ascending: true, nullsFirst: false });

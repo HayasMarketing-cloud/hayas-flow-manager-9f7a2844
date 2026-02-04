@@ -16,7 +16,7 @@ export interface ProjectGroup {
 }
 
 export const useTrackingData = (filters?: MilestoneFilters) => {
-  const { data: milestones, isLoading, error } = useProjectMilestones(filters);
+  const { data: milestones, isLoading, error, refetch } = useProjectMilestones(filters);
 
   const projectGroups = useMemo((): ProjectGroup[] => {
     if (!milestones || milestones.length === 0) return [];
@@ -65,6 +65,7 @@ export const useTrackingData = (filters?: MilestoneFilters) => {
     milestones,
     isLoading,
     error,
+    refetch,
     totalProjects: projectGroups.length,
     totalMilestones: milestones?.length || 0,
   };

@@ -55,12 +55,10 @@ export function TaskTrackingRow({
   return (
     <TableRow className="bg-muted/30 hover:bg-muted/50">
       <TableCell className="w-10">
-        {onSelectChange && (
-          <Checkbox
-            checked={isSelected}
-            onCheckedChange={() => onSelectChange?.()}
-          />
-        )}
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={() => onSelectChange?.()}
+        />
       </TableCell>
       <TableCell className="w-10" />
       <TableCell colSpan={2} className="pl-16">

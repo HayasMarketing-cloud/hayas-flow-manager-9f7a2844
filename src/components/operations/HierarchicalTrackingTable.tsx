@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState } from 'react';
+import { Loader2, ChevronDown, ChevronUp, AlertTriangle, RefreshCw } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -10,9 +10,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Target } from 'lucide-react';
-import { useTrackingData, ProjectGroup } from '@/hooks/useTrackingData';
+import { useTrackingData } from '@/hooks/useTrackingData';
 import { ProjectTrackingRow } from './ProjectTrackingRow';
 import { MilestoneFilters } from '@/hooks/useProjectMilestones';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface HierarchicalTrackingTableProps {
   filters?: MilestoneFilters;
@@ -23,7 +24,7 @@ export function HierarchicalTrackingTable({
   filters,
   hasFilters = false,
 }: HierarchicalTrackingTableProps) {
-  const { projectGroups, isLoading, totalProjects, totalMilestones } = useTrackingData(filters);
+  const { projectGroups, isLoading, error, totalProjects, totalMilestones, refetch } = useTrackingData(filters);
   
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [expandedMilestones, setExpandedMilestones] = useState<Set<string>>(new Set());
@@ -69,6 +70,43 @@ export function HierarchicalTrackingTable({
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Show error state with details and retry button
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 space-y-4">
+        <AlertTriangle className="h-12 w-12 text-destructive" />
+        <div className="text-center space-y-2">
+          <h3 className="text-lg font-medium">Error al cargar proyectos</h3>
+          <p className="text-sm text-muted-foreground max-w-md">
+            No se pudieron cargar los datos de seguimiento. Esto puede deberse a un problema de conexión o permisos.
+          </p>
+        </div>
+        <Button onClick={() => refetch()} variant="outline" className="gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Reintentar
+        </Button>
+        {/* Collapsible technical details for debugging */}
+        <Collapsible className="w-full max-w-lg">
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground">
+              Ver detalles técnicos
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <pre className="mt-2 p-3 bg-muted rounded-md text-xs overflow-auto max-h-32">
+              {JSON.stringify({ 
+                message: error.message, 
+                code: (error as any).code,
+                details: (error as any).details,
+                hint: (error as any).hint
+              }, null, 2)}
+            </pre>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     );
   }

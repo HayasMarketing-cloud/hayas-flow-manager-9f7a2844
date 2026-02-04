@@ -176,12 +176,10 @@ export function MilestoneTrackingRowNested({
     <Fragment>
       <TableRow className="hover:bg-muted/30 border-b border-border/50">
         <TableCell className="w-10">
-          {onSelectChange && (
-            <Checkbox
-              checked={isSelected}
-              onCheckedChange={() => onSelectChange?.()}
-            />
-          )}
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={() => onSelectChange?.()}
+          />
         </TableCell>
         <TableCell className="w-10">
           {taskCount > 0 && (

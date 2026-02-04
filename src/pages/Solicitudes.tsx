@@ -101,6 +101,14 @@ const Solicitudes = () => {
           .lte('created_at', endDate.toISOString());
       }
 
+      // Apply work period filters (work_month/work_year)
+      if (filters.workYear) {
+        query = query.eq('work_year', filters.workYear);
+        if (filters.workMonth) {
+          query = query.eq('work_month', filters.workMonth);
+        }
+      }
+
       if (filters.searchTerm) {
         query = query.or(
           `title.ilike.%${filters.searchTerm}%,code.ilike.%${filters.searchTerm}%`
@@ -652,7 +660,59 @@ const Solicitudes = () => {
               </Select>
             )}
 
-            {(filters.status || filters.clientId || filters.specialistId || filters.budgetId || filters.contractId || filters.searchTerm || filters.year || filters.partnerReference) && (
+            {/* Work Year filter (período de trabajo) */}
+            <Select
+              value={filters.workYear?.toString() || 'all'}
+              onValueChange={(value) =>
+                updateFilter('workYear', value === 'all' ? null : parseInt(value))
+              }
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Año trabajo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Año trabajo</SelectItem>
+                {Array.from({ length: 5 }, (_, i) => {
+                  const year = new Date().getFullYear() + 1 - i;
+                  return (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+
+            {/* Work Month filter - only shown when workYear is selected */}
+            {filters.workYear && (
+              <Select
+                value={filters.workMonth?.toString() || 'all'}
+                onValueChange={(value) =>
+                  updateFilter('workMonth', value === 'all' ? null : parseInt(value))
+                }
+              >
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Mes trabajo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los meses</SelectItem>
+                  <SelectItem value="1">Enero</SelectItem>
+                  <SelectItem value="2">Febrero</SelectItem>
+                  <SelectItem value="3">Marzo</SelectItem>
+                  <SelectItem value="4">Abril</SelectItem>
+                  <SelectItem value="5">Mayo</SelectItem>
+                  <SelectItem value="6">Junio</SelectItem>
+                  <SelectItem value="7">Julio</SelectItem>
+                  <SelectItem value="8">Agosto</SelectItem>
+                  <SelectItem value="9">Septiembre</SelectItem>
+                  <SelectItem value="10">Octubre</SelectItem>
+                  <SelectItem value="11">Noviembre</SelectItem>
+                  <SelectItem value="12">Diciembre</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+
+            {(filters.status || filters.clientId || filters.specialistId || filters.budgetId || filters.contractId || filters.searchTerm || filters.year || filters.partnerReference || filters.workYear) && (
               <Button variant="outline" onClick={resetFilters}>
                 <X className="h-4 w-4 mr-2" />
                 Limpiar filtros

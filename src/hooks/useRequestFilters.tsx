@@ -11,6 +11,8 @@ export interface RequestFilters {
   year: number | null;
   month: number | null;
   partnerReference: string | null;
+  workMonth: number | null;
+  workYear: number | null;
 }
 
 export const useRequestFilters = () => {
@@ -27,6 +29,8 @@ export const useRequestFilters = () => {
     year: searchParams.get('year') ? parseInt(searchParams.get('year')!) : null,
     month: searchParams.get('month') ? parseInt(searchParams.get('month')!) : null,
     partnerReference: searchParams.get('partnerReference'),
+    workMonth: searchParams.get('workMonth') ? parseInt(searchParams.get('workMonth')!) : null,
+    workYear: searchParams.get('workYear') ? parseInt(searchParams.get('workYear')!) : null,
   }));
 
   // Sync filters TO URL whenever they change
@@ -42,6 +46,8 @@ export const useRequestFilters = () => {
     if (newFilters.year) newParams.set('year', newFilters.year.toString());
     if (newFilters.month) newParams.set('month', newFilters.month.toString());
     if (newFilters.partnerReference) newParams.set('partnerReference', newFilters.partnerReference);
+    if (newFilters.workMonth) newParams.set('workMonth', newFilters.workMonth.toString());
+    if (newFilters.workYear) newParams.set('workYear', newFilters.workYear.toString());
     
     setSearchParams(newParams, { replace: true });
   }, [setSearchParams]);
@@ -60,6 +66,10 @@ export const useRequestFilters = () => {
       // Reset month if year is cleared
       if (key === 'year' && value === null) {
         newFilters.month = null;
+      }
+      // Reset workMonth if workYear is cleared
+      if (key === 'workYear' && value === null) {
+        newFilters.workMonth = null;
       }
       
       // Sync to URL
@@ -80,6 +90,8 @@ export const useRequestFilters = () => {
       year: null,
       month: null,
       partnerReference: null,
+      workMonth: null,
+      workYear: null,
     };
     setFilters(emptyFilters);
     setSearchParams({}, { replace: true });

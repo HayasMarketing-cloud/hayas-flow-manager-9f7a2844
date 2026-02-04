@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { FileDown, Plus, Briefcase, FileText, MinusCircle } from 'lucide-react';
 import { generateInvoicePDF } from '@/utils/pdf/invoicePDFGenerator';
 import { InvoiceItemsEditor, type InvoiceItem } from '@/components/invoices/InvoiceItemsEditor';
+import { InvoiceLinkedRequestsTable } from '@/components/invoices/InvoiceLinkedRequestsTable';
 import { useRequestsForPeriod } from '@/hooks/useRequestsForPeriod';
 import { useContractsForInvoice } from '@/hooks/useContractsForInvoice';
 import { BudgetAllocationEditor } from '@/components/invoices/BudgetAllocationEditor';
@@ -938,6 +939,11 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
             <Label>Notas</Label>
             <Textarea {...register('notes')} disabled={disabled} rows={3} />
           </div>
+
+          {/* Linked Requests - only in view mode */}
+          {mode === 'view' && invoice && (
+            <InvoiceLinkedRequestsTable invoiceId={invoice.id} />
+          )}
 
           {/* Summary */}
           <Card className="p-4 space-y-2">

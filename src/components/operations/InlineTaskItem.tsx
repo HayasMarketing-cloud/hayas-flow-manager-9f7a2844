@@ -93,6 +93,34 @@ export function InlineTaskItem({
     if (localContextUrl !== (task.context_url || '')) {
       onUpdate({ context_url: localContextUrl || null });
     }
+    setEditingField(null);
+  };
+
+  const handleContextUrlKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleContextUrlBlur();
+    } else if (e.key === 'Escape') {
+      setLocalContextUrl(task.context_url || '');
+      setEditingField(null);
+    }
+  };
+
+  const handleNotesKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleNotesBlur();
+      setEditingField(null);
+    } else if (e.key === 'Escape') {
+      setLocalNotes(task.notes || '');
+      setEditingField(null);
+    }
+  };
+
+  const getHostname = (url: string) => {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return url;
+    }
   };
 
   const isCompleted = task.status === 'completed';
@@ -196,23 +224,6 @@ export function InlineTaskItem({
           />
         </div>
 
-        {/* Notes indicator */}
-        {task.notes && (
-          <MessageSquare className="h-4 w-4 text-muted-foreground" />
-        )}
-
-        {/* Context URL */}
-        {task.context_url && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => window.open(task.context_url!, '_blank')}
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </Button>
-        )}
-
         {/* Delete button */}
         <Button
           variant="ghost"
@@ -222,6 +233,87 @@ export function InlineTaskItem({
         >
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
+      </div>
+
+      {/* Segunda línea - URL y Notas inline */}
+      <div className="flex items-center gap-4 px-4 pb-2 ml-8">
+        {/* URL de contexto como tarjeta */}
+        <div className="flex-1 min-w-0">
+          {editingField === 'context_url' ? (
+            <Input
+              value={localContextUrl}
+              onChange={(e) => setLocalContextUrl(e.target.value)}
+              onBlur={handleContextUrlBlur}
+              onKeyDown={handleContextUrlKeyDown}
+              placeholder="https://..."
+              className="h-7 text-xs"
+              autoFocus
+            />
+          ) : task.context_url ? (
+            <div className="flex items-center gap-1.5">
+              <a
+                href={task.context_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 text-xs"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink className="h-3 w-3 shrink-0" />
+                <span className="truncate max-w-[150px]">
+                  {getHostname(task.context_url)}
+                </span>
+              </a>
+              <button
+                onClick={() => setEditingField('context_url')}
+                className="text-xs text-muted-foreground hover:text-foreground p-0.5"
+              >
+                ✎
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setEditingField('context_url')}
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Añadir enlace
+            </button>
+          )}
+        </div>
+
+        {/* Notas inline */}
+        <div className="flex-1 min-w-0">
+          {editingField === 'notes' ? (
+            <Input
+              value={localNotes}
+              onChange={(e) => setLocalNotes(e.target.value)}
+              onBlur={() => {
+                handleNotesBlur();
+                setEditingField(null);
+              }}
+              onKeyDown={handleNotesKeyDown}
+              placeholder="Notas..."
+              className="h-7 text-xs"
+              autoFocus
+            />
+          ) : task.notes ? (
+            <span
+              onClick={() => setEditingField('notes')}
+              className="text-xs text-muted-foreground truncate cursor-text hover:bg-accent/50 px-1 py-0.5 rounded flex items-center gap-1"
+            >
+              <MessageSquare className="h-3 w-3 shrink-0" />
+              <span className="truncate">{task.notes}</span>
+            </span>
+          ) : (
+            <button
+              onClick={() => setEditingField('notes')}
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+            >
+              <MessageSquare className="h-3 w-3" />
+              Añadir notas
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Expanded details */}

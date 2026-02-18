@@ -69,6 +69,59 @@ export function buildNewRequestBlocks(params: {
   ];
 }
 
+export function buildSlackDMToSpecialistBlocks(params: {
+  code: string;
+  title: string;
+  clientName: string;
+  deadline?: string | null;
+  requestId: string;
+  customMessage?: string;
+}): object[] {
+  const { code, title, clientName, deadline, requestId, customMessage } = params;
+  const url = `${APP_URL}/solicitudes/${requestId}`;
+  const deadlineText = deadline
+    ? new Date(deadline).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })
+    : "Sin fecha límite";
+
+  const fields: object[] = [
+    { type: "mrkdwn", text: `📋 *${code}* — ${title}` },
+    { type: "mrkdwn", text: `👤 *Cliente:* ${clientName}` },
+    { type: "mrkdwn", text: `📅 *Fecha límite:* ${deadlineText}` },
+  ];
+
+  const blocks: object[] = [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `📩 *Mensaje de Hayas Flow Manager*\n━━━━━━━━━━━━━━━━━`,
+      },
+    },
+    { type: "section", fields },
+  ];
+
+  if (customMessage) {
+    blocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: `💬 _"${customMessage}"_` },
+    });
+  }
+
+  blocks.push({
+    type: "actions",
+    elements: [
+      {
+        type: "button",
+        text: { type: "plain_text", text: "Ver solicitud →", emoji: true },
+        url,
+        action_id: "view_request",
+      },
+    ],
+  });
+
+  return blocks;
+}
+
 export function buildLiquidationBlocks(params: {
   code: string;
   specialistName: string;

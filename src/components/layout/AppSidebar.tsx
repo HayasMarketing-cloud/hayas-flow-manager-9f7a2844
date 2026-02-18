@@ -26,6 +26,7 @@ interface NavItem {
 const operationsItems: NavItem[] = [
   { title: 'Proyectos', url: '/proyectos-operativos', icon: Briefcase, requiredRoles: ['admin', 'project_manager', 'especialista', 'account_manager'] },
   { title: 'Requests', url: '/solicitudes', icon: FileCheck, requiredRoles: ['admin', 'finanzas', 'project_manager', 'account_manager', 'especialista'] },
+  { title: 'Mi Dashboard', url: '/dashboard-especialista', icon: UserCheck, requiredRoles: ['especialista'] },
   { title: 'Presupuestos', url: '/presupuestos', icon: Calculator },
   { title: 'Mis Tareas', url: '/mis-tareas', icon: CheckSquare, requiredRoles: ['admin', 'project_manager', 'account_manager', 'especialista'] },
   { title: 'Notificaciones', url: '/notificaciones', icon: Bell },

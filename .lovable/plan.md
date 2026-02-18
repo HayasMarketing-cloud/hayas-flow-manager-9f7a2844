@@ -1,62 +1,55 @@
 
-## Integración Slack: Botón manual de DM al especialista
+# Diagnóstico y solución: Tomás no puede ver sus requests como especialista
 
-### Qué se cambia y por qué
+## Problema identificado
 
-En la implementación anterior se añadió una llamada automática a Slack cada vez que se crea una solicitud. El usuario quiere desactivar eso y sustituirlo por un **botón explícito** que permita enviar un mensaje directo (DM) al especialista asignado desde la propia solicitud, cuando el equipo lo considere oportuno.
+Tomás White tiene dos roles: `project_manager` + `especialista`. El sistema actualmente lo trata siempre como PM y lo dirige al Dashboard principal de operaciones. No existe ningún mecanismo que le muestre su vista como especialista asignado (sus propios requests donde él es el `specialist_id`).
 
----
+La imagen muestra que Tomás ve "Requests Activos: 14" en el Dashboard normal de PM — ese contador incluye todos los requests de los proyectos donde él es PM. Pero los "14" no son sus requests como especialista, son los requests del proyecto general que gestiona.
 
-### Cambios por archivo
+**Lo que necesita Tomás**: ver sus propios requests como especialista asignado (`specialist_id = su ID`), igual que Iolanda o Ebelyn. Actualmente esto solo ocurre en `/dashboard-especialista`, que Tomás nunca visita porque el sistema no lo redirige allí.
 
-#### 1. `src/components/modals/RequestFormModal.tsx`
-- Eliminar el import de `sendSlackDM` y `buildNewRequestBlocks`.
-- Eliminar la llamada automática a `sendSlackDM` dentro del `onSubmit`.
+## Causa técnica
 
-#### 2. `src/lib/slack-utils.ts`
-- Añadir un nuevo builder `buildSlackDMToSpecialistBlocks` para el mensaje manual, con campos: título de solicitud, código, cliente, fecha límite, enlace y un campo de mensaje libre.
+1. **Dashboard**: La ruta `/dashboard` muestra el Dashboard principal (no el de especialista). No hay lógica de redirección inteligente que lleve a usuarios con rol `especialista` (aunque tengan otros roles) al dashboard correspondiente.
 
-#### 3. `src/components/requests/RequestFlowActions.tsx`
-- Añadir estado local `slackDialogOpen` y `slackMessage`.
-- Añadir un botón "DM Slack" (icono de Slack) visible para gestión (`isManagement()`) cuando haya un especialista con email asignado, independientemente del estado de la solicitud (excepto `completed` y `cancelled`).
-- Al pulsar abre un pequeño diálogo de confirmación con campo de mensaje libre (opcional) antes de enviar.
-- Al confirmar, llama a `sendSlackDM` con el email del especialista y el bloque enriquecido.
-- Si el especialista no tiene email, el botón aparece desactivado con tooltip explicativo.
+2. **Solicitudes**: En `/solicitudes`, Tomás ve todos los requests de sus clientes asignados como PM. Sus requests como especialista (REQ-2026-133 a REQ-2026-137 en ASENDIA HQ) están mezclados ahí pero sin distinción visual.
 
-#### 4. `src/pages/SolicitudDetalle.tsx`
-- No es necesario añadir un botón extra aquí porque `RequestFlowActions` ya se renderiza en el header de la página de detalle con el botón integrado.
+3. **Sin acceso rápido**: No hay enlace en el sidebar ni en el dashboard que lleve a Tomás al DashboardEspecialista donde puede ver exactamente sus requests como especialista asignado.
 
----
+## Solución: 3 cambios
 
-### Comportamiento del botón
+### 1. Añadir enlace "Mi perfil especialista" en el sidebar (para usuarios con rol `especialista`)
+Añadir en el sidebar un ítem "Mi Dashboard Especialista" visible solo para quienes tengan rol `especialista`, independientemente de otros roles.
 
-| Condición | Comportamiento |
-|---|---|
-| Hay especialista con email | Botón activo, abre diálogo de confirmación |
-| No hay especialista asignado | Botón no se muestra |
-| Especialista sin email | Botón desactivado con tooltip |
-| Status `completed` o `cancelled` | Botón no se muestra |
-| Usuario sin rol de gestión | Botón no se muestra |
+### 2. Añadir widget en el Dashboard principal para usuarios con doble rol (PM + especialista)
+En `src/pages/Dashboard.tsx`, detectar si el usuario tiene rol `especialista` y mostrar una tarjeta resumen "Como especialista asignado" con un enlace directo al DashboardEspecialista.
 
----
+### 3. Corregir la RLS para que la policy SELECT de especialistas también cubra a usuarios con rol `especialista` aunque tengan otros roles
+La policy "Specialists can view own requests" ya cubre `get_current_specialist_id()`, que busca por `user_id`. Tomás está vinculado correctamente, así que el RLS funciona bien para la página de Solicitudes.
 
-### Formato del DM en Slack
+## Archivos a modificar
 
-```text
-📩 *Mensaje de Hayas Flow Manager*
-━━━━━━━━━━━━━━━━━
-📋 REQ-2026-012 — Diseño de campaña
-👤 Cliente: Empresa XYZ
-📅 Fecha límite: 15 Mar 2026
-💬 "Por favor, confirma disponibilidad antes del viernes"
-🔗 Ver solicitud →
-```
+### `src/components/layout/AppSidebar.tsx`
+- Añadir en `operationsItems`: `{ title: 'Mi Dashboard', url: '/dashboard-especialista', icon: UserCheck, requiredRoles: ['especialista'] }`
+- Esto hará que aparezca en el menú "Operations" para Tomás.
 
----
+### `src/pages/Dashboard.tsx`
+- Importar `useUserRole` y `useCurrentSpecialist`.
+- Si `isSpecialist()` es true, mostrar un widget "Mis Requests como Especialista" con el conteo de requests activos asignados a él y un botón "Ver mis requests" que lleva a `/solicitudes?specialistId=<su_specialist_id>`.
 
-### Consideraciones técnicas
+### `src/pages/Solicitudes.tsx`
+- Cuando el usuario tiene rol `especialista` (sin ser admin/finanzas), añadir en el sidebar de filtros un botón rápido "Mis Requests" que prefiltra automáticamente por su `specialist_id`. Esto es una mejora opcional de UX.
 
-- El envío es **fire-and-forget**: si falla, no interrumpe nada y solo se muestra un `toast.error`.
-- Se añade feedback visual con `toast.success("DM enviado a [nombre]")` al confirmar.
-- El botón usa el icono de Slack de Lucide (`MessageSquare`) con label "DM Slack" en modo compacto para no ocupar demasiado espacio.
-- No se necesitan nuevas tablas ni cambios en la base de datos.
+## Orden de implementación
+
+1. Añadir enlace "Mi Dashboard" al sidebar para rol `especialista` — cambio más impactante e inmediato.
+2. Añadir widget en Dashboard principal para usuarios con doble rol.
+3. (Opcional) Botón "Mis Requests" en Solicitudes para especialistas.
+
+## Consideraciones
+
+- No se requieren cambios en RLS ni en la base de datos: la vinculación de Tomás ya está correcta.
+- No se requiere modificar migraciones.
+- El cambio es puramente de navegación y UX.
+- No afecta a otros usuarios.

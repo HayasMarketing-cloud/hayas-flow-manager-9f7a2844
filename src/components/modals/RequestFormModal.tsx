@@ -38,6 +38,7 @@ import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
 import { notifySpecialistAssigned } from '@/lib/notification-utils';
 import { notificationFeedback } from '@/lib/notification-feedback';
 import { useAuth } from '@/contexts/AuthContext';
+import { sendSlackDM, buildNewRequestBlocks } from '@/lib/slack-utils';
 import { useDefaultRates, getRateSourceLabel } from '@/hooks/useDefaultRates';
 
 const requestSchema = z.object({
@@ -306,7 +307,19 @@ export const RequestFormModal = ({
         const specialistData = data.specialist_id 
           ? specialists?.find(s => s.id === data.specialist_id)
           : null;
-        
+
+        // Fetch AM email from contract to send Slack DM
+        let amEmail: string | null = null;
+        if (data.contract_id) {
+          const { data: contract } = await supabase
+            .from('contracts')
+            .select('am_user_id, profiles:am_user_id(email)')
+            .eq('id', data.contract_id as string)
+            .single();
+          const profileEmail = (contract as any)?.profiles?.email;
+          amEmail = profileEmail ?? null;
+        }
+
         return { 
           isNew: true, 
           id: newRequest?.id,
@@ -314,6 +327,9 @@ export const RequestFormModal = ({
           specialistData,
           status: data.status,
           clientId: data.client_id,
+          title: data.title,
+          deadline: data.deadline ?? null,
+          amEmail,
         };
       }
     },
@@ -368,6 +384,23 @@ export const RequestFormModal = ({
 
         // Show notification feedback
         notificationFeedback.specialistAssigned(specialistName, hasEmailNotification, hasInAppNotification);
+      }
+
+      // Slack DM to AM when a new request is created
+      if (result?.isNew && result?.amEmail && result?.id && result?.code) {
+        const client = formData?.clients?.find(c => c.id === result.clientId);
+        const blocks = buildNewRequestBlocks({
+          code: result.code,
+          title: result.title ?? '',
+          clientName: client?.name ?? 'Cliente desconocido',
+          deadline: result.deadline,
+          requestId: result.id,
+        });
+        sendSlackDM(
+          result.amEmail,
+          `🆕 Nueva solicitud ${result.code} creada para ${client?.name ?? 'un cliente'}`,
+          blocks
+        );
       }
       
       toast.success(

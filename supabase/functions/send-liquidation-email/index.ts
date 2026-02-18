@@ -193,6 +193,32 @@ async function sendViaGmailAPI(
   }
 }
 
+// Send Slack DM to a list of emails (fire-and-forget)
+async function notifySlackUsers(emails: string[], message: string, blocks: object[]): Promise<void> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY");
+
+  if (!LOVABLE_API_KEY || !SLACK_API_KEY) {
+    console.log("Slack keys not configured — skipping Slack notification");
+    return;
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const functionUrl = `${supabaseUrl}/functions/v1/send-slack-notification`;
+
+  for (const email of emails) {
+    try {
+      await fetch(functionUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, message, blocks }),
+      });
+    } catch (err) {
+      console.warn(`Slack DM to ${email} failed:`, err);
+    }
+  }
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -342,6 +368,53 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     console.log(`Email sent successfully from ${senderEmail} to ${specialistEmail}, messageId: ${emailResult.messageId}`);
+
+    // Notify admin/finanzas users in Slack that a liquidation was sent
+    try {
+      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+      const { data: adminUsers } = await supabaseAdmin
+        .from('user_roles')
+        .select('user_id, profiles:user_id(email)')
+        .in('role', ['admin', 'finanzas']);
+
+      const adminEmails: string[] = (adminUsers ?? [])
+        .map((r: any) => r.profiles?.email)
+        .filter(Boolean);
+
+      const slackBlocks = [
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: "🧾 *Liquidación enviada al especialista*\n━━━━━━━━━━━━━━━━━" },
+        },
+        {
+          type: "section",
+          fields: [
+            { type: "mrkdwn", text: `📋 *Código:* ${liquidationCode}` },
+            { type: "mrkdwn", text: `👤 *Especialista:* ${specialistName}` },
+            { type: "mrkdwn", text: `📊 *Estado:* 📤 Enviada al especialista` },
+          ],
+        },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: "Ver liquidación →", emoji: true },
+              url: `${appUrl}/liquidaciones/${liquidationId}`,
+              action_id: "view_liquidation",
+            },
+          ],
+        },
+      ];
+
+      await notifySlackUsers(
+        adminEmails,
+        `📤 Liquidación ${liquidationCode} enviada a ${specialistName}`,
+        slackBlocks
+      );
+    } catch (slackErr) {
+      console.warn("Slack notification after email send failed:", slackErr);
+    }
 
     return new Response(
       JSON.stringify({ 

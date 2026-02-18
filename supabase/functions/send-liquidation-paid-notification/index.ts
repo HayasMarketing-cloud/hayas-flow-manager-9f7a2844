@@ -296,6 +296,64 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Payment notification sent successfully to ${specialistEmail}, messageId: ${emailResult.messageId}`);
 
+    // Notify admin/finanzas via Slack DM that liquidation is paid
+    try {
+      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+      const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY");
+      if (LOVABLE_API_KEY && SLACK_API_KEY) {
+        const { data: adminUsers } = await supabase
+          .from('user_roles')
+          .select('user_id, profiles:user_id(email)')
+          .in('role', ['admin', 'finanzas']);
+
+        const adminEmails: string[] = (adminUsers ?? [])
+          .map((r: any) => r.profiles?.email)
+          .filter(Boolean);
+
+        const slackBlocks = [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: "🧾 *Liquidación actualizada*\n━━━━━━━━━━━━━━━━━" },
+          },
+          {
+            type: "section",
+            fields: [
+              { type: "mrkdwn", text: `📋 *Código:* ${liquidation.code}` },
+              { type: "mrkdwn", text: `👤 *Especialista:* ${specialistName}` },
+              { type: "mrkdwn", text: `📊 *Estado:* 💰 Marcada como pagada` },
+              { type: "mrkdwn", text: `💶 *Importe:* ${formattedAmount}` },
+            ],
+          },
+          {
+            type: "actions",
+            elements: [
+              {
+                type: "button",
+                text: { type: "plain_text", text: "Ver liquidación →", emoji: true },
+                url: `https://hayas-flow-manager.lovable.app/liquidaciones/${liquidationId}`,
+                action_id: "view_liquidation",
+              },
+            ],
+          },
+        ];
+
+        const slackFunctionUrl = `${supabaseUrl}/functions/v1/send-slack-notification`;
+        for (const email of adminEmails) {
+          fetch(slackFunctionUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email,
+              message: `💰 Liquidación ${liquidation.code} de ${specialistName} marcada como pagada (${formattedAmount})`,
+              blocks: slackBlocks,
+            }),
+          }).catch(err => console.warn("Slack DM failed for", email, err));
+        }
+      }
+    } catch (slackErr) {
+      console.warn("Slack paid notification failed:", slackErr);
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 

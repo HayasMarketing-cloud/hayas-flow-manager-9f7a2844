@@ -1,76 +1,37 @@
 
-## Plan: Solución completa del bug de duplicación
+## Mejora visual: Cliente más destacado en la card de Solicitudes
 
-### Causa raíz identificada
+### Qué se va a cambiar
 
-Hay DOS ficheros con el mismo bug, y solo se corrigió uno:
+En `src/components/requests/RequestCard.tsx`, el badge del cliente actualmente usa `variant="outline"` con colores muy neutros (`bg-slate-50 text-slate-700 border-slate-200`), lo que lo hace poco diferenciable del resto del contenido.
 
-| Fichero | Estado | Usado cuando |
-|---|---|---|
-| `src/pages/Presupuestos.tsx` | Corregido | Duplicar desde la lista |
-| `src/pages/PresupuestoDetalle.tsx` | BUG ACTIVO | Duplicar desde la página de detalle |
+Se va a rediseñar ese elemento para que el cliente destaque visualmente como el dato principal de identificación de la card, usando un fondo de color sólido con texto contrastado.
 
-Iolanda accedió a la URL directa del presupuesto fantasma PRE-2026-012 (el navegador la tenía en el historial) y duplicó desde allí. Esa ruta usa `PresupuestoDetalle.tsx`, que no hereda `am_user_id` ni `pm_user_id`.
+### Cambio concreto
 
-### Lo que se va a hacer
-
-**1. Corregir `PresupuestoDetalle.tsx` — duplicateMutation (líneas 322-334)**
-
-Añadir `am_user_id`, `pm_user_id`, `contract_id` y `estimated_invoice_date` al insertar la copia, igual que se hizo en `Presupuestos.tsx`.
-
-Cambio:
-```typescript
-// ANTES
-.insert({
-  title: `${budget.title} (Copia)`,
-  client_id: budget.client_id,
-  description: budget.description,
-  valid_until: budget.valid_until,
-  total_amount: budget.total_amount,
-  status: 'pending',
-  created_by: user?.id,
-})
-
-// DESPUÉS
-.insert({
-  title: `${budget.title} (Copia)`,
-  client_id: budget.client_id,
-  description: budget.description,
-  valid_until: budget.valid_until,
-  estimated_invoice_date: budget.estimated_invoice_date,
-  total_amount: budget.total_amount,
-  status: 'pending',
-  created_by: user?.id,
-  am_user_id: budget.am_user_id,
-  pm_user_id: budget.pm_user_id,
-  contract_id: budget.contract_id,
-})
+**Antes** (líneas 54-62 de `RequestCard.tsx`):
+```tsx
+<Badge 
+  variant="outline" 
+  className="bg-slate-50 text-slate-700 border-slate-200 font-medium text-sm py-1 px-2.5 max-w-full"
+>
+  <Building2 className="h-3.5 w-3.5 mr-1.5 flex-shrink-0" />
+  <span className="truncate">{request.client.name}</span>
+</Badge>
 ```
 
-**2. Corregir `Presupuestos.tsx` — convertToContractMutation**
+**Después** — fondo azul oscuro, texto blanco, tipografía más grande y semibold:
+```tsx
+<div className="flex items-center gap-2 bg-primary text-primary-foreground rounded-md px-3 py-1.5 max-w-full">
+  <Building2 className="h-4 w-4 flex-shrink-0" />
+  <span className="font-semibold text-sm truncate">{request.client.name}</span>
+</div>
+```
 
-Añadir `am_user_id` y `pm_user_id` al crear un contrato desde un presupuesto aprobado, para que Iolanda también vea el contrato resultante en su lista.
-
-**3. Eliminar los 3 presupuestos fantasma de la base de datos**
-
-Los tres clones sin AM/PM asignado se borran en cascada (primero sus items, luego los presupuestos):
-- PRE-2026-011 (`1798360d-c1a3-43a7-87a3-5f612dd81bbd`)
-- PRE-2026-012 (`3bbb01f1-5f76-41b6-84ac-4ba45dc3df95`)
-- PRE-2026-013 (`facf8921-8e81-4c3a-9890-a7f0837af46b`)
-
-Ninguno tiene solicitudes ni proyectos asociados (confirmado previamente).
+Esto usa los colores `primary` del tema (azul oscuro), que son los de mayor contraste disponibles y ya usados en botones de acción, por lo que el cliente "llama la atención" de manera coherente con el sistema de diseño existente.
 
 ### Archivos a modificar
 
-| Archivo | Cambio |
-|---|---|
-| `src/pages/PresupuestoDetalle.tsx` | Líneas 326-334: Añadir `am_user_id`, `pm_user_id`, `contract_id`, `estimated_invoice_date` |
-| `src/pages/Presupuestos.tsx` | Líneas ~215-225: Añadir `am_user_id`, `pm_user_id` en `convertToContractMutation` |
-| Base de datos | Eliminar 3 presupuestos fantasma y sus items |
-
-### Resultado esperado
-
-- Duplicar desde la lista o desde la página de detalle produce siempre una copia con el AM/PM del original.
-- Los 3 fantasmas desaparecen.
-- Cuando un presupuesto aprobado se convierte a contrato, el contrato hereda el AM/PM y aparece en la lista de Iolanda.
-- No pueden volver a generarse presupuestos "invisibles" por este motivo.
+| Archivo | Líneas | Cambio |
+|---|---|---|
+| `src/components/requests/RequestCard.tsx` | 54-62 | Reemplazar Badge por div con fondo primary |

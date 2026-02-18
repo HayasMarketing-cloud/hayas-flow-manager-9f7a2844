@@ -328,9 +328,13 @@ export default function PresupuestoDetalle() {
           client_id: budget.client_id,
           description: budget.description,
           valid_until: budget.valid_until,
+          estimated_invoice_date: budget.estimated_invoice_date,
           total_amount: budget.total_amount,
           status: 'pending',
           created_by: user?.id,
+          am_user_id: budget.am_user_id,
+          pm_user_id: budget.pm_user_id,
+          contract_id: budget.contract_id,
         })
         .select()
         .single();

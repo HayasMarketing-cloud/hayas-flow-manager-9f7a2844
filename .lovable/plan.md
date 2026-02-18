@@ -1,77 +1,76 @@
 
-## Plan: Corregir Duplicación de Presupuestos para Usuarios AM/PM
+## Plan: Solución completa del bug de duplicación
 
-### Problema Identificado
+### Causa raíz identificada
 
-Al duplicar un presupuesto, el código actual NO copia los campos `am_user_id` y `pm_user_id` del presupuesto original. Esto provoca que:
+Hay DOS ficheros con el mismo bug, y solo se corrigió uno:
 
-1. El presupuesto SÍ se crea en la base de datos (confirmado: existen PRE-2026-011 y PRE-2026-012).
-2. Pero como Iolanda es `account_manager`, la query filtra solo presupuestos donde ella es AM o PM.
-3. La copia tiene `am_user_id = NULL`, por lo que el filtro la excluye y ella no la ve.
-4. Al no ver ningún resultado, hizo clic dos veces generando dos duplicados.
+| Fichero | Estado | Usado cuando |
+|---|---|---|
+| `src/pages/Presupuestos.tsx` | Corregido | Duplicar desde la lista |
+| `src/pages/PresupuestoDetalle.tsx` | BUG ACTIVO | Duplicar desde la página de detalle |
 
-### Estado Actual en Base de Datos
+Iolanda accedió a la URL directa del presupuesto fantasma PRE-2026-012 (el navegador la tenía en el historial) y duplicó desde allí. Esa ruta usa `PresupuestoDetalle.tsx`, que no hereda `am_user_id` ni `pm_user_id`.
 
-Hay dos presupuestos duplicados que deben limpiarse:
-- PRE-2026-011: "Rebranding Website Home (Copia)" — sin AM/PM
-- PRE-2026-012: "Rebranding Website Home (Copia)" — sin AM/PM
+### Lo que se va a hacer
 
-El original es PRE-2026-006: "Rebranding Website Home" — con `am_user_id = 907cc972...` (Iolanda).
+**1. Corregir `PresupuestoDetalle.tsx` — duplicateMutation (líneas 322-334)**
 
-### Solución
+Añadir `am_user_id`, `pm_user_id`, `contract_id` y `estimated_invoice_date` al insertar la copia, igual que se hizo en `Presupuestos.tsx`.
 
-**1. Corregir el código de duplicación** en `Presupuestos.tsx` para incluir `am_user_id` y `pm_user_id` al crear la copia.
-
-**Código actual (incorrecto):**
+Cambio:
 ```typescript
-const { data: newBudget, error: budgetError } = await supabase
-  .from('budgets')
-  .insert({
-    title: `${budget.title} (Copia)`,
-    client_id: budget.client_id,
-    description: budget.description,
-    valid_until: budget.valid_until,
-    total_amount: budget.total_amount,
-    status: 'pending',
-    created_by: user?.id,
-    // ❌ am_user_id y pm_user_id NO se copian
-  })
+// ANTES
+.insert({
+  title: `${budget.title} (Copia)`,
+  client_id: budget.client_id,
+  description: budget.description,
+  valid_until: budget.valid_until,
+  total_amount: budget.total_amount,
+  status: 'pending',
+  created_by: user?.id,
+})
+
+// DESPUÉS
+.insert({
+  title: `${budget.title} (Copia)`,
+  client_id: budget.client_id,
+  description: budget.description,
+  valid_until: budget.valid_until,
+  estimated_invoice_date: budget.estimated_invoice_date,
+  total_amount: budget.total_amount,
+  status: 'pending',
+  created_by: user?.id,
+  am_user_id: budget.am_user_id,
+  pm_user_id: budget.pm_user_id,
+  contract_id: budget.contract_id,
+})
 ```
 
-**Código corregido:**
-```typescript
-const { data: newBudget, error: budgetError } = await supabase
-  .from('budgets')
-  .insert({
-    title: `${budget.title} (Copia)`,
-    client_id: budget.client_id,
-    description: budget.description,
-    valid_until: budget.valid_until,
-    estimated_invoice_date: budget.estimated_invoice_date,
-    total_amount: budget.total_amount,
-    status: 'pending',
-    created_by: user?.id,
-    am_user_id: budget.am_user_id,   // ✅ Copiar AM
-    pm_user_id: budget.pm_user_id,   // ✅ Copiar PM
-    contract_id: budget.contract_id, // ✅ Copiar contrato vinculado
-  })
-```
+**2. Corregir `Presupuestos.tsx` — convertToContractMutation**
 
-**2. Limpiar los dos duplicados incorrectos** de la base de datos (PRE-2026-011 y PRE-2026-012) que quedaron sin AM/PM asignado. Primero se borran sus items, luego los presupuestos.
+Añadir `am_user_id` y `pm_user_id` al crear un contrato desde un presupuesto aprobado, para que Iolanda también vea el contrato resultante en su lista.
 
-### Archivos a Modificar
+**3. Eliminar los 3 presupuestos fantasma de la base de datos**
+
+Los tres clones sin AM/PM asignado se borran en cascada (primero sus items, luego los presupuestos):
+- PRE-2026-011 (`1798360d-c1a3-43a7-87a3-5f612dd81bbd`)
+- PRE-2026-012 (`3bbb01f1-5f76-41b6-84ac-4ba45dc3df95`)
+- PRE-2026-013 (`facf8921-8e81-4c3a-9890-a7f0837af46b`)
+
+Ninguno tiene solicitudes ni proyectos asociados (confirmado previamente).
+
+### Archivos a modificar
 
 | Archivo | Cambio |
-|---------|--------|
-| `src/pages/Presupuestos.tsx` | Líneas 153-163: Añadir `am_user_id`, `pm_user_id`, `contract_id` y `estimated_invoice_date` al insertar la copia |
+|---|---|
+| `src/pages/PresupuestoDetalle.tsx` | Líneas 326-334: Añadir `am_user_id`, `pm_user_id`, `contract_id`, `estimated_invoice_date` |
+| `src/pages/Presupuestos.tsx` | Líneas ~215-225: Añadir `am_user_id`, `pm_user_id` en `convertToContractMutation` |
+| Base de datos | Eliminar 3 presupuestos fantasma y sus items |
 
-### Limpieza de Datos
+### Resultado esperado
 
-Se ejecutará un script SQL para eliminar los dos presupuestos incorrectos (PRE-2026-011 y PRE-2026-012) y sus items asociados.
-
-### Resultado Esperado
-
-- Al duplicar un presupuesto, la copia hereda el AM y PM del original.
-- El usuario que duplica siempre verá la copia en su lista.
-- Los dos duplicados incorrectos quedan eliminados.
-- No se vuelven a generar presupuestos "fantasma" invisibles para su creador.
+- Duplicar desde la lista o desde la página de detalle produce siempre una copia con el AM/PM del original.
+- Los 3 fantasmas desaparecen.
+- Cuando un presupuesto aprobado se convierte a contrato, el contrato hereda el AM/PM y aparece en la lista de Iolanda.
+- No pueden volver a generarse presupuestos "invisibles" por este motivo.

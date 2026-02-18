@@ -1,37 +1,104 @@
 
-## Mejora visual: Cliente más destacado en la card de Solicitudes
+# Integración de Slack: Notificaciones automáticas por DM
 
-### Qué se va a cambiar
+## Objetivo
 
-En `src/components/requests/RequestCard.tsx`, el badge del cliente actualmente usa `variant="outline"` con colores muy neutros (`bg-slate-50 text-slate-700 border-slate-200`), lo que lo hace poco diferenciable del resto del contenido.
+Conectar Flow Manager con Slack para que los usuarios reciban mensajes directos (DMs) cuando ocurran eventos clave: nueva solicitud creada y eventos de liquidaciones. Se usará el conector nativo de Slack (bot), sin necesidad de configurar una app propia.
 
-Se va a rediseñar ese elemento para que el cliente destaque visualmente como el dato principal de identificación de la card, usando un fondo de color sólido con texto contrastado.
+---
 
-### Cambio concreto
+## Paso 0 — Conectar el bot de Slack al proyecto (acción del usuario)
 
-**Antes** (líneas 54-62 de `RequestCard.tsx`):
-```tsx
-<Badge 
-  variant="outline" 
-  className="bg-slate-50 text-slate-700 border-slate-200 font-medium text-sm py-1 px-2.5 max-w-full"
->
-  <Building2 className="h-3.5 w-3.5 mr-1.5 flex-shrink-0" />
-  <span className="truncate">{request.client.name}</span>
-</Badge>
+Antes de implementar nada, el usuario debe conectar su workspace de Slack mediante el conector nativo. Esto instala el bot "Lovable App" en el workspace y hace disponible la variable `SLACK_API_KEY` como secreto en las funciones del backend.
+
+---
+
+## Arquitectura de la solución
+
+```text
+Flow Manager (frontend)
+        |
+        | llama a
+        v
+Edge Function: send-slack-notification
+        |
+        | Busca usuario por email → users.lookupByEmail
+        | Abre DM → conversations.open
+        | Envía mensaje → chat.postMessage
+        v
+Conector Gateway de Slack
+        |
+        v
+Bot de Slack → DM al usuario en Slack
 ```
 
-**Después** — fondo azul oscuro, texto blanco, tipografía más grande y semibold:
-```tsx
-<div className="flex items-center gap-2 bg-primary text-primary-foreground rounded-md px-3 py-1.5 max-w-full">
-  <Building2 className="h-4 w-4 flex-shrink-0" />
-  <span className="font-semibold text-sm truncate">{request.client.name}</span>
-</div>
+El bot busca al responsable por su email @hayas.es (que coincide con el de Slack) y le envía un mensaje directo. No necesita que el usuario invite al bot a ningún canal.
+
+---
+
+## Eventos a notificar
+
+### 1. Nueva solicitud creada
+- **Cuándo**: Al guardar una solicitud nueva desde `RequestFormModal`
+- **Receptor**: El AM asignado al cliente o presupuesto de la solicitud
+- **Mensaje**: Nombre de la solicitud, cliente, código, enlace directo en la app
+
+### 2. Eventos de liquidaciones
+- **Cuándo**: Cambios de estado clave en liquidaciones (enviada al especialista, firmada, disputada, pagada)
+- **Receptor**: Usuarios con rol `admin` o `finanzas` (según las reglas existentes del sistema)
+- **Mensaje**: Código de liquidación, especialista, nuevo estado, enlace directo
+
+---
+
+## Archivos a crear/modificar
+
+### Crear: `supabase/functions/send-slack-notification/index.ts`
+Edge function nueva que:
+- Recibe `{ email, message, blocks? }` como body
+- Llama a `users.lookupByEmail` en Slack para obtener el user ID
+- Abre una conversación DM con `conversations.open`
+- Envía el mensaje con `chat.postMessage` usando el conector gateway
+- Usa `SLACK_API_KEY` y `LOVABLE_API_KEY` como secrets (ya disponibles tras conectar)
+
+### Crear: `src/lib/slack-utils.ts`
+Helper de frontend para llamar a la edge function `send-slack-notification` de forma sencilla desde cualquier componente.
+
+### Modificar: `src/components/modals/RequestFormModal.tsx`
+Al completar correctamente el `onSubmit` de creación de una solicitud nueva, llamar a `slack-utils` para notificar al AM del cliente/presupuesto seleccionado.
+
+### Modificar: `supabase/functions/send-liquidation-email/index.ts`
+Añadir una llamada interna al envío de Slack cuando la liquidación cambia de estado (enviada, firmada, disputada, pagada), reutilizando la misma lógica de envío.
+
+---
+
+## Formato del mensaje en Slack
+
+Los mensajes usarán **Block Kit** de Slack para tener mejor aspecto:
+
+```
+🆕 *Nueva solicitud creada*
+━━━━━━━━━━━━━━━━━
+📋 SOL-2026-045 — Diseño de campaña Q2
+👤 Cliente: Empresa XYZ
+📅 Fecha límite: 15 Mar 2026
+🔗 Ver solicitud → https://hayas-flow-manager.lovable.app/solicitudes/xxx
 ```
 
-Esto usa los colores `primary` del tema (azul oscuro), que son los de mayor contraste disponibles y ya usados en botones de acción, por lo que el cliente "llama la atención" de manera coherente con el sistema de diseño existente.
+---
 
-### Archivos a modificar
+## Consideraciones técnicas
 
-| Archivo | Líneas | Cambio |
-|---|---|---|
-| `src/components/requests/RequestCard.tsx` | 54-62 | Reemplazar Badge por div con fondo primary |
+- El conector gateway se usa para todas las llamadas a la API de Slack (no se llama directamente a `api.slack.com`). La URL base es `https://connector-gateway.lovable.dev/slack/api`.
+- Si el usuario no tiene cuenta en Slack o su email no coincide, la edge function devuelve un error controlado (log, sin bloquear la operación principal).
+- La notificación de Slack es **secundaria**: si falla, la operación principal (crear solicitud, cambiar estado de liquidación) NO se interrumpe.
+- El conector de Slack tiene acceso a todos los canales públicos y puede enviar DMs a cualquier usuario del workspace.
+
+---
+
+## Flujo de implementación
+
+1. El usuario conecta su workspace de Slack mediante el conector nativo (botón "Conectar Slack")
+2. Se crea la edge function `send-slack-notification`
+3. Se crea el helper `slack-utils.ts`
+4. Se integra en `RequestFormModal` para nuevas solicitudes
+5. Se integra en los eventos de liquidaciones

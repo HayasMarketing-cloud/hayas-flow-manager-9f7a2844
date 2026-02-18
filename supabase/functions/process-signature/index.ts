@@ -378,6 +378,66 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
+    // Send Slack DM to admin/finanzas users for signed/disputed events
+    try {
+      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+      const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY");
+
+      if (LOVABLE_API_KEY && SLACK_API_KEY) {
+        const { data: adminUsers } = await supabase
+          .from('user_roles')
+          .select('user_id, profiles:user_id(email)')
+          .in('role', ['admin', 'finanzas']);
+
+        const adminEmails: string[] = (adminUsers ?? [])
+          .map((r: any) => r.profiles?.email)
+          .filter(Boolean);
+
+        const slackStatusLabel = action === 'accept' ? '✅ Aceptada por el especialista' : '⚠️ Disputada por el especialista';
+        const slackBlocks = [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: "🧾 *Liquidación actualizada*\n━━━━━━━━━━━━━━━━━" },
+          },
+          {
+            type: "section",
+            fields: [
+              { type: "mrkdwn", text: `📋 *Código:* ${liquidationCode}` },
+              { type: "mrkdwn", text: `👤 *Especialista:* ${specialistName}` },
+              { type: "mrkdwn", text: `📊 *Estado:* ${slackStatusLabel}` },
+              ...(action === 'dispute' && disputeReason ? [{ type: "mrkdwn", text: `📝 *Motivo:* ${disputeReason}` }] : []),
+            ],
+          },
+          {
+            type: "actions",
+            elements: [
+              {
+                type: "button",
+                text: { type: "plain_text", text: "Ver liquidación →", emoji: true },
+                url: `https://hayas-flow-manager.lovable.app/liquidaciones/${signature.liquidation_id}`,
+                action_id: "view_liquidation",
+              },
+            ],
+          },
+        ];
+
+        const slackFunctionUrl = `${supabaseUrl}/functions/v1/send-slack-notification`;
+        for (const email of adminEmails) {
+          fetch(slackFunctionUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email,
+              message: `${action === 'accept' ? '✅' : '⚠️'} Liquidación ${liquidationCode} ${action === 'accept' ? 'aceptada' : 'disputada'} por ${specialistName}`,
+              blocks: slackBlocks,
+            }),
+          }).catch(err => console.warn("Slack DM failed for", email, err));
+        }
+      }
+    } catch (slackErr) {
+      console.warn("Slack notification block failed:", slackErr);
+    }
+
     console.log(`Signature processed successfully: ${action}`);
 
     return new Response(

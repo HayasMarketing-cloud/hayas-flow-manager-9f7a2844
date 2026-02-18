@@ -197,9 +197,9 @@ export default function Presupuestos() {
 
       return newBudget;
     },
-    onSuccess: () => {
+    onSuccess: (newBudget) => {
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
-      toast.success('Presupuesto duplicado correctamente');
+      toast.success(`Presupuesto ${newBudget.code} duplicado correctamente`);
     },
     onError: (error: any) => {
       toast.error('Error al duplicar presupuesto: ' + error.message);

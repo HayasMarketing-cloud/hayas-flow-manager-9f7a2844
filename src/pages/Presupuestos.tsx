@@ -208,16 +208,18 @@ export default function Presupuestos() {
 
   const convertToContractMutation = useMutation({
     mutationFn: async (budget: any) => {
-      const { data: newContract, error: contractError } = await supabase
-        .from('contracts')
-        .insert({
-          title: budget.title,
-          client_id: budget.client_id,
-          description: budget.description,
-          total_amount: budget.total_amount,
-          status: 'draft',
-          created_by: user?.id,
-        })
+        const { data: newContract, error: contractError } = await supabase
+          .from('contracts')
+          .insert({
+            title: budget.title,
+            client_id: budget.client_id,
+            description: budget.description,
+            total_amount: budget.total_amount,
+            status: 'draft',
+            created_by: user?.id,
+            am_user_id: budget.am_user_id || null,
+            pm_user_id: budget.pm_user_id || null,
+          })
         .select()
         .single();
 

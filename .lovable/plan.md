@@ -1,174 +1,77 @@
 
+## Plan: Corregir Duplicación de Presupuestos para Usuarios AM/PM
 
-## Plan: Añadir Campos URL y Notas Inline en Tareas
+### Problema Identificado
 
-### Objetivo
-Mostrar los campos **URL de contexto** y **Notas** de forma visible y editable inline en las tareas, sin necesidad de expandir. Estos campos aparecerán en una segunda línea para evitar sobrecargar la fila principal.
+Al duplicar un presupuesto, el código actual NO copia los campos `am_user_id` y `pm_user_id` del presupuesto original. Esto provoca que:
 
----
+1. El presupuesto SÍ se crea en la base de datos (confirmado: existen PRE-2026-011 y PRE-2026-012).
+2. Pero como Iolanda es `account_manager`, la query filtra solo presupuestos donde ella es AM o PM.
+3. La copia tiene `am_user_id = NULL`, por lo que el filtro la excluye y ella no la ve.
+4. Al no ver ningún resultado, hizo clic dos veces generando dos duplicados.
 
-### Diseño Visual Propuesto
+### Estado Actual en Base de Datos
 
+Hay dos presupuestos duplicados que deben limpiarse:
+- PRE-2026-011: "Rebranding Website Home (Copia)" — sin AM/PM
+- PRE-2026-012: "Rebranding Website Home (Copia)" — sin AM/PM
+
+El original es PRE-2026-006: "Rebranding Website Home" — con `am_user_id = 907cc972...` (Iolanda).
+
+### Solución
+
+**1. Corregir el código de duplicación** en `Presupuestos.tsx` para incluir `am_user_id` y `pm_user_id` al crear la copia.
+
+**Código actual (incorrecto):**
+```typescript
+const { data: newBudget, error: budgetError } = await supabase
+  .from('budgets')
+  .insert({
+    title: `${budget.title} (Copia)`,
+    client_id: budget.client_id,
+    description: budget.description,
+    valid_until: budget.valid_until,
+    total_amount: budget.total_amount,
+    status: 'pending',
+    created_by: user?.id,
+    // ❌ am_user_id y pm_user_id NO se copian
+  })
 ```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│ ☐ [▸] Nombre de la tarea          [Estado ▼]   📅 28/02/2026   [🗑]             │
-│       [🔗 Enlace: drive.google.com...]   [📝 Notas: Revisar con cliente...]     │
-└──────────────────────────────────────────────────────────────────────────────────┘
+
+**Código corregido:**
+```typescript
+const { data: newBudget, error: budgetError } = await supabase
+  .from('budgets')
+  .insert({
+    title: `${budget.title} (Copia)`,
+    client_id: budget.client_id,
+    description: budget.description,
+    valid_until: budget.valid_until,
+    estimated_invoice_date: budget.estimated_invoice_date,
+    total_amount: budget.total_amount,
+    status: 'pending',
+    created_by: user?.id,
+    am_user_id: budget.am_user_id,   // ✅ Copiar AM
+    pm_user_id: budget.pm_user_id,   // ✅ Copiar PM
+    contract_id: budget.contract_id, // ✅ Copiar contrato vinculado
+  })
 ```
 
-**Segunda línea:**
-- **URL de contexto**: Se muestra como tarjeta/badge clickable con icono de enlace. Si está vacía, muestra "Añadir enlace" como placeholder clickable.
-- **Notas**: Se muestra como texto truncado con icono. Si está vacío, muestra "Añadir notas" como placeholder.
-
-Al hacer clic en cualquiera de estos campos, se activa la edición inline.
-
----
+**2. Limpiar los dos duplicados incorrectos** de la base de datos (PRE-2026-011 y PRE-2026-012) que quedaron sin AM/PM asignado. Primero se borran sus items, luego los presupuestos.
 
 ### Archivos a Modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| `src/components/operations/InlineTaskItem.tsx` | Añadir segunda línea siempre visible con campos URL y Notas inline editables |
+| `src/pages/Presupuestos.tsx` | Líneas 153-163: Añadir `am_user_id`, `pm_user_id`, `contract_id` y `estimated_invoice_date` al insertar la copia |
 
----
+### Limpieza de Datos
 
-### Cambios en InlineTaskItem.tsx
-
-#### 1. Añadir Segunda Línea Siempre Visible
-
-Después de la fila principal (línea 225), añadir una segunda línea que muestre:
-
-```typescript
-{/* Segunda línea - URL y Notas inline */}
-<div className="flex items-center gap-4 px-4 pb-2 ml-8">
-  {/* URL de contexto como tarjeta */}
-  <div className="flex-1">
-    {editingField === 'context_url' ? (
-      <Input
-        value={localContextUrl}
-        onChange={(e) => setLocalContextUrl(e.target.value)}
-        onBlur={handleContextUrlBlur}
-        onKeyDown={(e) => e.key === 'Escape' && setEditingField(null)}
-        placeholder="https://..."
-        className="h-7 text-xs"
-        autoFocus
-      />
-    ) : task.context_url ? (
-      <a
-        href={task.context_url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md 
-                   bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <ExternalLink className="h-3 w-3" />
-        <span className="truncate max-w-[150px]">
-          {new URL(task.context_url).hostname}
-        </span>
-      </a>
-    ) : (
-      <button
-        onClick={() => setEditingField('context_url')}
-        className="text-xs text-muted-foreground hover:text-foreground 
-                   flex items-center gap-1"
-      >
-        <ExternalLink className="h-3 w-3" />
-        Añadir enlace
-      </button>
-    )}
-  </div>
-
-  {/* Notas inline */}
-  <div className="flex-1">
-    {editingField === 'notes' ? (
-      <Input
-        value={localNotes}
-        onChange={(e) => setLocalNotes(e.target.value)}
-        onBlur={handleNotesBlur}
-        onKeyDown={(e) => e.key === 'Escape' && setEditingField(null)}
-        placeholder="Notas..."
-        className="h-7 text-xs"
-        autoFocus
-      />
-    ) : task.notes ? (
-      <span
-        onClick={() => setEditingField('notes')}
-        className="text-xs text-muted-foreground truncate block cursor-text 
-                   hover:bg-accent/50 px-1 py-0.5 rounded flex items-center gap-1"
-      >
-        <MessageSquare className="h-3 w-3 shrink-0" />
-        <span className="truncate">{task.notes}</span>
-      </span>
-    ) : (
-      <button
-        onClick={() => setEditingField('notes')}
-        className="text-xs text-muted-foreground hover:text-foreground 
-                   flex items-center gap-1"
-      >
-        <MessageSquare className="h-3 w-3" />
-        Añadir notas
-      </button>
-    )}
-  </div>
-</div>
-```
-
-#### 2. Quitar Indicadores de la Primera Línea
-
-- Eliminar el icono `<MessageSquare>` que indicaba que hay notas (líneas 199-202)
-- Quitar el botón de `ExternalLink` para context_url (líneas 204-214)
-
-Ya que ahora estos campos son visibles en la segunda línea.
-
-#### 3. Handlers para Edición
-
-Añadir manejador de teclado para los nuevos campos inline:
-
-```typescript
-const handleContextUrlKeyDown = (e: React.KeyboardEvent) => {
-  if (e.key === 'Enter') {
-    handleContextUrlBlur();
-    setEditingField(null);
-  } else if (e.key === 'Escape') {
-    setLocalContextUrl(task.context_url || '');
-    setEditingField(null);
-  }
-};
-
-const handleNotesKeyDown = (e: React.KeyboardEvent) => {
-  if (e.key === 'Enter') {
-    handleNotesBlur();
-    setEditingField(null);
-  } else if (e.key === 'Escape') {
-    setLocalNotes(task.notes || '');
-    setEditingField(null);
-  }
-};
-```
-
----
-
-### Comportamiento de URL como Tarjeta
-
-Cuando hay una URL guardada:
-- Se muestra como badge/tarjeta azul claro
-- Muestra el dominio (ej: `drive.google.com`) truncado
-- Icono de enlace externo
-- Al hacer clic, abre la URL en nueva pestaña
-- Al hacer clic en botón editar (o doble clic), permite editar la URL
-
----
+Se ejecutará un script SQL para eliminar los dos presupuestos incorrectos (PRE-2026-011 y PRE-2026-012) y sus items asociados.
 
 ### Resultado Esperado
 
-1. **Segunda línea siempre visible** bajo cada tarea con:
-   - Campo URL de contexto (tarjeta clickable o "Añadir enlace")
-   - Campo Notas (texto truncado o "Añadir notas")
-
-2. **Edición inline** al hacer clic en cualquiera de los placeholders
-
-3. **URL como tarjeta** cuando tiene valor, mostrando el dominio y permitiendo abrir el enlace
-
-4. **Estilo coherente** con los demás campos inline (especialista, deadline, estado)
-
+- Al duplicar un presupuesto, la copia hereda el AM y PM del original.
+- El usuario que duplica siempre verá la copia en su lista.
+- Los dos duplicados incorrectos quedan eliminados.
+- No se vuelven a generar presupuestos "fantasma" invisibles para su creador.

@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, LayoutGrid, Table as TableIcon, Download, Trash2, Receipt, FileText, X } from 'lucide-react';
+import { Plus, Search, LayoutGrid, Table as TableIcon, Download, Trash2, Receipt, FileText, X, User } from 'lucide-react';
 import { exportRequestsToExcel } from '@/utils/excel/requestsExporter';
 import { toast } from 'sonner';
 import { useState } from 'react';
@@ -21,6 +21,7 @@ import { RequestCard } from '@/components/requests/RequestCard';
 import { RequestTableView } from '@/components/requests/RequestTableView';
 import { useRequestFilters } from '@/hooks/useRequestFilters';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useCurrentSpecialist } from '@/hooks/useCurrentSpecialist';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { AddToLiquidationModal } from '@/components/liquidations/AddToLiquidationModal';
 import { AddToInvoiceModal } from '@/components/invoices/AddToInvoiceModal';
@@ -40,9 +41,11 @@ const Solicitudes = () => {
   const [pendingBulkEdit, setPendingBulkEdit] = useState<{ field: string; value: any; label: string } | null>(null);
   const queryClient = useQueryClient();
   const { filters, updateFilter, resetFilters } = useRequestFilters();
-  const { canAccessFinance, canAccessOperations, loading: rolesLoading } = useUserRole();
+  const { canAccessFinance, canAccessOperations, isSpecialist, loading: rolesLoading } = useUserRole();
+  const { specialistId } = useCurrentSpecialist();
   const { logActivity } = useRequestActivityLog();
   const canManage = canAccessFinance() || canAccessOperations();
+  const showMyRequestsButton = isSpecialist() && !!specialistId;
 
   const { data: requests, isLoading, error } = useQuery({
     queryKey: ['financial_requests', filters],
@@ -503,6 +506,25 @@ const Solicitudes = () => {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {/* Botón Mis Requests para especialistas */}
+            {showMyRequestsButton && (
+              <Button
+                variant={filters.specialistId === specialistId ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  if (filters.specialistId === specialistId) {
+                    updateFilter('specialistId', null);
+                  } else {
+                    updateFilter('specialistId', specialistId!);
+                  }
+                }}
+                className="gap-2"
+              >
+                <User className="h-4 w-4" />
+                Mis Requests
+              </Button>
+            )}
+
             <Select
               value={filters.status || 'all'}
               onValueChange={(value) =>

@@ -43,13 +43,10 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
         </div>
 
         {request.client && (
-          <Badge 
-            variant="outline" 
-            className="bg-slate-50 text-slate-700 border-slate-200 font-medium text-sm py-1 px-2.5 max-w-full"
-          >
-            <Building2 className="h-3.5 w-3.5 mr-1.5 flex-shrink-0" />
-            <span className="truncate">{request.client.name}</span>
-          </Badge>
+          <div className="flex items-center gap-2 bg-primary text-primary-foreground rounded-md px-3 py-1.5 max-w-full">
+            <Building2 className="h-4 w-4 flex-shrink-0" />
+            <span className="font-semibold text-sm truncate">{request.client.name}</span>
+          </div>
         )}
 
         {/* Origin info */}

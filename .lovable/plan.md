@@ -1,27 +1,25 @@
 
 
-## Actualizar icono de Flow Manager (versión sin borde blanco)
+## Solucionar favicon con borde blanco
 
-Se reemplazará el icono en todas las ubicaciones con la nueva versión (`IMG_6222.PNG`) que tiene el fondo verde/azul completo sin borde blanco.
+### Problema
 
-### Archivos a reemplazar
+El navegador sigue mostrando el icono con borde blanco en la pestaña. Esto ocurre porque existe un archivo `public/favicon.ico` antiguo (con el borde blanco) que algunos navegadores priorizan automáticamente sobre el `favicon.png` declarado en el HTML.
 
-| Destino | Uso |
-|---|---|
-| `public/favicon.png` | Favicon del navegador |
-| `public/icons/icon-180x180.png` | Apple touch icon (iOS) |
-| `public/icons/icon-192x192.png` | PWA manifest (192x192) |
-| `public/icons/icon-512x512.png` | PWA manifest (512x512) + Splash screen |
-| `src/assets/flowmanager-isotype.png` | Isotipo en sidebar (modo colapsado) |
+### Solucion
 
-### Visualizacion esperada
+1. **Reemplazar `public/favicon.ico`** con la nueva imagen sin borde blanco (`IMG_6222.PNG`), para que cualquier navegador que busque `/favicon.ico` automaticamente obtenga el icono correcto.
 
-- **Favicon**: Se vera el gradiente verde-azul con la "f" blanca, sin borde.
-- **PWA (instalacion movil)**: El icono aparecera con el fondo completo verde-azul. iOS y Android aplican su propia mascara de bordes redondeados sobre el icono, asi que se vera limpio.
-- **Splash screen**: El icono grande con el gradiente completo.
-- **Sidebar colapsado**: El isotipo se muestra con filtro `brightness-0 invert` (lo convierte a blanco), asi que seguira viendose bien sobre el fondo oscuro del sidebar.
+2. **Reemplazar `public/favicon.png`** nuevamente con la imagen actualizada (por si la copia anterior no se aplico correctamente o hay cache).
 
-### Sin cambios de codigo
+### Nota sobre cache
 
-Todos los archivos de referencia (`index.html`, `manifest.webmanifest`, `SplashScreen.tsx`, `AppSidebar.tsx`) ya apuntan a estas rutas. Solo se sustituyen los assets.
+Despues de publicar, es posible que necesites hacer un "hard refresh" en el navegador (Ctrl+Shift+R en Windows o Cmd+Shift+R en Mac) para ver el cambio, ya que los favicons se cachean agresivamente. En movil, puede ser necesario borrar cache o reinstalar la PWA.
+
+### Archivos a modificar
+
+- `public/favicon.ico` -- reemplazar con el nuevo icono
+- `public/favicon.png` -- reemplazar con el nuevo icono (confirmacion)
+
+No hay cambios de codigo necesarios.
 

@@ -1,11 +1,10 @@
 
-## Actualizar el icono de Flow Manager en toda la aplicación
 
-Se va a usar la imagen subida (`IMG_6220.png`) como el icono unificado de la aplicación en todos los contextos donde se usa actualmente.
+## Actualizar icono de Flow Manager (versión sin borde blanco)
 
-### Archivos a copiar
+Se reemplazará el icono en todas las ubicaciones con la nueva versión (`IMG_6222.PNG`) que tiene el fondo verde/azul completo sin borde blanco.
 
-La imagen se copiará a varias ubicaciones para cubrir todos los usos:
+### Archivos a reemplazar
 
 | Destino | Uso |
 |---|---|
@@ -13,20 +12,16 @@ La imagen se copiará a varias ubicaciones para cubrir todos los usos:
 | `public/icons/icon-180x180.png` | Apple touch icon (iOS) |
 | `public/icons/icon-192x192.png` | PWA manifest (192x192) |
 | `public/icons/icon-512x512.png` | PWA manifest (512x512) + Splash screen |
-| `src/assets/flowmanager-isotype.png` | Isotipo usado en el sidebar (modo colapsado) |
+| `src/assets/flowmanager-isotype.png` | Isotipo en sidebar (modo colapsado) |
 
-Nota: La imagen original es de alta resolución, así que servirá bien para todos los tamaños. Los navegadores y dispositivos la redimensionarán automáticamente.
+### Visualizacion esperada
 
-### Archivos a modificar
+- **Favicon**: Se vera el gradiente verde-azul con la "f" blanca, sin borde.
+- **PWA (instalacion movil)**: El icono aparecera con el fondo completo verde-azul. iOS y Android aplican su propia mascara de bordes redondeados sobre el icono, asi que se vera limpio.
+- **Splash screen**: El icono grande con el gradiente completo.
+- **Sidebar colapsado**: El isotipo se muestra con filtro `brightness-0 invert` (lo convierte a blanco), asi que seguira viendose bien sobre el fondo oscuro del sidebar.
 
-1. **`index.html`** -- No requiere cambios, ya apunta a `/favicon.png` y `/icons/icon-180x180.png`.
+### Sin cambios de codigo
 
-2. **`public/manifest.webmanifest`** -- No requiere cambios, ya apunta a los iconos en `/icons/`.
+Todos los archivos de referencia (`index.html`, `manifest.webmanifest`, `SplashScreen.tsx`, `AppSidebar.tsx`) ya apuntan a estas rutas. Solo se sustituyen los assets.
 
-3. **`src/components/SplashScreen.tsx`** -- No requiere cambios, ya usa `/icons/icon-512x512.png`.
-
-4. **`src/components/layout/AppSidebar.tsx`** -- No requiere cambios, ya importa `flowmanager-isotype.png`.
-
-### Resumen
-
-Es un cambio puramente de reemplazo de assets. No hay cambios de código, solo se sustituyen los archivos de imagen existentes por el nuevo icono en todas las ubicaciones donde se referencia.

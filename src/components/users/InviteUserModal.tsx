@@ -45,9 +45,6 @@ export function InviteUserModal({ open, onOpenChange }: InviteUserModalProps) {
 
       // Validate email format
       const emailLower = email.toLowerCase().trim();
-      if (!emailLower.endsWith('@hayas.es')) {
-        throw new Error('El email debe ser @hayas.es');
-      }
 
       if (selectedRoles.length === 0) {
         throw new Error('Debes seleccionar al menos un rol');
@@ -212,7 +209,7 @@ export function InviteUserModal({ open, onOpenChange }: InviteUserModalProps) {
             Invitar Usuario
           </DialogTitle>
           <DialogDescription>
-            Invita a un nuevo usuario al sistema. Debe tener una cuenta @hayas.es.
+            Invita a un nuevo usuario al sistema. Recibirá un email con instrucciones de acceso.
           </DialogDescription>
         </DialogHeader>
 
@@ -224,7 +221,7 @@ export function InviteUserModal({ open, onOpenChange }: InviteUserModalProps) {
               <Input
                 id="email"
                 type="email"
-                placeholder="usuario@hayas.es"
+                placeholder="usuario@ejemplo.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="pl-10"
@@ -232,7 +229,7 @@ export function InviteUserModal({ open, onOpenChange }: InviteUserModalProps) {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Solo se permiten emails @hayas.es
+              El usuario recibirá instrucciones para acceder al sistema
             </p>
           </div>
 

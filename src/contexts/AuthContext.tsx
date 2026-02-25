@@ -33,19 +33,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!session?.user) return true; // No session, no validation needed
       
       const email = session.user.email;
-      
-      // Validate @hayas.es domain
-      if (!email?.endsWith('@hayas.es')) {
-        await supabase.auth.signOut();
-        if (isMounted) {
-          toast({
-            title: "Acceso denegado",
-            description: "Solo usuarios con email @hayas.es pueden acceder",
-            variant: "destructive",
-          });
-        }
-        return false;
-      }
 
       // Check if user has a profile
       const { data: profile } = await supabase

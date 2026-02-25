@@ -127,13 +127,9 @@ serve(async (req) => {
       throw new Error('Faltan campos requeridos: recipientEmail, senderEmail, roles');
     }
 
-    // Validate @hayas.es domain
+    // Validate sender is @hayas.es (only internal users can send invitations)
     if (!senderEmail.endsWith('@hayas.es')) {
       throw new Error('El remitente debe ser un email @hayas.es');
-    }
-
-    if (!recipientEmail.endsWith('@hayas.es')) {
-      throw new Error('El destinatario debe ser un email @hayas.es');
     }
 
     console.log(`Sending invitation: ${senderEmail} -> ${recipientEmail}`);
@@ -224,8 +220,10 @@ serve(async (req) => {
             </div>
             
             <p style="font-size: 16px; color: #4b5563; line-height: 1.6; margin: 0 0 30px;">
-              Para acceder, simplemente haz clic en el botón de abajo y usa tu cuenta de Google 
-              con el email <strong>${recipientEmail}</strong>.
+              ${recipientEmail.endsWith('@hayas.es') 
+                ? `Para acceder, simplemente haz clic en el botón de abajo y usa tu cuenta de Google con el email <strong>${recipientEmail}</strong>.`
+                : `Para acceder, haz clic en el botón de abajo y crea tu cuenta con el email <strong>${recipientEmail}</strong> y una contraseña.`
+              }
             </p>
             
             <div style="text-align: center; margin: 30px 0;">

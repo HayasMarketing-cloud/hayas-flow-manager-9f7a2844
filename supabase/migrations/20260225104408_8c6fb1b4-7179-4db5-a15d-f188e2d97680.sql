@@ -1,0 +1,1 @@
+ALTER TABLE public.user_invitations DROP CONSTRAINT IF EXISTS email_hayas_check;

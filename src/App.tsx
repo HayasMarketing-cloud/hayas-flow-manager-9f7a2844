@@ -39,6 +39,7 @@ import AccionRequest from "./pages/AccionRequest";
 import TestEmail from "./pages/TestEmail";
 import Notificaciones from "./pages/Notificaciones";
 import GuiaRapida from "./pages/GuiaRapida";
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -75,6 +76,7 @@ const App = () => {
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               {/* Public pages - no auth required */}
               <Route path="/liquidacion/firmar/:token" element={<FirmaLiquidacion />} />
               <Route path="/solicitud/accion/:token" element={<AccionRequest />} />

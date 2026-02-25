@@ -1,25 +1,87 @@
 
 
-## Solucionar favicon con borde blanco
+## Permitir invitaciones a usuarios externos (sin @hayas.es)
 
-### Problema
+Actualmente el sistema restringe el acceso exclusivamente a emails `@hayas.es`. Este cambio permitira invitar a usuarios con cualquier dominio de email, manteniendo la seguridad (solo usuarios invitados pueden acceder) y anadiendo flujo completo de contrasena.
 
-El navegador sigue mostrando el icono con borde blanco en la pestaña. Esto ocurre porque existe un archivo `public/favicon.ico` antiguo (con el borde blanco) que algunos navegadores priorizan automáticamente sobre el `favicon.png` declarado en el HTML.
+### Flujo propuesto
 
-### Solucion
+```text
+ADMIN                          USUARIO EXTERNO
+  |                                  |
+  |-- Invita sr@wearefolly.com -->   |
+  |   (sin restriccion de dominio)   |
+  |                                  |
+  |   <-- Recibe email ------------- |
+  |       con link a /auth           |
+  |                                  |
+  |                     Abre /auth -->|
+  |                     Ve formulario |
+  |                     "Crear cuenta"|
+  |                     Pone password |
+  |                                  |
+  |              Trigger DB crea --->|
+  |              perfil + roles      |
+  |                                  |
+  |              Accede al sistema   |
+  |                                  |
+  |         Si olvida password:      |
+  |         "Olvidé mi contraseña"   |
+  |         --> email de reset       |
+  |         --> /reset-password      |
+```
 
-1. **Reemplazar `public/favicon.ico`** con la nueva imagen sin borde blanco (`IMG_6222.PNG`), para que cualquier navegador que busque `/favicon.ico` automaticamente obtenga el icono correcto.
+Para usuarios `@hayas.es`, el flujo de Google OAuth sigue funcionando igual.
 
-2. **Reemplazar `public/favicon.png`** nuevamente con la imagen actualizada (por si la copia anterior no se aplico correctamente o hay cache).
+### Cambios necesarios
 
-### Nota sobre cache
+#### 1. Auth page (`src/pages/Auth.tsx`)
+- Eliminar texto "Solo para usuarios con email @hayas.es"
+- Hacer el formulario de email/contrasena mas prominente (no colapsado)
+- Anadir pestana o modo "Crear cuenta" para usuarios invitados externos (pide email + contrasena + nombre)
+- Anadir enlace "Olvidé mi contraseña" que llame a `supabase.auth.resetPasswordForEmail()`
+- Mantener boton de Google para usuarios @hayas.es
 
-Despues de publicar, es posible que necesites hacer un "hard refresh" en el navegador (Ctrl+Shift+R en Windows o Cmd+Shift+R en Mac) para ver el cambio, ya que los favicons se cachean agresivamente. En movil, puede ser necesario borrar cache o reinstalar la PWA.
+#### 2. Nueva pagina: Reset Password (`src/pages/ResetPassword.tsx`)
+- Formulario para establecer nueva contrasena
+- Detecta `type=recovery` en URL hash
+- Llama a `supabase.auth.updateUser({ password })`
+- Ruta publica `/reset-password` en `App.tsx`
 
-### Archivos a modificar
+#### 3. AuthContext (`src/contexts/AuthContext.tsx`)
+- **Eliminar** la validacion de dominio `@hayas.es` en `validateUserAccess`
+- Mantener validacion de invitacion (solo usuarios invitados pueden acceder)
+- La seguridad se mantiene porque: sin invitacion en `user_invitations` con status `pending`, el usuario no obtiene perfil ni roles y es desconectado
 
-- `public/favicon.ico` -- reemplazar con el nuevo icono
-- `public/favicon.png` -- reemplazar con el nuevo icono (confirmacion)
+#### 4. InviteUserModal (`src/components/users/InviteUserModal.tsx`)
+- **Eliminar** validacion `emailLower.endsWith('@hayas.es')`
+- Actualizar texto descriptivo: "Invita a un nuevo usuario al sistema" (sin mencion a @hayas.es)
+- Actualizar placeholder del input a "usuario@ejemplo.com"
 
-No hay cambios de codigo necesarios.
+#### 5. Edge function `send-user-invitation`
+- **Eliminar** validacion `recipientEmail.endsWith('@hayas.es')`
+- Adaptar el contenido del email: si el destinatario NO es @hayas.es, indicar que debe crear cuenta con email y contrasena (en lugar de "usa tu cuenta de Google")
+- Si es @hayas.es, mantener instrucciones de Google
+
+#### 6. Funcion `signUp` en AuthContext
+- Ya existe pero actualmente no se usa desde la UI
+- Eliminar restriccion de dominio en la validacion del signup
+- Asegurar que el `handle_new_user` trigger en la DB maneje correctamente el signup con contrasena
+
+#### 7. Ruta en `App.tsx`
+- Anadir ruta `/reset-password` como ruta publica
+
+#### 8. PWA config (`vite.config.ts`)
+- Anadir `/~oauth` al `navigateFallbackDenylist` (ya requerido por configuracion)
+
+### Seguridad
+
+- **La invitacion sigue siendo obligatoria**: Sin entrada en `user_invitations` con status `pending`, el trigger `handle_new_user` no crea perfil, y el `AuthContext` desconecta al usuario
+- **Roles se asignan solo desde la invitacion**: El admin define los roles al invitar
+- **Password reset seguro**: Usa el flujo nativo de Supabase Auth con email de verificacion
+- **Sin auto-confirm**: Los usuarios externos reciben email de confirmacion antes de poder acceder (flujo estandar de Supabase)
+
+### Detalle tecnico importante
+
+El trigger `handle_new_user` en la DB ya maneja correctamente la creacion de perfil desde invitacion para cualquier email. No necesita cambios en la DB. La unica restriccion de dominio esta en el codigo de la aplicacion (AuthContext, InviteUserModal, edge function).
 

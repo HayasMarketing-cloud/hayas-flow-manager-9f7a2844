@@ -6,7 +6,7 @@ import { RequestFlowIndicator } from './RequestFlowIndicator';
 import { RequestFlowActions } from './RequestFlowActions';
 import { FlowStatusCell } from './FlowStatusCell';
 import { OriginCell } from './OriginCell';
-import { Edit, Building2, Calendar, Copy, Trash2, Eye, Receipt, User } from 'lucide-react';
+import { Edit, Building2, Calendar, Copy, Trash2, Eye, Receipt, User, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
@@ -65,6 +65,13 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
           </div>
         )}
         
+        {request.hours ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Clock className="h-4 w-4 flex-shrink-0" />
+            <span>{request.hours}h</span>
+          </div>
+        ) : null}
+
         {request.deadline && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Calendar className="h-4 w-4 flex-shrink-0" />

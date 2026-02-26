@@ -56,9 +56,23 @@ export default function Auth() {
     }
   };
 
+  const isInIframe = (() => {
+    try { return window.self !== window.top; } catch { return true; }
+  })();
+
   const handleGoogleSignIn = async () => {
+    if (isInIframe) {
+      // In iframe, open the app in a new tab so OAuth can work
+      window.open(window.location.href, '_blank');
+      return;
+    }
     setGoogleLoading(true);
-    await signInWithGoogle();
+    try {
+      await signInWithGoogle();
+    } finally {
+      // Reset loading after a timeout in case OAuth doesn't redirect
+      setTimeout(() => setGoogleLoading(false), 5000);
+    }
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {

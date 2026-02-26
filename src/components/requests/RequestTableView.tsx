@@ -14,7 +14,7 @@ import { RequestFlowActions } from './RequestFlowActions';
 import { FlowStatusCell } from './FlowStatusCell';
 import { RequestStatusBadge } from './RequestStatusBadge';
 import { OriginCell } from './OriginCell';
-import { Edit, Eye, Copy, Trash2, User } from 'lucide-react';
+import { Edit, Eye, Copy, Trash2, User, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
@@ -63,6 +63,7 @@ export const RequestTableView = ({
             <TableHead>Título</TableHead>
             <TableHead>Cliente</TableHead>
             <TableHead>Especialista</TableHead>
+            <TableHead>Horas</TableHead>
             <TableHead>Ref. Partner</TableHead>
             <TableHead>Origen</TableHead>
             <TableHead>Estado</TableHead>
@@ -77,7 +78,7 @@ export const RequestTableView = ({
         <TableBody>
           {requests.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={14} className="text-center text-muted-foreground">
+              <TableCell colSpan={15} className="text-center text-muted-foreground">
                 No se encontraron solicitudes
               </TableCell>
             </TableRow>
@@ -119,6 +120,16 @@ export const RequestTableView = ({
                           )}
                         </TooltipContent>
                       </Tooltip>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {request.hours ? (
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        <span className="text-sm">{request.hours % 1 === 0 ? `${request.hours}h` : `${request.hours}h`}</span>
+                      </div>
                     ) : (
                       <span className="text-muted-foreground text-sm">-</span>
                     )}

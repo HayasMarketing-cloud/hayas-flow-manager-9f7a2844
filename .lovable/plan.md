@@ -1,46 +1,34 @@
 
 
-## Problema: Google OAuth muestra URL de Supabase en la PWA
+## Añadir columna "Horas" del especialista en todas las vistas de solicitudes
 
-### Diagnostico
+### Dato a mostrar
 
-Cuando el usuario abre la app instalada (PWA) y pulsa "Continuar con Google", la pantalla de Google muestra la URL del proyecto de backend (`zqaeokujqipntjhmbjgi.supabase.co`) en lugar del dominio de la aplicacion (`hayas-flow-manager.lovable.app`). Esto ocurre porque el codigo actual usa `supabase.auth.signInWithOAuth()` directamente, en lugar de la solucion gestionada de Lovable Cloud.
+El campo `hours` de la tabla `financial_requests` contiene las horas (o fracción) del especialista asignado a cada solicitud. Este dato ya se carga en las queries existentes y está disponible como `request.hours`.
 
-### Solucion
+### Formato de visualización
 
-Migrar el inicio de sesion con Google a `lovable.auth.signInWithOAuth()`, que es la solucion gestionada por Lovable Cloud. Esto hara que Google muestre el dominio correcto de la aplicacion.
+- Si hay horas: mostrar con formato `X.XXh` (ej: `2.5h`, `0.25h`, `8h`)
+- Si no hay horas o es 0: mostrar `-`
+- Icono: `Clock` de lucide-react
 
 ### Cambios necesarios
 
-#### 1. Configurar Google OAuth con la herramienta de Lovable Cloud
-- Ejecutar la herramienta `configure-social-auth` para generar el modulo `src/integrations/lovable/`
-- Esto instalara automaticamente `@lovable.dev/cloud-auth-js`
+#### 1. Vista tabla (`src/components/requests/RequestTableView.tsx`)
+- Añadir columna `<TableHead>Horas</TableHead>` después de "Especialista"
+- Añadir celda con el valor `request.hours` formateado
+- Actualizar `colSpan` de la fila vacía de 14 a 15
 
-#### 2. Actualizar `src/contexts/AuthContext.tsx`
-- Importar el modulo lovable: `import { lovable } from "@/integrations/lovable/index"`
-- Reemplazar `supabase.auth.signInWithOAuth()` por `lovable.auth.signInWithOAuth("google", { ... })`
-- Mantener el parametro `hd: "hayas.es"` usando `extraParams`
+#### 2. Vista tarjeta (`src/components/requests/RequestCard.tsx`)
+- Añadir línea con icono `Clock` y las horas, junto al especialista o después del deadline
+- Importar `Clock` de lucide-react
 
-```typescript
-// Antes:
-const { error } = await supabase.auth.signInWithOAuth({
-  provider: 'google',
-  options: {
-    redirectTo: `${window.location.origin}/dashboard-mensual`,
-    queryParams: { hd: 'hayas.es' },
-  },
-});
+#### 3. Exportador CSV (`src/utils/excel/requestsExporter.ts`)
+- Añadir columna "Horas" en los headers
+- Añadir `request.hours || '-'` en las filas
+- Añadir total de horas en la fila de totales
 
-// Despues:
-const { error } = await lovable.auth.signInWithOAuth("google", {
-  redirect_uri: window.location.origin,
-  extraParams: { hd: 'hayas.es' },
-});
-```
+### Detalle técnico
 
-#### 3. No se requieren cambios en la PWA
-- La configuracion de `navigateFallbackDenylist` con `/~oauth` ya esta correcta en `vite.config.ts`
-
-### Resultado esperado
-Google mostrara el dominio de la aplicacion (lovable.app o custom domain) en lugar de la URL del backend, y el flujo OAuth funcionara correctamente desde la PWA instalada.
+No requiere cambios en queries ni en la base de datos. El campo `hours` ya existe en `financial_requests` y se devuelve en todas las consultas de solicitudes.
 

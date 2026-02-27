@@ -139,7 +139,7 @@ export function CommissionFormModal({
       const { data, error } = await supabase
         .from('budgets')
         .select('id, title, code, total_amount, client:clients(name), am_user_id, pm_user_id')
-        .eq('status', 'accepted')
+        .in('status', ['approved', 'invoiced'])
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data;

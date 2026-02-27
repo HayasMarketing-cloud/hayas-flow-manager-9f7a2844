@@ -104,12 +104,19 @@ const Solicitudes = () => {
           .lte('created_at', endDate.toISOString());
       }
 
-      // Apply work period filters (work_month/work_year)
-      if (filters.workYear) {
-        query = query.eq('work_year', filters.workYear);
-        if (filters.workMonth) {
-          query = query.eq('work_month', filters.workMonth);
-        }
+      // Apply work period filters (work_month/work_year) with fallback to created_at
+      if (filters.workYear && filters.workMonth) {
+        const wpStartDate = new Date(filters.workYear, filters.workMonth - 1, 1).toISOString();
+        const wpEndDate = new Date(filters.workYear, filters.workMonth, 0, 23, 59, 59, 999).toISOString();
+        query = query.or(
+          `and(work_year.eq.${filters.workYear},work_month.eq.${filters.workMonth}),and(work_year.is.null,work_month.is.null,created_at.gte.${wpStartDate},created_at.lte.${wpEndDate})`
+        );
+      } else if (filters.workYear) {
+        const wpStartDate = new Date(filters.workYear, 0, 1).toISOString();
+        const wpEndDate = new Date(filters.workYear, 11, 31, 23, 59, 59, 999).toISOString();
+        query = query.or(
+          `work_year.eq.${filters.workYear},and(work_year.is.null,created_at.gte.${wpStartDate},created_at.lte.${wpEndDate})`
+        );
       }
 
       if (filters.searchTerm) {

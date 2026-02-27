@@ -2,40 +2,32 @@
 
 ## Problem
 
-The error "Could not find a relationship between 'financial_requests' and 'operational_projects'" occurs in `src/pages/Liquidaciones.tsx` when sending a liquidation email. The query incorrectly tries to join `financial_requests` directly to `operational_projects`, but there is no direct foreign key between these tables. The correct path is `financial_requests → operational_requests → operational_projects`.
+The request list has 4 date filter dropdowns that are confusing:
+1. **Año** (creation year) + **Mes** (creation month, appears after selecting year)
+2. **Año trabajo** (work year) + **Mes trabajo** (work month, appears after selecting work year)
 
-The same incorrect query pattern appears twice in the file (lines 326-333 and 347-354).
+The two year selectors look almost identical, and the user sees "Todos" and "Año trabajo" side by side which is confusing.
 
-## Fix
+## Plan
 
-Replace the direct `operational_project:operational_projects(name)` join with the correct indirect path through `operational_requests`:
+**Consolidate into 2 combined period selectors** instead of 4 separate year/month dropdowns:
 
-**File: `src/pages/Liquidaciones.tsx`** (two locations: ~line 326-333 and ~line 347-354)
+1. **Replace the year+month pair** (lines 633-683) with a single "Período creación" selector showing options like "Enero 2026", "Febrero 2026", etc. (last 18 months + "Todos"), which sets both `year` and `month` at once.
 
-Change:
-```
-financial_request:financial_requests(
-  id, title, cost_to_agency,
-  client:clients(name),
-  budget:budgets(code, title),
-  operational_project:operational_projects(name)
-)
-```
+2. **Replace the workYear+workMonth pair** (lines 685-735) with a single "Mes trabajo" selector showing the same month-year format, which sets both `workYear` and `workMonth` at once.
 
-To:
-```
-financial_request:financial_requests(
-  id, title, cost_to_agency,
-  client:clients(name),
-  budget:budgets(code, title),
-  operational_request:operational_requests!financial_request_id(
-    id,
-    operational_project:operational_projects(id, name)
-  )
-)
-```
+**Changes:**
 
-This matches the pattern already used correctly in `LiquidacionDetalle.tsx` (line 293).
+- **`src/pages/Solicitudes.tsx`**: Remove the 4 separate Select components (year, month, workYear, workMonth) and replace with 2 combined Select components that use a `"YYYY-MM"` value format (or `"YYYY"` for year-only). Parse the value to set both year+month filters simultaneously.
 
-The downstream code that reads `operational_project` from these items (in `liquidation-grouping.ts` line 35) already expects `item.financial_request?.operational_request?.[0]?.operational_project`, so no additional changes are needed.
+- **`src/hooks/useRequestFilters.tsx`**: No changes needed — we keep the same filter fields internally, just set them together from the combined selector value.
+
+The combined selectors will show options like:
+- "Todos los períodos"
+- "Febrero 2026"
+- "Enero 2026"
+- "Diciembre 2025"
+- ... (last 18 months)
+
+This eliminates the confusing duplicate year selectors and makes filtering more intuitive with a single click.
 

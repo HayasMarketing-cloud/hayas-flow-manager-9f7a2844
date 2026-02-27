@@ -384,7 +384,7 @@ export default function PresupuestoDetalle() {
     const previousStatus = data.budget.status;
 
     // Bloquear cambio de estado desde "approved" si hay datos asociados
-    if (previousStatus === 'approved' && newStatus !== 'approved' && hasAssociatedDataForStatusChange) {
+    if (previousStatus === 'approved' && newStatus !== 'approved' && newStatus !== 'invoiced' && hasAssociatedDataForStatusChange) {
       const details: string[] = [];
       if (hasFinancialRequests) {
         details.push(`${existingRequests?.length} solicitud(es) financiera(s)`);

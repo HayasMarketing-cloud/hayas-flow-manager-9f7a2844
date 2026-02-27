@@ -50,6 +50,7 @@ interface Invoice {
   subtotal: number;
   invoice_date: string;
   client: { name: string } | null;
+  items: { description: string }[] | null;
 }
 
 interface CommissionFormModalProps {
@@ -173,7 +174,7 @@ export function CommissionFormModal({
         // Direct invoice selection by client
         const { data, error } = await supabase
           .from('invoices')
-          .select('id, code, subtotal, invoice_date, client:clients(name)')
+          .select('id, code, subtotal, invoice_date, client:clients(name), items:invoice_items(description)')
           .eq('client_id', formData.client_id)
           .order('invoice_date', { ascending: false });
         if (error) throw error;
@@ -187,7 +188,7 @@ export function CommissionFormModal({
 
       const { data, error } = await supabase
         .from('invoices')
-        .select('id, code, subtotal, invoice_date, client:clients(name)')
+        .select('id, code, subtotal, invoice_date, client:clients(name), items:invoice_items(description)')
         .eq('client_id', clientId)
         .order('invoice_date', { ascending: false });
 
@@ -561,20 +562,27 @@ export function CommissionFormModal({
                           />
                           <label 
                             htmlFor={invoice.id} 
-                            className="flex-1 cursor-pointer text-sm flex justify-between items-center"
+                            className="flex-1 cursor-pointer text-sm"
                           >
-                            <span>
-                              <span className="font-medium">{invoice.code}</span>
-                              <span className="text-muted-foreground ml-2">
-                                ({format(new Date(invoice.invoice_date), "d MMM yyyy", { locale: es })})
+                            <div className="flex justify-between items-center">
+                              <span>
+                                <span className="font-medium">{invoice.code}</span>
+                                <span className="text-muted-foreground ml-2">
+                                  ({format(new Date(invoice.invoice_date), "d MMM yyyy", { locale: es })})
+                                </span>
                               </span>
-                            </span>
-                            <span className="font-medium">
-                              {Number(invoice.subtotal).toLocaleString('es-ES', {
-                                style: 'currency',
-                                currency: 'EUR',
-                              })}
-                            </span>
+                              <span className="font-medium">
+                                {Number(invoice.subtotal).toLocaleString('es-ES', {
+                                  style: 'currency',
+                                  currency: 'EUR',
+                                })}
+                              </span>
+                            </div>
+                            {invoice.items && invoice.items.length > 0 && (
+                              <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[90%]">
+                                {invoice.items.map(i => i.description).join(', ')}
+                              </p>
+                            )}
                           </label>
                         </div>
                       ))}

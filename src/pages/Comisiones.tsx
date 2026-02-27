@@ -59,6 +59,7 @@ interface Commission {
   seller_profile?: { full_name: string; email: string } | null;
   contract?: { title: string; code: string; client?: { name: string } | null } | null;
   budget?: { title: string; code: string; client?: { name: string } | null } | null;
+  invoices?: { id: string; code: string }[] | null;
 }
 
 function ComisionesContent() {
@@ -108,9 +109,23 @@ function ComisionesContent() {
 
       const profilesMap = new Map(profiles?.map(p => [p.id, p]) || []);
 
+      // Fetch invoice codes for commissions with invoice_ids
+      const allInvoiceIds = [...new Set((data || []).flatMap((c: any) => c.invoice_ids || []))];
+      let invoicesMap = new Map<string, { id: string; code: string }>();
+      if (allInvoiceIds.length > 0) {
+        const { data: invoicesData } = await supabase
+          .from('invoices')
+          .select('id, code')
+          .in('id', allInvoiceIds);
+        invoicesMap = new Map((invoicesData || []).map(i => [i.id, i]));
+      }
+
       return (data || []).map((c: any) => ({
         ...c,
         seller_profile: profilesMap.get(c.seller_user_id) || null,
+        invoices: (c.invoice_ids || [])
+          .map((id: string) => invoicesMap.get(id))
+          .filter(Boolean),
       })) as Commission[];
     },
   });

@@ -68,6 +68,7 @@ interface Commission {
   seller_profile?: { full_name: string; email: string } | null;
   contract?: { title: string; code: string; client?: { name: string } | null } | null;
   budget?: { title: string; code: string; client?: { name: string } | null } | null;
+  invoices?: { id: string; code: string }[] | null;
 }
 
 interface CommissionTableViewProps {
@@ -165,11 +166,61 @@ export function CommissionTableView({
             </TableHeader>
             <TableBody>
               {commissions.map((commission) => {
-                const source = commission.contract || commission.budget;
-                const sourceType = commission.contract_id ? 'Contrato' : 'Presupuesto';
-                const sourceCode = commission.contract?.code || commission.budget?.code || '';
                 const invoiceCount = commission.invoice_ids?.length || 0;
                 const commissionType = (commission.commission_type as CommissionType) || 'sales';
+
+                // Determine origin display
+                const renderOrigin = () => {
+                  if (commission.contract_id && commission.contract) {
+                    return (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-2 text-sm cursor-help">
+                            <Briefcase className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium">{commission.contract.code}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Contrato: {commission.contract.title}</p>
+                          <p className="text-muted-foreground">{commission.contract.client?.name}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  }
+                  if (commission.budget_id && commission.budget) {
+                    return (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-2 text-sm cursor-help">
+                            <Briefcase className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium">{commission.budget.code}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Presupuesto: {commission.budget.title}</p>
+                          <p className="text-muted-foreground">{commission.budget.client?.name}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  }
+                  if (commission.invoices && commission.invoices.length > 0) {
+                    const codes = commission.invoices.map(i => i.code).join(', ');
+                    return (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-2 text-sm cursor-help">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium">{codes}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Factura{commission.invoices.length !== 1 ? 's' : ''}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  }
+                  return <span className="text-muted-foreground text-sm">-</span>;
+                };
 
                 return (
                   <TableRow key={commission.id}>
@@ -185,18 +236,7 @@ export function CommissionTableView({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="flex items-center gap-2 text-sm cursor-help">
-                            <Briefcase className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{sourceCode}</span>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{sourceType}: {source?.title}</p>
-                          <p className="text-muted-foreground">{source?.client?.name}</p>
-                        </TooltipContent>
-                      </Tooltip>
+                      {renderOrigin()}
                     </TableCell>
                     <TableCell>
                       {invoiceCount > 0 ? (

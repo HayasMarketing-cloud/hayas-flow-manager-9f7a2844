@@ -1,33 +1,56 @@
 
 
-## Problem
+## Diagnosis
 
-The request list has 4 date filter dropdowns that are confusing:
-1. **Año** (creation year) + **Mes** (creation month, appears after selecting year)
-2. **Año trabajo** (work year) + **Mes trabajo** (work month, appears after selecting work year)
+The `redirect_uri_mismatch` error on `flow.hayasmarketing.com` is caused by the Lovable Cloud auth-bridge, which handles OAuth for `*.lovable.app` domains but is incompatible with custom domains. This may have broken due to a change in the auth-bridge behavior.
 
-The two year selectors look almost identical, and the user sees "Todos" and "Año trabajo" side by side which is confusing.
+## Fix
 
-## Plan
+**File: `src/contexts/AuthContext.tsx`** — Update `signInWithGoogle` to detect custom domains and bypass the auth-bridge:
 
-**Consolidate into 2 combined period selectors** instead of 4 separate year/month dropdowns:
+- If on a custom domain (not `*.lovable.app`), use `supabase.auth.signInWithOAuth` directly with `skipBrowserRedirect: true`, then manually redirect to the OAuth URL
+- If on a Lovable domain, keep using `lovable.auth.signInWithOAuth` as before
 
-1. **Replace the year+month pair** (lines 633-683) with a single "Período creación" selector showing options like "Enero 2026", "Febrero 2026", etc. (last 18 months + "Todos"), which sets both `year` and `month` at once.
+**File: `src/pages/Auth.tsx`** — No changes needed (the `handleGoogleSignIn` already calls `signInWithGoogle` from context)
 
-2. **Replace the workYear+workMonth pair** (lines 685-735) with a single "Mes trabajo" selector showing the same month-year format, which sets both `workYear` and `workMonth` at once.
+### Implementation detail
 
-**Changes:**
+```typescript
+const signInWithGoogle = async () => {
+  try {
+    const isCustomDomain =
+      !window.location.hostname.includes("lovable.app") &&
+      !window.location.hostname.includes("lovableproject.com");
 
-- **`src/pages/Solicitudes.tsx`**: Remove the 4 separate Select components (year, month, workYear, workMonth) and replace with 2 combined Select components that use a `"YYYY-MM"` value format (or `"YYYY"` for year-only). Parse the value to set both year+month filters simultaneously.
+    if (isCustomDomain) {
+      // Bypass auth-bridge for custom domains
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin,
+          skipBrowserRedirect: true,
+          queryParams: { hd: 'hayas.es' },
+        },
+      });
+      if (error) throw error;
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } else {
+      // Lovable domains use managed auth-bridge
+      const { error } = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+        extraParams: { hd: 'hayas.es' },
+      });
+      if (error) throw error;
+    }
+    return { error: null };
+  } catch (error: any) {
+    // existing error handling
+    return { error };
+  }
+};
+```
 
-- **`src/hooks/useRequestFilters.tsx`**: No changes needed — we keep the same filter fields internally, just set them together from the combined selector value.
-
-The combined selectors will show options like:
-- "Todos los períodos"
-- "Febrero 2026"
-- "Enero 2026"
-- "Diciembre 2025"
-- ... (last 18 months)
-
-This eliminates the confusing duplicate year selectors and makes filtering more intuitive with a single click.
+This is a single-file change in `AuthContext.tsx`, ~15 lines modified.
 

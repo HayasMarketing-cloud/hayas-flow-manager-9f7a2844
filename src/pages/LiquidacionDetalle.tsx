@@ -7,7 +7,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, User, Calendar, FileText, Mail, Download, Trash2, Plus, Sparkles, Users, Check, X } from 'lucide-react';
+import { ArrowLeft, User, Calendar, FileText, Mail, Download, Trash2, Plus, Sparkles, Users, Check, X, Award } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { AddRequestsToLiquidationModal } from '@/components/liquidations/AddRequestsToLiquidationModal';
@@ -265,6 +266,7 @@ export default function LiquidacionDetalle() {
   const [isAddingManualConcept, setIsAddingManualConcept] = useState(false);
   const [manualDescription, setManualDescription] = useState('');
   const [manualAmount, setManualAmount] = useState<string>('');
+  const [selectedCommissionIds, setSelectedCommissionIds] = useState<string[]>([]);
 
   const { data: liquidation, isLoading, error } = useQuery({
     queryKey: ['liquidation-detail', id],
@@ -338,6 +340,21 @@ export default function LiquidacionDetalle() {
   );
 
   const hasTeam = (teamMembers?.length || 0) > 0;
+
+  // Fetch pending commissions for this specialist
+  const { data: availableCommissions } = useQuery({
+    queryKey: ['specialist-commissions', liquidation?.specialist?.user_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('sales_commissions')
+        .select('*, budget:budgets(code, title), contract:contracts(code, title)')
+        .eq('seller_user_id', liquidation!.specialist!.user_id!)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+      return data || [];
+    },
+    enabled: !!liquidation?.specialist?.user_id && (liquidation?.status === 'draft' || liquidation?.status === 'validated'),
+  });
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -550,6 +567,70 @@ export default function LiquidacionDetalle() {
     },
     onError: (error: any) => {
       toast.error(error.message || 'Error al añadir concepto');
+    },
+  });
+
+  const addCommissionsMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedCommissionIds.length || !availableCommissions) return;
+
+      const selected = availableCommissions.filter((c: any) => selectedCommissionIds.includes(c.id));
+
+      // Insert each as a liquidation_item
+      for (const commission of selected) {
+        const typeLabel = commission.commission_type === 'am' ? 'AM' : commission.commission_type === 'pm' ? 'PM' : 'Venta';
+        const sourceName = commission.budget?.title || commission.budget?.code || commission.contract?.title || commission.contract?.code || 'Sin origen';
+        const description = `Comisión ${typeLabel} - ${sourceName}`;
+
+        const { error: insertError } = await supabase
+          .from('liquidation_items')
+          .insert({
+            liquidation_id: id,
+            description,
+            quantity: 1,
+            unit_price: commission.commission_amount,
+            total: commission.commission_amount,
+            financial_request_id: null,
+          });
+        if (insertError) throw insertError;
+
+        // Mark commission as paid
+        const { error: updateError } = await supabase
+          .from('sales_commissions')
+          .update({ status: 'paid', paid_at: new Date().toISOString() })
+          .eq('id', commission.id);
+        if (updateError) throw updateError;
+      }
+
+      // Recalculate totals
+      const totalToAdd = selected.reduce((sum: number, c: any) => sum + Number(c.commission_amount), 0);
+      const { data: currentLiq, error: fetchError } = await supabase
+        .from('liquidations')
+        .select('subtotal, tax_rate')
+        .eq('id', id)
+        .single();
+      if (fetchError) throw fetchError;
+
+      const newSubtotal = (Number(currentLiq.subtotal) || 0) + totalToAdd;
+      const taxRate = currentLiq.tax_rate || 0;
+      const newTaxAmount = (newSubtotal * taxRate) / 100;
+      const newTotal = newSubtotal + newTaxAmount;
+
+      const { error: updateLiqError } = await supabase
+        .from('liquidations')
+        .update({ subtotal: newSubtotal, tax_amount: newTaxAmount, total_amount: newTotal })
+        .eq('id', id);
+      if (updateLiqError) throw updateLiqError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      queryClient.invalidateQueries({ queryKey: ['specialist-commissions'] });
+      setSelectedCommissionIds([]);
+      toast.success('Comisiones añadidas a la liquidación');
+    },
+    onError: (error: any) => {
+      toast.error('Error al añadir comisiones: ' + error.message);
     },
   });
 
@@ -1106,9 +1187,75 @@ export default function LiquidacionDetalle() {
           </Card>
         )}
 
+        {/* Available Commissions Section */}
+        {isEditable && canAccessFinance() && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Award className="h-4 w-4" />
+                Comisiones disponibles
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!availableCommissions || availableCommissions.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">
+                  No hay comisiones pendientes para este especialista
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {availableCommissions.map((commission: any) => {
+                    const typeLabel = commission.commission_type === 'am' ? 'AM' : commission.commission_type === 'pm' ? 'PM' : 'Venta';
+                    const sourceName = commission.budget?.title || commission.budget?.code || commission.contract?.title || commission.contract?.code || 'Sin origen';
+                    const isSelected = selectedCommissionIds.includes(commission.id);
+
+                    return (
+                      <div
+                        key={commission.id}
+                        className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
+                        onClick={() => {
+                          setSelectedCommissionIds(prev =>
+                            isSelected ? prev.filter(id => id !== commission.id) : [...prev, commission.id]
+                          );
+                        }}
+                      >
+                        <Checkbox checked={isSelected} />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">Comisión {typeLabel} - {sourceName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {commission.commission_percentage}% sobre {formatCurrency(commission.base_amount)}
+                          </p>
+                        </div>
+                        <span className="font-semibold text-sm whitespace-nowrap">
+                          {formatCurrency(commission.commission_amount)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {selectedCommissionIds.length > 0 && (
+                    <div className="flex justify-end pt-2">
+                      <Button
+                        size="sm"
+                        onClick={() => addCommissionsMutation.mutate()}
+                        disabled={addCommissionsMutation.isPending}
+                      >
+                        {addCommissionsMutation.isPending ? (
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent mr-2" />
+                        ) : (
+                          <Plus className="h-4 w-4 mr-2" />
+                        )}
+                        Añadir {selectedCommissionIds.length} comisión(es)
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Pending Requests Section */}
         {isEditable && canAccessFinance() && (
-          <PendingRequestsSection 
+          <PendingRequestsSection
             specialistId={liquidation.specialist_id}
             liquidationId={liquidation.id}
             periodYear={liquidation.period_year}

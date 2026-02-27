@@ -353,7 +353,7 @@ export default function LiquidacionDetalle() {
         .order('created_at', { ascending: false });
       return data || [];
     },
-    enabled: !!liquidation?.specialist?.user_id && (liquidation?.status === 'draft' || liquidation?.status === 'validated'),
+    enabled: !!liquidation?.specialist?.user_id,
   });
 
   const deleteMutation = useMutation({
@@ -1188,7 +1188,7 @@ export default function LiquidacionDetalle() {
         )}
 
         {/* Available Commissions Section */}
-        {isEditable && canAccessFinance() && (
+        {canAccessFinance() && (
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
@@ -1231,21 +1231,25 @@ export default function LiquidacionDetalle() {
                       </div>
                     );
                   })}
-                  {selectedCommissionIds.length > 0 && (
-                    <div className="flex justify-end pt-2">
-                      <Button
-                        size="sm"
-                        onClick={() => addCommissionsMutation.mutate()}
-                        disabled={addCommissionsMutation.isPending}
-                      >
-                        {addCommissionsMutation.isPending ? (
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent mr-2" />
-                        ) : (
-                          <Plus className="h-4 w-4 mr-2" />
-                        )}
-                        Añadir {selectedCommissionIds.length} comisión(es)
-                      </Button>
-                    </div>
+                  {isEditable ? (
+                    selectedCommissionIds.length > 0 && (
+                      <div className="flex justify-end pt-2">
+                        <Button
+                          size="sm"
+                          onClick={() => addCommissionsMutation.mutate()}
+                          disabled={addCommissionsMutation.isPending}
+                        >
+                          {addCommissionsMutation.isPending ? (
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent mr-2" />
+                          ) : (
+                            <Plus className="h-4 w-4 mr-2" />
+                          )}
+                          Añadir {selectedCommissionIds.length} comisión(es)
+                        </Button>
+                      </div>
+                    )
+                  ) : (
+                    <p className="text-xs text-muted-foreground pt-2">Solo se pueden añadir en liquidaciones en borrador o validadas</p>
                   )}
                 </div>
               )}

@@ -630,109 +630,83 @@ const Solicitudes = () => {
               </Select>
             )}
 
-            {/* Year filter */}
+            {/* Período creación (combined year+month) */}
             <Select
-              value={filters.year?.toString() || 'all'}
-              onValueChange={(value) =>
-                updateFilter('year', value === 'all' ? null : parseInt(value))
+              value={
+                filters.year && filters.month
+                  ? `${filters.year}-${filters.month}`
+                  : 'all'
               }
+              onValueChange={(value) => {
+                if (value === 'all') {
+                  updateFilter('year', null);
+                  updateFilter('month', null);
+                } else {
+                  const [y, m] = value.split('-').map(Number);
+                  updateFilter('month', m);
+                  updateFilter('year', y);
+                }
+              }}
             >
-              <SelectTrigger className="w-[120px]">
-                <SelectValue placeholder="Año" />
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Período creación" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                {Array.from({ length: 5 }, (_, i) => {
-                  const year = new Date().getFullYear() - i;
-                  return (
-                    <SelectItem key={year} value={year.toString()}>
-                      {year}
-                    </SelectItem>
-                  );
-                })}
+                <SelectItem value="all">Todos los períodos</SelectItem>
+                {(() => {
+                  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+                  const now = new Date();
+                  return Array.from({ length: 18 }, (_, i) => {
+                    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                    const val = `${d.getFullYear()}-${d.getMonth() + 1}`;
+                    return (
+                      <SelectItem key={val} value={val}>
+                        {months[d.getMonth()]} {d.getFullYear()}
+                      </SelectItem>
+                    );
+                  });
+                })()}
               </SelectContent>
             </Select>
 
-            {/* Month filter - only shown when year is selected */}
-            {filters.year && (
-              <Select
-                value={filters.month?.toString() || 'all'}
-                onValueChange={(value) =>
-                  updateFilter('month', value === 'all' ? null : parseInt(value))
-                }
-              >
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Mes" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los meses</SelectItem>
-                  <SelectItem value="1">Enero</SelectItem>
-                  <SelectItem value="2">Febrero</SelectItem>
-                  <SelectItem value="3">Marzo</SelectItem>
-                  <SelectItem value="4">Abril</SelectItem>
-                  <SelectItem value="5">Mayo</SelectItem>
-                  <SelectItem value="6">Junio</SelectItem>
-                  <SelectItem value="7">Julio</SelectItem>
-                  <SelectItem value="8">Agosto</SelectItem>
-                  <SelectItem value="9">Septiembre</SelectItem>
-                  <SelectItem value="10">Octubre</SelectItem>
-                  <SelectItem value="11">Noviembre</SelectItem>
-                  <SelectItem value="12">Diciembre</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-
-            {/* Work Year filter (período de trabajo) */}
+            {/* Mes trabajo (combined workYear+workMonth) */}
             <Select
-              value={filters.workYear?.toString() || 'all'}
-              onValueChange={(value) =>
-                updateFilter('workYear', value === 'all' ? null : parseInt(value))
+              value={
+                filters.workYear && filters.workMonth
+                  ? `${filters.workYear}-${filters.workMonth}`
+                  : 'all'
               }
+              onValueChange={(value) => {
+                if (value === 'all') {
+                  updateFilter('workYear', null);
+                  updateFilter('workMonth', null);
+                } else {
+                  const [y, m] = value.split('-').map(Number);
+                  updateFilter('workMonth', m);
+                  updateFilter('workYear', y);
+                }
+              }}
             >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Año trabajo" />
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Mes trabajo" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Año trabajo</SelectItem>
-                {Array.from({ length: 5 }, (_, i) => {
-                  const year = new Date().getFullYear() + 1 - i;
-                  return (
-                    <SelectItem key={year} value={year.toString()}>
-                      {year}
-                    </SelectItem>
-                  );
-                })}
+                <SelectItem value="all">Todos los meses</SelectItem>
+                {(() => {
+                  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+                  const now = new Date();
+                  return Array.from({ length: 18 }, (_, i) => {
+                    const d = new Date(now.getFullYear(), now.getMonth() + 1 - i, 1);
+                    const val = `${d.getFullYear()}-${d.getMonth() + 1}`;
+                    return (
+                      <SelectItem key={val} value={val}>
+                        {months[d.getMonth()]} {d.getFullYear()}
+                      </SelectItem>
+                    );
+                  });
+                })()}
               </SelectContent>
             </Select>
-
-            {/* Work Month filter - only shown when workYear is selected */}
-            {filters.workYear && (
-              <Select
-                value={filters.workMonth?.toString() || 'all'}
-                onValueChange={(value) =>
-                  updateFilter('workMonth', value === 'all' ? null : parseInt(value))
-                }
-              >
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Mes trabajo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los meses</SelectItem>
-                  <SelectItem value="1">Enero</SelectItem>
-                  <SelectItem value="2">Febrero</SelectItem>
-                  <SelectItem value="3">Marzo</SelectItem>
-                  <SelectItem value="4">Abril</SelectItem>
-                  <SelectItem value="5">Mayo</SelectItem>
-                  <SelectItem value="6">Junio</SelectItem>
-                  <SelectItem value="7">Julio</SelectItem>
-                  <SelectItem value="8">Agosto</SelectItem>
-                  <SelectItem value="9">Septiembre</SelectItem>
-                  <SelectItem value="10">Octubre</SelectItem>
-                  <SelectItem value="11">Noviembre</SelectItem>
-                  <SelectItem value="12">Diciembre</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
 
             {(filters.status || filters.clientId || filters.specialistId || filters.budgetId || filters.contractId || filters.searchTerm || filters.year || filters.partnerReference || filters.workYear) && (
               <Button variant="outline" onClick={resetFilters}>

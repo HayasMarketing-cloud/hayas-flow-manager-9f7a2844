@@ -329,7 +329,10 @@ export default function Liquidaciones() {
             cost_to_agency,
             client:clients(name),
             budget:budgets(code, title),
-            operational_project:operational_projects(name)
+            operational_request:operational_requests!financial_request_id(
+              id,
+              operational_project:operational_projects(id, name)
+            )
           )
         `)
         .eq('liquidation_id', liquidation.id);
@@ -350,7 +353,10 @@ export default function Liquidaciones() {
                 cost_to_agency,
                 client:clients(name),
                 budget:budgets(code, title),
-                operational_project:operational_projects(name)
+                operational_request:operational_requests!financial_request_id(
+                  id,
+                  operational_project:operational_projects(id, name)
+                )
               )
             `)
             .eq('liquidation_id', member.liquidation_id);

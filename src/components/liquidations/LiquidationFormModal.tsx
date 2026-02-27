@@ -227,7 +227,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     queryFn: async () => {
       const { data, error } = await supabase
         .from('specialists')
-        .select('id, name')
+        .select('id, name, user_id')
         .eq('active', true)
         .order('name');
       if (error) throw error;
@@ -236,6 +236,28 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
   });
 
   const selectedSpecialistId = watch('specialist_id');
+  const selectedSpecialistUserId = useMemo(() => {
+    if (!selectedSpecialistId || !specialists) return null;
+    return specialists.find(s => s.id === selectedSpecialistId)?.user_id || null;
+  }, [selectedSpecialistId, specialists]);
+
+  // Query comisiones disponibles del especialista
+  const { data: availableCommissions, refetch: refetchCommissions } = useQuery({
+    queryKey: ['specialist-commissions', selectedSpecialistUserId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('sales_commissions')
+        .select('*, budget:budgets(code, title), contract:contracts(code, title)')
+        .eq('seller_user_id', selectedSpecialistUserId!)
+        .in('status', ['pending', 'approved'])
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedSpecialistUserId && isOpen,
+  });
+
+  const [selectedCommissionIds, setSelectedCommissionIds] = useState<string[]>([]);
   const selectedYear = watch('period_year');
   const selectedMonth = watch('period_month');
 
@@ -303,6 +325,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       });
     }
     setSelectedRequests([]);
+    setSelectedCommissionIds([]);
     setManualItems([]);
     setNewManualDescription('');
     setNewManualAmount('');
@@ -504,6 +527,70 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     },
     onError: (error) => {
       toast.error('Error al agregar solicitudes: ' + error.message);
+    },
+  });
+
+  // Mutation para agregar comisiones a la liquidación
+  const addCommissionsMutation = useMutation({
+    mutationFn: async (commissionIds: string[]) => {
+      if (!liquidation?.id) throw new Error('Liquidación no encontrada');
+      if (!availableCommissions) throw new Error('No hay comisiones disponibles');
+
+      const commissionsToAdd = availableCommissions.filter(c => commissionIds.includes(c.id));
+      if (commissionsToAdd.length === 0) throw new Error('No se seleccionaron comisiones');
+
+      // Insertar cada comisión como item de liquidación
+      const items = commissionsToAdd.map(c => {
+        const typeLabel = c.commission_type === 'am' ? 'AM' : c.commission_type === 'pm' ? 'PM' : 'Venta';
+        const origin = c.budget?.title || c.contract?.title || 'Sin origen';
+        return {
+          liquidation_id: liquidation.id,
+          financial_request_id: null,
+          description: `Comisión ${typeLabel} - ${origin}`,
+          quantity: 1,
+          unit_price: c.commission_amount,
+          total: c.commission_amount,
+        };
+      });
+
+      const { error: insertError } = await supabase
+        .from('liquidation_items')
+        .insert(items);
+      if (insertError) throw insertError;
+
+      // Marcar comisiones como paid
+      for (const id of commissionIds) {
+        const { error } = await supabase
+          .from('sales_commissions')
+          .update({ status: 'paid', paid_at: new Date().toISOString() })
+          .eq('id', id);
+        if (error) throw error;
+      }
+
+      // Recalcular totales
+      const { data: allItems, error: itemsError } = await supabase
+        .from('liquidation_items')
+        .select('total')
+        .eq('liquidation_id', liquidation.id);
+      if (itemsError) throw itemsError;
+
+      const newSubtotal = allItems?.reduce((sum, i: any) => sum + (Number(i.total) || 0), 0) || 0;
+      const { error: updateError } = await supabase
+        .from('liquidations')
+        .update({ subtotal: newSubtotal, total_amount: newSubtotal })
+        .eq('id', liquidation.id);
+      if (updateError) throw updateError;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['liquidations'] });
+      await queryClient.invalidateQueries({ queryKey: ['liquidation-items', liquidation?.id] });
+      await queryClient.invalidateQueries({ queryKey: ['specialist-commissions'] });
+      toast.success('Comisiones agregadas a la liquidación');
+      setSelectedCommissionIds([]);
+      refetchCommissions();
+    },
+    onError: (error) => {
+      toast.error('Error al agregar comisiones: ' + error.message);
     },
   });
 
@@ -867,7 +954,8 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
               value={watch('specialist_id')}
               onValueChange={(value) => {
                 setValue('specialist_id', value);
-                setSelectedRequests([]); // Reset selected when specialist changes
+                setSelectedRequests([]);
+                setSelectedCommissionIds([]);
               }}
               disabled={isViewMode || !isEditable}
             >
@@ -1172,6 +1260,78 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
               
               <p className="text-xs text-muted-foreground">
                 Solicitudes activas o facturadas que aún no han sido liquidadas.
+              </p>
+            </div>
+          )}
+
+          {/* Comisiones disponibles del especialista */}
+          {isEditable && selectedSpecialistUserId && (
+            <div className="border rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-semibold">
+                  Comisiones disponibles
+                  {availableCommissions && ` (${availableCommissions.length})`}
+                </Label>
+                {mode === 'edit' && selectedCommissionIds.length > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => addCommissionsMutation.mutate(selectedCommissionIds)}
+                    disabled={addCommissionsMutation.isPending}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Añadir {selectedCommissionIds.length} comisión(es)
+                  </Button>
+                )}
+              </div>
+
+              {availableCommissions && availableCommissions.length > 0 ? (
+                <ScrollArea className="h-[200px] rounded-md border p-3">
+                  <div className="space-y-2">
+                    {availableCommissions.map((commission) => {
+                      const typeLabel = commission.commission_type === 'am' ? 'AM' : commission.commission_type === 'pm' ? 'PM' : 'Venta';
+                      const origin = commission.budget?.title || commission.contract?.title || 'Sin origen';
+                      return (
+                        <div
+                          key={commission.id}
+                          className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors"
+                        >
+                          <Checkbox
+                            id={`comm-${commission.id}`}
+                            checked={selectedCommissionIds.includes(commission.id)}
+                            onCheckedChange={(checked) => {
+                              setSelectedCommissionIds(prev =>
+                                checked
+                                  ? [...prev, commission.id]
+                                  : prev.filter(id => id !== commission.id)
+                              );
+                            }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium text-sm">Comisión {typeLabel}</span>
+                              <span className="font-semibold text-sm">{commission.commission_amount.toFixed(2)} €</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {origin} • {commission.commission_percentage}% sobre {commission.base_amount.toFixed(2)} €
+                            </div>
+                            <Badge variant="outline" className="mt-1 text-xs">
+                              {commission.status === 'approved' ? 'Aprobada' : 'Pendiente'}
+                            </Badge>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  No hay comisiones pendientes o aprobadas para este especialista
+                </p>
+              )}
+
+              <p className="text-xs text-muted-foreground">
+                Comisiones de venta, AM o PM pendientes de pago.
               </p>
             </div>
           )}

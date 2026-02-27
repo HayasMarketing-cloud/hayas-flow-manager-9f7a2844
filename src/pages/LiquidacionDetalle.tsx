@@ -349,7 +349,7 @@ export default function LiquidacionDetalle() {
         .from('sales_commissions')
         .select('*, budget:budgets(code, title), contract:contracts(code, title)')
         .eq('seller_user_id', liquidation!.specialist!.user_id!)
-        .eq('status', 'pending')
+        .in('status', ['pending', 'approved'])
         .order('created_at', { ascending: false });
       return data || [];
     },

@@ -27,6 +27,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 type CommissionType = 'sales' | 'am' | 'pm';
+type SourceType = 'contract' | 'budget' | 'invoice';
 
 interface Commission {
   id: string;
@@ -78,8 +79,9 @@ export function CommissionFormModal({
 
   const [formData, setFormData] = useState({
     commission_type: 'am' as CommissionType,
+    client_id: '',
     seller_user_id: '',
-    source_type: 'budget' as 'contract' | 'budget',
+    source_type: 'budget' as SourceType,
     contract_id: '',
     budget_id: '',
     invoice_ids: [] as string[],
@@ -103,6 +105,20 @@ export function CommissionFormModal({
     enabled: open,
   });
 
+  // Fetch clients
+  const { data: clients } = useQuery({
+    queryKey: ['clients-for-commission'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, name')
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+    enabled: open,
+  });
+
   // Fetch users (profiles)
   const { data: users } = useQuery({
     queryKey: ['profiles-for-commission'],
@@ -117,77 +133,71 @@ export function CommissionFormModal({
     enabled: open,
   });
 
-  // Fetch contracts
+  // Fetch contracts filtered by client
   const { data: contracts } = useQuery({
-    queryKey: ['contracts-for-commission'],
+    queryKey: ['contracts-for-commission', formData.client_id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('contracts')
         .select('id, title, code, total_amount, client:clients(name)')
         .eq('status', 'active')
+        .eq('client_id', formData.client_id)
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data;
     },
-    enabled: open && formData.source_type === 'contract',
+    enabled: open && formData.source_type === 'contract' && !!formData.client_id,
   });
 
-  // Fetch budgets
+  // Fetch budgets filtered by client
   const { data: budgets } = useQuery({
-    queryKey: ['budgets-for-commission'],
+    queryKey: ['budgets-for-commission', formData.client_id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('budgets')
         .select('id, title, code, total_amount, client:clients(name), am_user_id, pm_user_id')
         .in('status', ['approved', 'invoiced'])
+        .eq('client_id', formData.client_id)
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data;
     },
-    enabled: open,
+    enabled: open && formData.source_type === 'budget' && !!formData.client_id,
   });
 
-  // Fetch invoices for the selected budget/contract
+  // Fetch invoices — either for budget/contract context or directly for client
   const { data: availableInvoices } = useQuery({
-    queryKey: ['invoices-for-commission', formData.budget_id, formData.contract_id],
+    queryKey: ['invoices-for-commission', formData.client_id, formData.budget_id, formData.contract_id, formData.source_type],
     queryFn: async () => {
-      // Get client_id from budget or contract
-      let clientId: string | null = null;
-      
-      if (formData.budget_id) {
-        const budget = budgets?.find(b => b.id === formData.budget_id);
-        if (budget) {
-          const { data: budgetData } = await supabase
-            .from('budgets')
-            .select('client_id')
-            .eq('id', formData.budget_id)
-            .single();
-          clientId = budgetData?.client_id || null;
-        }
-      } else if (formData.contract_id) {
-        const contract = contracts?.find(c => c.id === formData.contract_id);
-        if (contract) {
-          const { data: contractData } = await supabase
-            .from('contracts')
-            .select('client_id')
-            .eq('id', formData.contract_id)
-            .single();
-          clientId = contractData?.client_id || null;
-        }
+      if (formData.source_type === 'invoice') {
+        // Direct invoice selection by client
+        const { data, error } = await supabase
+          .from('invoices')
+          .select('id, code, subtotal, invoice_date, client:clients(name)')
+          .eq('client_id', formData.client_id)
+          .order('invoice_date', { ascending: false });
+        if (error) throw error;
+        return data as Invoice[];
       }
-      
+
+      // For budget/contract source, get client invoices
+      let clientId: string | null = formData.client_id || null;
+
       if (!clientId) return [];
-      
+
       const { data, error } = await supabase
         .from('invoices')
         .select('id, code, subtotal, invoice_date, client:clients(name)')
         .eq('client_id', clientId)
         .order('invoice_date', { ascending: false });
-      
+
       if (error) throw error;
       return data as Invoice[];
     },
-    enabled: open && (!!formData.budget_id || !!formData.contract_id),
+    enabled: open && (
+      (formData.source_type === 'invoice' && !!formData.client_id) ||
+      (!!formData.budget_id || !!formData.contract_id)
+    ),
   });
 
   // Set default percentage when commission type changes
@@ -216,10 +226,15 @@ export function CommissionFormModal({
 
   useEffect(() => {
     if (commission && mode !== 'create') {
+      // Determine client_id from existing commission's budget or contract
+      let clientId = '';
+      // We'll try to get client from the commission context; for now leave empty (will be populated by queries)
+      
       setFormData({
         commission_type: (commission.commission_type as CommissionType) || 'am',
+        client_id: clientId,
         seller_user_id: commission.seller_user_id,
-        source_type: commission.contract_id ? 'contract' : 'budget',
+        source_type: commission.contract_id ? 'contract' : commission.budget_id ? 'budget' : 'invoice',
         contract_id: commission.contract_id || '',
         budget_id: commission.budget_id || '',
         invoice_ids: commission.invoice_ids || [],
@@ -233,6 +248,7 @@ export function CommissionFormModal({
       const defaultPercentage = commissionSettings?.find(s => s.commission_type === 'am')?.default_percentage || 5;
       setFormData({
         commission_type: 'am',
+        client_id: '',
         seller_user_id: '',
         source_type: 'budget',
         contract_id: '',
@@ -323,12 +339,20 @@ export function CommissionFormModal({
       toast({ title: 'Error', description: 'Selecciona un beneficiario', variant: 'destructive' });
       return;
     }
+    if (!formData.client_id) {
+      toast({ title: 'Error', description: 'Selecciona un cliente', variant: 'destructive' });
+      return;
+    }
     if (formData.source_type === 'contract' && !formData.contract_id) {
       toast({ title: 'Error', description: 'Selecciona un contrato', variant: 'destructive' });
       return;
     }
     if (formData.source_type === 'budget' && !formData.budget_id) {
       toast({ title: 'Error', description: 'Selecciona un presupuesto', variant: 'destructive' });
+      return;
+    }
+    if (formData.source_type === 'invoice' && formData.invoice_ids.length === 0) {
+      toast({ title: 'Error', description: 'Selecciona al menos una factura', variant: 'destructive' });
       return;
     }
     if (formData.base_amount <= 0) {
@@ -341,6 +365,10 @@ export function CommissionFormModal({
   const selectedInvoicesSubtotal = availableInvoices
     ?.filter(inv => formData.invoice_ids.includes(inv.id))
     .reduce((sum, inv) => sum + Number(inv.subtotal), 0) || 0;
+
+  const showInvoiceSelector = formData.source_type === 'invoice' && !!formData.client_id;
+  const showInvoiceForSource = (formData.source_type === 'budget' && !!formData.budget_id) || 
+                                (formData.source_type === 'contract' && !!formData.contract_id);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -359,6 +387,7 @@ export function CommissionFormModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-4 pr-2">
+          {/* Row 1: Tipo + Cliente */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Tipo de comisión *</Label>
@@ -378,6 +407,36 @@ export function CommissionFormModal({
               </Select>
             </div>
 
+            <div className="space-y-2">
+              <Label>Cliente *</Label>
+              <Select
+                value={formData.client_id}
+                onValueChange={(v) => setFormData(prev => ({ 
+                  ...prev, 
+                  client_id: v,
+                  contract_id: '',
+                  budget_id: '',
+                  invoice_ids: [],
+                  base_amount: 0,
+                }))}
+                disabled={isViewMode}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients?.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Row 2: Beneficiario */}
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Beneficiario *</Label>
               <Select
@@ -399,6 +458,7 @@ export function CommissionFormModal({
             </div>
           </div>
 
+          {/* Row 3: Origen + Source selector */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Origen</Label>
@@ -406,7 +466,7 @@ export function CommissionFormModal({
                 value={formData.source_type}
                 onValueChange={(v) => setFormData(prev => ({ 
                   ...prev, 
-                  source_type: v as 'contract' | 'budget',
+                  source_type: v as SourceType,
                   contract_id: '',
                   budget_id: '',
                   invoice_ids: [],
@@ -420,66 +480,69 @@ export function CommissionFormModal({
                 <SelectContent>
                   <SelectItem value="budget">Presupuesto</SelectItem>
                   <SelectItem value="contract">Contrato</SelectItem>
+                  <SelectItem value="invoice">Factura</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>{formData.source_type === 'contract' ? 'Contrato' : 'Presupuesto'} *</Label>
-              {formData.source_type === 'contract' ? (
-                <Select
-                  value={formData.contract_id}
-                  onValueChange={(v) => setFormData(prev => ({ 
-                    ...prev, 
-                    contract_id: v, 
-                    invoice_ids: [],
-                    base_amount: 0,
-                  }))}
-                  disabled={isViewMode}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar contrato" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {contracts?.map((contract) => (
-                      <SelectItem key={contract.id} value={contract.id}>
-                        {contract.code} - {contract.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Select
-                  value={formData.budget_id}
-                  onValueChange={(v) => setFormData(prev => ({ 
-                    ...prev, 
-                    budget_id: v,
-                    invoice_ids: [],
-                    base_amount: 0,
-                  }))}
-                  disabled={isViewMode}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar presupuesto" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {budgets?.map((budget) => (
-                      <SelectItem key={budget.id} value={budget.id}>
-                        {budget.code} - {budget.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+            {formData.source_type !== 'invoice' && (
+              <div className="space-y-2">
+                <Label>{formData.source_type === 'contract' ? 'Contrato' : 'Presupuesto'} *</Label>
+                {formData.source_type === 'contract' ? (
+                  <Select
+                    value={formData.contract_id}
+                    onValueChange={(v) => setFormData(prev => ({ 
+                      ...prev, 
+                      contract_id: v, 
+                      invoice_ids: [],
+                      base_amount: 0,
+                    }))}
+                    disabled={isViewMode || !formData.client_id}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={formData.client_id ? "Seleccionar contrato" : "Selecciona cliente primero"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {contracts?.map((contract) => (
+                        <SelectItem key={contract.id} value={contract.id}>
+                          {contract.code} - {contract.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Select
+                    value={formData.budget_id}
+                    onValueChange={(v) => setFormData(prev => ({ 
+                      ...prev, 
+                      budget_id: v,
+                      invoice_ids: [],
+                      base_amount: 0,
+                    }))}
+                    disabled={isViewMode || !formData.client_id}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={formData.client_id ? "Seleccionar presupuesto" : "Selecciona cliente primero"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {budgets?.map((budget) => (
+                        <SelectItem key={budget.id} value={budget.id}>
+                          {budget.code} - {budget.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Invoice selector */}
-          {(formData.budget_id || formData.contract_id) && (
+          {/* Invoice selector — shown when source is invoice OR when budget/contract is selected */}
+          {(showInvoiceSelector || showInvoiceForSource) && (
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <FileText className="h-4 w-4" />
-                Facturas base para el cálculo
+                {formData.source_type === 'invoice' ? 'Selecciona facturas *' : 'Facturas base para el cálculo'}
               </Label>
               {availableInvoices && availableInvoices.length > 0 ? (
                 <>
@@ -531,7 +594,7 @@ export function CommissionFormModal({
                 </>
               ) : (
                 <div className="text-sm text-muted-foreground p-4 border rounded-md text-center">
-                  No hay facturas disponibles para este {formData.source_type === 'contract' ? 'contrato' : 'presupuesto'}
+                  No hay facturas disponibles para este {formData.source_type === 'contract' ? 'contrato' : formData.source_type === 'budget' ? 'presupuesto' : 'cliente'}
                 </div>
               )}
             </div>

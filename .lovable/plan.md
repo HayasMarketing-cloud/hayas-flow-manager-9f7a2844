@@ -1,56 +1,28 @@
 
 
-## Diagnosis
+## Problem
 
-The `redirect_uri_mismatch` error on `flow.hayasmarketing.com` is caused by the Lovable Cloud auth-bridge, which handles OAuth for `*.lovable.app` domains but is incompatible with custom domains. This may have broken due to a change in the auth-bridge behavior.
+The "Mes trabajo" filter queries `work_month` and `work_year` columns directly, but these columns are `NULL` for all existing requests. January 2026 has 10+ requests (confirmed in the database), but they all have `work_month: NULL, work_year: NULL`.
 
 ## Fix
 
-**File: `src/contexts/AuthContext.tsx`** — Update `signInWithGoogle` to detect custom domains and bypass the auth-bridge:
-
-- If on a custom domain (not `*.lovable.app`), use `supabase.auth.signInWithOAuth` directly with `skipBrowserRedirect: true`, then manually redirect to the OAuth URL
-- If on a Lovable domain, keep using `lovable.auth.signInWithOAuth` as before
-
-**File: `src/pages/Auth.tsx`** — No changes needed (the `handleGoogleSignIn` already calls `signInWithGoogle` from context)
-
-### Implementation detail
+**File: `src/pages/Solicitudes.tsx`** — Replace the work period filter (lines 107-113) with an `.or()` that falls back to `created_at` when `work_month`/`work_year` are NULL:
 
 ```typescript
-const signInWithGoogle = async () => {
-  try {
-    const isCustomDomain =
-      !window.location.hostname.includes("lovable.app") &&
-      !window.location.hostname.includes("lovableproject.com");
-
-    if (isCustomDomain) {
-      // Bypass auth-bridge for custom domains
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: window.location.origin,
-          skipBrowserRedirect: true,
-          queryParams: { hd: 'hayas.es' },
-        },
-      });
-      if (error) throw error;
-      if (data?.url) {
-        window.location.href = data.url;
-      }
-    } else {
-      // Lovable domains use managed auth-bridge
-      const { error } = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
-        extraParams: { hd: 'hayas.es' },
-      });
-      if (error) throw error;
-    }
-    return { error: null };
-  } catch (error: any) {
-    // existing error handling
-    return { error };
-  }
-};
+if (filters.workYear && filters.workMonth) {
+  const startDate = new Date(filters.workYear, filters.workMonth - 1, 1).toISOString();
+  const endDate = new Date(filters.workYear, filters.workMonth, 0, 23, 59, 59, 999).toISOString();
+  query = query.or(
+    `and(work_year.eq.${filters.workYear},work_month.eq.${filters.workMonth}),and(work_year.is.null,work_month.is.null,created_at.gte.${startDate},created_at.lte.${endDate})`
+  );
+} else if (filters.workYear) {
+  const startDate = new Date(filters.workYear, 0, 1).toISOString();
+  const endDate = new Date(filters.workYear, 11, 31, 23, 59, 59, 999).toISOString();
+  query = query.or(
+    `work_year.eq.${filters.workYear},and(work_year.is.null,created_at.gte.${startDate},created_at.lte.${endDate})`
+  );
+}
 ```
 
-This is a single-file change in `AuthContext.tsx`, ~15 lines modified.
+Single file, ~10 lines changed.
 

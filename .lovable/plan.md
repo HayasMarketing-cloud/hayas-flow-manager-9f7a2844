@@ -1,35 +1,25 @@
 
 
-## Add invoice concept/description to commission invoice selector
+## Show invoice/budget codes in commission origin column
 
 ### Problem
-When creating a commission from invoices, each invoice row only shows code + date + amount. The user wants to also see the invoice line items (concepts) to identify what was billed.
+Commissions created directly from invoices (without contract or budget) show an empty origin column. The user wants to see invoice codes there, and budget codes for budget-sourced commissions.
 
-### Changes in `src/components/commissions/CommissionFormModal.tsx`
+### Changes
 
-**1. Expand Invoice interface** (line 47-53): Add `items` field:
-```typescript
-interface Invoice {
-  id: string;
-  code: string;
-  subtotal: number;
-  invoice_date: string;
-  client: { name: string } | null;
-  items: { description: string }[] | null;
-}
-```
+**1. `src/pages/Comisiones.tsx` — Fetch invoice codes for all commissions**
+After fetching commissions and profiles (around line 110), collect all `invoice_ids` from all commissions, fetch their codes from the `invoices` table, and attach an `invoices` array (with `id` and `code`) to each commission object.
 
-**2. Expand invoice queries** (lines 174-176 and 188-190): Add `invoice_items` join to both invoice select statements:
-```
-.select('id, code, subtotal, invoice_date, client:clients(name), items:invoice_items(description)')
-```
+**2. `src/components/commissions/CommissionTableView.tsx` — Update Commission interface and origin rendering**
 
-**3. Update invoice row rendering** (lines 551-579): Below the code/date line, show a truncated list of item descriptions in smaller muted text. Something like:
-```
-2026/14  (2 feb 2026)                    1.225,00 €
-  Consultoría estratégica, Diseño web
-```
+- Add `invoices?: { id: string; code: string }[] | null` to the `Commission` interface (line ~62).
+- Update origin column logic (lines 168-199):
+  - If `contract_id` exists → show contract code (current behavior, works fine)
+  - Else if `budget_id` exists → show budget code with "Presupuesto" tooltip
+  - Else if `invoices` has entries → show invoice codes joined (e.g. "2026/15, 2026/17") with a `FileText` icon and "Factura(s)" tooltip
+  - Else → show "-"
 
 ### Files changed
-- `src/components/commissions/CommissionFormModal.tsx` — interface update, query select expansion, UI row enhancement
+- `src/pages/Comisiones.tsx` — fetch invoice codes and attach to commission objects
+- `src/components/commissions/CommissionTableView.tsx` — interface + origin column rendering logic
 

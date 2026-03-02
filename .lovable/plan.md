@@ -1,44 +1,51 @@
 
 
-## Fix commission edit/view: persist associated data and show source details
+## Add commissions to liquidations from the commissions list
 
-### Problem
-When opening a commission in edit or view mode, client and source data (invoices, budgets, contracts) don't load because `client_id` is never populated from the commission's joined data. Additionally, the modal should display the code and title of the associated source (invoice, budget, or contract).
+### Context
+Currently, commissions can be included in liquidations only from the liquidation detail view. The user wants bidirectional association: from the commissions list, select commissions and add them to a liquidation, and show a link to the associated liquidation in the table.
 
-### Root Cause
-In `CommissionFormModal.tsx` line 231, `clientId` is hardcoded to `''`. The `Commission` interface in the modal doesn't include the joined `contract`, `budget`, or `invoices` data that the parent page already passes. Since all source queries depend on `formData.client_id` being truthy, nothing loads.
+### Database change
+The `sales_commissions` table needs a `liquidation_id` column (nullable UUID, FK to `liquidations`).
+
+```sql
+ALTER TABLE public.sales_commissions 
+ADD COLUMN liquidation_id UUID REFERENCES public.liquidations(id);
+```
+
+### Key challenge: user_id vs specialist_id
+Commissions use `seller_user_id` (auth user ID from profiles), while liquidations use `specialist_id` (from `specialists` table). The bridge is `specialists.user_id`. When adding a commission to a liquidation, we need to look up the specialist via `specialists.user_id = commission.seller_user_id`.
 
 ### Changes
 
-**1. `src/pages/Comisiones.tsx` — Add `client_id` to joins and invoice fetch**
-- Expand contract join to include `client_id`: `contract:contracts(id, title, code, client_id, client:clients(name))`
-- Expand budget join to include `client_id`: `budget:budgets(id, title, code, client_id, client:clients(name))`
-- When fetching invoice codes, also fetch `client_id` and `invoice_date`: `.select('id, code, client_id, invoice_date')`
-- Update `Commission` interface to reflect these additions
+**1. Database migration** — Add `liquidation_id` column to `sales_commissions`
 
-**2. `src/components/commissions/CommissionFormModal.tsx` — Populate client_id and show source info**
+**2. `src/pages/Comisiones.tsx`**
+- Fetch `liquidation_id` (already comes with `*` select) and join liquidation code: add `liquidation:liquidations(id, code)` to the select
+- Pass liquidation data to `CommissionTableView`
+- Add state for "Add to Liquidation" modal and selected commission IDs
 
-- **Expand `Commission` interface** to include optional joined data:
-  - `contract?: { id: string; title: string; code: string; client_id?: string; client?: { name: string } | null } | null`
-  - `budget?: { id: string; title: string; code: string; client_id?: string; client?: { name: string } | null } | null`
-  - `invoices?: { id: string; code: string; client_id?: string }[] | null`
+**3. `src/components/commissions/CommissionTableView.tsx`**
+- Add `liquidation` field to Commission interface: `{ id: string; code: string } | null`
+- Add new "Liquidación" column in the table showing the liquidation code as a link to `/liquidaciones/{id}`, or "-" if none
+- Add "Añadir a liquidación" option in the dropdown menu (only when `liquidation_id` is null and status is not 'paid')
+- Expose an `onAddToLiquidation` callback prop
 
-- **Fix edit/view `useEffect`** (lines 228-247): Derive `client_id` from commission's joined data:
-  ```
-  clientId = commission.contract?.client_id 
-           || commission.budget?.client_id 
-           || commission.invoices?.[0]?.client_id 
-           || ''
-  ```
-
-- **Add read-only source summary in view/edit mode**: When in view or edit mode and a source exists, display a small info block showing:
-  - Contract: code + title
-  - Budget: code + title  
-  - Invoices: codes joined (e.g. "2026/14 - Leadership Forum")
-  
-  This ensures source identity is visible even before dependent queries finish loading.
+**4. New component: `src/components/commissions/AddCommissionToLiquidationModal.tsx`**
+- Receives a single commission (with `seller_user_id`, `commission_amount`, description)
+- Looks up the specialist via `specialists.user_id = seller_user_id`
+- If no specialist found, shows an error message
+- Offers "new liquidation" or "existing draft liquidation" for that specialist (same pattern as `AddToLiquidationModal`)
+- On submit:
+  - Creates or selects liquidation
+  - Creates a `liquidation_item` with the commission description and amount
+  - Updates `sales_commissions.liquidation_id` with the chosen liquidation
+  - Recalculates liquidation totals
+  - Invalidates queries
 
 ### Files changed
-- `src/pages/Comisiones.tsx` — add `client_id` to contract/budget/invoice joins
-- `src/components/commissions/CommissionFormModal.tsx` — interface expansion, client_id derivation, source info display
+- **Migration**: Add `liquidation_id` to `sales_commissions`
+- `src/pages/Comisiones.tsx` — fetch liquidation join, modal state, pass props
+- `src/components/commissions/CommissionTableView.tsx` — liquidation column + menu action
+- `src/components/commissions/AddCommissionToLiquidationModal.tsx` — new modal (similar pattern to existing `AddToLiquidationModal`)
 

@@ -1247,6 +1247,7 @@ export default function LiquidacionDetalle() {
                   isEditable={isEditable}
                   canEdit={canAccessFinance()}
                   onRemoveItem={setItemToRemove}
+                  commissionDetails={linkedCommissionDetails || undefined}
                 />
               ) : (
                 <p className="text-center text-muted-foreground py-8">No hay items en esta liquidación</p>

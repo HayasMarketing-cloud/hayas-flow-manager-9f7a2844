@@ -33,6 +33,7 @@ interface CommissionForLiquidation {
   seller_profile?: { full_name: string } | null;
   contract?: { code: string; title: string } | null;
   budget?: { code: string; title: string } | null;
+  invoice_codes?: string[];
 }
 
 interface AddCommissionToLiquidationModalProps {
@@ -148,11 +149,15 @@ export const AddCommissionToLiquidationModal = ({
       }
 
       // Build description
-      const origin = commission.contract
+      let origin = commission.contract
         ? `${commission.contract.code} - ${commission.contract.title}`
         : commission.budget
           ? `${commission.budget.code} - ${commission.budget.title}`
           : '';
+      // If no contract/budget, try invoice codes
+      if (!origin && commission.invoice_codes?.length) {
+        origin = commission.invoice_codes.join(', ');
+      }
       const typeLabel = typeLabels[commission.commission_type || 'sales'] || commission.commission_type;
       const description = `Comisión ${typeLabel} (${commission.commission_percentage}%)${origin ? ` — ${origin}` : ''}`;
 

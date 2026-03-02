@@ -250,6 +250,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
         .select('*, budget:budgets(code, title), contract:contracts(code, title)')
         .eq('seller_user_id', selectedSpecialistUserId!)
         .in('status', ['pending', 'approved'])
+        .is('liquidation_id', null)
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
@@ -562,7 +563,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       for (const id of commissionIds) {
         const { error } = await supabase
           .from('sales_commissions')
-          .update({ status: 'paid', paid_at: new Date().toISOString() })
+          .update({ status: 'paid', paid_at: new Date().toISOString(), liquidation_id: liquidation.id })
           .eq('id', id);
         if (error) throw error;
       }

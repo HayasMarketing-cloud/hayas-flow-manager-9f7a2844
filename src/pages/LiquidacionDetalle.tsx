@@ -419,10 +419,10 @@ export default function LiquidacionDetalle() {
 
   const removeItemMutation = useMutation({
     mutationFn: async ({ itemId, requestId }: { itemId: string; requestId: string | null }) => {
-      // Get the item to know the total to subtract
+      // Get the item details
       const { data: item, error: fetchError } = await supabase
         .from('liquidation_items')
-        .select('total')
+        .select('total, description')
         .eq('id', itemId)
         .single();
 
@@ -444,6 +444,24 @@ export default function LiquidacionDetalle() {
           .eq('id', requestId);
 
         if (updateError) throw updateError;
+      }
+
+      // If item description starts with "Comisión", reset matching commission
+      if (item.description?.startsWith('Comisión')) {
+        // Find commission linked to this liquidation with matching amount
+        const { data: linkedCommissions } = await (supabase
+          .from('sales_commissions' as any)
+          .select('id')
+          .eq('liquidation_id', id)
+          .eq('commission_amount', item.total) as any);
+        
+        if (linkedCommissions?.length) {
+          // Reset only the first matching commission
+          await (supabase
+            .from('sales_commissions' as any)
+            .update({ liquidation_id: null, status: 'approved', paid_at: null })
+            .eq('id', linkedCommissions[0].id) as any);
+        }
       }
 
       // Recalculate subtotal, tax_amount and total_amount
@@ -468,7 +486,8 @@ export default function LiquidacionDetalle() {
       queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
       queryClient.invalidateQueries({ queryKey: ['liquidations'] });
       queryClient.invalidateQueries({ queryKey: ['unliquidated-requests'] });
-      toast.success('Solicitud eliminada de la liquidación');
+      queryClient.invalidateQueries({ queryKey: ['specialist-commissions'] });
+      toast.success('Elemento eliminado de la liquidación');
       setItemToRemove(null);
     },
     onError: (error: any) => {

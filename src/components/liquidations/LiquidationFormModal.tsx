@@ -649,7 +649,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       // Obtener el item para verificar si tiene un financial_request vinculado
       const { data: item, error: fetchError } = await supabase
         .from('liquidation_items')
-        .select('financial_request_id')
+        .select('financial_request_id, description, total')
         .eq('id', itemId)
         .single();
 
@@ -673,6 +673,22 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
         if (updateRequestError) throw updateRequestError;
       }
 
+      // Check if the deleted item was a commission and reset its linkage
+      if (item?.description?.startsWith('Comisión')) {
+        const { data: linkedCommissions } = await (supabase
+          .from('sales_commissions' as any)
+          .select('id')
+          .eq('liquidation_id', liquidation.id)
+          .eq('commission_amount', item.total) as any);
+        
+        if (linkedCommissions?.length) {
+          await (supabase
+            .from('sales_commissions' as any)
+            .update({ liquidation_id: null, status: 'approved', paid_at: null })
+            .eq('id', linkedCommissions[0].id) as any);
+        }
+      }
+
       // Recalcular totales
       const { data: allItems, error: itemsError } = await supabase
         .from('liquidation_items')
@@ -694,6 +710,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       await queryClient.invalidateQueries({ queryKey: ['liquidations'] });
       await queryClient.invalidateQueries({ queryKey: ['liquidation-items', liquidation?.id] });
       await queryClient.invalidateQueries({ queryKey: ['unliquidated-requests'] });
+      await queryClient.invalidateQueries({ queryKey: ['specialist-commissions'] });
       toast.success('Item eliminado');
     },
     onError: (error) => {

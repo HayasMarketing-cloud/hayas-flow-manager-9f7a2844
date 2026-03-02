@@ -725,21 +725,11 @@ export default function LiquidacionDetalle() {
     if (!liquidation) return;
 
     try {
-      // Fetch pending requests for this specialist
-      const { data: pendingRequests } = await supabase
-        .from('financial_requests')
-        .select(`id, code, title, status, cost_to_agency, client:clients(id, name)`)
-        .eq('specialist_id', liquidation.specialist?.id)
-        .is('liquidation_id', null)
-        .eq('status', 'completed')
-        .order('created_at', { ascending: false });
-
       await generateLiquidationPDF({
         liquidation,
         items: liquidation.liquidation_items || [],
         specialist: liquidation.specialist,
-        pendingRequests: pendingRequests || [],
-        // Pass team data if this is a team leader liquidation
+        commissionDetails: linkedCommissionDetails || undefined,
         teamData: hasTeam && teamData ? {
           members: teamData.members,
           teamTotal: teamData.teamTotal,
@@ -765,21 +755,11 @@ export default function LiquidacionDetalle() {
     setIsSending(true);
 
     try {
-      // Fetch pending requests for this specialist
-      const { data: pendingRequests } = await supabase
-        .from('financial_requests')
-        .select(`id, code, title, status, cost_to_agency, client:clients(id, name)`)
-        .eq('specialist_id', liquidation.specialist?.id)
-        .is('liquidation_id', null)
-        .eq('status', 'completed')
-        .order('created_at', { ascending: false });
-
       const pdfBase64 = await generateLiquidationPDFBase64({
         liquidation,
         items: liquidation.liquidation_items || [],
         specialist: liquidation.specialist,
-        pendingRequests: pendingRequests || [],
-        // Pass team data if this is a team leader liquidation
+        commissionDetails: linkedCommissionDetails || undefined,
         teamData: hasTeam && teamData ? {
           members: teamData.members,
           teamTotal: teamData.teamTotal,

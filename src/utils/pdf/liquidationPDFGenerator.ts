@@ -3,15 +3,11 @@ import autoTable from 'jspdf-autotable';
 import { getMonthName } from '@/lib/liquidation-utils';
 import { groupItemsByClientAndProject } from '@/lib/liquidation-grouping';
 
-interface PendingRequest {
-  id: string;
-  code: string;
-  title: string;
-  status: string;
-  cost_to_agency: number | null;
-  client?: { id: string; name: string } | null;
-  budget?: { id: string; code: string; title?: string } | null;
-  operational_request?: { id: string; operational_project?: { id: string; name: string } | null }[] | null;
+interface CommissionDetail {
+  type: string;
+  percentage: number;
+  baseAmount: number;
+  invoiceCodes: string[];
 }
 
 interface TeamMemberLiquidation {
@@ -25,7 +21,7 @@ interface LiquidationData {
   liquidation: any;
   items: any[];
   specialist: any;
-  pendingRequests?: PendingRequest[];
+  commissionDetails?: Record<string, CommissionDetail>;
   companyInfo?: {
     name: string;
     tradeName?: string;
@@ -116,7 +112,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     currentY += 8;
 
     // Leader's items table
-    const leaderTableData = buildHierarchicalTableData(data.items);
+    const leaderTableData = buildHierarchicalTableData(data.items, data.commissionDetails);
 
     autoTable(doc, {
       startY: currentY,
@@ -165,7 +161,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
       doc.setTextColor(0, 0, 0);
       currentY += 8;
 
-      const memberTableData = buildHierarchicalTableData(member.liquidation_items);
+      const memberTableData = buildHierarchicalTableData(member.liquidation_items, data.commissionDetails);
 
       autoTable(doc, {
         startY: currentY,
@@ -210,7 +206,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     currentY += 20;
   } else {
     // === SINGLE LIQUIDATION MODE (original behavior) ===
-    const tableData = buildHierarchicalTableData(data.items);
+    const tableData = buildHierarchicalTableData(data.items, data.commissionDetails);
 
     autoTable(doc, {
       startY: currentY,
@@ -264,69 +260,6 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     doc.text(splitNotes, 15, currentY + 22);
   }
 
-  // Sección de solicitudes pendientes - Siempre en nueva página como ANEXO
-  if (data.pendingRequests && data.pendingRequests.length > 0) {
-    doc.addPage();
-    let annexY = 20;
-
-    doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.text('ANEXO', pageWidth / 2, annexY, { align: 'center' });
-
-    annexY += 12;
-
-    doc.setFontSize(11);
-    doc.text('TRABAJOS PENDIENTES PARA PRÓXIMA LIQUIDACIÓN', 15, annexY);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-    doc.text('(Trabajos completados o en progreso aún no incluidos en esta liquidación)', 15, annexY + 6);
-
-    const pendingTableData = data.pendingRequests.map(req => [
-      req.code || '-',
-      (req.title?.substring(0, 30) + (req.title && req.title.length > 30 ? '...' : '')) || '-',
-      req.client?.name || '-',
-      getProjectOrBudgetName(req),
-      req.status === 'completed' ? 'Completado' : 'En progreso',
-      formatCurrency(Number(req.cost_to_agency) || 0)
-    ]);
-
-    autoTable(doc, {
-      startY: annexY + 12,
-      head: [['Código', 'Título', 'Cliente', 'Proy./Pres.', 'Estado', 'Importe']],
-      body: pendingTableData,
-      theme: 'plain',
-      headStyles: {
-        fillColor: [245, 245, 245],
-        textColor: [100, 100, 100],
-        fontSize: 8,
-        fontStyle: 'bold',
-      },
-      styles: {
-        fontSize: 8,
-        cellPadding: 3,
-      },
-      columnStyles: {
-        0: { cellWidth: 22 },
-        1: { cellWidth: 40 },
-        2: { cellWidth: 30 },
-        3: { cellWidth: 30 },
-        4: { cellWidth: 22 },
-        5: { cellWidth: 28, halign: 'right' },
-      },
-    });
-
-    const totalPending = data.pendingRequests.reduce(
-      (sum, req) => sum + (Number(req.cost_to_agency) || 0), 0
-    );
-    const pendingFinalY = (doc as any).lastAutoTable.finalY + 5;
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Total pendiente: ${formatCurrency(totalPending)}`, pageWidth - 15, pendingFinalY, { align: 'right' });
-  }
 
   // Footer
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -416,7 +349,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
     doc.setTextColor(0, 0, 0);
     currentY += 8;
 
-    const leaderTableData = buildHierarchicalTableData(data.items);
+    const leaderTableData = buildHierarchicalTableData(data.items, data.commissionDetails);
 
     autoTable(doc, {
       startY: currentY,
@@ -462,7 +395,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
       doc.setTextColor(0, 0, 0);
       currentY += 8;
 
-      const memberTableData = buildHierarchicalTableData(member.liquidation_items);
+      const memberTableData = buildHierarchicalTableData(member.liquidation_items, data.commissionDetails);
 
       autoTable(doc, {
         startY: currentY,
@@ -505,7 +438,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
     currentY += 20;
   } else {
     // === SINGLE LIQUIDATION MODE ===
-    const tableData = buildHierarchicalTableData(data.items);
+    const tableData = buildHierarchicalTableData(data.items, data.commissionDetails);
 
     autoTable(doc, {
       startY: currentY,
@@ -556,69 +489,6 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
     doc.text(splitNotes, 15, currentY + 22);
   }
 
-  // Pending requests annex
-  if (data.pendingRequests && data.pendingRequests.length > 0) {
-    doc.addPage();
-    let annexY = 20;
-
-    doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.text('ANEXO', pageWidth / 2, annexY, { align: 'center' });
-
-    annexY += 12;
-
-    doc.setFontSize(11);
-    doc.text('TRABAJOS PENDIENTES PARA PRÓXIMA LIQUIDACIÓN', 15, annexY);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-    doc.text('(Trabajos completados o en progreso aún no incluidos en esta liquidación)', 15, annexY + 6);
-
-    const pendingTableData = data.pendingRequests.map(req => [
-      req.code || '-',
-      (req.title?.substring(0, 30) + (req.title && req.title.length > 30 ? '...' : '')) || '-',
-      req.client?.name || '-',
-      getProjectOrBudgetName(req),
-      req.status === 'completed' ? 'Completado' : 'En progreso',
-      formatCurrency(Number(req.cost_to_agency) || 0)
-    ]);
-
-    autoTable(doc, {
-      startY: annexY + 12,
-      head: [['Código', 'Título', 'Cliente', 'Proy./Pres.', 'Estado', 'Importe']],
-      body: pendingTableData,
-      theme: 'plain',
-      headStyles: {
-        fillColor: [245, 245, 245],
-        textColor: [100, 100, 100],
-        fontSize: 8,
-        fontStyle: 'bold',
-      },
-      styles: {
-        fontSize: 8,
-        cellPadding: 3,
-      },
-      columnStyles: {
-        0: { cellWidth: 22 },
-        1: { cellWidth: 40 },
-        2: { cellWidth: 30 },
-        3: { cellWidth: 30 },
-        4: { cellWidth: 22 },
-        5: { cellWidth: 28, halign: 'right' },
-      },
-    });
-
-    const totalPending = data.pendingRequests.reduce(
-      (sum, req) => sum + (Number(req.cost_to_agency) || 0), 0
-    );
-    const pendingFinalY = (doc as any).lastAutoTable.finalY + 5;
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Total pendiente: ${formatCurrency(totalPending)}`, pageWidth - 15, pendingFinalY, { align: 'right' });
-  }
 
   // Footer
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -635,12 +505,12 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
 };
 
 // Build table data with hierarchical grouping: Client → Project/Budget → Items
-const buildHierarchicalTableData = (items: any[]): any[][] => {
+const buildHierarchicalTableData = (items: any[], commissionDetails?: Record<string, CommissionDetail>): any[][] => {
   const groupedItems = groupItemsByClientAndProject(items);
   const tableData: any[][] = [];
 
   groupedItems.forEach((clientGroup) => {
-    // Client header row - 5 individual cells to avoid colSpan issues
+    // Client header row
     tableData.push([
       { content: clientGroup.clientName, styles: { fontStyle: 'bold', fillColor: [230, 230, 230], textColor: [50, 50, 50] } },
       { content: '', styles: { fillColor: [230, 230, 230] } },
@@ -649,16 +519,13 @@ const buildHierarchicalTableData = (items: any[]): any[][] => {
       { content: '', styles: { fillColor: [230, 230, 230] } },
     ]);
 
-    // Project/Budget groups within client
     clientGroup.projectBudgets.forEach((projectGroup) => {
-      // Project/Budget header row - use text labels instead of symbols for better PDF compatibility
       let displayName = projectGroup.name;
       if (projectGroup.type === 'project') {
         displayName = `[Proy.] ${projectGroup.name}`;
       } else if (projectGroup.type === 'budget') {
         displayName = `[Presup.] ${projectGroup.name}`;
       }
-      // For "Sin proyecto/presupuesto" keep the name as-is
       
       tableData.push([
         { content: `    ${displayName}`, styles: { fontStyle: projectGroup.type !== 'none' ? 'italic' : 'normal', fillColor: [245, 245, 245], textColor: [80, 80, 80], fontSize: 8 } },
@@ -668,7 +535,6 @@ const buildHierarchicalTableData = (items: any[]): any[][] => {
         { content: '', styles: { fillColor: [245, 245, 245] } },
       ]);
 
-      // Individual items
       projectGroup.items.forEach((item) => {
         const costToAgency = Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0;
         const requestCode = item.financial_request?.code || '-';
@@ -687,6 +553,29 @@ const buildHierarchicalTableData = (items: any[]): any[][] => {
           formatCurrency(costToAgency),
           '',
         ]);
+
+        // Add commission detail sub-line if applicable
+        if (!item.financial_request && item.description?.startsWith('Comisión') && commissionDetails) {
+          const detail = Object.values(commissionDetails).find(d => {
+            const typeLabel = d.type === 'am' ? 'AM' : d.type === 'pm' ? 'PM' : 'Venta';
+            return item.description?.includes(`Comisión ${typeLabel}`);
+          });
+          if (detail) {
+            const invoiceLabel = detail.invoiceCodes.length === 1
+              ? `Factura Nº ${detail.invoiceCodes[0]}`
+              : detail.invoiceCodes.length > 1
+                ? `Facturas ${detail.invoiceCodes.join(', ')}`
+                : '';
+            const subLine = `        ${detail.percentage}% sobre ${formatCurrency(detail.baseAmount)}${invoiceLabel ? ` — ${invoiceLabel}` : ''}`;
+            tableData.push([
+              { content: subLine, styles: { fontSize: 7, textColor: [120, 120, 120] } },
+              { content: '', styles: { fontSize: 7 } },
+              { content: '', styles: { fontSize: 7 } },
+              { content: '', styles: { fontSize: 7 } },
+              { content: '', styles: { fontSize: 7 } },
+            ]);
+          }
+        }
       });
     });
   });
@@ -710,16 +599,3 @@ const formatCurrency = (amount: number): string => {
   }).format(amount);
 };
 
-// Helper to get project or budget name from pending request
-const getProjectOrBudgetName = (req: PendingRequest): string => {
-  const opRequest = req.operational_request?.[0];
-  if (opRequest?.operational_project?.name) {
-    const name = opRequest.operational_project.name;
-    return name.length > 18 ? name.substring(0, 16) + '...' : name;
-  }
-  if (req.budget) {
-    const name = req.budget.title || req.budget.code;
-    return name.length > 18 ? name.substring(0, 16) + '...' : name;
-  }
-  return '-';
-};

@@ -6,11 +6,19 @@ import { Trash2, Building2, FolderKanban, FileSpreadsheet, Package } from 'lucid
 import { formatCurrency } from '@/lib/liquidation-utils';
 import { groupItemsByClientAndProject, GroupedClient, GroupedProjectBudget } from '@/lib/liquidation-grouping';
 
+interface CommissionDetail {
+  type: string;
+  percentage: number;
+  baseAmount: number;
+  invoiceCodes: string[];
+}
+
 interface GroupedLiquidationItemsTableProps {
   items: any[];
   isEditable?: boolean;
   canEdit?: boolean;
   onRemoveItem?: (item: { id: string; requestId: string | null; description: string }) => void;
+  commissionDetails?: Record<string, CommissionDetail>;
 }
 
 export function GroupedLiquidationItemsTable({
@@ -18,6 +26,7 @@ export function GroupedLiquidationItemsTable({
   isEditable = false,
   canEdit = false,
   onRemoveItem,
+  commissionDetails,
 }: GroupedLiquidationItemsTableProps) {
   const navigate = useNavigate();
   const showActions = isEditable && canEdit;
@@ -55,7 +64,28 @@ export function GroupedLiquidationItemsTable({
             '-'
           )}
         </TableCell>
-        <TableCell className="max-w-[200px] truncate">{item.description}</TableCell>
+        <TableCell className="max-w-[200px]">
+          <div className="truncate">{item.description}</div>
+          {item.description?.startsWith('Comisión') && commissionDetails && (() => {
+            // Find matching commission detail by looking through all details
+            const detail = Object.values(commissionDetails).find(d => {
+              const typeLabel = d.type === 'am' ? 'AM' : d.type === 'pm' ? 'PM' : 'Venta';
+              return item.description?.includes(`Comisión ${typeLabel}`);
+            });
+            if (!detail) return null;
+            const invoiceLabel = detail.invoiceCodes.length === 1
+              ? `Factura Nº ${detail.invoiceCodes[0]}`
+              : detail.invoiceCodes.length > 1
+                ? `Facturas ${detail.invoiceCodes.join(', ')}`
+                : '';
+            return (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {detail.percentage}% sobre {formatCurrency(detail.baseAmount)}
+                {invoiceLabel && !item.description?.includes('Factura') ? ` — ${invoiceLabel}` : ''}
+              </p>
+            );
+          })()}
+        </TableCell>
         <TableCell className="text-right tabular-nums">{displayQuantity}</TableCell>
         <TableCell className="text-right tabular-nums">{formatCurrency(item.unit_price)}</TableCell>
         <TableCell className="text-right font-medium tabular-nums">{formatCurrency(item.total)}</TableCell>

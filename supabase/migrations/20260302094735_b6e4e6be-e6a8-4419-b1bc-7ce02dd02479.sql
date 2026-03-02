@@ -1,0 +1,1 @@
+ALTER TABLE public.sales_commissions ADD COLUMN liquidation_id UUID REFERENCES public.liquidations(id);

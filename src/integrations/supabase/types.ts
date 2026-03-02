@@ -1559,6 +1559,7 @@ export type Database = {
           created_at: string | null
           id: string
           invoice_ids: string[] | null
+          liquidation_id: string | null
           notes: string | null
           paid_at: string | null
           seller_user_id: string
@@ -1575,6 +1576,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           invoice_ids?: string[] | null
+          liquidation_id?: string | null
           notes?: string | null
           paid_at?: string | null
           seller_user_id: string
@@ -1591,6 +1593,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           invoice_ids?: string[] | null
+          liquidation_id?: string | null
           notes?: string | null
           paid_at?: string | null
           seller_user_id?: string
@@ -1610,6 +1613,13 @@ export type Database = {
             columns: ["contract_id"]
             isOneToOne: false
             referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_commissions_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "liquidations"
             referencedColumns: ["id"]
           },
         ]

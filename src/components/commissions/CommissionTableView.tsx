@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { Link } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -33,7 +34,8 @@ import {
   Trash2,
   FileText,
   User,
-  Briefcase
+  Briefcase,
+  Receipt
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -69,6 +71,8 @@ interface Commission {
   contract?: { title: string; code: string; client?: { name: string } | null } | null;
   budget?: { title: string; code: string; client?: { name: string } | null } | null;
   invoices?: { id: string; code: string }[] | null;
+  liquidation_id?: string | null;
+  liquidation?: { id: string; code: string } | null;
 }
 
 interface CommissionTableViewProps {
@@ -78,6 +82,7 @@ interface CommissionTableViewProps {
   onRefresh: () => void;
   statusLabels: Record<string, string>;
   statusColors: Record<string, string>;
+  onAddToLiquidation?: (commission: Commission) => void;
 }
 
 const commissionTypeLabels: Record<CommissionType, string> = {
@@ -99,6 +104,7 @@ export function CommissionTableView({
   onRefresh,
   statusLabels,
   statusColors,
+  onAddToLiquidation,
 }: CommissionTableViewProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -156,6 +162,7 @@ export function CommissionTableView({
                 <TableHead>Beneficiario</TableHead>
                 <TableHead>Origen</TableHead>
                 <TableHead>Facturas</TableHead>
+                <TableHead>Liquidación</TableHead>
                 <TableHead className="text-right">Base</TableHead>
                 <TableHead className="text-right">%</TableHead>
                 <TableHead className="text-right">Comisión</TableHead>
@@ -248,6 +255,18 @@ export function CommissionTableView({
                         <span className="text-muted-foreground text-sm">-</span>
                       )}
                     </TableCell>
+                    <TableCell>
+                      {commission.liquidation ? (
+                        <Link
+                          to={`/liquidaciones/${commission.liquidation.id}`}
+                          className="text-sm font-medium text-primary hover:underline"
+                        >
+                          {commission.liquidation.code}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                       {Number(commission.base_amount).toLocaleString('es-ES', {
                         style: 'currency',
@@ -305,6 +324,12 @@ export function CommissionTableView({
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
+                          {!commission.liquidation_id && commission.status !== 'paid' && onAddToLiquidation && (
+                            <DropdownMenuItem onClick={() => onAddToLiquidation(commission)}>
+                              <Receipt className="h-4 w-4 mr-2" />
+                              Añadir a liquidación
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             className="text-destructive"
                             onClick={() => setDeleteId(commission.id)}

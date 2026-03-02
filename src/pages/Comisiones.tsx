@@ -18,6 +18,7 @@ import {
 import { CommissionFormModal } from '@/components/commissions/CommissionFormModal';
 import { CommissionCard } from '@/components/commissions/CommissionCard';
 import { CommissionTableView } from '@/components/commissions/CommissionTableView';
+import { AddCommissionToLiquidationModal } from '@/components/commissions/AddCommissionToLiquidationModal';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -60,6 +61,8 @@ interface Commission {
   contract?: { id: string; title: string; code: string; client_id?: string; client?: { name: string } | null } | null;
   budget?: { id: string; title: string; code: string; client_id?: string; client?: { name: string } | null } | null;
   invoices?: { id: string; code: string; client_id?: string }[] | null;
+  liquidation_id?: string | null;
+  liquidation?: { id: string; code: string } | null;
 }
 
 function ComisionesContent() {
@@ -70,6 +73,7 @@ function ComisionesContent() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
+  const [liquidationModalCommission, setLiquidationModalCommission] = useState<Commission | null>(null);
 
   const { data: commissions, isLoading, refetch } = useQuery({
     queryKey: ['sales-commissions', statusFilter, typeFilter],
@@ -80,7 +84,8 @@ function ComisionesContent() {
         .select(`
           *,
           contract:contracts(id, title, code, client_id, client:clients(name)),
-          budget:budgets(id, title, code, client_id, client:clients(name))
+          budget:budgets(id, title, code, client_id, client:clients(name)),
+          liquidation:liquidations(id, code)
         `)
         .order('created_at', { ascending: false });
 
@@ -348,6 +353,7 @@ function ComisionesContent() {
             onRefresh={refetch}
             statusLabels={statusLabels}
             statusColors={statusColors}
+            onAddToLiquidation={(commission: any) => setLiquidationModalCommission(commission)}
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -371,6 +377,16 @@ function ComisionesContent() {
         commission={selectedCommission}
         mode={modalMode}
         onSuccess={handleSuccess}
+      />
+
+      <AddCommissionToLiquidationModal
+        open={!!liquidationModalCommission}
+        onOpenChange={(open) => { if (!open) setLiquidationModalCommission(null); }}
+        commission={liquidationModalCommission}
+        onSuccess={() => {
+          setLiquidationModalCommission(null);
+          refetch();
+        }}
       />
     </AppLayout>
   );

@@ -350,7 +350,22 @@ export default function LiquidacionDetalle() {
         .select('*, budget:budgets(code, title), contract:contracts(code, title)')
         .eq('seller_user_id', liquidation!.specialist!.user_id!)
         .in('status', ['pending', 'approved'])
+        .is('liquidation_id', null)
         .order('created_at', { ascending: false });
+      
+      // For commissions with invoice_ids, fetch invoice codes
+      if (data) {
+        for (const comm of data as any[]) {
+          if (!comm.budget && !comm.contract && comm.invoice_ids?.length) {
+            const { data: invoices } = await supabase
+              .from('invoices')
+              .select('code')
+              .in('id', comm.invoice_ids);
+            comm._invoice_codes = invoices?.map((i: any) => i.code) || [];
+          }
+        }
+      }
+      
       return data || [];
     },
     enabled: !!liquidation?.specialist?.user_id,
@@ -579,8 +594,11 @@ export default function LiquidacionDetalle() {
       // Insert each as a liquidation_item
       for (const commission of selected) {
         const typeLabel = commission.commission_type === 'am' ? 'AM' : commission.commission_type === 'pm' ? 'PM' : 'Venta';
-        const sourceName = commission.budget?.title || commission.budget?.code || commission.contract?.title || commission.contract?.code || 'Sin origen';
-        const description = `Comisión ${typeLabel} - ${sourceName}`;
+        let sourceName = commission.budget?.title || commission.budget?.code || commission.contract?.title || commission.contract?.code || '';
+        if (!sourceName && (commission as any)._invoice_codes?.length) {
+          sourceName = (commission as any)._invoice_codes.join(', ');
+        }
+        const description = `Comisión ${typeLabel}${sourceName ? ` - ${sourceName}` : ''}`;
 
         const { error: insertError } = await supabase
           .from('liquidation_items')
@@ -594,11 +612,11 @@ export default function LiquidacionDetalle() {
           });
         if (insertError) throw insertError;
 
-        // Mark commission as paid
-        const { error: updateError } = await supabase
-          .from('sales_commissions')
-          .update({ status: 'paid', paid_at: new Date().toISOString() })
-          .eq('id', commission.id);
+        // Mark commission as paid and link to liquidation
+        const { error: updateError } = await (supabase
+          .from('sales_commissions' as any)
+          .update({ status: 'paid', paid_at: new Date().toISOString(), liquidation_id: id })
+          .eq('id', commission.id) as any);
         if (updateError) throw updateError;
       }
 

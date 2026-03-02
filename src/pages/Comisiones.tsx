@@ -382,7 +382,10 @@ function ComisionesContent() {
       <AddCommissionToLiquidationModal
         open={!!liquidationModalCommission}
         onOpenChange={(open) => { if (!open) setLiquidationModalCommission(null); }}
-        commission={liquidationModalCommission}
+        commission={liquidationModalCommission ? {
+          ...liquidationModalCommission,
+          invoice_codes: liquidationModalCommission.invoices?.map((i: any) => i.code) || [],
+        } : null}
         onSuccess={() => {
           setLiquidationModalCommission(null);
           refetch();

@@ -383,6 +383,14 @@ export default function LiquidacionDetalle() {
 
       if (requestsError) throw requestsError;
 
+      // Reset linked commissions before deleting liquidation items
+      const { error: commissionsError } = await (supabase
+        .from('sales_commissions' as any)
+        .update({ liquidation_id: null, status: 'approved', paid_at: null })
+        .eq('liquidation_id', id) as any);
+
+      if (commissionsError) throw commissionsError;
+
       // Delete liquidation_items
       const { error: itemsError } = await supabase
         .from('liquidation_items')

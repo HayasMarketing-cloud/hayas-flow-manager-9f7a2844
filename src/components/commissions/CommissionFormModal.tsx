@@ -42,6 +42,9 @@ interface Commission {
   status: string;
   paid_at: string | null;
   notes: string | null;
+  contract?: { id: string; title: string; code: string; client_id?: string; client?: { name: string } | null } | null;
+  budget?: { id: string; title: string; code: string; client_id?: string; client?: { name: string } | null } | null;
+  invoices?: { id: string; code: string; client_id?: string }[] | null;
 }
 
 interface Invoice {
@@ -227,9 +230,11 @@ export function CommissionFormModal({
 
   useEffect(() => {
     if (commission && mode !== 'create') {
-      // Determine client_id from existing commission's budget or contract
-      let clientId = '';
-      // We'll try to get client from the commission context; for now leave empty (will be populated by queries)
+      // Derive client_id from joined data
+      const clientId = commission.contract?.client_id 
+        || commission.budget?.client_id 
+        || commission.invoices?.[0]?.client_id 
+        || '';
       
       setFormData({
         commission_type: (commission.commission_type as CommissionType) || 'am',
@@ -388,6 +393,22 @@ export function CommissionFormModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-4 pr-2">
+          {/* Source summary in view/edit mode */}
+          {mode !== 'create' && commission && (commission.contract || commission.budget || (commission.invoices && commission.invoices.length > 0)) && (
+            <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-1">
+              <span className="font-medium text-muted-foreground">Origen asociado:</span>
+              {commission.contract && (
+                <p className="text-foreground">{commission.contract.code} — {commission.contract.title} {commission.contract.client?.name ? `(${commission.contract.client.name})` : ''}</p>
+              )}
+              {commission.budget && (
+                <p className="text-foreground">{commission.budget.code} — {commission.budget.title} {commission.budget.client?.name ? `(${commission.budget.client.name})` : ''}</p>
+              )}
+              {!commission.contract && !commission.budget && commission.invoices && commission.invoices.length > 0 && (
+                <p className="text-foreground">Facturas: {commission.invoices.map(i => i.code).join(', ')}</p>
+              )}
+            </div>
+          )}
+
           {/* Row 1: Tipo + Cliente */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

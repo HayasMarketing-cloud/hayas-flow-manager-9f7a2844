@@ -1,39 +1,38 @@
 
 
-## Mejorar descripción de comisiones en detalle de liquidación
+## Plan: Mostrar factura y porcentaje en comisiones (disponibles y asignadas)
 
 ### Problema
-En la sección de comisiones disponibles del detalle de liquidación, el texto muestra "Comisión AM - Sin origen" o solo el título del presupuesto/contrato. El usuario quiere ver el concepto completo, por ejemplo: **"10% sobre Factura Nº 2026/14"**.
+1. Las comisiones disponibles no muestran el número de factura porque la búsqueda de `_invoice_codes` solo se ejecuta cuando NO hay presupuesto ni contrato (`!comm.budget && !comm.contract`), pero las comisiones AM frecuentemente tienen ambos.
+2. Las comisiones ya insertadas como ítems de liquidación muestran "Comisión AM - Sin origen" porque la descripción se guardó sin la información de factura.
+3. En los ítems ya asignados no se muestra el porcentaje ni el importe base de la factura.
 
-Además, cuando se insertan como ítems de liquidación, la descripción tampoco incluye este formato.
+### Cambios
 
-### Cambios en `src/pages/LiquidacionDetalle.tsx`
+**Archivo: `src/pages/LiquidacionDetalle.tsx`**
 
-**1. Listado de comisiones disponibles (línea 1226 y 1241-1243)**
+**1. Query de comisiones disponibles (líneas 357-366)**
+- Eliminar la condición `!comm.budget && !comm.contract` para que SIEMPRE se busquen los códigos de factura cuando exista `invoice_ids`, independientemente de presupuesto/contrato.
 
-Cambiar la lógica de `sourceName` para incluir los códigos de factura (ya disponibles via `_invoice_codes`) y reformatear la visualización:
+**2. Descripción al insertar comisiones (líneas 622-635)**
+- Priorizar códigos de factura sobre presupuesto/contrato en el `originLabel`.
+- Formato: `Comisión AM (10%) — Factura Nº 2026/14`
 
-- Línea principal: `Comisión AM — 10% sobre Factura Nº 2026/14`
-- Si hay múltiples facturas: `10% sobre Facturas 2026/14, 2026/15`
-- Si es presupuesto/contrato: `10% sobre PRE-2026-001 - Título`
+**3. Enriquecer ítems ya asignados**
+- Crear una query adicional que busque en `sales_commissions` las comisiones vinculadas a esta liquidación (`liquidation_id = id`), incluyendo `invoice_ids`, `commission_percentage`, `base_amount` y `commission_type`.
+- Para cada comisión encontrada, buscar los códigos de factura correspondientes.
+- Pasar estos datos enriquecidos al componente `GroupedLiquidationItemsTable` como prop `commissionDetails`.
 
-**2. Descripción al insertar como ítem de liquidación (líneas 596-601)**
+**Archivo: `src/components/liquidations/GroupedLiquidationItemsTable.tsx`**
 
-Misma lógica: generar `Comisión AM (10%) — Factura Nº 2026/14` en vez de `Comisión AM - Sin origen`.
+**4. Mostrar info de comisión en ítems asignados**
+- Recibir nueva prop `commissionDetails` (mapa de description-pattern → datos de comisión).
+- En `renderItemRow`, si el item.description empieza con "Comisión", buscar el detalle correspondiente y mostrar debajo de la descripción: porcentaje, número de factura y total factura.
+- Formato en la celda de descripción:
+  - Línea 1: `Comisión AM — Factura Nº 2026/14`
+  - Línea 2 (texto pequeño): `10% sobre 1.225,00 €`
 
-**3. Arreglar fallback "Sin origen" en línea 1226**
-
-Actualmente no usa `_invoice_codes` como sí lo hace la mutación (línea 598-600). Añadir el mismo fallback a invoice codes.
-
-### Formato final esperado
-
-En el listado:
-- Título: `Comisión AM — Factura Nº 2026/14` (o `Facturas 2026/14, 2026/15`)
-- Subtítulo: `10% sobre 1.225,00 €`
-
-Al insertar como ítem:
-- Descripción: `Comisión AM (10%) — Factura Nº 2026/14`
-
-### Archivo afectado
+### Archivos afectados
 - `src/pages/LiquidacionDetalle.tsx`
+- `src/components/liquidations/GroupedLiquidationItemsTable.tsx`
 

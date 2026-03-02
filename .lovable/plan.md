@@ -1,51 +1,30 @@
 
 
-## Add commissions to liquidations from the commissions list
+## Fix commission-liquidation linkage and origin display
 
-### Context
-Currently, commissions can be included in liquidations only from the liquidation detail view. The user wants bidirectional association: from the commissions list, select commissions and add them to a liquidation, and show a link to the associated liquidation in the table.
+### Problems identified
 
-### Database change
-The `sales_commissions` table needs a `liquidation_id` column (nullable UUID, FK to `liquidations`).
+1. **Missing `liquidation_id` update from liquidation detail page**: In `LiquidacionDetalle.tsx` line 598-602, when adding commissions from the liquidation detail, it only updates `status: 'paid'` but never sets `liquidation_id` on the commission record. This is why the commissions list shows "-" in the Liquidación column.
 
-```sql
-ALTER TABLE public.sales_commissions 
-ADD COLUMN liquidation_id UUID REFERENCES public.liquidations(id);
-```
+2. **"Sin origen" in liquidation items**: In `LiquidacionDetalle.tsx` line 582, the description falls back to "Sin origen" because it only checks `budget` and `contract` but not `invoices`. These are invoice-based commissions with no contract/budget.
 
-### Key challenge: user_id vs specialist_id
-Commissions use `seller_user_id` (auth user ID from profiles), while liquidations use `specialist_id` (from `specialists` table). The bridge is `specialists.user_id`. When adding a commission to a liquidation, we need to look up the specialist via `specialists.user_id = commission.seller_user_id`.
+3. **Same issue in `AddCommissionToLiquidationModal.tsx`**: The description builder (line 151-157) also doesn't include invoice codes.
+
+4. **Available commissions query doesn't exclude already-linked**: Line 348-354 queries by status only, doesn't filter out commissions already linked to a liquidation.
 
 ### Changes
 
-**1. Database migration** — Add `liquidation_id` column to `sales_commissions`
+**1. `src/pages/LiquidacionDetalle.tsx`**
+- In `addCommissionsMutation` (line 598): add `liquidation_id: id` to the update alongside `status` and `paid_at`
+- In the available commissions query (line 348): add `.is('liquidation_id', null)` filter and also fetch `invoice_ids` 
+- Expand the select to include invoice data join or fetch invoice codes separately
+- Update description builder (line 582): when no budget/contract, look up invoice codes from the commission's `invoice_ids` and display them
 
-**2. `src/pages/Comisiones.tsx`**
-- Fetch `liquidation_id` (already comes with `*` select) and join liquidation code: add `liquidation:liquidations(id, code)` to the select
-- Pass liquidation data to `CommissionTableView`
-- Add state for "Add to Liquidation" modal and selected commission IDs
-
-**3. `src/components/commissions/CommissionTableView.tsx`**
-- Add `liquidation` field to Commission interface: `{ id: string; code: string } | null`
-- Add new "Liquidación" column in the table showing the liquidation code as a link to `/liquidaciones/{id}`, or "-" if none
-- Add "Añadir a liquidación" option in the dropdown menu (only when `liquidation_id` is null and status is not 'paid')
-- Expose an `onAddToLiquidation` callback prop
-
-**4. New component: `src/components/commissions/AddCommissionToLiquidationModal.tsx`**
-- Receives a single commission (with `seller_user_id`, `commission_amount`, description)
-- Looks up the specialist via `specialists.user_id = seller_user_id`
-- If no specialist found, shows an error message
-- Offers "new liquidation" or "existing draft liquidation" for that specialist (same pattern as `AddToLiquidationModal`)
-- On submit:
-  - Creates or selects liquidation
-  - Creates a `liquidation_item` with the commission description and amount
-  - Updates `sales_commissions.liquidation_id` with the chosen liquidation
-  - Recalculates liquidation totals
-  - Invalidates queries
+**2. `src/components/commissions/AddCommissionToLiquidationModal.tsx`**
+- Add `invoices` to the `CommissionForLiquidation` interface
+- Update description builder (line 151-157): include invoice codes when no contract/budget exists
 
 ### Files changed
-- **Migration**: Add `liquidation_id` to `sales_commissions`
-- `src/pages/Comisiones.tsx` — fetch liquidation join, modal state, pass props
-- `src/components/commissions/CommissionTableView.tsx` — liquidation column + menu action
-- `src/components/commissions/AddCommissionToLiquidationModal.tsx` — new modal (similar pattern to existing `AddToLiquidationModal`)
+- `src/pages/LiquidacionDetalle.tsx` — set `liquidation_id`, filter already-linked, fix description
+- `src/components/commissions/AddCommissionToLiquidationModal.tsx` — include invoice codes in description
 

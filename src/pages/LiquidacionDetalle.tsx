@@ -594,11 +594,18 @@ export default function LiquidacionDetalle() {
       // Insert each as a liquidation_item
       for (const commission of selected) {
         const typeLabel = commission.commission_type === 'am' ? 'AM' : commission.commission_type === 'pm' ? 'PM' : 'Venta';
-        let sourceName = commission.budget?.title || commission.budget?.code || commission.contract?.title || commission.contract?.code || '';
-        if (!sourceName && (commission as any)._invoice_codes?.length) {
-          sourceName = (commission as any)._invoice_codes.join(', ');
+        const invoiceCodes = (commission as any)._invoice_codes as string[] | undefined;
+        let originLabel = '';
+        if (commission.budget) {
+          originLabel = `${commission.budget.code} - ${commission.budget.title}`;
+        } else if (commission.contract) {
+          originLabel = `${commission.contract.code} - ${commission.contract.title}`;
+        } else if (invoiceCodes?.length) {
+          originLabel = invoiceCodes.length === 1
+            ? `Factura Nº ${invoiceCodes[0]}`
+            : `Facturas ${invoiceCodes.join(', ')}`;
         }
-        const description = `Comisión ${typeLabel}${sourceName ? ` - ${sourceName}` : ''}`;
+        const description = `Comisión ${typeLabel} (${commission.commission_percentage}%)${originLabel ? ` — ${originLabel}` : ''}`;
 
         const { error: insertError } = await supabase
           .from('liquidation_items')
@@ -1223,7 +1230,17 @@ export default function LiquidacionDetalle() {
                 <div className="space-y-3">
                   {availableCommissions.map((commission: any) => {
                     const typeLabel = commission.commission_type === 'am' ? 'AM' : commission.commission_type === 'pm' ? 'PM' : 'Venta';
-                    const sourceName = commission.budget?.title || commission.budget?.code || commission.contract?.title || commission.contract?.code || 'Sin origen';
+                    const invoiceCodes = (commission as any)._invoice_codes as string[] | undefined;
+                    let originLabel = '';
+                    if (commission.budget) {
+                      originLabel = `${commission.budget.code} - ${commission.budget.title}`;
+                    } else if (commission.contract) {
+                      originLabel = `${commission.contract.code} - ${commission.contract.title}`;
+                    } else if (invoiceCodes?.length) {
+                      originLabel = invoiceCodes.length === 1
+                        ? `Factura Nº ${invoiceCodes[0]}`
+                        : `Facturas ${invoiceCodes.join(', ')}`;
+                    }
                     const isSelected = selectedCommissionIds.includes(commission.id);
 
                     return (
@@ -1238,7 +1255,7 @@ export default function LiquidacionDetalle() {
                       >
                         <Checkbox checked={isSelected} />
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm">Comisión {typeLabel} - {sourceName}</p>
+                          <p className="font-medium text-sm">Comisión {typeLabel}{originLabel ? ` — ${originLabel}` : ''}</p>
                           <p className="text-xs text-muted-foreground">
                             {commission.commission_percentage}% sobre {formatCurrency(commission.base_amount)}
                           </p>

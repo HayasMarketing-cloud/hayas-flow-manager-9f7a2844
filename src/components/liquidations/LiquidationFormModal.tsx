@@ -47,6 +47,51 @@ interface ManualItem {
   amount: number;
 }
 
+interface CommissionDetail {
+  id: string;
+  typeLabel: string;
+  percentage: number;
+  baseAmount: number;
+  amount: number;
+  invoiceCodes: string[];
+  createdAt?: string;
+}
+
+const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('es-ES', {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(amount || 0);
+};
+
+const getCommissionTypeLabel = (type: string) => {
+  if (type === 'am') return 'AM';
+  if (type === 'pm') return 'PM';
+  return 'Venta';
+};
+
+const getCommissionOriginLabel = (commission: any): string => {
+  const invoiceCodes: string[] = Array.isArray(commission?._invoice_codes)
+    ? commission._invoice_codes.filter(Boolean)
+    : [];
+
+  if (invoiceCodes.length === 1) {
+    return `Factura Nº ${invoiceCodes[0]}`;
+  }
+  if (invoiceCodes.length > 1) {
+    return `Facturas ${invoiceCodes.join(', ')}`;
+  }
+
+  if (commission?.budget?.code || commission?.budget?.title) {
+    return [commission.budget.code, commission.budget.title].filter(Boolean).join(' - ');
+  }
+  if (commission?.contract?.code || commission?.contract?.title) {
+    return [commission.contract.code, commission.contract.title].filter(Boolean).join(' - ');
+  }
+
+  return 'Sin origen';
+};
+
 // Component to display digital signature details
 const SignatureDetailsSection = ({ signature }: { signature: any }) => {
   const isExpired = new Date(signature.expires_at) < new Date();
@@ -253,9 +298,81 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
         .is('liquidation_id', null)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data || [];
+      if (!data?.length) return [];
+
+      const invoiceIds = Array.from(new Set(
+        data.flatMap((commission: any) => Array.isArray(commission.invoice_ids) ? commission.invoice_ids : [])
+      ));
+
+      let invoiceCodeById: Record<string, string> = {};
+      if (invoiceIds.length > 0) {
+        const { data: invoices, error: invoicesError } = await supabase
+          .from('invoices')
+          .select('id, code')
+          .in('id', invoiceIds as string[]);
+
+        if (invoicesError) throw invoicesError;
+        invoiceCodeById = (invoices || []).reduce((acc: Record<string, string>, invoice: any) => {
+          acc[invoice.id] = invoice.code;
+          return acc;
+        }, {});
+      }
+
+      return data.map((commission: any) => ({
+        ...commission,
+        _invoice_codes: (commission.invoice_ids || [])
+          .map((invoiceId: string) => invoiceCodeById[invoiceId])
+          .filter(Boolean),
+      }));
     },
     enabled: !!selectedSpecialistUserId && isOpen,
+  });
+
+  const { data: linkedCommissionDetails } = useQuery({
+    queryKey: ['liquidation-linked-commissions', liquidation?.id],
+    queryFn: async (): Promise<CommissionDetail[]> => {
+      if (!liquidation?.id) return [];
+
+      const { data, error } = await supabase
+        .from('sales_commissions')
+        .select('id, commission_type, commission_percentage, base_amount, invoice_ids, commission_amount, created_at')
+        .eq('liquidation_id', liquidation.id)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      if (!data?.length) return [];
+
+      const invoiceIds = Array.from(new Set(
+        data.flatMap((commission: any) => Array.isArray(commission.invoice_ids) ? commission.invoice_ids : [])
+      ));
+
+      let invoiceCodeById: Record<string, string> = {};
+      if (invoiceIds.length > 0) {
+        const { data: invoices, error: invoicesError } = await supabase
+          .from('invoices')
+          .select('id, code')
+          .in('id', invoiceIds as string[]);
+
+        if (invoicesError) throw invoicesError;
+        invoiceCodeById = (invoices || []).reduce((acc: Record<string, string>, invoice: any) => {
+          acc[invoice.id] = invoice.code;
+          return acc;
+        }, {});
+      }
+
+      return data.map((commission: any) => ({
+        id: commission.id,
+        typeLabel: getCommissionTypeLabel(commission.commission_type),
+        percentage: Number(commission.commission_percentage) || 0,
+        baseAmount: Number(commission.base_amount) || 0,
+        amount: Number(commission.commission_amount) || 0,
+        invoiceCodes: (commission.invoice_ids || [])
+          .map((invoiceId: string) => invoiceCodeById[invoiceId])
+          .filter(Boolean),
+        createdAt: commission.created_at,
+      }));
+    },
+    enabled: !!liquidation?.id && isOpen && (isViewMode || mode === 'edit'),
   });
 
   const [selectedCommissionIds, setSelectedCommissionIds] = useState<string[]>([]);
@@ -542,12 +659,14 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
 
       // Insertar cada comisión como item de liquidación
       const items = commissionsToAdd.map(c => {
-        const typeLabel = c.commission_type === 'am' ? 'AM' : c.commission_type === 'pm' ? 'PM' : 'Venta';
-        const origin = c.budget?.title || c.contract?.title || 'Sin origen';
+        const typeLabel = getCommissionTypeLabel(c.commission_type);
+        const percentage = Number(c.commission_percentage) || 0;
+        const originLabel = getCommissionOriginLabel(c);
+
         return {
           liquidation_id: liquidation.id,
           financial_request_id: null,
-          description: `Comisión ${typeLabel} - ${origin}`,
+          description: `Comisión ${typeLabel} (${percentage}%) — ${originLabel}`,
           quantity: 1,
           unit_price: c.commission_amount,
           total: c.commission_amount,
@@ -863,6 +982,41 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     enabled: (isViewMode || mode === 'edit') && !!liquidation?.id,
   });
 
+  const commissionDetailsByItemId = useMemo(() => {
+    if (!liquidationItems?.length || !linkedCommissionDetails?.length) {
+      return {} as Record<string, CommissionDetail>;
+    }
+
+    const commissionPools: Record<string, CommissionDetail[]> = {};
+    linkedCommissionDetails.forEach((detail) => {
+      const key = `${detail.typeLabel}|${detail.amount.toFixed(2)}`;
+      if (!commissionPools[key]) commissionPools[key] = [];
+      commissionPools[key].push(detail);
+    });
+
+    const matched: Record<string, CommissionDetail> = {};
+
+    liquidationItems.forEach((item) => {
+      if (item.financial_request_id || !item.description?.startsWith('Comisión')) return;
+
+      const typeLabel = item.description.includes('Comisión AM')
+        ? 'AM'
+        : item.description.includes('Comisión PM')
+          ? 'PM'
+          : 'Venta';
+
+      const amountKey = (Number(item.total) || Number(item.unit_price) || 0).toFixed(2);
+      const key = `${typeLabel}|${amountKey}`;
+      const detail = commissionPools[key]?.shift();
+
+      if (detail) {
+        matched[item.id] = detail;
+      }
+    });
+
+    return matched;
+  }, [liquidationItems, linkedCommissionDetails]);
+
   // Agrupar items por cliente (items manuales van a "Otros conceptos")
   const itemsGroupedByClient = useMemo(() => {
     if (!liquidationItems) return [];
@@ -1112,6 +1266,14 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
                           const isManual = !item.financial_request_id;
                           // Usar item.total para consistencia con el subtotal del grupo
                           const currentCost = Number(item.total) || 0;
+                          const commissionDetail = commissionDetailsByItemId[item.id];
+                          const commissionTitle = commissionDetail
+                            ? `Comisión ${commissionDetail.typeLabel}${commissionDetail.invoiceCodes.length === 1
+                                ? ` — Factura Nº ${commissionDetail.invoiceCodes[0]}`
+                                : commissionDetail.invoiceCodes.length > 1
+                                  ? ` — Facturas ${commissionDetail.invoiceCodes.join(', ')}`
+                                  : ''}`
+                            : item.description;
                           
                           return (
                             <div key={item.id} className="px-3 py-2 flex justify-between items-center text-sm gap-2">
@@ -1120,11 +1282,21 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
                                   <span className="text-muted-foreground mr-2">
                                     {item.financial_request?.code || '-'}
                                   </span>
-                                  <span className="truncate">{item.description}</span>
+                                  <span className="truncate">{commissionTitle}</span>
                                 </div>
                                 {item.financial_request?.title && (
                                   <div className="text-xs text-muted-foreground ml-12 mt-0.5 truncate">
                                     {item.financial_request.title}
+                                  </div>
+                                )}
+                                {commissionDetail && (
+                                  <div className="text-xs text-muted-foreground ml-12 mt-0.5 truncate">
+                                    {commissionDetail.percentage}% sobre {formatCurrency(commissionDetail.baseAmount)}
+                                    {commissionDetail.invoiceCodes.length > 0 && (
+                                      commissionDetail.invoiceCodes.length === 1
+                                        ? ` — Factura Nº ${commissionDetail.invoiceCodes[0]}`
+                                        : ` — Facturas ${commissionDetail.invoiceCodes.join(', ')}`
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -1307,8 +1479,8 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
                 <ScrollArea className="h-[200px] rounded-md border p-3">
                   <div className="space-y-2">
                     {availableCommissions.map((commission) => {
-                      const typeLabel = commission.commission_type === 'am' ? 'AM' : commission.commission_type === 'pm' ? 'PM' : 'Venta';
-                      const origin = commission.budget?.title || commission.contract?.title || 'Sin origen';
+                      const typeLabel = getCommissionTypeLabel(commission.commission_type);
+                      const origin = getCommissionOriginLabel(commission);
                       return (
                         <div
                           key={commission.id}
@@ -1328,10 +1500,10 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-medium text-sm">Comisión {typeLabel}</span>
-                              <span className="font-semibold text-sm">{commission.commission_amount.toFixed(2)} €</span>
+                              <span className="font-semibold text-sm">{formatCurrency(Number(commission.commission_amount) || 0)}</span>
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {origin} • {commission.commission_percentage}% sobre {commission.base_amount.toFixed(2)} €
+                              {origin} • {Number(commission.commission_percentage) || 0}% sobre {formatCurrency(Number(commission.base_amount) || 0)}
                             </div>
                             <Badge variant="outline" className="mt-1 text-xs">
                               {commission.status === 'approved' ? 'Aprobada' : 'Pendiente'}

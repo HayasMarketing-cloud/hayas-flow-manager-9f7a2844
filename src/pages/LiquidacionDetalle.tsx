@@ -353,10 +353,10 @@ export default function LiquidacionDetalle() {
         .is('liquidation_id', null)
         .order('created_at', { ascending: false });
       
-      // For commissions with invoice_ids, fetch invoice codes
+      // For commissions with invoice_ids, fetch invoice codes (always, regardless of budget/contract)
       if (data) {
         for (const comm of data as any[]) {
-          if (!comm.budget && !comm.contract && comm.invoice_ids?.length) {
+          if (comm.invoice_ids?.length) {
             const { data: invoices } = await supabase
               .from('invoices')
               .select('code')
@@ -369,6 +369,40 @@ export default function LiquidacionDetalle() {
       return data || [];
     },
     enabled: !!liquidation?.specialist?.user_id,
+  });
+
+  // Fetch commission details for already-assigned items
+  const { data: linkedCommissionDetails } = useQuery({
+    queryKey: ['linked-commission-details', id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('sales_commissions')
+        .select('id, commission_type, commission_percentage, base_amount, invoice_ids, commission_amount')
+        .eq('liquidation_id', id!);
+      
+      if (!data?.length) return {};
+
+      // Fetch invoice codes for each commission
+      const details: Record<string, { type: string; percentage: number; baseAmount: number; invoiceCodes: string[] }> = {};
+      for (const comm of data) {
+        let invoiceCodes: string[] = [];
+        if (comm.invoice_ids?.length) {
+          const { data: invoices } = await supabase
+            .from('invoices')
+            .select('code')
+            .in('id', comm.invoice_ids as string[]);
+          invoiceCodes = invoices?.map((i: any) => i.code) || [];
+        }
+        details[comm.id] = {
+          type: comm.commission_type,
+          percentage: Number(comm.commission_percentage),
+          baseAmount: Number(comm.base_amount),
+          invoiceCodes,
+        };
+      }
+      return details;
+    },
+    enabled: !!id,
   });
 
   const deleteMutation = useMutation({
@@ -623,14 +657,15 @@ export default function LiquidacionDetalle() {
         const typeLabel = commission.commission_type === 'am' ? 'AM' : commission.commission_type === 'pm' ? 'PM' : 'Venta';
         const invoiceCodes = (commission as any)._invoice_codes as string[] | undefined;
         let originLabel = '';
-        if (commission.budget) {
-          originLabel = `${commission.budget.code} - ${commission.budget.title}`;
-        } else if (commission.contract) {
-          originLabel = `${commission.contract.code} - ${commission.contract.title}`;
-        } else if (invoiceCodes?.length) {
+        // Prioritize invoice codes over budget/contract
+        if (invoiceCodes?.length) {
           originLabel = invoiceCodes.length === 1
             ? `Factura Nº ${invoiceCodes[0]}`
             : `Facturas ${invoiceCodes.join(', ')}`;
+        } else if (commission.budget) {
+          originLabel = `${commission.budget.code} - ${commission.budget.title}`;
+        } else if (commission.contract) {
+          originLabel = `${commission.contract.code} - ${commission.contract.title}`;
         }
         const description = `Comisión ${typeLabel} (${commission.commission_percentage}%)${originLabel ? ` — ${originLabel}` : ''}`;
 
@@ -1106,6 +1141,7 @@ export default function LiquidacionDetalle() {
                       isEditable={isEditable}
                       canEdit={canAccessFinance()}
                       onRemoveItem={setItemToRemove}
+                      commissionDetails={linkedCommissionDetails}
                     />
                     <div className="flex justify-end mt-4 pt-4 border-t">
                       <div className="text-right">
@@ -1259,14 +1295,15 @@ export default function LiquidacionDetalle() {
                     const typeLabel = commission.commission_type === 'am' ? 'AM' : commission.commission_type === 'pm' ? 'PM' : 'Venta';
                     const invoiceCodes = (commission as any)._invoice_codes as string[] | undefined;
                     let originLabel = '';
-                    if (commission.budget) {
-                      originLabel = `${commission.budget.code} - ${commission.budget.title}`;
-                    } else if (commission.contract) {
-                      originLabel = `${commission.contract.code} - ${commission.contract.title}`;
-                    } else if (invoiceCodes?.length) {
+                    // Prioritize invoice codes
+                    if (invoiceCodes?.length) {
                       originLabel = invoiceCodes.length === 1
                         ? `Factura Nº ${invoiceCodes[0]}`
                         : `Facturas ${invoiceCodes.join(', ')}`;
+                    } else if (commission.budget) {
+                      originLabel = `${commission.budget.code} - ${commission.budget.title}`;
+                    } else if (commission.contract) {
+                      originLabel = `${commission.contract.code} - ${commission.contract.title}`;
                     }
                     const isSelected = selectedCommissionIds.includes(commission.id);
 

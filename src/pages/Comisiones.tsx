@@ -57,9 +57,9 @@ interface Commission {
   created_at: string;
   notes: string | null;
   seller_profile?: { full_name: string; email: string } | null;
-  contract?: { title: string; code: string; client?: { name: string } | null } | null;
-  budget?: { title: string; code: string; client?: { name: string } | null } | null;
-  invoices?: { id: string; code: string }[] | null;
+  contract?: { id: string; title: string; code: string; client_id?: string; client?: { name: string } | null } | null;
+  budget?: { id: string; title: string; code: string; client_id?: string; client?: { name: string } | null } | null;
+  invoices?: { id: string; code: string; client_id?: string }[] | null;
 }
 
 function ComisionesContent() {
@@ -79,8 +79,8 @@ function ComisionesContent() {
         .from('sales_commissions' as any)
         .select(`
           *,
-          contract:contracts(id, title, code, client:clients(name)),
-          budget:budgets(id, title, code, client:clients(name))
+          contract:contracts(id, title, code, client_id, client:clients(name)),
+          budget:budgets(id, title, code, client_id, client:clients(name))
         `)
         .order('created_at', { ascending: false });
 
@@ -111,11 +111,11 @@ function ComisionesContent() {
 
       // Fetch invoice codes for commissions with invoice_ids
       const allInvoiceIds = [...new Set((data || []).flatMap((c: any) => c.invoice_ids || []))];
-      let invoicesMap = new Map<string, { id: string; code: string }>();
+      let invoicesMap = new Map<string, { id: string; code: string; client_id: string }>();
       if (allInvoiceIds.length > 0) {
         const { data: invoicesData } = await supabase
           .from('invoices')
-          .select('id, code')
+          .select('id, code, client_id')
           .in('id', allInvoiceIds);
         invoicesMap = new Map((invoicesData || []).map(i => [i.id, i]));
       }

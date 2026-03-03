@@ -590,8 +590,8 @@ export default function LiquidacionDetalle() {
       }
       
       const amount = parseFloat(manualAmount);
-      if (isNaN(amount) || amount <= 0) {
-        throw new Error('El importe debe ser un número válido mayor a 0');
+      if (isNaN(amount) || amount === 0) {
+        throw new Error('El importe debe ser un número válido distinto de 0');
       }
 
       // Insert the manual item
@@ -1084,7 +1084,7 @@ export default function LiquidacionDetalle() {
                       <Input
                         type="number"
                         step="0.01"
-                        min="0"
+                        
                         placeholder="0.00"
                         value={manualAmount}
                         onChange={(e) => setManualAmount(e.target.value)}
@@ -1211,7 +1211,7 @@ export default function LiquidacionDetalle() {
                     <Input
                       type="number"
                       step="0.01"
-                      min="0"
+                      
                       placeholder="0.00"
                       value={manualAmount}
                       onChange={(e) => setManualAmount(e.target.value)}

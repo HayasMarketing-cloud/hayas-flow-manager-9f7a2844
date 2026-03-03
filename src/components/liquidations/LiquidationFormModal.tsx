@@ -941,7 +941,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       toast.error('Ingresa un concepto');
       return;
     }
-    if (!newManualAmount || newManualAmount <= 0) {
+    if (!newManualAmount || newManualAmount === 0) {
       toast.error('Ingresa un importe válido');
       return;
     }

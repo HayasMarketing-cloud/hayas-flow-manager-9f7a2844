@@ -251,7 +251,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
   const [selectedRequests, setSelectedRequests] = useState<Array<{ id: string; cost: number }>>([]);
   const [manualItems, setManualItems] = useState<ManualItem[]>([]);
   const [newManualDescription, setNewManualDescription] = useState('');
-  const [newManualAmount, setNewManualAmount] = useState<number | ''>('');
+  const [newManualAmount, setNewManualAmount] = useState('');
   
   // Check if user is specialist (only specialist role, not admin/manager/finance)
   const { isSpecialist, isAdmin, canAccessFinance, canAccessOperations } = useUserRole();
@@ -941,19 +941,20 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       toast.error('Ingresa un concepto');
       return;
     }
-    if (!newManualAmount || newManualAmount === 0) {
-      toast.error('Ingresa un importe válido');
+    const parsedAmount = Number(newManualAmount.replace(',', '.'));
+    if (!Number.isFinite(parsedAmount) || parsedAmount === 0) {
+      toast.error('Ingresa un importe válido distinto de 0');
       return;
     }
 
     if (mode === 'edit') {
-      addManualItemMutation.mutate({ description: newManualDescription, amount: newManualAmount });
+      addManualItemMutation.mutate({ description: newManualDescription, amount: parsedAmount });
     } else {
       // En modo create, solo agregamos al estado local
       setManualItems(prev => [...prev, {
         id: crypto.randomUUID(),
         description: newManualDescription,
-        amount: newManualAmount,
+        amount: parsedAmount,
       }]);
       setNewManualDescription('');
       setNewManualAmount('');
@@ -1551,7 +1552,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
                     step="0.01"
                     placeholder="0.00"
                     value={newManualAmount}
-                    onChange={(e) => setNewManualAmount(e.target.value ? parseFloat(e.target.value) : '')}
+                    onChange={(e) => setNewManualAmount(e.target.value)}
                   />
                 </div>
                 <Button

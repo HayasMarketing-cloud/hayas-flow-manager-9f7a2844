@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, Trash2, CloudOff, Cloud, FileDown, Users, FileSignature, ExternalLink, FolderKanban, ListChecks, PiggyBank } from 'lucide-react';
+import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, Trash2, CloudOff, Cloud, FileDown, Users, FileSignature, ExternalLink, FolderKanban, ListChecks, PiggyBank, Link2, Check } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { generateBudgetPDF } from '@/utils/pdf/budgetPDFGenerator';
 import { useBudgetDetail } from '@/hooks/useBudgetDetail';
@@ -58,10 +58,65 @@ export default function PresupuestoDetalle() {
   const [isLoadingAssociatedData, setIsLoadingAssociatedData] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isGeneratingRequests, setIsGeneratingRequests] = useState(false);
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   
   // Hooks de aprobación y creación de proyecto con actividades
   const approveMutation = useApproveBudget();
   const createProjectWithActivities = useCreateProjectWithActivities();
+
+  // Query para obtener token de compartición existente
+  const { data: existingShareToken } = useQuery({
+    queryKey: ['budget-share-token', id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('budget_share_tokens')
+        .select('token')
+        .eq('budget_id', id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id
+  });
+
+  // Función para generar o copiar enlace compartible
+  const handleShareLink = async () => {
+    if (!data?.budget || !user) return;
+    
+    try {
+      setIsGeneratingLink(true);
+      let token = existingShareToken?.token;
+
+      if (!token) {
+        const { data: newToken, error } = await supabase
+          .from('budget_share_tokens')
+          .insert({
+            budget_id: data.budget.id,
+            created_by: user.id,
+          })
+          .select('token')
+          .single();
+        
+        if (error) throw error;
+        token = newToken.token;
+        queryClient.invalidateQueries({ queryKey: ['budget-share-token', id] });
+      }
+
+      const shareUrl = `${window.location.origin}/quote/${token}`;
+      await navigator.clipboard.writeText(shareUrl);
+      setLinkCopied(true);
+      toast.success('Enlace copiado al portapapeles');
+      setTimeout(() => setLinkCopied(false), 3000);
+    } catch (error: any) {
+      toast.error('Error al generar enlace: ' + error.message);
+    } finally {
+      setIsGeneratingLink(false);
+    }
+  };
 
   // Query para verificar si el presupuesto tiene financial_requests
   const { data: existingRequests } = useQuery({
@@ -1370,6 +1425,21 @@ export default function PresupuestoDetalle() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleShareLink}
+                    disabled={isGeneratingLink}
+                  >
+                    {isGeneratingLink ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : linkCopied ? (
+                      <Check className="h-4 w-4 mr-2 text-green-600" />
+                    ) : (
+                      <Link2 className="h-4 w-4 mr-2" />
+                    )}
+                    {linkCopied ? 'Enlace copiado' : 'Copiar enlace'}
+                  </Button>
                   <Button 
                     variant="outline" 
                     size="sm" 

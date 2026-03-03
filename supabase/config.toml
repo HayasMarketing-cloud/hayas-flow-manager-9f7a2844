@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.send-slack-notification]
 verify_jwt = false
+
+[functions.get-public-quote]
+verify_jwt = false

@@ -40,6 +40,7 @@ import TestEmail from "./pages/TestEmail";
 import Notificaciones from "./pages/Notificaciones";
 import GuiaRapida from "./pages/GuiaRapida";
 import ResetPassword from "./pages/ResetPassword";
+import PublicQuote from "./pages/PublicQuote";
 
 const queryClient = new QueryClient();
 
@@ -79,6 +80,7 @@ const App = () => {
               <Route path="/reset-password" element={<ResetPassword />} />
               {/* Public pages - no auth required */}
               <Route path="/liquidacion/firmar/:token" element={<FirmaLiquidacion />} />
+              <Route path="/quote/:token" element={<PublicQuote />} />
               <Route path="/solicitud/accion/:token" element={<AccionRequest />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/dashboard-mensual" element={<ProtectedRoute><DashboardMensual /></ProtectedRoute>} />

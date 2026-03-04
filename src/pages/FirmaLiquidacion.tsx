@@ -236,6 +236,21 @@ export default function FirmaLiquidacion() {
             <p className="text-xs text-muted-foreground">
               Esta información queda registrada como prueba digital de tu decisión.
             </p>
+
+            {/* Invoice upload - only after accepting */}
+            {status === 'accepted' && (
+              <div className="w-full text-left">
+                <SpecialistInvoiceUploadPublic
+                  token={token || ''}
+                  liquidationSubtotal={liquidation?.subtotal || totalAmount}
+                  currentInvoiceUrl={null}
+                  onUploadSuccess={(result) => {
+                    setInvoiceUploaded(true);
+                    console.log('Invoice uploaded:', result);
+                  }}
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -351,17 +366,6 @@ export default function FirmaLiquidacion() {
             </Button>
           </CardContent>
         </Card>
-
-        {/* Specialist Invoice Upload */}
-        <SpecialistInvoiceUploadPublic
-          token={token || ''}
-          liquidationSubtotal={liquidation?.subtotal || totalAmount}
-          currentInvoiceUrl={null}
-          onUploadSuccess={(result) => {
-            setInvoiceUploaded(true);
-            console.log('Invoice uploaded:', result);
-          }}
-        />
 
         {/* Action Selection */}
         <Card>

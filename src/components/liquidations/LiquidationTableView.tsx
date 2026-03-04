@@ -36,7 +36,7 @@ export const LiquidationTableView = ({
 }: LiquidationTableViewProps) => {
   // Liquidations that can be marked as paid (pending_payment or accepted)
   const payableLiquidations = liquidations.filter(
-    liq => liq.status === 'pending_payment' || liq.status === 'accepted'
+    liq => liq.status !== 'draft' && liq.status !== 'paid'
   );
   
   const allPayableSelected = payableLiquidations.length > 0 && 
@@ -62,7 +62,7 @@ export const LiquidationTableView = ({
     }
   };
 
-  const isPayable = (status: string) => status === 'pending_payment' || status === 'accepted';
+  const isPayable = (status: string) => status !== 'draft' && status !== 'paid';
 
   if (!liquidations || liquidations.length === 0) {
     return (

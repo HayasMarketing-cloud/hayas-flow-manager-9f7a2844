@@ -185,15 +185,6 @@ export const EmailPreviewModal = ({
                   Por favor, revisa el documento adjunto y <strong>confirma o disputa</strong> la liquidación haciendo clic en el botón de abajo.
                 </p>
 
-                {/* Nota sobre subida de factura */}
-                <div className="bg-green-50 border-l-4 border-green-500 p-3 rounded my-4">
-                  <p className="text-sm">
-                    <strong>Nota:</strong> Si estás de acuerdo con la liquidación, puedes proceder a 
-                    <strong className="text-green-700"> subir tu factura directamente en la aplicación</strong>, 
-                    al final del detalle de tu liquidación.
-                  </p>
-                </div>
-
                 {/* Mock button preview */}
                 <div className="text-center my-4">
                   <div className="inline-block bg-green-500 text-white px-6 py-3 rounded-lg font-medium">

@@ -316,12 +316,8 @@ const handler = async (req: Request): Promise<Response> => {
         
         <p>Por favor, revisa el documento adjunto y <strong>confirma o disputa</strong> la liquidación haciendo clic en el botón de abajo.</p>
         
-        <p style="background-color: #f0fdf4; padding: 12px; border-radius: 8px; border-left: 4px solid #10b981; margin: 16px 0;">
-          <strong>Nota:</strong> Si estás de acuerdo con la liquidación, puedes proceder a 
-          <strong>subir tu factura directamente en la aplicación</strong>, al final del 
-          detalle de tu liquidación.
-        </p>
         
+
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 30px auto;">
           <tr>
             <td align="center" bgcolor="#10b981" style="border-radius: 8px;">

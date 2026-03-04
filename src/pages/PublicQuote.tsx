@@ -94,7 +94,7 @@ export default function PublicQuote() {
         <div className="bg-[#00467E] text-white p-8">
           <div className="flex items-start justify-between">
             <div>
-              <img src="/images/hayas-logo-white.png" alt="Hayas Marketing" className="h-12 mb-4" />
+              <img src="/images/hayas-logo-white.png" alt="Hayas Marketing" className="h-40 mb-4" />
               <p className="text-sm opacity-80">APPS 4 BUSINESS SL</p>
               <p className="text-sm opacity-80">C/Manzanares 4 - 28005 Madrid</p>
             </div>

@@ -509,7 +509,7 @@ export default function LiquidacionDetalle() {
       // Recalculate subtotal, tax_amount and total_amount
       const currentSubtotal = Number(liquidation?.subtotal) || 0;
       const taxRate = liquidation?.tax_rate || 0;
-      const newSubtotal = Math.max(0, currentSubtotal - (Number(item.total) || 0));
+      const newSubtotal = currentSubtotal - (Number(item.total) || 0);
       const newTaxAmount = (newSubtotal * taxRate) / 100;
       const newTotal = newSubtotal + newTaxAmount;
 

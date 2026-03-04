@@ -1,32 +1,35 @@
 
 
-## Plan: Optimizar flujo de firma y subida de factura del especialista
+## Plan: Permitir marcar como pagada desde estado "Factura recibida"
 
-### Problema actual
-La sección de subida de factura se muestra **antes** de que el especialista acepte la liquidación (líneas 355-364 de `FirmaLiquidacion.tsx`). Además, en el email se menciona "subir tu factura al final del detalle" lo cual es confuso porque el especialista no tiene acceso al detalle interno de la app.
+### Problema
+En `LiquidationTableView.tsx`, las liquidaciones seleccionables para pago masivo solo incluyen `pending_payment` y `accepted`, pero **no `invoice_received`**. Esto impide seleccionar la liquidación LIQ-2026-014 para marcarla como pagada desde la lista.
 
-### Solución propuesta
-
-**Flujo optimizado en 2 pasos:**
-
-1. El especialista ve la liquidación y elige Aceptar o Disputar
-2. **Solo tras aceptar**, se muestra la sección de subida de factura en la pantalla de confirmación (la que ya muestra "Liquidación Aceptada")
+El botón "Marcar como Pagada" en la vista de **detalle** sí funciona (línea 848: `canMarkAsPaid = status !== 'draft' && status !== 'paid'`), pero desde la **lista** no se puede seleccionar ni actuar sobre ella.
 
 ### Cambios
 
-**`src/pages/FirmaLiquidacion.tsx`**
-- Eliminar el componente `SpecialistInvoiceUploadPublic` de la vista principal (antes de la decisión, líneas 355-364)
-- Añadirlo en la pantalla de "ya procesado" (`isAlreadyProcessed || processMutation.isSuccess`) solo cuando `status === 'accepted'`, debajo de la evidencia digital
-- Pasar `liquidationSubtotal` y `token` como ya se hace
+**`src/components/liquidations/LiquidationTableView.tsx`** — Añadir `invoice_received` a los estados "pagables":
 
-**`supabase/functions/send-liquidation-email/index.ts`**
-- Eliminar el párrafo de "Nota: puedes subir tu factura..." (líneas 319-323) del HTML del email, ya que ahora la subida se ofrece tras aceptar, no antes
+- Línea 38-39: Añadir `invoice_received` al filtro de `payableLiquidations`
+- Línea 65: Añadir `invoice_received` a la función `isPayable`
 
-**`src/components/liquidations/EmailPreviewModal.tsx`**
-- Eliminar la sección de "Nota sobre subida de factura" (líneas 152-159) del preview del email para que coincida con el email real
+```typescript
+// Antes:
+const payableLiquidations = liquidations.filter(
+  liq => liq.status === 'pending_payment' || liq.status === 'accepted'
+);
+const isPayable = (status: string) => status === 'pending_payment' || status === 'accepted';
+
+// Después:
+const payableLiquidations = liquidations.filter(
+  liq => liq.status !== 'draft' && liq.status !== 'paid'
+);
+const isPayable = (status: string) => status !== 'draft' && status !== 'paid';
+```
+
+Esto alinea la lógica de la lista con la del detalle, permitiendo marcar como pagada cualquier liquidación que no sea borrador ni ya pagada (incluidos `sent`, `accepted`, `invoice_received`, `pending_payment`, `validated`, `disputed`).
 
 ### Archivos afectados
-- `src/pages/FirmaLiquidacion.tsx` (mover componente de upload a la vista post-aceptación)
-- `supabase/functions/send-liquidation-email/index.ts` (eliminar párrafo de factura del email)
-- `src/components/liquidations/EmailPreviewModal.tsx` (eliminar sección de factura del preview)
+- `src/components/liquidations/LiquidationTableView.tsx` (2 líneas)
 

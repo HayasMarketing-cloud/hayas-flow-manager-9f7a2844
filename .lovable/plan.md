@@ -1,49 +1,32 @@
 
 
-## Plan: Permitir importes negativos en liquidaciones (fix completo)
+## Plan: Optimizar flujo de firma y subida de factura del especialista
 
-### Causa raíz identificada
+### Problema actual
+La sección de subida de factura se muestra **antes** de que el especialista acepte la liquidación (líneas 355-364 de `FirmaLiquidacion.tsx`). Además, en el email se menciona "subir tu factura al final del detalle" lo cual es confuso porque el especialista no tiene acceso al detalle interno de la app.
 
-El frontend ya permite introducir valores negativos tras los cambios anteriores, pero **la base de datos los rechaza silenciosamente** por CHECK constraints:
+### Solución propuesta
 
-```text
-liquidation_items.unit_price  CHECK (unit_price >= 0)  ← BLOQUEA
-liquidation_items.total       CHECK (total >= 0)       ← BLOQUEA
-liquidations.subtotal         CHECK (subtotal >= 0)    ← BLOQUEA
-liquidations.tax_amount       CHECK (tax_amount >= 0)  ← BLOQUEA
-liquidations.total_amount     CHECK (total_amount >= 0)← BLOQUEA
-```
+**Flujo optimizado en 2 pasos:**
 
-Además, en `LiquidacionDetalle.tsx` línea 512 hay un `Math.max(0, ...)` que impide que el subtotal baje de 0 al eliminar items.
+1. El especialista ve la liquidación y elige Aceptar o Disputar
+2. **Solo tras aceptar**, se muestra la sección de subida de factura en la pantalla de confirmación (la que ya muestra "Liquidación Aceptada")
 
-### Cambios necesarios
+### Cambios
 
-**1. Migración SQL** — Eliminar los CHECK constraints que bloquean negativos en liquidaciones:
+**`src/pages/FirmaLiquidacion.tsx`**
+- Eliminar el componente `SpecialistInvoiceUploadPublic` de la vista principal (antes de la decisión, líneas 355-364)
+- Añadirlo en la pantalla de "ya procesado" (`isAlreadyProcessed || processMutation.isSuccess`) solo cuando `status === 'accepted'`, debajo de la evidencia digital
+- Pasar `liquidationSubtotal` y `token` como ya se hace
 
-```sql
--- liquidation_items: permitir unit_price y total negativos
-ALTER TABLE public.liquidation_items DROP CONSTRAINT liquidation_items_unit_price_check;
-ALTER TABLE public.liquidation_items DROP CONSTRAINT liquidation_items_total_check;
+**`supabase/functions/send-liquidation-email/index.ts`**
+- Eliminar el párrafo de "Nota: puedes subir tu factura..." (líneas 319-323) del HTML del email, ya que ahora la subida se ofrece tras aceptar, no antes
 
--- liquidations: permitir subtotal, tax_amount y total_amount negativos
-ALTER TABLE public.liquidations DROP CONSTRAINT liquidations_subtotal_check;
-ALTER TABLE public.liquidations DROP CONSTRAINT liquidations_tax_amount_check;
-ALTER TABLE public.liquidations DROP CONSTRAINT liquidations_total_amount_check;
-```
-
-> Nota: NO se tocan los constraints de `invoices` ni `invoice_items`, que siguen siendo >= 0.
-
-**2. Frontend** — `src/pages/LiquidacionDetalle.tsx`:
-
-- Línea 512: Eliminar `Math.max(0, ...)` en `removeItemMutation` para permitir que el subtotal sea negativo al eliminar items:
-  ```typescript
-  // Antes:
-  const newSubtotal = Math.max(0, currentSubtotal - (Number(item.total) || 0));
-  // Después:
-  const newSubtotal = currentSubtotal - (Number(item.total) || 0);
-  ```
+**`src/components/liquidations/EmailPreviewModal.tsx`**
+- Eliminar la sección de "Nota sobre subida de factura" (líneas 152-159) del preview del email para que coincida con el email real
 
 ### Archivos afectados
-- Nueva migración SQL (constraints)
-- `src/pages/LiquidacionDetalle.tsx` (1 línea)
+- `src/pages/FirmaLiquidacion.tsx` (mover componente de upload a la vista post-aceptación)
+- `supabase/functions/send-liquidation-email/index.ts` (eliminar párrafo de factura del email)
+- `src/components/liquidations/EmailPreviewModal.tsx` (eliminar sección de factura del preview)
 

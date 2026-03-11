@@ -219,27 +219,53 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   doc.text(formatCurrency(total), pageWidth - 15, finalY, { align: 'right' });
 
   // Description/Objective
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const bottomMargin = 30; // space for footer
+  const lineHeight = 5;
+
   if (data.budget.description) {
+    let currentY = finalY + 20;
+
+    // Check if we need a new page for the objective header
+    if (currentY > pageHeight - bottomMargin) {
+      doc.addPage();
+      currentY = 20;
+    }
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    doc.text('Objective:', 15, finalY + 20);
-    
+    doc.text('Objective:', 15, currentY);
+    currentY += 7;
+
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     const splitDescription = doc.splitTextToSize(data.budget.description, pageWidth - 30);
-    doc.text(splitDescription, 15, finalY + 27);
+
+    for (let i = 0; i < splitDescription.length; i++) {
+      if (currentY > pageHeight - bottomMargin) {
+        doc.addPage();
+        currentY = 20;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+      }
+      doc.text(splitDescription[i], 15, currentY);
+      currentY += lineHeight;
+    }
   }
 
-  // Footer
-  const pageHeight = doc.internal.pageSize.getHeight();
-  doc.setFontSize(8);
-  doc.setTextColor(128, 128, 128);
-  doc.text(
-    'This quote is valid until the date indicated',
-    pageWidth / 2,
-    pageHeight - 20,
-    { align: 'center' }
-  );
+  // Footer on every page
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFontSize(8);
+    doc.setTextColor(128, 128, 128);
+    doc.text(
+      'This quote is valid until the date indicated',
+      pageWidth / 2,
+      pageHeight - 15,
+      { align: 'center' }
+    );
+  }
 
   // Download
   doc.save(`quote_${data.budget.code}.pdf`);

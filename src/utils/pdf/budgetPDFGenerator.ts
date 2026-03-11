@@ -62,7 +62,7 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
       logoImg.onerror = reject;
       logoImg.src = '/images/hayas-logo.png';
     });
-    doc.addImage(logoImg, 'PNG', 15, 10, 50, 50);
+    doc.addImage(logoImg, 'PNG', 15, 12, 35, 35);
   } catch (e) {
     console.warn('Could not load logo for PDF');
   }

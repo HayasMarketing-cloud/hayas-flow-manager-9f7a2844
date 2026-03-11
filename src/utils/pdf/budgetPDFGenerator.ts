@@ -279,5 +279,7 @@ const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('es-ES', {
     style: 'currency',
     currency: 'EUR',
+    useGrouping: true,
+    minimumFractionDigits: 2,
   }).format(amount);
 };

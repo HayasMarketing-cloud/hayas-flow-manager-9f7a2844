@@ -62,7 +62,7 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
       logoImg.onerror = reject;
       logoImg.src = '/images/hayas-logo.png';
     });
-    doc.addImage(logoImg, 'PNG', 15, 10, 50, 50);
+    doc.addImage(logoImg, 'PNG', 15, 12, 35, 35);
   } catch (e) {
     console.warn('Could not load logo for PDF');
   }
@@ -70,14 +70,14 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   // Header - Datos de empresa (al lado del logo)
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text(company.name, 55, 18);
-  doc.text(company.tradeName || '', 55, 24);
+  doc.text(company.name, 53, 18);
+  doc.text(company.tradeName || '', 53, 24);
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(company.address, 55, 31);
-  doc.text(`Tel: ${company.phone}`, 55, 37);
-  doc.text(company.email, 55, 43);
+  doc.text(company.address, 53, 31);
+  doc.text(`Tel: ${company.phone}`, 53, 37);
+  doc.text(company.email, 53, 43);
 
   // Título - Derecha (QUOTE + Cliente + Título + Código + PO)
   doc.setFontSize(16);

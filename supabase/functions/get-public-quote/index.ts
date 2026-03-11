@@ -13,9 +13,10 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const token = url.searchParams.get('token');
+    const code = url.searchParams.get('code');
 
-    if (!token) {
-      return new Response(JSON.stringify({ error: 'Token requerido' }), {
+    if (!token && !code) {
+      return new Response(JSON.stringify({ error: 'Token o código requerido' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -26,13 +27,19 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Validate token
-    const { data: shareToken, error: tokenError } = await supabase
+    // Validate token or short_code
+    let query = supabase
       .from('budget_share_tokens')
       .select('*')
-      .eq('token', token)
-      .eq('is_active', true)
-      .single();
+      .eq('is_active', true);
+    
+    if (code) {
+      query = query.eq('short_code', code);
+    } else {
+      query = query.eq('token', token);
+    }
+
+    const { data: shareToken, error: tokenError } = await query.single();
 
     if (tokenError || !shareToken) {
       return new Response(JSON.stringify({ error: 'Enlace no válido o expirado' }), {

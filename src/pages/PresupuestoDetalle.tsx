@@ -71,7 +71,7 @@ export default function PresupuestoDetalle() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('budget_share_tokens')
-        .select('token')
+        .select('token, short_code')
         .eq('budget_id', id)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
@@ -89,24 +89,24 @@ export default function PresupuestoDetalle() {
     
     try {
       setIsGeneratingLink(true);
-      let token = existingShareToken?.token;
+      let shortCode = existingShareToken?.short_code;
 
-      if (!token) {
+      if (!shortCode) {
         const { data: newToken, error } = await supabase
           .from('budget_share_tokens')
           .insert({
             budget_id: data.budget.id,
             created_by: user.id,
           })
-          .select('token')
+          .select('short_code')
           .single();
         
         if (error) throw error;
-        token = newToken.token;
+        shortCode = newToken.short_code;
         queryClient.invalidateQueries({ queryKey: ['budget-share-token', id] });
       }
 
-      const shareUrl = `${window.location.origin}/quote/${token}`;
+      const shareUrl = `${window.location.origin}/quote/${shortCode}`;
       await navigator.clipboard.writeText(shareUrl);
       setLinkCopied(true);
       toast.success('Enlace copiado al portapapeles');

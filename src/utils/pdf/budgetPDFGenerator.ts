@@ -75,9 +75,9 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(company.address, 55, 31);
-  doc.text(`Tel: ${company.phone}`, 55, 37);
-  doc.text(company.email, 55, 43);
+  doc.text(company.address, 53, 31);
+  doc.text(`Tel: ${company.phone}`, 53, 37);
+  doc.text(company.email, 53, 43);
 
   // Título - Derecha (QUOTE + Cliente + Título + Código + PO)
   doc.setFontSize(16);

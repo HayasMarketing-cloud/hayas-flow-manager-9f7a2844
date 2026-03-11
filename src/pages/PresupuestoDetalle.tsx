@@ -71,7 +71,7 @@ export default function PresupuestoDetalle() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('budget_share_tokens')
-        .select('token')
+        .select('token, short_code')
         .eq('budget_id', id)
         .eq('is_active', true)
         .order('created_at', { ascending: false })

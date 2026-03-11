@@ -10,6 +10,7 @@ interface BudgetPDFData {
     created_at: string;
     total_amount?: number | null;
     client_po_number?: string | null;
+    requested_by?: string | null;
     client: {
       id: string;
       name: string;

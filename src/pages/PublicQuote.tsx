@@ -104,7 +104,7 @@ export default function PublicQuote() {
             </div>
             <div className="text-right">
               <h1 className="text-3xl font-bold mb-2">QUOTE</h1>
-              <p className="text-lg">{budget.code}</p>
+              <p className="text-lg">{budget.quote_code || budget.code}</p>
               <p className="text-sm opacity-80 mt-1">{client.name}</p>
             </div>
           </div>

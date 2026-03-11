@@ -11,6 +11,7 @@ interface BudgetPDFData {
     total_amount?: number | null;
     client_po_number?: string | null;
     requested_by?: string | null;
+    quote_code?: string | null;
     client: {
       id: string;
       name: string;
@@ -96,7 +97,8 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   doc.text(budgetTitle, pageWidth - 15, 33, { align: 'right' });
 
   doc.setFontSize(10);
-  doc.text(data.budget.code, pageWidth - 15, 40, { align: 'right' });
+  const displayCode = data.budget.quote_code || data.budget.code;
+  doc.text(displayCode, pageWidth - 15, 40, { align: 'right' });
 
   // PO Number / Client Reference
   const poNumber = data.budget.client_po_number || 'Pendiente';
@@ -267,7 +269,8 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   }
 
   // Download
-  doc.save(`quote_${data.budget.code}.pdf`);
+  const fileCode = data.budget.quote_code || data.budget.code;
+  doc.save(`quote_${fileCode}.pdf`);
 };
 
 interface GroupedCategory {

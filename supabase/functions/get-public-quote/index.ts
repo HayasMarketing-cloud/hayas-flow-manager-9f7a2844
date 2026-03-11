@@ -105,6 +105,7 @@ Deno.serve(async (req) => {
         ...budget,
         client: budget.clients,
         requested_by: budget.client_contacts?.name || null,
+        quote_code: shareToken.short_code || null,
       },
       items: (items || []).map((item: any) => ({
         ...item,

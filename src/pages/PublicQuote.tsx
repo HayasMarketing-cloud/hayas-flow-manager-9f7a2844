@@ -78,7 +78,7 @@ export default function PublicQuote() {
 
   const handleDownloadPDF = () => {
     generateBudgetPDF({
-      budget: { ...budget, client },
+      budget: { ...budget, client, requested_by: budget.requested_by },
       items,
     });
   };

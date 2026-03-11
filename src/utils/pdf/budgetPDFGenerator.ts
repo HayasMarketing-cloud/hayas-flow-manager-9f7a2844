@@ -97,7 +97,8 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   doc.text(budgetTitle, pageWidth - 15, 33, { align: 'right' });
 
   doc.setFontSize(10);
-  doc.text(data.budget.code, pageWidth - 15, 40, { align: 'right' });
+  const displayCode = data.budget.quote_code || data.budget.code;
+  doc.text(displayCode, pageWidth - 15, 40, { align: 'right' });
 
   // PO Number / Client Reference
   const poNumber = data.budget.client_po_number || 'Pendiente';

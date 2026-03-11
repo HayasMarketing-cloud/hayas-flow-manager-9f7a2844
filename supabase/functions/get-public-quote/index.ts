@@ -13,9 +13,10 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const token = url.searchParams.get('token');
+    const code = url.searchParams.get('code');
 
-    if (!token) {
-      return new Response(JSON.stringify({ error: 'Token requerido' }), {
+    if (!token && !code) {
+      return new Response(JSON.stringify({ error: 'Token o código requerido' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

@@ -60,7 +60,7 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
     await new Promise<void>((resolve, reject) => {
       logoImg.onload = () => resolve();
       logoImg.onerror = reject;
-      logoImg.src = '/images/hayas-logo-white.png';
+      logoImg.src = '/images/hayas-logo.png';
     });
     doc.addImage(logoImg, 'PNG', 15, 10, 50, 50);
   } catch (e) {

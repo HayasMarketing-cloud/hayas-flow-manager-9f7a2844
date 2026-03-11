@@ -173,7 +173,7 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
     // Filas de items de la categoría
     group.items.forEach((item) => {
       tableData.push([
-        `  ${item.description}`,
+        item.description,
         item.quantity.toString(),
         formatCurrency(item.unit_price),
         formatCurrency(item.total),

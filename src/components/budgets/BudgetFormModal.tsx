@@ -195,6 +195,10 @@ export const BudgetFormModal = ({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      if (!formData.client_contact_id) {
+        toast.error('Debes seleccionar un contacto solicitante');
+        throw new Error('client_contact_id required');
+      }
       const totalAmount = calculateBudgetTotal(items);
 
       // Limpiar campos UUID vacíos para evitar error "invalid input syntax for type uuid"
@@ -400,22 +404,23 @@ export const BudgetFormModal = ({
               </Select>
             </div>
 
-            {/* Contact Selector */}
+            {/* Contact Selector - Required */}
             <div className="col-span-2 space-y-2">
               <Label className="flex items-center gap-2">
                 <User className="h-4 w-4" />
-                Contacto Solicitante
+                Contacto Solicitante <span className="text-destructive">*</span>
               </Label>
               <Select
                 value={formData.client_contact_id || 'none'}
                 onValueChange={(value) => setFormData({ ...formData, client_contact_id: value === 'none' ? '' : value })}
                 disabled={!canEdit || !formData.client_id}
+                required
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sin especificar" />
+                <SelectTrigger className={!formData.client_contact_id ? 'border-destructive' : ''}>
+                  <SelectValue placeholder="Seleccionar contacto" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Sin especificar</SelectItem>
+                  <SelectItem value="none" disabled>Seleccionar contacto</SelectItem>
                   {contacts?.map((contact) => (
                     <SelectItem key={contact.id} value={contact.id}>
                       {contact.name} {contact.role ? `(${contact.role})` : ''}
@@ -424,7 +429,7 @@ export const BudgetFormModal = ({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Persona del cliente que solicita este presupuesto
+                Persona del cliente que solicita este presupuesto (obligatorio)
               </p>
             </div>
 

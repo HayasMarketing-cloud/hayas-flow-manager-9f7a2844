@@ -10,6 +10,7 @@ interface BudgetPDFData {
     created_at: string;
     total_amount?: number | null;
     client_po_number?: string | null;
+    requested_by?: string | null;
     client: {
       id: string;
       name: string;
@@ -115,17 +116,15 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   doc.text(data.budget.client.name, 15, 69);
   
   let clientInfoY = 69;
-  if (data.budget.client.tax_id) {
+  
+  // Requested by
+  if (data.budget.requested_by) {
     clientInfoY += 7;
-    doc.text(`Tax ID: ${data.budget.client.tax_id}`, 15, clientInfoY);
-  }
-  if (data.budget.client.address) {
-    clientInfoY += 7;
-    doc.text(data.budget.client.address, 15, clientInfoY);
-  }
-  if (data.budget.client.city) {
-    clientInfoY += 7;
-    doc.text(data.budget.client.city, 15, clientInfoY);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Requested by: ', 15, clientInfoY);
+    const requestedByX = 15 + doc.getTextWidth('Requested by: ');
+    doc.setFont('helvetica', 'normal');
+    doc.text(data.budget.requested_by, requestedByX, clientInfoY);
   }
 
   // Quote validity (right side)

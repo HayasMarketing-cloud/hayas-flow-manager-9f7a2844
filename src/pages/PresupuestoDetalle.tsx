@@ -1443,7 +1443,13 @@ export default function PresupuestoDetalle() {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={() => generateBudgetPDF({ budget, items })}
+                    onClick={() => generateBudgetPDF({ 
+                      budget: { 
+                        ...budget, 
+                        requested_by: data?.budget?.client_contact?.name || null 
+                      }, 
+                      items 
+                    })}
                     disabled={!items || items.length === 0}
                   >
                     <FileDown className="h-4 w-4 mr-2" />

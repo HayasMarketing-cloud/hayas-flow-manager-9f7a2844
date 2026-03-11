@@ -78,7 +78,7 @@ export default function PublicQuote() {
 
   const handleDownloadPDF = () => {
     generateBudgetPDF({
-      budget: { ...budget, client },
+      budget: { ...budget, client, requested_by: budget.requested_by },
       items,
     });
   };
@@ -112,9 +112,9 @@ export default function PublicQuote() {
             <div>
               <h3 className="font-semibold text-gray-500 text-sm uppercase mb-2">Client</h3>
               <p className="font-semibold text-lg">{client.name}</p>
-              {client.tax_id && <p className="text-gray-600">Tax ID: {client.tax_id}</p>}
-              {client.address && <p className="text-gray-600">{client.address}</p>}
-              {client.city && <p className="text-gray-600">{client.city}</p>}
+              {budget.requested_by && (
+                <p className="text-gray-600 mt-1">Requested by: {budget.requested_by}</p>
+              )}
             </div>
             <div className="text-right">
               {validUntilFormatted && (

@@ -14,6 +14,7 @@ export const useBudgetDetail = (budgetId: string | undefined) => {
           *,
           client:clients(id, name, code),
           contract:contracts(id, title, code),
+          client_contact:client_contacts!budgets_client_contact_id_fkey(id, name, email, role),
           am_profile:profiles!budgets_am_user_id_fkey(id, full_name, email),
           pm_profile:profiles!budgets_pm_user_id_fkey(id, full_name, email)
         `)

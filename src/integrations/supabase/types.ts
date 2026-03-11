@@ -126,6 +126,7 @@ export type Database = {
           id: string
           is_active: boolean
           last_accessed_at: string | null
+          short_code: string | null
           token: string
         }
         Insert: {
@@ -137,6 +138,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           last_accessed_at?: string | null
+          short_code?: string | null
           token?: string
         }
         Update: {
@@ -148,6 +150,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           last_accessed_at?: string | null
+          short_code?: string | null
           token?: string
         }
         Relationships: [

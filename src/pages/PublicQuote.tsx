@@ -136,7 +136,7 @@ export default function PublicQuote() {
           <div className="mt-6">
             <h2 className="text-xl font-semibold text-gray-800">{budget.title}</h2>
             {budget.description && (
-              <p className="text-gray-600 mt-2">{budget.description}</p>
+              <p className="text-gray-600 mt-2 whitespace-pre-line">{budget.description}</p>
             )}
           </div>
         </div>

@@ -27,13 +27,19 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Validate token
-    const { data: shareToken, error: tokenError } = await supabase
+    // Validate token or short_code
+    let query = supabase
       .from('budget_share_tokens')
       .select('*')
-      .eq('token', token)
-      .eq('is_active', true)
-      .single();
+      .eq('is_active', true);
+    
+    if (code) {
+      query = query.eq('short_code', code);
+    } else {
+      query = query.eq('token', token);
+    }
+
+    const { data: shareToken, error: tokenError } = await query.single();
 
     if (tokenError || !shareToken) {
       return new Response(JSON.stringify({ error: 'Enlace no válido o expirado' }), {

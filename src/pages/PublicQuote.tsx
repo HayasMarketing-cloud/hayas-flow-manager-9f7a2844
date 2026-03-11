@@ -38,8 +38,12 @@ export default function PublicQuote() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['public-quote', token],
     queryFn: async () => {
+      // Detect if it's a UUID (old format) or short_code (new format)
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token || '');
+      const param = isUuid ? `token=${token}` : `code=${token}`;
+      
       const res = await fetch(
-        `${SUPABASE_URL}/functions/v1/get-public-quote?token=${token}`,
+        `${SUPABASE_URL}/functions/v1/get-public-quote?${param}`,
         { headers: { apikey: SUPABASE_ANON_KEY } }
       );
       if (!res.ok) {

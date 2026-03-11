@@ -90,20 +90,14 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   doc.setFont('helvetica', 'normal');
   doc.text(data.budget.client.name, pageWidth - 15, 26, { align: 'right' });
 
-  // Título del presupuesto (truncado si es muy largo)
-  const budgetTitle = data.budget.title.length > 35 
-    ? data.budget.title.substring(0, 35) + '...' 
-    : data.budget.title;
-  doc.text(budgetTitle, pageWidth - 15, 33, { align: 'right' });
-
   doc.setFontSize(10);
   const displayCode = data.budget.quote_code || data.budget.code;
-  doc.text(displayCode, pageWidth - 15, 40, { align: 'right' });
+  doc.text(`REF: ${displayCode}`, pageWidth - 15, 33, { align: 'right' });
 
   // PO Number / Client Reference
   const poNumber = data.budget.client_po_number || 'Pendiente';
   doc.setFontSize(9);
-  doc.text(`PO/Ref: ${poNumber}`, pageWidth - 15, 46, { align: 'right' });
+  doc.text(`PO: ${poNumber}`, pageWidth - 15, 39, { align: 'right' });
 
   // Línea divisoria
   doc.setLineWidth(0.5);

@@ -46,16 +46,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!profile) {
         const { data: invitation } = await supabase
           .from('user_invitations')
-          .select('id, roles, status')
+          .select('id, roles, status, expires_at')
           .eq('email', email)
           .single();
 
-        if (!invitation || invitation.status === 'expired') {
+        const isExpired = !invitation || 
+          invitation.status === 'expired' || 
+          (invitation.expires_at && new Date(invitation.expires_at) < new Date());
+
+        if (isExpired) {
           await supabase.auth.signOut();
           if (isMounted) {
             toast({
               title: "Acceso denegado",
-              description: "No tienes una invitación válida. Contacta con un administrador.",
+              description: invitation?.expires_at && new Date(invitation.expires_at) < new Date()
+                ? "Tu invitación ha expirado. Contacta con un administrador para recibir una nueva."
+                : "No tienes una invitación válida. Contacta con un administrador.",
               variant: "destructive",
             });
           }

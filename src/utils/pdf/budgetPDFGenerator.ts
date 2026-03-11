@@ -127,7 +127,7 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   let validUntilY = 62;
   if (data.budget.valid_until) {
     doc.setFont('helvetica', 'bold');
-    doc.text('Valid until:', pageWidth - 60, 62);
+    doc.text('Valid until:', pageWidth - 15, 62, { align: 'right' });
     doc.setFont('helvetica', 'normal');
     const validUntilDate = new Date(data.budget.valid_until);
     const formattedDate = validUntilDate.toLocaleDateString('en-US', {
@@ -135,7 +135,7 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
       month: 'long',
       year: 'numeric'
     });
-    doc.text(formattedDate, pageWidth - 60, 69);
+    doc.text(formattedDate, pageWidth - 15, 69, { align: 'right' });
     validUntilY = 69;
   }
 

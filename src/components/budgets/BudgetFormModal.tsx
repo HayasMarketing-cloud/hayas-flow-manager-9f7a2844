@@ -195,6 +195,10 @@ export const BudgetFormModal = ({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      if (!formData.client_contact_id) {
+        toast.error('Debes seleccionar un contacto solicitante');
+        throw new Error('client_contact_id required');
+      }
       const totalAmount = calculateBudgetTotal(items);
 
       // Limpiar campos UUID vacíos para evitar error "invalid input syntax for type uuid"

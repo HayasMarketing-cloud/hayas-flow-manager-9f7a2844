@@ -97,6 +97,7 @@ Deno.serve(async (req) => {
       budget: {
         ...budget,
         client: budget.clients,
+        requested_by: budget.client_contacts?.name || null,
       },
       items: (items || []).map((item: any) => ({
         ...item,

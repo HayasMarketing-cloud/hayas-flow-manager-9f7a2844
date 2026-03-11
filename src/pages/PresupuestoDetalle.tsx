@@ -1446,7 +1446,8 @@ export default function PresupuestoDetalle() {
                     onClick={() => generateBudgetPDF({ 
                       budget: { 
                         ...budget, 
-                        requested_by: data?.budget?.client_contact?.name || null 
+                        requested_by: data?.budget?.client_contact?.name || null,
+                        quote_code: existingShareToken?.short_code || null,
                       }, 
                       items 
                     })}

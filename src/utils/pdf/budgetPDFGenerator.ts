@@ -269,7 +269,8 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   }
 
   // Download
-  doc.save(`quote_${data.budget.code}.pdf`);
+  const fileCode = data.budget.quote_code || data.budget.code;
+  doc.save(`quote_${fileCode}.pdf`);
 };
 
 interface GroupedCategory {

@@ -89,7 +89,7 @@ export function MilestoneRow({
   const [isEditingName, setIsEditingName] = useState(false);
   const [localName, setLocalName] = useState(milestone.name);
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Sync local notes when milestone notes change
   useEffect(() => {

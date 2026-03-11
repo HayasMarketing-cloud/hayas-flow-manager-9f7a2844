@@ -70,8 +70,8 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   // Header - Datos de empresa (al lado del logo)
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text(company.name, 55, 18);
-  doc.text(company.tradeName || '', 55, 24);
+  doc.text(company.name, 53, 18);
+  doc.text(company.tradeName || '', 53, 24);
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');

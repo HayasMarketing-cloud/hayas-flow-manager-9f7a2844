@@ -173,7 +173,7 @@ export const AddToLiquidationModal = ({
         // Use existing liquidation
         if (!selectedLiquidationId) throw new Error('Selecciona una liquidación');
         liquidationId = selectedLiquidationId;
-        const existing = draftLiquidations?.find(l => l.id === selectedLiquidationId);
+        const existing = editableLiquidations?.find(l => l.id === selectedLiquidationId);
         liquidationCode = existing?.code || '';
       }
 

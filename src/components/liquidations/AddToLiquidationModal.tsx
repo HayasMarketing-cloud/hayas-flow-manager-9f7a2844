@@ -361,7 +361,7 @@ export const AddToLiquidationModal = ({
                     <span className="font-medium">Añadir a liquidación existente</span>
                     {mode === 'existing' && (
                       <div className="mt-2">
-                        {draftLiquidations && draftLiquidations.length > 0 ? (
+                        {editableLiquidations && editableLiquidations.length > 0 ? (
                           <Select
                             value={selectedLiquidationId}
                             onValueChange={setSelectedLiquidationId}
@@ -370,16 +370,16 @@ export const AddToLiquidationModal = ({
                               <SelectValue placeholder="Selecciona una liquidación" />
                             </SelectTrigger>
                             <SelectContent>
-                              {draftLiquidations.map((liq) => (
+                              {editableLiquidations.map((liq) => (
                                 <SelectItem key={liq.id} value={liq.id}>
-                                  {liq.code} - {formatPeriod(liq.period_year, liq.period_month)}
+                                  {liq.code} - {formatPeriod(liq.period_year, liq.period_month)} ({liq.status})
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         ) : (
                           <p className="text-sm text-muted-foreground">
-                            No hay liquidaciones en borrador para este especialista
+                            No hay liquidaciones editables para este especialista
                           </p>
                         )}
                       </div>

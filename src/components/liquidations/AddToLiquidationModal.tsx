@@ -106,9 +106,9 @@ export const AddToLiquidationModal = ({
     enabled: open && !!specialistInfo?.id,
   });
 
-  // Filter draft liquidations for "existing" mode
-  const draftLiquidations = useMemo(() => {
-    return existingLiquidations?.filter(l => l.status === 'draft') || [];
+  // Filter editable liquidations (draft, validated, sent) for "existing" mode
+  const editableLiquidations = useMemo(() => {
+    return existingLiquidations?.filter(l => ['draft', 'validated', 'sent'].includes(l.status)) || [];
   }, [existingLiquidations]);
 
   // Check if a liquidation already exists for selected period

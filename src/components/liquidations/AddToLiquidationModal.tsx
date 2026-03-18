@@ -343,9 +343,9 @@ export const AddToLiquidationModal = ({
                           </Select>
                         </div>
                         {existingLiquidationForPeriod && (
-                          <div className={`text-sm p-2 rounded ${existingLiquidationForPeriod.status === 'draft' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-destructive/10 text-destructive'}`}>
-                            {existingLiquidationForPeriod.status === 'draft' 
-                              ? `✓ Ya existe ${existingLiquidationForPeriod.code} en borrador. Las solicitudes se añadirán a esta liquidación.`
+                          <div className={`text-sm p-2 rounded ${['draft', 'validated', 'sent'].includes(existingLiquidationForPeriod.status) ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-destructive/10 text-destructive'}`}>
+                            {['draft', 'validated', 'sent'].includes(existingLiquidationForPeriod.status)
+                              ? `✓ Ya existe ${existingLiquidationForPeriod.code} (${existingLiquidationForPeriod.status}). Las solicitudes se añadirán a esta liquidación.`
                               : `⚠️ Ya existe ${existingLiquidationForPeriod.code} con estado "${existingLiquidationForPeriod.status}". Selecciona otro período.`
                             }
                           </div>

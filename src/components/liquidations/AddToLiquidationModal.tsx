@@ -106,9 +106,9 @@ export const AddToLiquidationModal = ({
     enabled: open && !!specialistInfo?.id,
   });
 
-  // Filter draft liquidations for "existing" mode
-  const draftLiquidations = useMemo(() => {
-    return existingLiquidations?.filter(l => l.status === 'draft') || [];
+  // Filter editable liquidations (draft, validated, sent) for "existing" mode
+  const editableLiquidations = useMemo(() => {
+    return existingLiquidations?.filter(l => ['draft', 'validated', 'sent'].includes(l.status)) || [];
   }, [existingLiquidations]);
 
   // Check if a liquidation already exists for selected period
@@ -138,8 +138,8 @@ export const AddToLiquidationModal = ({
       if (mode === 'new') {
         // Check if liquidation already exists for this period
         if (existingLiquidationForPeriod) {
-          // If it's a draft, use it; otherwise throw error
-          if (existingLiquidationForPeriod.status === 'draft') {
+          // If it's editable (draft, validated, sent), use it; otherwise throw error
+          if (['draft', 'validated', 'sent'].includes(existingLiquidationForPeriod.status)) {
             liquidationId = existingLiquidationForPeriod.id;
             liquidationCode = existingLiquidationForPeriod.code;
           } else {
@@ -173,7 +173,7 @@ export const AddToLiquidationModal = ({
         // Use existing liquidation
         if (!selectedLiquidationId) throw new Error('Selecciona una liquidación');
         liquidationId = selectedLiquidationId;
-        const existing = draftLiquidations?.find(l => l.id === selectedLiquidationId);
+        const existing = editableLiquidations?.find(l => l.id === selectedLiquidationId);
         liquidationCode = existing?.code || '';
       }
 
@@ -343,9 +343,9 @@ export const AddToLiquidationModal = ({
                           </Select>
                         </div>
                         {existingLiquidationForPeriod && (
-                          <div className={`text-sm p-2 rounded ${existingLiquidationForPeriod.status === 'draft' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-destructive/10 text-destructive'}`}>
-                            {existingLiquidationForPeriod.status === 'draft' 
-                              ? `✓ Ya existe ${existingLiquidationForPeriod.code} en borrador. Las solicitudes se añadirán a esta liquidación.`
+                          <div className={`text-sm p-2 rounded ${['draft', 'validated', 'sent'].includes(existingLiquidationForPeriod.status) ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-destructive/10 text-destructive'}`}>
+                            {['draft', 'validated', 'sent'].includes(existingLiquidationForPeriod.status)
+                              ? `✓ Ya existe ${existingLiquidationForPeriod.code} (${existingLiquidationForPeriod.status}). Las solicitudes se añadirán a esta liquidación.`
                               : `⚠️ Ya existe ${existingLiquidationForPeriod.code} con estado "${existingLiquidationForPeriod.status}". Selecciona otro período.`
                             }
                           </div>
@@ -361,7 +361,7 @@ export const AddToLiquidationModal = ({
                     <span className="font-medium">Añadir a liquidación existente</span>
                     {mode === 'existing' && (
                       <div className="mt-2">
-                        {draftLiquidations && draftLiquidations.length > 0 ? (
+                        {editableLiquidations && editableLiquidations.length > 0 ? (
                           <Select
                             value={selectedLiquidationId}
                             onValueChange={setSelectedLiquidationId}
@@ -370,16 +370,16 @@ export const AddToLiquidationModal = ({
                               <SelectValue placeholder="Selecciona una liquidación" />
                             </SelectTrigger>
                             <SelectContent>
-                              {draftLiquidations.map((liq) => (
+                              {editableLiquidations.map((liq) => (
                                 <SelectItem key={liq.id} value={liq.id}>
-                                  {liq.code} - {formatPeriod(liq.period_year, liq.period_month)}
+                                  {liq.code} - {formatPeriod(liq.period_year, liq.period_month)} ({liq.status})
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         ) : (
                           <p className="text-sm text-muted-foreground">
-                            No hay liquidaciones en borrador para este especialista
+                            No hay liquidaciones editables para este especialista
                           </p>
                         )}
                       </div>

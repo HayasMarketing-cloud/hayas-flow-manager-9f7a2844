@@ -112,6 +112,20 @@ const ClienteDetalle = () => {
   // Delete contact mutation
   const deleteContactMutation = useMutation({
     mutationFn: async (contactId: string) => {
+      // Desvincular solicitudes financieras que referencian este contacto
+      const { error: unlinkError } = await supabase
+        .from('financial_requests')
+        .update({ client_contact_id: null })
+        .eq('client_contact_id', contactId);
+      if (unlinkError) throw unlinkError;
+
+      // Desvincular presupuestos que referencian este contacto
+      const { error: unlinkBudgetError } = await supabase
+        .from('budgets')
+        .update({ client_contact_id: null })
+        .eq('client_contact_id', contactId);
+      if (unlinkBudgetError) throw unlinkBudgetError;
+
       const { error } = await supabase
         .from('client_contacts')
         .delete()

@@ -138,8 +138,8 @@ export const AddToLiquidationModal = ({
       if (mode === 'new') {
         // Check if liquidation already exists for this period
         if (existingLiquidationForPeriod) {
-          // If it's a draft, use it; otherwise throw error
-          if (existingLiquidationForPeriod.status === 'draft') {
+          // If it's editable (draft, validated, sent), use it; otherwise throw error
+          if (['draft', 'validated', 'sent'].includes(existingLiquidationForPeriod.status)) {
             liquidationId = existingLiquidationForPeriod.id;
             liquidationCode = existingLiquidationForPeriod.code;
           } else {

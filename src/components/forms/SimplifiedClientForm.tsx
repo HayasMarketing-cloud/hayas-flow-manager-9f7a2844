@@ -55,6 +55,7 @@ export const SimplifiedClientForm = ({
       email: initialData?.email || '',
       phone: initialData?.phone || '',
       address: initialData?.address || '',
+      postal_code: initialData?.postal_code || '',
       city: initialData?.city || '',
       country: initialData?.country || '',
       drive_folder_url: initialData?.drive_folder_url || '',

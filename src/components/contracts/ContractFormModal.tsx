@@ -207,6 +207,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         is_on_demand: formData.is_on_demand,
         am_user_id: formData.am_user_id || null,
         pm_user_id: formData.pm_user_id || null,
+        attached_contract_url: formData.attached_contract_url || null,
       };
 
       if (contract?.id) {

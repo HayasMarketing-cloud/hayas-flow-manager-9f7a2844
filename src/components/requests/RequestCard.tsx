@@ -6,10 +6,31 @@ import { RequestFlowIndicator } from './RequestFlowIndicator';
 import { RequestFlowActions } from './RequestFlowActions';
 import { FlowStatusCell } from './FlowStatusCell';
 import { OriginCell } from './OriginCell';
-import { Edit, Building2, Calendar, Copy, Trash2, Eye, Receipt, User, Clock } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Edit, Building2, Calendar as CalendarIcon, Copy, Trash2, Eye, Receipt, User, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { getFinancialRequestStatusLabel } from '@/lib/request-utils';
+import { Database } from '@/integrations/supabase/types';
+
+type FinancialRequestStatus = Database['public']['Enums']['financial_request_status'];
+
+const REQUEST_STATUSES: { value: FinancialRequestStatus; label: string }[] = [
+  { value: 'draft', label: 'Borrador' },
+  { value: 'pending_specialist', label: 'Pend. Especialista' },
+  { value: 'pending_approval', label: 'Pend. Aprobación' },
+  { value: 'in_progress', label: 'En Progreso' },
+  { value: 'pending_review', label: 'Pend. Revisión' },
+  { value: 'completed', label: 'Completado' },
+  { value: 'cancelled', label: 'Cancelado' },
+];
 
 interface RequestCardProps {
   request: any;
@@ -24,6 +45,41 @@ interface RequestCardProps {
 export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquidation, canManage, onRefresh }: RequestCardProps) => {
   const navigate = useNavigate();
   const isLiquidated = !!request.liquidation_id;
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState(request.notes || '');
+  const [dateOpen, setDateOpen] = useState(false);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setNotesValue(request.notes || '');
+  }, [request.notes]);
+
+  useEffect(() => {
+    if (editingNotes && notesRef.current) {
+      notesRef.current.focus();
+    }
+  }, [editingNotes]);
+
+  const handleUpdateField = async (field: string, value: any) => {
+    const { error } = await supabase
+      .from('financial_requests')
+      .update({ [field]: value } as any)
+      .eq('id', request.id);
+
+    if (error) {
+      toast.error('Error al actualizar');
+      return;
+    }
+    toast.success('Actualizado');
+    onRefresh?.();
+  };
+
+  const handleSaveNotes = async () => {
+    setEditingNotes(false);
+    if (notesValue !== (request.notes || '')) {
+      await handleUpdateField('notes', notesValue || null);
+    }
+  };
 
   return (
     <Card className={`hover:shadow-lg transition-shadow ${isLiquidated ? 'bg-muted/50 opacity-75' : ''}`}>
@@ -33,7 +89,24 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
             <p className="text-xs text-muted-foreground font-mono">{request.code}</p>
             <CardTitle className="text-lg mt-1">{request.title}</CardTitle>
           </div>
-          <RequestStatusBadge status={request.status} isLiquidated={isLiquidated} />
+          {/* Inline status selector */}
+          {canManage && !isLiquidated ? (
+            <Select
+              value={request.status}
+              onValueChange={(value) => handleUpdateField('status', value)}
+            >
+              <SelectTrigger className="w-auto h-auto border-0 p-0 shadow-none focus:ring-0">
+                <RequestStatusBadge status={request.status} isLiquidated={isLiquidated} />
+              </SelectTrigger>
+              <SelectContent>
+                {REQUEST_STATUSES.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <RequestStatusBadge status={request.status} isLiquidated={isLiquidated} />
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -72,14 +145,75 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
           </div>
         ) : null}
 
-        {request.deadline && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Calendar className="h-4 w-4 flex-shrink-0" />
-            <span>
-              Vence: {format(new Date(request.deadline), 'dd MMM yyyy', { locale: es })}
-            </span>
-          </div>
-        )}
+        {/* Inline editable deadline */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Popover open={dateOpen} onOpenChange={setDateOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "justify-start text-left font-normal h-7 text-xs px-2",
+                  !request.deadline && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="h-3 w-3 mr-1" />
+                {request.deadline
+                  ? `Vence: ${format(new Date(request.deadline), 'dd MMM yyyy', { locale: es })}`
+                  : 'Sin fecha límite'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={request.deadline ? new Date(request.deadline) : undefined}
+                onSelect={(date) => {
+                  if (date) {
+                    handleUpdateField('deadline', format(date, 'yyyy-MM-dd'));
+                  }
+                  setDateOpen(false);
+                }}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {/* Inline Notes */}
+        <div className="border-t pt-2">
+          {editingNotes ? (
+            <div className="space-y-1">
+              <textarea
+                ref={notesRef}
+                value={notesValue}
+                onChange={(e) => setNotesValue(e.target.value)}
+                onBlur={handleSaveNotes}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setNotesValue(request.notes || '');
+                    setEditingNotes(false);
+                  }
+                }}
+                placeholder="Escribe una nota..."
+                className="w-full min-h-[48px] text-xs rounded-md border border-input bg-background px-2 py-1.5 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y"
+                rows={2}
+              />
+              <p className="text-[10px] text-muted-foreground">Esc cancelar · clic fuera para guardar</p>
+            </div>
+          ) : (
+            <div
+              onClick={() => setEditingNotes(true)}
+              className="cursor-pointer text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded px-1 py-1 min-h-[28px] transition-colors"
+            >
+              {request.notes ? (
+                <p className="line-clamp-2">{request.notes}</p>
+              ) : (
+                <p className="italic">+ Añadir nota...</p>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Invoice/Liquidation Status */}
         <div className="flex items-center gap-4 pt-2">

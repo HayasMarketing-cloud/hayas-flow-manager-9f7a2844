@@ -531,6 +531,7 @@ export default function Presupuestos() {
                 onDuplicate={handleDuplicate}
                 onConvertToContract={handleConvertToContract}
                 onDelete={handleDelete}
+                onRefresh={() => queryClient.invalidateQueries({ queryKey: ['budgets'] })}
               />
             ))}
           </div>

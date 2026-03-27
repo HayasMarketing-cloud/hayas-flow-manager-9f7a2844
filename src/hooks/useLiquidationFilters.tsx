@@ -8,7 +8,7 @@ export type PeriodType = 'current_month' | 'last_month' | 'current_year' | 'last
 
 export interface LiquidationFilters {
   searchTerm: string;
-  status: LiquidationStatus | null;
+  status: LiquidationStatus | 'not_paid' | null;
   specialistId: string | null;
   periodType: PeriodType;
   year: number | null;

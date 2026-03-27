@@ -595,6 +595,9 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
               </div>
             </div>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Descripción</Label>
             <Textarea
               id="description"
               value={formData.description}
@@ -603,26 +606,6 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
               rows={3}
               placeholder="Describe el contrato..."
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="attached_contract_url">Enlace al contrato (Drive)</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="attached_contract_url"
-                value={formData.attached_contract_url}
-                onChange={(e) => setFormData({ ...formData, attached_contract_url: e.target.value })}
-                disabled={!canEdit}
-                placeholder="https://drive.google.com/..."
-              />
-              {formData.attached_contract_url && (
-                <Button variant="outline" size="icon" asChild>
-                  <a href={formData.attached_contract_url} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                </Button>
-              )}
-            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

@@ -177,6 +177,7 @@ export type Database = {
           description: string | null
           estimated_invoice_date: string | null
           id: string
+          notes: string | null
           pm_user_id: string | null
           proposal_context: Json | null
           status: string
@@ -198,6 +199,7 @@ export type Database = {
           description?: string | null
           estimated_invoice_date?: string | null
           id?: string
+          notes?: string | null
           pm_user_id?: string | null
           proposal_context?: Json | null
           status?: string
@@ -219,6 +221,7 @@ export type Database = {
           description?: string | null
           estimated_invoice_date?: string | null
           id?: string
+          notes?: string | null
           pm_user_id?: string | null
           proposal_context?: Json | null
           status?: string
@@ -633,6 +636,7 @@ export type Database = {
           hours: number | null
           id: string
           liquidation_id: string | null
+          notes: string | null
           partner_reference: string | null
           quantity: number
           sale_amount: number | null
@@ -668,6 +672,7 @@ export type Database = {
           hours?: number | null
           id?: string
           liquidation_id?: string | null
+          notes?: string | null
           partner_reference?: string | null
           quantity?: number
           sale_amount?: number | null
@@ -703,6 +708,7 @@ export type Database = {
           hours?: number | null
           id?: string
           liquidation_id?: string | null
+          notes?: string | null
           partner_reference?: string | null
           quantity?: number
           sale_amount?: number | null

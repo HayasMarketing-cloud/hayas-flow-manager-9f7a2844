@@ -511,11 +511,14 @@ export default function Liquidaciones() {
                   </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">Todos los estados</SelectItem>
+                    <SelectItem value="not_paid">Pendientes (no pagadas)</SelectItem>
                     <SelectItem value="draft">Borrador</SelectItem>
                     <SelectItem value="validated">Validada</SelectItem>
                     <SelectItem value="sent">Enviada</SelectItem>
                     <SelectItem value="accepted">Aceptada</SelectItem>
+                    <SelectItem value="invoice_received">Factura recibida</SelectItem>
                     <SelectItem value="pending_payment">Pendiente de pago</SelectItem>
+                    <SelectItem value="disputed">Disputada</SelectItem>
                     <SelectItem value="paid">Pagada</SelectItem>
                   </SelectContent>
                 </Select>

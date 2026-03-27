@@ -23,6 +23,7 @@ const clientSchema = z.object({
   email: z.string().trim().email('Email inválido').max(255, 'Máximo 255 caracteres').optional().or(z.literal('')),
   phone: z.string().trim().max(20, 'Máximo 20 caracteres').optional(),
   address: z.string().trim().max(255, 'Máximo 255 caracteres').optional(),
+  postal_code: z.string().trim().max(20, 'Máximo 20 caracteres').optional(),
   city: z.string().trim().max(100, 'Máximo 100 caracteres').optional(),
   country: z.string().trim().max(100, 'Máximo 100 caracteres').optional(),
   drive_folder_url: z.string().trim().url('URL inválida').optional().or(z.literal('')),

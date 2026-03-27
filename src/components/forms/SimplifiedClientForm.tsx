@@ -118,6 +118,7 @@ export const SimplifiedClientForm = ({
           email: dataToSave.email,
           phone: dataToSave.phone,
           address: dataToSave.address,
+          postal_code: dataToSave.postal_code,
           city: dataToSave.city,
           country: dataToSave.country,
           drive_folder_url: dataToSave.drive_folder_url,

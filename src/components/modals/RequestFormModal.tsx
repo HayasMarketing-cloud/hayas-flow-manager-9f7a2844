@@ -46,6 +46,7 @@ const requestSchema = z.object({
   service_id: z.string().uuid('Selecciona un servicio'),
   specialist_id: z.string().uuid().optional().nullable(),
   contract_id: z.string().uuid().optional().nullable(),
+  budget_id: z.string().uuid().optional().nullable(),
   client_contact_id: z.string().uuid().optional().nullable(),
   title: z.string().min(3, 'Mínimo 3 caracteres').max(255, 'Máximo 255 caracteres'),
   description: z.string().optional().nullable(),
@@ -64,7 +65,13 @@ const requestSchema = z.object({
   fixed_cost: z.coerce.number().min(0).optional().nullable(),
   // Partner reference (for partners like Wolfestone)
   partner_reference: z.string().max(100).optional().nullable(),
-});
+}).refine(
+  (data) => !!(data.contract_id || data.budget_id),
+  {
+    message: 'Debes seleccionar un contrato o un presupuesto como origen',
+    path: ['contract_id'],
+  }
+);
 
 type RequestFormData = z.infer<typeof requestSchema>;
 

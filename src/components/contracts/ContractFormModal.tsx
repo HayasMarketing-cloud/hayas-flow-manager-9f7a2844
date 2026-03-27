@@ -42,6 +42,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
     is_on_demand: false,
     am_user_id: '',
     pm_user_id: '',
+    attached_contract_url: '',
   });
   const [services, setServices] = useState<any[]>([]);
 
@@ -86,6 +87,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         is_on_demand: contract.is_on_demand || false,
         am_user_id: contract.am_user_id || '',
         pm_user_id: contract.pm_user_id || '',
+        attached_contract_url: contract.attached_contract_url || '',
       });
     } else {
       setFormData({
@@ -100,6 +102,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         is_on_demand: false,
         am_user_id: '',
         pm_user_id: '',
+        attached_contract_url: '',
       });
       setServices([]);
     }
@@ -204,6 +207,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         is_on_demand: formData.is_on_demand,
         am_user_id: formData.am_user_id || null,
         pm_user_id: formData.pm_user_id || null,
+        attached_contract_url: formData.attached_contract_url || null,
       };
 
       if (contract?.id) {
@@ -581,7 +585,27 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
               rows={3}
               placeholder="Describe el contrato..."
             />
-        </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="attached_contract_url">Enlace al contrato (Drive)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="attached_contract_url"
+                value={formData.attached_contract_url}
+                onChange={(e) => setFormData({ ...formData, attached_contract_url: e.target.value })}
+                disabled={!canEdit}
+                placeholder="https://drive.google.com/..."
+              />
+              {formData.attached_contract_url && (
+                <Button variant="outline" size="icon" asChild>
+                  <a href={formData.attached_contract_url} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </Button>
+              )}
+            </div>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex items-center justify-between rounded-lg border p-4">

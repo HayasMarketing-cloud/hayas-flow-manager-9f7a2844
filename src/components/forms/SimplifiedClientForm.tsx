@@ -86,6 +86,7 @@ export const SimplifiedClientForm = ({
         email: values.email || null,
         phone: values.phone || null,
         address: values.address || null,
+        postal_code: values.postal_code || null,
         city: values.city || null,
         country: values.country || null,
         tax_id: values.tax_id || null,

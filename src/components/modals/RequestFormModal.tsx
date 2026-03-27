@@ -453,6 +453,7 @@ export const RequestFormModal = ({
           service_id: '',
           specialist_id: null,
           contract_id: null,
+          budget_id: null,
           client_contact_id: null,
           title: '',
           description: null,

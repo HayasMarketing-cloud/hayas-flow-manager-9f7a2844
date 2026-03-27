@@ -8,7 +8,7 @@ export type PeriodType = 'current_month' | 'last_month' | 'current_year' | 'last
 
 export interface LiquidationFilters {
   searchTerm: string;
-  status: LiquidationStatus | null;
+  status: LiquidationStatus | 'not_paid' | null;
   specialistId: string | null;
   periodType: PeriodType;
   year: number | null;
@@ -24,7 +24,7 @@ const getDefaultFilters = (): LiquidationFilters => ({
   month: null,
 });
 
-const validStatuses: LiquidationStatus[] = ['draft', 'validated', 'sent', 'accepted', 'pending_payment', 'paid'];
+const validStatuses: (LiquidationStatus | 'not_paid')[] = ['not_paid', 'draft', 'validated', 'sent', 'accepted', 'invoice_received', 'pending_payment', 'paid', 'disputed'];
 const validPeriodTypes: PeriodType[] = ['current_month', 'last_month', 'current_year', 'last_year', 'all', 'custom'];
 
 export const useLiquidationFilters = () => {

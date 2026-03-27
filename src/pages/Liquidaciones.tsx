@@ -84,7 +84,11 @@ export default function Liquidaciones() {
         .order('period_month', { ascending: false });
 
       if (filters.status) {
-        query = query.eq('status', filters.status);
+        if (filters.status === 'not_paid') {
+          query = query.neq('status', 'paid');
+        } else {
+          query = query.eq('status', filters.status);
+        }
       }
       // Note: specialistId filter needs to consider team members too
       if (filters.searchTerm) {
@@ -507,11 +511,14 @@ export default function Liquidaciones() {
                   </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">Todos los estados</SelectItem>
+                    <SelectItem value="not_paid">Pendientes (no pagadas)</SelectItem>
                     <SelectItem value="draft">Borrador</SelectItem>
                     <SelectItem value="validated">Validada</SelectItem>
                     <SelectItem value="sent">Enviada</SelectItem>
                     <SelectItem value="accepted">Aceptada</SelectItem>
+                    <SelectItem value="invoice_received">Factura recibida</SelectItem>
                     <SelectItem value="pending_payment">Pendiente de pago</SelectItem>
+                    <SelectItem value="disputed">Disputada</SelectItem>
                     <SelectItem value="paid">Pagada</SelectItem>
                   </SelectContent>
                 </Select>

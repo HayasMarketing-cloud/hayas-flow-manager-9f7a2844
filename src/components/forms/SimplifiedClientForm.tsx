@@ -225,6 +225,34 @@ export const SimplifiedClientForm = ({
 
           <FormField
             control={form.control}
+            name="address"
+            render={({ field }) => (
+              <FormItem className="col-span-1 md:col-span-2">
+                <FormLabel>Dirección</FormLabel>
+                <FormControl>
+                  <Input placeholder="Dirección completa" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="postal_code"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Código Postal</FormLabel>
+                <FormControl>
+                  <Input placeholder="28001" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
             name="city"
             render={({ field }) => (
               <FormItem>
@@ -251,20 +279,6 @@ export const SimplifiedClientForm = ({
             )}
           />
         </div>
-
-        <FormField
-          control={form.control}
-          name="address"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Dirección</FormLabel>
-              <FormControl>
-                <Input placeholder="Dirección completa" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
 
         <FormField
           control={form.control}

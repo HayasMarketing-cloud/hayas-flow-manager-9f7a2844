@@ -84,7 +84,11 @@ export default function Liquidaciones() {
         .order('period_month', { ascending: false });
 
       if (filters.status) {
-        query = query.eq('status', filters.status);
+        if (filters.status === 'not_paid') {
+          query = query.neq('status', 'paid');
+        } else {
+          query = query.eq('status', filters.status);
+        }
       }
       // Note: specialistId filter needs to consider team members too
       if (filters.searchTerm) {

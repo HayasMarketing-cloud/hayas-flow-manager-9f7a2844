@@ -139,6 +139,7 @@ export const RequestFormModal = ({
   const fixedCost = useWatch({ control: form.control, name: 'fixed_cost' });
   const selectedClientId = useWatch({ control: form.control, name: 'client_id' });
   const selectedContractId = useWatch({ control: form.control, name: 'contract_id' });
+  const selectedBudgetId = useWatch({ control: form.control, name: 'budget_id' });
   const selectedServiceId = useWatch({ control: form.control, name: 'service_id' });
   const selectedSpecialistId = useWatch({ control: form.control, name: 'specialist_id' });
 

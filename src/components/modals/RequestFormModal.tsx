@@ -427,6 +427,7 @@ export const RequestFormModal = ({
           service_id: initialData.service_id,
           specialist_id: initialData.specialist_id ?? null,
           contract_id: initialData.contract_id ?? null,
+          budget_id: initialData.budget_id ?? null,
           client_contact_id: contactToUse,
           title: initialData.title,
           description: initialData.description ?? null,

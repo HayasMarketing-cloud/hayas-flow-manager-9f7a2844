@@ -494,13 +494,18 @@ export const RequestFormModal = ({
     }
   }, [open, initialData, form]);
 
-  // Clear contract and contact when client changes
+  // Clear contract, budget and contact when client changes
   useEffect(() => {
     if (selectedClientId) {
       // Check if current contract belongs to selected client
       const currentContractId = form.getValues('contract_id');
       if (currentContractId && contracts && !contracts.find(c => c.id === currentContractId)) {
         form.setValue('contract_id', null);
+      }
+      // Check if current budget belongs to selected client
+      const currentBudgetId = form.getValues('budget_id');
+      if (currentBudgetId && budgets && !budgets.find(b => b.id === currentBudgetId)) {
+        form.setValue('budget_id', null);
       }
       // Check if current contact belongs to selected client
       const currentContactId = form.getValues('client_contact_id');

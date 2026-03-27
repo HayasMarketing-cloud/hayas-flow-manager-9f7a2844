@@ -46,6 +46,7 @@ const requestSchema = z.object({
   service_id: z.string().uuid('Selecciona un servicio'),
   specialist_id: z.string().uuid().optional().nullable(),
   contract_id: z.string().uuid().optional().nullable(),
+  budget_id: z.string().uuid().optional().nullable(),
   client_contact_id: z.string().uuid().optional().nullable(),
   title: z.string().min(3, 'Mínimo 3 caracteres').max(255, 'Máximo 255 caracteres'),
   description: z.string().optional().nullable(),
@@ -64,7 +65,13 @@ const requestSchema = z.object({
   fixed_cost: z.coerce.number().min(0).optional().nullable(),
   // Partner reference (for partners like Wolfestone)
   partner_reference: z.string().max(100).optional().nullable(),
-});
+}).refine(
+  (data) => !!(data.contract_id || data.budget_id),
+  {
+    message: 'Debes seleccionar un contrato o un presupuesto como origen',
+    path: ['contract_id'],
+  }
+);
 
 type RequestFormData = z.infer<typeof requestSchema>;
 
@@ -96,6 +103,7 @@ export const RequestFormModal = ({
       service_id: '',
       specialist_id: null,
       contract_id: null,
+      budget_id: null,
       client_contact_id: null,
       title: '',
       description: null,
@@ -131,6 +139,7 @@ export const RequestFormModal = ({
   const fixedCost = useWatch({ control: form.control, name: 'fixed_cost' });
   const selectedClientId = useWatch({ control: form.control, name: 'client_id' });
   const selectedContractId = useWatch({ control: form.control, name: 'contract_id' });
+  const selectedBudgetId = useWatch({ control: form.control, name: 'budget_id' });
   const selectedServiceId = useWatch({ control: form.control, name: 'service_id' });
   const selectedSpecialistId = useWatch({ control: form.control, name: 'specialist_id' });
 
@@ -211,6 +220,23 @@ export const RequestFormModal = ({
     enabled: !!selectedClientId,
   });
 
+  // Load budgets for selected client
+  const { data: budgets } = useQuery({
+    queryKey: ['budgets-for-client-request', selectedClientId],
+    queryFn: async () => {
+      if (!selectedClientId) return [];
+      const { data, error } = await supabase
+        .from('budgets')
+        .select('id, code, title')
+        .eq('client_id', selectedClientId)
+        .in('status', ['approved', 'invoiced'])
+        .order('code', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedClientId,
+  });
+
   // Load contacts for selected client
   const { data: contacts } = useQuery({
     queryKey: ['contacts-for-client', selectedClientId],
@@ -257,6 +283,7 @@ export const RequestFormModal = ({
         service_id: data.service_id,
         specialist_id: data.specialist_id || null,
         contract_id: data.contract_id || null,
+        budget_id: data.budget_id || null,
         client_contact_id: data.client_contact_id || null,
         title: data.title,
         description: data.description || null,
@@ -417,6 +444,7 @@ export const RequestFormModal = ({
           service_id: initialData.service_id,
           specialist_id: initialData.specialist_id ?? null,
           contract_id: initialData.contract_id ?? null,
+          budget_id: initialData.budget_id ?? null,
           client_contact_id: contactToUse,
           title: initialData.title,
           description: initialData.description ?? null,
@@ -442,6 +470,7 @@ export const RequestFormModal = ({
           service_id: '',
           specialist_id: null,
           contract_id: null,
+          budget_id: null,
           client_contact_id: null,
           title: '',
           description: null,
@@ -465,13 +494,18 @@ export const RequestFormModal = ({
     }
   }, [open, initialData, form]);
 
-  // Clear contract and contact when client changes
+  // Clear contract, budget and contact when client changes
   useEffect(() => {
     if (selectedClientId) {
       // Check if current contract belongs to selected client
       const currentContractId = form.getValues('contract_id');
       if (currentContractId && contracts && !contracts.find(c => c.id === currentContractId)) {
         form.setValue('contract_id', null);
+      }
+      // Check if current budget belongs to selected client
+      const currentBudgetId = form.getValues('budget_id');
+      if (currentBudgetId && budgets && !budgets.find(b => b.id === currentBudgetId)) {
+        form.setValue('budget_id', null);
       }
       // Check if current contact belongs to selected client
       const currentContactId = form.getValues('client_contact_id');
@@ -545,7 +579,13 @@ export const RequestFormModal = ({
                   <FormItem>
                     <FormLabel>Contrato</FormLabel>
                     <Select
-                      onValueChange={(value) => field.onChange(value === 'none' ? null : value)}
+                      onValueChange={(value) => {
+                        field.onChange(value === 'none' ? null : value);
+                        // Clear budget if contract is selected
+                        if (value !== 'none') {
+                          form.setValue('budget_id', null);
+                        }
+                      }}
                       value={field.value || 'none'}
                       disabled={isViewMode || !selectedClientId}
                     >
@@ -563,28 +603,51 @@ export const RequestFormModal = ({
                         ))}
                       </SelectContent>
                     </Select>
-                    <FormDescription>
-                      Vincular a un contrato para precios predefinidos
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
 
-            {/* Budget Info - Read Only */}
-            {initialData?.budget && (
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Presupuesto vinculado</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">{initialData.budget.code}</Badge>
-                  <span className="text-sm">{initialData.budget.title}</span>
-                </div>
-              </div>
-            )}
+            {/* Origin: Budget selector */}
+            <FormField
+              control={form.control}
+              name="budget_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Presupuesto</FormLabel>
+                  <Select
+                    onValueChange={(value) => {
+                      field.onChange(value === 'none' ? null : value);
+                      // Clear contract if budget is selected
+                      if (value !== 'none') {
+                        form.setValue('contract_id', null);
+                      }
+                    }}
+                    value={field.value || 'none'}
+                    disabled={isViewMode || !selectedClientId}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sin presupuesto" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="none">Sin presupuesto</SelectItem>
+                      {budgets?.map((budget) => (
+                        <SelectItem key={budget.id} value={budget.id}>
+                          {budget.code} — {budget.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Selecciona un contrato o un presupuesto como origen (obligatorio)
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {/* Contact Selector */}
             <FormField

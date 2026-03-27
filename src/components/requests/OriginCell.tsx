@@ -1,5 +1,5 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { FileSpreadsheet, FolderKanban, ScrollText } from 'lucide-react';
+import { FileSpreadsheet, FolderKanban, ScrollText, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface OriginCellProps {
@@ -23,11 +23,24 @@ export const OriginCell = ({
   const navigate = useNavigate();
   
   const hasBudget = budgetId && budgetCode;
-  const hasContract = contractId && contractTitle && !hasBudget; // Solo mostrar contrato si no hay presupuesto
+  const hasContract = contractId && contractTitle && !hasBudget;
   const hasProject = operationalProject?.id && operationalProject?.name;
   
   if (!hasBudget && !hasContract && !hasProject) {
-    return <span className="text-muted-foreground text-sm">---</span>;
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="flex items-center gap-1 text-amber-500 text-sm cursor-help">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            Sin origen
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p className="font-medium">⚠️ Sin presupuesto ni contrato</p>
+          <p className="text-xs text-muted-foreground">Edita esta solicitud para asignarle un origen</p>
+        </TooltipContent>
+      </Tooltip>
+    );
   }
 
   return (

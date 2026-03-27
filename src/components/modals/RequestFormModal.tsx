@@ -220,6 +220,23 @@ export const RequestFormModal = ({
     enabled: !!selectedClientId,
   });
 
+  // Load budgets for selected client
+  const { data: budgets } = useQuery({
+    queryKey: ['budgets-for-client-request', selectedClientId],
+    queryFn: async () => {
+      if (!selectedClientId) return [];
+      const { data, error } = await supabase
+        .from('budgets')
+        .select('id, code, title')
+        .eq('client_id', selectedClientId)
+        .in('status', ['approved', 'invoiced'])
+        .order('code', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedClientId,
+  });
+
   // Load contacts for selected client
   const { data: contacts } = useQuery({
     queryKey: ['contacts-for-client', selectedClientId],

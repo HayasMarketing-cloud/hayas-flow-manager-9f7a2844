@@ -142,6 +142,7 @@ export default function FirmaLiquidacion() {
         liquidation: signatureData.liquidation,
         items,
         specialist: signatureData.liquidation.specialist,
+        commissionDetails: commissionDetails || undefined,
       });
       toast.success('PDF descargado correctamente');
     } catch (error) {

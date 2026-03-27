@@ -148,7 +148,7 @@ export const AddCommissionToLiquidationModal = ({
         liquidationCode = draftLiquidations.find(l => l.id === selectedLiquidationId)?.code || '';
       }
 
-      // Build description
+      // Build description with full detail for specialist visibility
       let origin = commission.contract
         ? `${commission.contract.code} - ${commission.contract.title}`
         : commission.budget
@@ -159,7 +159,17 @@ export const AddCommissionToLiquidationModal = ({
         origin = commission.invoice_codes.join(', ');
       }
       const typeLabel = typeLabels[commission.commission_type || 'sales'] || commission.commission_type;
-      const description = `Comisión ${typeLabel} (${commission.commission_percentage}%)${origin ? ` — ${origin}` : ''}`;
+      const baseAmountFormatted = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(commission.base_amount);
+      let description = `Comisión ${typeLabel} — ${commission.commission_percentage}% sobre ${baseAmountFormatted}`;
+      if (commission.invoice_codes?.length) {
+        const invoiceLabel = commission.invoice_codes.length === 1
+          ? `Factura Nº ${commission.invoice_codes[0]}`
+          : `Facturas ${commission.invoice_codes.join(', ')}`;
+        description += ` — ${invoiceLabel}`;
+      }
+      if (origin && !commission.invoice_codes?.length) {
+        description += ` — ${origin}`;
+      }
 
       // Create liquidation item
       const { error: itemError } = await supabase

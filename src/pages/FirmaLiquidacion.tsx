@@ -72,7 +72,7 @@ export default function FirmaLiquidacion() {
   });
 
   // Fetch liquidation items via secure edge function
-  const { data: items } = useQuery({
+  const { data: itemsData } = useQuery({
     queryKey: ['liquidation-items', signatureData?.liquidation?.id, token],
     queryFn: async () => {
       const response = await fetch(
@@ -95,10 +95,18 @@ export default function FirmaLiquidacion() {
         throw new Error(errorData.error || 'Error fetching items');
       }
 
-      return await response.json();
+      const result = await response.json();
+      // Handle both old format (array) and new format (object with items + commissionDetails)
+      if (Array.isArray(result)) {
+        return { items: result, commissionDetails: {} };
+      }
+      return result as { items: any[]; commissionDetails: Record<string, any> };
     },
     enabled: !!signatureData?.liquidation?.id && !!token,
   });
+
+  const items = itemsData?.items;
+  const commissionDetails = itemsData?.commissionDetails || {};
 
   const processMutation = useMutation({
     mutationFn: async (data: { action: 'accept' | 'dispute'; comments?: string; disputeReason?: string }) => {
@@ -134,6 +142,7 @@ export default function FirmaLiquidacion() {
         liquidation: signatureData.liquidation,
         items,
         specialist: signatureData.liquidation.specialist,
+        commissionDetails: commissionDetails || undefined,
       });
       toast.success('PDF descargado correctamente');
     } catch (error) {
@@ -327,20 +336,45 @@ export default function FirmaLiquidacion() {
                     const displayQuantity = item.financial_request?.cost_type === 'hourly'
                       ? (item.financial_request?.hours || item.quantity || 1)
                       : (item.financial_request?.quantity || item.quantity || 1);
+                    
+                    // Find commission detail for commission items
+                    const isCommission = item.description?.startsWith('Comisión');
+                    let commDetail: any = null;
+                    if (isCommission && commissionDetails) {
+                      commDetail = Object.values(commissionDetails).find((d: any) => {
+                        const typeLabel = d.type === 'am' ? 'AM' : d.type === 'pm' ? 'PM' : 'Venta';
+                        return item.description?.includes(`Comisión ${typeLabel}`);
+                      });
+                    }
+
                     return (
-                      <div key={item.id} className="flex justify-between text-sm">
-                        <span className="truncate flex-1">
-                          {item.description}
-                          {item.financial_request?.client?.name && (
-                            <span className="text-muted-foreground ml-1">
-                              ({item.financial_request.client.name})
-                            </span>
-                          )}
-                          <span className="text-muted-foreground ml-1">
-                            x{displayQuantity}
+                      <div key={item.id} className="text-sm">
+                        <div className="flex justify-between">
+                          <span className="truncate flex-1">
+                            {item.description}
+                            {item.financial_request?.client?.name && (
+                              <span className="text-muted-foreground ml-1">
+                                ({item.financial_request.client.name})
+                              </span>
+                            )}
+                            {!isCommission && (
+                              <span className="text-muted-foreground ml-1">
+                                x{displayQuantity}
+                              </span>
+                            )}
                           </span>
-                        </span>
-                        <span className="font-medium ml-4">{formatCurrency(item.total)}</span>
+                          <span className="font-medium ml-4">{formatCurrency(item.total)}</span>
+                        </div>
+                        {isCommission && commDetail && (
+                          <p className="text-xs text-muted-foreground mt-0.5 pl-1">
+                            {commDetail.percentage}% sobre {formatCurrency(commDetail.baseAmount)}
+                            {commDetail.invoiceCodes?.length === 1
+                              ? ` — Factura Nº ${commDetail.invoiceCodes[0]}`
+                              : commDetail.invoiceCodes?.length > 1
+                                ? ` — Facturas ${commDetail.invoiceCodes.join(', ')}`
+                                : ''}
+                          </p>
+                        )}
                       </div>
                     );
                   })

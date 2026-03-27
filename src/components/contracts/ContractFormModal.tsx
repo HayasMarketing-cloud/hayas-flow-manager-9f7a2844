@@ -42,6 +42,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
     is_on_demand: false,
     am_user_id: '',
     pm_user_id: '',
+    attached_contract_url: '',
   });
   const [services, setServices] = useState<any[]>([]);
 

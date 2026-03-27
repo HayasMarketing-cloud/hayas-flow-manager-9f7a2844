@@ -291,12 +291,15 @@ const SolicitudDetalle = () => {
   }
 
   if (error || !request) {
+    const isRLSError = !error && !request;
     return (
       <AppLayout title="Error" description="">
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
             <p className="text-destructive mb-4">
-              {error ? 'Error al cargar la solicitud' : 'Solicitud no encontrada'}
+              {error
+                ? 'Error al cargar la solicitud'
+                : 'No tienes permisos para ver esta solicitud o no existe'}
             </p>
             <Button variant="outline" onClick={() => navigate('/solicitudes')}>
               <ArrowLeft className="h-4 w-4 mr-2" />

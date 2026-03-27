@@ -310,8 +310,8 @@ const Solicitudes = () => {
           changes: { from_code: code, from_id: id }
         });
       }
+      await queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
       toast.success('Request clonado correctamente');
-      queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
     }
   };
 

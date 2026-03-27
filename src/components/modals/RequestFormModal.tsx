@@ -574,7 +574,13 @@ export const RequestFormModal = ({
                   <FormItem>
                     <FormLabel>Contrato</FormLabel>
                     <Select
-                      onValueChange={(value) => field.onChange(value === 'none' ? null : value)}
+                      onValueChange={(value) => {
+                        field.onChange(value === 'none' ? null : value);
+                        // Clear budget if contract is selected
+                        if (value !== 'none') {
+                          form.setValue('budget_id', null);
+                        }
+                      }}
                       value={field.value || 'none'}
                       disabled={isViewMode || !selectedClientId}
                     >
@@ -592,28 +598,51 @@ export const RequestFormModal = ({
                         ))}
                       </SelectContent>
                     </Select>
-                    <FormDescription>
-                      Vincular a un contrato para precios predefinidos
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
 
-            {/* Budget Info - Read Only */}
-            {initialData?.budget && (
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Presupuesto vinculado</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">{initialData.budget.code}</Badge>
-                  <span className="text-sm">{initialData.budget.title}</span>
-                </div>
-              </div>
-            )}
+            {/* Origin: Budget selector */}
+            <FormField
+              control={form.control}
+              name="budget_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Presupuesto</FormLabel>
+                  <Select
+                    onValueChange={(value) => {
+                      field.onChange(value === 'none' ? null : value);
+                      // Clear contract if budget is selected
+                      if (value !== 'none') {
+                        form.setValue('contract_id', null);
+                      }
+                    }}
+                    value={field.value || 'none'}
+                    disabled={isViewMode || !selectedClientId}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sin presupuesto" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="none">Sin presupuesto</SelectItem>
+                      {budgets?.map((budget) => (
+                        <SelectItem key={budget.id} value={budget.id}>
+                          {budget.code} — {budget.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Selecciona un contrato o un presupuesto como origen (obligatorio)
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {/* Contact Selector */}
             <FormField

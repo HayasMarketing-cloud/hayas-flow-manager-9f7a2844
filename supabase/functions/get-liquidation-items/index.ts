@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify(items || []),
+      JSON.stringify(enrichedItems),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {

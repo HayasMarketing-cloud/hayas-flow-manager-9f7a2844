@@ -110,8 +110,41 @@ Deno.serve(async (req) => {
       throw itemsError;
     }
 
+    // Fetch commission details for this liquidation
+    const { data: commissions } = await supabase
+      .from('sales_commissions')
+      .select('id, commission_type, commission_percentage, base_amount, invoice_ids, commission_amount')
+      .eq('liquidation_id', liquidation_id);
+
+    let commissionDetails: Record<string, any> = {};
+    if (commissions?.length) {
+      // Fetch invoice codes
+      const allInvoiceIds = [...new Set(commissions.flatMap((c: any) => c.invoice_ids || []))];
+      let invoiceCodesMap = new Map<string, string>();
+      if (allInvoiceIds.length > 0) {
+        const { data: invoicesData } = await supabase
+          .from('invoices')
+          .select('id, code')
+          .in('id', allInvoiceIds);
+        invoiceCodesMap = new Map((invoicesData || []).map((i: any) => [i.id, i.code]));
+      }
+
+      for (const comm of commissions) {
+        const invoiceCodes = (comm.invoice_ids || [])
+          .map((id: string) => invoiceCodesMap.get(id))
+          .filter(Boolean);
+        commissionDetails[comm.id] = {
+          type: comm.commission_type,
+          percentage: Number(comm.commission_percentage),
+          baseAmount: Number(comm.base_amount),
+          amount: Number(comm.commission_amount),
+          invoiceCodes,
+        };
+      }
+    }
+
     return new Response(
-      JSON.stringify(enrichedItems),
+      JSON.stringify({ items: enrichedItems, commissionDetails }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {

@@ -23,6 +23,7 @@ const clientSchema = z.object({
   email: z.string().trim().email('Email inválido').max(255, 'Máximo 255 caracteres').optional().or(z.literal('')),
   phone: z.string().trim().max(20, 'Máximo 20 caracteres').optional(),
   address: z.string().trim().max(255, 'Máximo 255 caracteres').optional(),
+  postal_code: z.string().trim().max(20, 'Máximo 20 caracteres').optional(),
   city: z.string().trim().max(100, 'Máximo 100 caracteres').optional(),
   country: z.string().trim().max(100, 'Máximo 100 caracteres').optional(),
   drive_folder_url: z.string().trim().url('URL inválida').optional().or(z.literal('')),
@@ -54,6 +55,7 @@ export const SimplifiedClientForm = ({
       email: initialData?.email || '',
       phone: initialData?.phone || '',
       address: initialData?.address || '',
+      postal_code: initialData?.postal_code || '',
       city: initialData?.city || '',
       country: initialData?.country || '',
       drive_folder_url: initialData?.drive_folder_url || '',
@@ -84,6 +86,7 @@ export const SimplifiedClientForm = ({
         email: values.email || null,
         phone: values.phone || null,
         address: values.address || null,
+        postal_code: values.postal_code || null,
         city: values.city || null,
         country: values.country || null,
         tax_id: values.tax_id || null,
@@ -115,6 +118,7 @@ export const SimplifiedClientForm = ({
           email: dataToSave.email,
           phone: dataToSave.phone,
           address: dataToSave.address,
+          postal_code: dataToSave.postal_code,
           city: dataToSave.city,
           country: dataToSave.country,
           drive_folder_url: dataToSave.drive_folder_url,
@@ -222,6 +226,34 @@ export const SimplifiedClientForm = ({
 
           <FormField
             control={form.control}
+            name="address"
+            render={({ field }) => (
+              <FormItem className="col-span-1 md:col-span-2">
+                <FormLabel>Dirección</FormLabel>
+                <FormControl>
+                  <Input placeholder="Dirección completa" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="postal_code"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Código Postal</FormLabel>
+                <FormControl>
+                  <Input placeholder="28001" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
             name="city"
             render={({ field }) => (
               <FormItem>
@@ -248,20 +280,6 @@ export const SimplifiedClientForm = ({
             )}
           />
         </div>
-
-        <FormField
-          control={form.control}
-          name="address"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Dirección</FormLabel>
-              <FormControl>
-                <Input placeholder="Dirección completa" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
 
         <FormField
           control={form.control}

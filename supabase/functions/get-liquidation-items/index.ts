@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch liquidation items
+    // Fetch liquidation items with full data for PDF grouping
     const { data: items, error: itemsError } = await supabase
       .from('liquidation_items')
       .select(`
@@ -65,17 +65,53 @@ Deno.serve(async (req) => {
           hours,
           quantity,
           cost_type,
-          client:clients(name)
+          client:clients(id, name),
+          budget:budgets(id, code, title)
         )
       `)
       .eq('liquidation_id', liquidation_id);
+
+    // Fetch operational project info for items that have financial_request_id
+    const requestIds = (items || [])
+      .map((item: any) => item.financial_request?.id)
+      .filter(Boolean);
+
+    let opRequestMap: Record<string, any> = {};
+    if (requestIds.length > 0) {
+      const { data: opRequests } = await supabase
+        .from('operational_requests')
+        .select('financial_request_id, operational_project:operational_projects(id, name)')
+        .in('financial_request_id', requestIds);
+
+      if (opRequests) {
+        for (const opr of opRequests) {
+          if (opr.financial_request_id) {
+            opRequestMap[opr.financial_request_id] = opr.operational_project;
+          }
+        }
+      }
+    }
+
+    // Merge operational project data into items
+    const enrichedItems = (items || []).map((item: any) => {
+      if (item.financial_request?.id && opRequestMap[item.financial_request.id]) {
+        return {
+          ...item,
+          financial_request: {
+            ...item.financial_request,
+            operational_project: opRequestMap[item.financial_request.id],
+          },
+        };
+      }
+      return item;
+    });
 
     if (itemsError) {
       throw itemsError;
     }
 
     return new Response(
-      JSON.stringify(items || []),
+      JSON.stringify(enrichedItems),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {

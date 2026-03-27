@@ -72,7 +72,7 @@ export default function FirmaLiquidacion() {
   });
 
   // Fetch liquidation items via secure edge function
-  const { data: items } = useQuery({
+  const { data: itemsData } = useQuery({
     queryKey: ['liquidation-items', signatureData?.liquidation?.id, token],
     queryFn: async () => {
       const response = await fetch(
@@ -95,10 +95,18 @@ export default function FirmaLiquidacion() {
         throw new Error(errorData.error || 'Error fetching items');
       }
 
-      return await response.json();
+      const result = await response.json();
+      // Handle both old format (array) and new format (object with items + commissionDetails)
+      if (Array.isArray(result)) {
+        return { items: result, commissionDetails: {} };
+      }
+      return result as { items: any[]; commissionDetails: Record<string, any> };
     },
     enabled: !!signatureData?.liquidation?.id && !!token,
   });
+
+  const items = itemsData?.items;
+  const commissionDetails = itemsData?.commissionDetails || {};
 
   const processMutation = useMutation({
     mutationFn: async (data: { action: 'accept' | 'dispute'; comments?: string; disputeReason?: string }) => {

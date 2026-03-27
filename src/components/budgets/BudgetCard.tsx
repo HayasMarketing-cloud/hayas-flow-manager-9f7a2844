@@ -1,12 +1,20 @@
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Eye, Edit, Copy, FileText, Trash2 } from 'lucide-react';
+import { Eye, Edit, Copy, FileText, Trash2, Check, X } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { useNavigate } from 'react-router-dom';
 import { BudgetStatusBadge } from './BudgetStatusBadge';
-import { formatCurrency } from '@/lib/budget-utils';
+import { formatCurrency, getBudgetStatusLabel } from '@/lib/budget-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useState, useRef, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { CalendarIcon } from 'lucide-react';
 
 interface BudgetCardProps {
   budget: any;
@@ -15,11 +23,55 @@ interface BudgetCardProps {
   onDuplicate?: (budget: any) => void;
   onConvertToContract?: (budget: any) => void;
   onDelete?: (budget: any) => void;
+  onRefresh?: () => void;
 }
 
-export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToContract, onDelete }: BudgetCardProps) => {
+const BUDGET_STATUSES = [
+  { value: 'pending', label: 'Pendiente' },
+  { value: 'sent', label: 'Enviado' },
+  { value: 'approved', label: 'Aprobado' },
+  { value: 'rejected', label: 'Rechazado' },
+  { value: 'invoiced', label: 'Facturado' },
+];
+
+export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToContract, onDelete, onRefresh }: BudgetCardProps) => {
   const navigate = useNavigate();
-  
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState(budget.notes || '');
+  const [dateOpen, setDateOpen] = useState(false);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setNotesValue(budget.notes || '');
+  }, [budget.notes]);
+
+  useEffect(() => {
+    if (editingNotes && notesRef.current) {
+      notesRef.current.focus();
+    }
+  }, [editingNotes]);
+
+  const handleUpdateField = async (field: string, value: any) => {
+    const { error } = await supabase
+      .from('budgets')
+      .update({ [field]: value })
+      .eq('id', budget.id);
+
+    if (error) {
+      toast.error('Error al actualizar');
+      return;
+    }
+    toast.success('Actualizado');
+    onRefresh?.();
+  };
+
+  const handleSaveNotes = async () => {
+    setEditingNotes(false);
+    if (notesValue !== (budget.notes || '')) {
+      await handleUpdateField('notes', notesValue || null);
+    }
+  };
+
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader className="space-y-2">
@@ -47,7 +99,20 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
               {budget.client?.name || 'Sin cliente'}
             </p>
           </div>
-          <BudgetStatusBadge status={budget.status} />
+          {/* Inline status selector */}
+          <Select
+            value={budget.status}
+            onValueChange={(value) => handleUpdateField('status', value)}
+          >
+            <SelectTrigger className="w-auto h-auto border-0 p-0 shadow-none focus:ring-0">
+              <BudgetStatusBadge status={budget.status} />
+            </SelectTrigger>
+            <SelectContent>
+              {BUDGET_STATUSES.map((s) => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </CardHeader>
 
@@ -60,14 +125,76 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
             </p>
           </div>
           <div>
-            <p className="text-muted-foreground">Fecha Facturación</p>
-            <p className="font-medium">
-              {budget.estimated_invoice_date
-                ? format(new Date(budget.estimated_invoice_date), 'dd MMM yyyy', { locale: es })
-                : 'No especificado'}
-            </p>
+            <p className="text-muted-foreground text-xs mb-1">Fecha Facturación</p>
+            <Popover open={dateOpen} onOpenChange={setDateOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "w-full justify-start text-left font-normal h-8 text-xs",
+                    !budget.estimated_invoice_date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="h-3 w-3 mr-1" />
+                  {budget.estimated_invoice_date
+                    ? format(new Date(budget.estimated_invoice_date), 'dd MMM yyyy', { locale: es })
+                    : 'Sin fecha'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={budget.estimated_invoice_date ? new Date(budget.estimated_invoice_date) : undefined}
+                  onSelect={(date) => {
+                    if (date) {
+                      handleUpdateField('estimated_invoice_date', format(date, 'yyyy-MM-dd'));
+                    }
+                    setDateOpen(false);
+                  }}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
+
+        {/* Inline Notes */}
+        <div className="border-t pt-2 mt-2">
+          {editingNotes ? (
+            <div className="space-y-1">
+              <textarea
+                ref={notesRef}
+                value={notesValue}
+                onChange={(e) => setNotesValue(e.target.value)}
+                onBlur={handleSaveNotes}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setNotesValue(budget.notes || '');
+                    setEditingNotes(false);
+                  }
+                }}
+                placeholder="Escribe una nota..."
+                className="w-full min-h-[48px] text-xs rounded-md border border-input bg-background px-2 py-1.5 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y"
+                rows={2}
+              />
+              <p className="text-[10px] text-muted-foreground">Esc cancelar · clic fuera para guardar</p>
+            </div>
+          ) : (
+            <div
+              onClick={() => setEditingNotes(true)}
+              className="cursor-pointer text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded px-1 py-1 min-h-[28px] transition-colors"
+            >
+              {budget.notes ? (
+                <p className="line-clamp-2">{budget.notes}</p>
+              ) : (
+                <p className="italic">+ Añadir nota...</p>
+              )}
+            </div>
+          )}
+        </div>
+
         {budget.description && (
           <p className="text-sm text-muted-foreground line-clamp-2">
             {budget.description}

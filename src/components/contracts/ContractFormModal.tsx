@@ -573,10 +573,28 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Descripción</Label>
+            {/* Enlace Drive */}
+            <div className="space-y-2 col-span-2">
+              <Label htmlFor="attached_contract_url">Enlace al contrato (Drive)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="attached_contract_url"
+                  value={formData.attached_contract_url}
+                  onChange={(e) => setFormData({ ...formData, attached_contract_url: e.target.value })}
+                  disabled={!canEdit}
+                  placeholder="https://drive.google.com/..."
+                />
+                {formData.attached_contract_url && (
+                  <Button variant="outline" size="icon" asChild>
+                    <a href={formData.attached_contract_url} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
             <Textarea
               id="description"
               value={formData.description}

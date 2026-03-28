@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 export interface RequestFilters {
@@ -17,9 +17,9 @@ export interface RequestFilters {
 
 export const useRequestFilters = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  
-  // Initialize filters from URL params
-  const [filters, setFilters] = useState<RequestFilters>(() => ({
+
+  // Derive filters directly from URL params — always in sync
+  const filters = useMemo<RequestFilters>(() => ({
     searchTerm: searchParams.get('search') || '',
     status: searchParams.get('status'),
     clientId: searchParams.get('clientId'),
@@ -31,12 +31,10 @@ export const useRequestFilters = () => {
     partnerReference: searchParams.get('partnerReference'),
     workMonth: searchParams.get('workMonth') ? parseInt(searchParams.get('workMonth')!) : null,
     workYear: searchParams.get('workYear') ? parseInt(searchParams.get('workYear')!) : null,
-  }));
+  }), [searchParams]);
 
-  // Sync filters TO URL whenever they change
-  const syncToUrl = useCallback((newFilters: RequestFilters) => {
+  const buildParams = useCallback((newFilters: RequestFilters) => {
     const newParams = new URLSearchParams();
-    
     if (newFilters.searchTerm) newParams.set('search', newFilters.searchTerm);
     if (newFilters.status) newParams.set('status', newFilters.status);
     if (newFilters.clientId) newParams.set('clientId', newFilters.clientId);
@@ -48,54 +46,31 @@ export const useRequestFilters = () => {
     if (newFilters.partnerReference) newParams.set('partnerReference', newFilters.partnerReference);
     if (newFilters.workMonth) newParams.set('workMonth', newFilters.workMonth.toString());
     if (newFilters.workYear) newParams.set('workYear', newFilters.workYear.toString());
-    
-    setSearchParams(newParams, { replace: true });
-  }, [setSearchParams]);
+    return newParams;
+  }, []);
 
-  const updateFilter = <K extends keyof RequestFilters>(
+  const updateFilter = useCallback(<K extends keyof RequestFilters>(
     key: K,
     value: RequestFilters[K]
   ) => {
-    setFilters((prev) => {
-      const newFilters = { ...prev, [key]: value };
-      // Reset budget and contract filters when client changes
-      if (key === 'clientId') {
-        newFilters.budgetId = null;
-        newFilters.contractId = null;
-      }
-      // Reset month if year is cleared
-      if (key === 'year' && value === null) {
-        newFilters.month = null;
-      }
-      // Reset workMonth if workYear is cleared
-      if (key === 'workYear' && value === null) {
-        newFilters.workMonth = null;
-      }
-      
-      // Sync to URL
-      syncToUrl(newFilters);
-      
-      return newFilters;
-    });
-  };
+    const newFilters = { ...filters, [key]: value };
+    // Reset budget and contract filters when client changes
+    if (key === 'clientId') {
+      newFilters.budgetId = null;
+      newFilters.contractId = null;
+    }
+    if (key === 'year' && value === null) {
+      newFilters.month = null;
+    }
+    if (key === 'workYear' && value === null) {
+      newFilters.workMonth = null;
+    }
+    setSearchParams(buildParams(newFilters), { replace: true });
+  }, [filters, setSearchParams, buildParams]);
 
-  const resetFilters = () => {
-    const emptyFilters: RequestFilters = {
-      searchTerm: '',
-      status: null,
-      clientId: null,
-      specialistId: null,
-      budgetId: null,
-      contractId: null,
-      year: null,
-      month: null,
-      partnerReference: null,
-      workMonth: null,
-      workYear: null,
-    };
-    setFilters(emptyFilters);
+  const resetFilters = useCallback(() => {
     setSearchParams({}, { replace: true });
-  };
+  }, [setSearchParams]);
 
   return {
     filters,

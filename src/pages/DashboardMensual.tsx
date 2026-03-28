@@ -13,7 +13,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { KPICard } from '@/components/dashboard/kpis/KPICard';
 import { KPISkeleton } from '@/components/dashboard/kpis/KPISkeleton';
 import { formatCurrency } from '@/lib/request-utils';
-import { useNavigate } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];

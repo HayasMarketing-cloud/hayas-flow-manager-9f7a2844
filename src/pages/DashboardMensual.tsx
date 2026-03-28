@@ -141,7 +141,6 @@ export default function DashboardMensual() {
   const [viewMode, setViewMode] = useState<ViewMode>('cashflow');
   const { isAdmin, loading: roleLoading } = useUserRole();
   const { data, isLoading, refetch } = useDashboardMensualData(year, month, viewMode);
-  const navigate = useNavigate();
 
   if (roleLoading) return null;
   

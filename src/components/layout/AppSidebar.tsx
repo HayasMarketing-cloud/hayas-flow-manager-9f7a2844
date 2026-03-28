@@ -34,7 +34,7 @@ const operationsItems: NavItem[] = [
 ];
 
 const financeItems: NavItem[] = [
-  { title: 'Dashboard', url: '/dashboard-mensual', icon: LayoutDashboard },
+  { title: 'Dashboard', url: '/dashboard-mensual', icon: LayoutDashboard, requiredRoles: ['admin'] },
   { title: 'Contratos', url: '/contratos', icon: FileText },
   { title: 'Facturas', url: '/facturas', icon: Receipt, requiredRoles: ['admin', 'finanzas', 'account_manager'] },
   { title: 'Liquidaciones', url: '/liquidaciones', icon: Wallet, requiredRoles: ['admin', 'finanzas', 'account_manager', 'especialista'] },

@@ -73,7 +73,7 @@ export const getMockDashboardAlerts = (): DashboardAlert[] => {
       description: 'Completadas pero no facturadas',
       action: {
         label: 'Ver solicitudes',
-        path: '/flujo-requests',
+        path: '/solicitudes',
       },
       count: 5,
     },

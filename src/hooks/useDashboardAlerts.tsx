@@ -66,24 +66,31 @@ export const useDashboardAlerts = () => {
           });
         }
 
-        // Unbilled completed requests (INFO)
+        // Unbilled requests that are already liquidated (INFO)
+        // Only count requests linked to a liquidation (work is done & settled) but not yet billed to client
         const { data: unbilledRequests } = await supabase
           .from('financial_requests')
-          .select('id')
-          .eq('status', 'completed')
+          .select('id, liquidation:liquidations!requests_liquidation_id_fkey(id, status)')
+          .not('liquidation_id', 'is', null)
           .is('billed_invoice_id', null);
 
-        if (unbilledRequests && unbilledRequests.length > 0) {
+        const liquidatedUnbilled = (unbilledRequests || []).filter((r: any) => {
+          const liqStatus = r.liquidation?.status;
+          // Only count if liquidation is in a "settled" state
+          return liqStatus && liqStatus !== 'draft';
+        });
+
+        if (liquidatedUnbilled.length > 0) {
           alerts.push({
             id: 'unbilled-requests',
             type: 'info',
-            title: `${unbilledRequests.length} solicitud${unbilledRequests.length > 1 ? 'es' : ''} sin facturar`,
-            description: 'Activas pero no facturadas',
+            title: `${liquidatedUnbilled.length} solicitud${liquidatedUnbilled.length > 1 ? 'es' : ''} liquidada${liquidatedUnbilled.length > 1 ? 's' : ''} sin facturar`,
+            description: 'Liquidadas pero sin factura de cliente',
             action: {
               label: 'Ver solicitudes',
               path: '/solicitudes',
             },
-            count: unbilledRequests.length,
+            count: liquidatedUnbilled.length,
           });
         }
       }

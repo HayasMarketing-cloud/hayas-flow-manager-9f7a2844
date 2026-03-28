@@ -146,9 +146,11 @@ export default function DashboardMensual() {
   if (roleLoading) return null;
   
   if (!isAdmin()) {
-    // Non-admin users see nothing - routing should prevent this
-    navigate('/dashboard', { replace: true });
-    return null;
+    return (
+      <AppLayout title="Dashboard" description="Sin acceso">
+        <p className="text-muted-foreground">No tienes permisos para ver este dashboard.</p>
+      </AppLayout>
+    );
   }
 
   return (

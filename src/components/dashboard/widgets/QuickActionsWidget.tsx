@@ -22,7 +22,7 @@ export const QuickActionsWidget = ({ alerts }: QuickActionsWidgetProps) => {
       actions.push({
         label: 'Generar facturas',
         icon: FileText,
-        onClick: () => navigate('/flujo-requests'),
+        onClick: () => navigate('/solicitudes'),
         variant: 'default' as const,
       });
     }

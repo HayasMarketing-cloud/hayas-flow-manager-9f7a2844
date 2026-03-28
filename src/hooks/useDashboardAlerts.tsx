@@ -81,7 +81,7 @@ export const useDashboardAlerts = () => {
             description: 'Activas pero no facturadas',
             action: {
               label: 'Ver solicitudes',
-              path: '/flujo-requests',
+              path: '/solicitudes',
             },
             count: unbilledRequests.length,
           });

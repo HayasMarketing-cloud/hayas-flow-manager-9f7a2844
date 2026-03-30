@@ -116,7 +116,7 @@ function SpecialistRow({ specialist }: { specialist: SpecialistSummary }) {
           </TableCell>
           <TableCell className="text-right text-sm">{formatCurrency(liq.subtotal ?? liq.total_amount)}</TableCell>
           <TableCell className="text-right">
-            {getStatusBadge(liq.status)}
+            {getStatusBadge(liq.status, 'liquidation')}
           </TableCell>
           <TableCell className="text-right text-xs text-muted-foreground">
             {liq.specialist_invoice_url ? '✅ Factura' : '⏳ Sin factura'}

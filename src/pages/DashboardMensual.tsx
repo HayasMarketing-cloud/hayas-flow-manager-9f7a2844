@@ -122,7 +122,7 @@ function SpecialistRow({ specialist }: { specialist: SpecialistSummary }) {
                 {liq.code}
               </div>
             </TableCell>
-            <TableCell className="text-right text-sm">{formatCurrency(liq.total_amount)}</TableCell>
+            <TableCell className="text-right text-sm">{formatCurrency(liq.subtotal ?? liq.total_amount)}</TableCell>
             <TableCell className="text-right">
               {getStatusBadge(liq.status)}
             </TableCell>

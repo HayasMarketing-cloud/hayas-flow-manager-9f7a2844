@@ -298,7 +298,7 @@ export default function DashboardMensual() {
                   <TableRow className="border-t-2 font-bold">
                     <TableCell>TOTAL</TableCell>
                     <TableCell className="text-right">{formatCurrency(data.specialists.reduce((sum, s) => sum + s.totalCost, 0))}</TableCell>
-                    <TableCell className="text-right">{data.specialists.reduce((sum, s) => sum + s.liquidations.length, 0)}</TableCell>
+                    <TableCell />
                     <TableCell />
                   </TableRow>
                 </TableBody>

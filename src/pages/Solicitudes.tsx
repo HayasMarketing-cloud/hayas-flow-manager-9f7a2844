@@ -637,46 +637,7 @@ const Solicitudes = () => {
               </Select>
             )}
 
-            {/* Período creación (combined year+month) */}
-            <Select
-              value={
-                filters.year && filters.month
-                  ? `${filters.year}-${filters.month}`
-                  : 'all'
-              }
-              onValueChange={(value) => {
-                if (value === 'all') {
-                  updateFilter('year', null);
-                  updateFilter('month', null);
-                } else {
-                  const [y, m] = value.split('-').map(Number);
-                  updateFilter('month', m);
-                  updateFilter('year', y);
-                }
-              }}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Período creación" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los períodos</SelectItem>
-                {(() => {
-                  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-                  const now = new Date();
-                  return Array.from({ length: 18 }, (_, i) => {
-                    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                    const val = `${d.getFullYear()}-${d.getMonth() + 1}`;
-                    return (
-                      <SelectItem key={val} value={val}>
-                        {months[d.getMonth()]} {d.getFullYear()}
-                      </SelectItem>
-                    );
-                  });
-                })()}
-              </SelectContent>
-            </Select>
-
-            {/* Mes trabajo (combined workYear+workMonth) */}
+            {/* Período (work period with fallback) */}
             <Select
               value={
                 filters.workYear && filters.workMonth

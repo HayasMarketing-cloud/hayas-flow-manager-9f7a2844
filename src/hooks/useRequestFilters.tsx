@@ -37,8 +37,6 @@ export const useRequestFilters = () => {
     if (newFilters.specialistId) newParams.set('specialistId', newFilters.specialistId);
     if (newFilters.budgetId) newParams.set('budget_id', newFilters.budgetId);
     if (newFilters.contractId) newParams.set('contractId', newFilters.contractId);
-    if (newFilters.year) newParams.set('year', newFilters.year.toString());
-    if (newFilters.month) newParams.set('month', newFilters.month.toString());
     if (newFilters.partnerReference) newParams.set('partnerReference', newFilters.partnerReference);
     if (newFilters.workMonth) newParams.set('workMonth', newFilters.workMonth.toString());
     if (newFilters.workYear) newParams.set('workYear', newFilters.workYear.toString());

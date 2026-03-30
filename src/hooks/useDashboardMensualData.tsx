@@ -269,10 +269,8 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
       specialistSummaries.push({
           specialistId: specId,
           specialistName: data.name,
-          // For cashflow: only count paid liquidations; for accrual: count all
-          totalCost: viewMode === 'cashflow'
-            ? data.liquidations.filter((l: any) => l.status === 'paid').reduce((sum: number, l: any) => sum + l.total_amount, 0)
-            : data.liquidations.reduce((sum: number, l: any) => sum + l.total_amount, 0),
+          // Always show total of all liquidations for the period in the row summary
+          totalCost: data.liquidations.reduce((sum: number, l: any) => sum + l.total_amount, 0),
           liquidations: data.liquidations,
         });
       });
@@ -280,7 +278,10 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
 
       // KPIs
       const totalRevenue = clientSummaries.reduce((sum, c) => sum + c.revenue, 0);
-      const totalLiquidationCosts = specialistSummaries.reduce((sum, s) => sum + s.totalCost, 0);
+      // For KPIs, apply viewMode filter to liquidation costs
+      const totalLiquidationCosts = viewMode === 'cashflow'
+        ? liquidations.filter((l: any) => l.status === 'paid').reduce((sum: number, l: any) => sum + l.total_amount, 0)
+        : liquidations.reduce((sum: number, l: any) => sum + l.total_amount, 0);
       const totalCommissions = relevantCommissions.reduce((sum, c) => sum + c.commission_amount, 0);
       const totalCosts = totalLiquidationCosts + totalCommissions;
       const grossMargin = totalRevenue - totalCosts;

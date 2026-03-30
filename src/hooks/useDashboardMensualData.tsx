@@ -97,8 +97,8 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
       const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
       const endDate = new Date(year, month, 0).toISOString().split('T')[0];
 
-      // For cash-flow: invoices paid this month, liquidations paid this month
-      // For accrual: invoices issued this month, liquidations for this period
+      // Always filter by period month/year to show all entities for the selected month
+      // ViewMode only affects KPI calculations (which amounts to consider)
       const [
         invoicesRes,
         liquidationsRes,
@@ -108,32 +108,18 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
         commissionsRes,
         allocationsRes,
       ] = await Promise.all([
-        // Invoices
-        viewMode === 'cashflow'
-          ? supabase
-              .from('invoices')
-              .select('id, code, client_id, contract_id, budget_id, invoice_date, paid_at, status, subtotal, total_amount, billing_period_month, billing_period_year')
-              .eq('status', 'paid')
-              .gte('paid_at', `${startDate}T00:00:00`)
-              .lte('paid_at', `${endDate}T23:59:59`)
-          : supabase
-              .from('invoices')
-              .select('id, code, client_id, contract_id, budget_id, invoice_date, paid_at, status, subtotal, total_amount, billing_period_month, billing_period_year')
-              .gte('invoice_date', startDate)
-              .lte('invoice_date', endDate),
-        // Liquidations
-        viewMode === 'cashflow'
-          ? supabase
-              .from('liquidations')
-              .select('id, code, specialist_id, period_month, period_year, status, subtotal, total_amount, paid_at, specialist_invoice_url, specialist:specialists(id, name)')
-              .eq('status', 'paid')
-              .gte('paid_at', `${startDate}T00:00:00`)
-              .lte('paid_at', `${endDate}T23:59:59`)
-          : supabase
-              .from('liquidations')
-              .select('id, code, specialist_id, period_month, period_year, status, subtotal, total_amount, paid_at, specialist_invoice_url, specialist:specialists(id, name)')
-              .eq('period_year', year)
-              .eq('period_month', month),
+        // Invoices: filter by billing_period or invoice_date month
+        supabase
+          .from('invoices')
+          .select('id, code, client_id, contract_id, budget_id, invoice_date, paid_at, status, subtotal, total_amount, billing_period_month, billing_period_year')
+          .gte('invoice_date', startDate)
+          .lte('invoice_date', endDate),
+        // Liquidations: always filter by period
+        supabase
+          .from('liquidations')
+          .select('id, code, specialist_id, period_month, period_year, status, subtotal, total_amount, paid_at, specialist_invoice_url, specialist:specialists(id, name)')
+          .eq('period_year', year)
+          .eq('period_month', month),
         // Clients
         supabase.from('clients').select('id, name'),
         // Contracts
@@ -182,7 +168,9 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
       
       clientInvoices.forEach((invs, clientId) => {
         const clientName = clientMap.get(clientId) || 'Cliente desconocido';
-        const revenue = invs.reduce((sum, inv) => sum + inv.subtotal, 0);
+        // For cashflow: only count paid invoices in revenue; for accrual: count all
+        const revenueInvs = viewMode === 'cashflow' ? invs.filter(i => i.status === 'paid') : invs;
+        const revenue = revenueInvs.reduce((sum, inv) => sum + inv.subtotal, 0);
         
         // Group by origin (contract or budget)
         const originMap = new Map<string, { type: 'contract' | 'budget'; id: string; code: string; title: string; invoices: InvoiceRow[]; revenue: number }>();
@@ -278,10 +266,13 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
 
       const specialistSummaries: SpecialistSummary[] = [];
       specMap.forEach((data, specId) => {
-        specialistSummaries.push({
+      specialistSummaries.push({
           specialistId: specId,
           specialistName: data.name,
-          totalCost: data.liquidations.reduce((sum: number, l: any) => sum + l.total_amount, 0),
+          // For cashflow: only count paid liquidations; for accrual: count all
+          totalCost: viewMode === 'cashflow'
+            ? data.liquidations.filter((l: any) => l.status === 'paid').reduce((sum: number, l: any) => sum + l.total_amount, 0)
+            : data.liquidations.reduce((sum: number, l: any) => sum + l.total_amount, 0),
           liquidations: data.liquidations,
         });
       });

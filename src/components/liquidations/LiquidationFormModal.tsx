@@ -1114,9 +1114,9 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
           <DialogTitle>{getTitle()}</DialogTitle>
         </DialogHeader>
 
-        {mode === 'edit' && liquidation?.status !== 'draft' && (
+        {mode === 'edit' && !isEditable && (
           <div className="bg-muted p-3 rounded-md text-sm text-muted-foreground">
-            Esta liquidación no se puede editar porque su estado no es borrador
+            Esta liquidación no se puede editar porque su estado no lo permite
           </div>
         )}
 

@@ -53,9 +53,6 @@ export const useRequestFilters = () => {
       newFilters.budgetId = null;
       newFilters.contractId = null;
     }
-    if (key === 'year' && value === null) {
-      newFilters.month = null;
-    }
     if (key === 'workYear' && value === null) {
       newFilters.workMonth = null;
     }

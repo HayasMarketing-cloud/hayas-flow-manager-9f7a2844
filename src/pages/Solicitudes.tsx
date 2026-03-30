@@ -676,7 +676,7 @@ const Solicitudes = () => {
               </SelectContent>
             </Select>
 
-            {(filters.status || filters.clientId || filters.specialistId || filters.budgetId || filters.contractId || filters.searchTerm || filters.year || filters.partnerReference || filters.workYear) && (
+            {(filters.status || filters.clientId || filters.specialistId || filters.budgetId || filters.contractId || filters.searchTerm || filters.partnerReference || filters.workYear) && (
               <Button variant="outline" onClick={resetFilters}>
                 <X className="h-4 w-4 mr-2" />
                 Limpiar filtros

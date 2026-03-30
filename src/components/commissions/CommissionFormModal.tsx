@@ -338,7 +338,7 @@ export function CommissionFormModal({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = {
+      const payload: Record<string, unknown> = {
         commission_type: formData.commission_type,
         seller_user_id: formData.seller_user_id,
         contract_id: derivedContractId || null,
@@ -349,8 +349,18 @@ export function CommissionFormModal({
         commission_amount: formData.commission_amount,
         status: formData.status,
         notes: formData.notes || null,
-        paid_at: formData.status === 'paid' ? new Date().toISOString() : null,
       };
+
+      // Only set paid_at on create or when explicitly changing to paid
+      if (mode === 'edit' && commission) {
+        // Preserve existing paid_at and liquidation_id — don't overwrite them
+        if (formData.status === 'paid' && !commission.paid_at) {
+          payload.paid_at = new Date().toISOString();
+        }
+        // Don't touch liquidation_id during edits
+      } else {
+        payload.paid_at = formData.status === 'paid' ? new Date().toISOString() : null;
+      }
 
       if (mode === 'edit' && commission) {
         const { error } = await supabase

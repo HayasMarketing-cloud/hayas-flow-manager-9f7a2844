@@ -266,10 +266,13 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
 
       const specialistSummaries: SpecialistSummary[] = [];
       specMap.forEach((data, specId) => {
-        specialistSummaries.push({
+      specialistSummaries.push({
           specialistId: specId,
           specialistName: data.name,
-          totalCost: data.liquidations.reduce((sum: number, l: any) => sum + l.total_amount, 0),
+          // For cashflow: only count paid liquidations; for accrual: count all
+          totalCost: viewMode === 'cashflow'
+            ? data.liquidations.filter((l: any) => l.status === 'paid').reduce((sum: number, l: any) => sum + l.total_amount, 0)
+            : data.liquidations.reduce((sum: number, l: any) => sum + l.total_amount, 0),
           liquidations: data.liquidations,
         });
       });

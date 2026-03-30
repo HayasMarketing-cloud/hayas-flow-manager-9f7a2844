@@ -86,44 +86,30 @@ function ClientRow({ client }: { client: ClientSummary }) {
 }
 
 function SpecialistRow({ specialist }: { specialist: SpecialistSummary }) {
-  const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const liq = specialist.liquidations[0];
 
   return (
-    <>
-      <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => setOpen(!open)}>
-        <TableCell className="font-medium">
-          <div className="flex items-center gap-2">
-            {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            {specialist.specialistName}
-          </div>
-        </TableCell>
-        <TableCell className="text-right font-semibold">{formatCurrency(specialist.totalCost)}</TableCell>
-        <TableCell className="text-right">{specialist.liquidations.length}</TableCell>
-        <TableCell />
-      </TableRow>
-      {open && specialist.liquidations.map(liq => (
-        <TableRow 
-          key={liq.id} 
-          className="bg-muted/10 cursor-pointer hover:bg-muted/30"
-          onClick={() => navigate(`/liquidaciones/${liq.id}`)}
-        >
-          <TableCell className="pl-10 text-sm">
-            <div className="flex items-center gap-2">
-              <FileText className="h-3 w-3 text-muted-foreground" />
-              {liq.code}
-            </div>
-          </TableCell>
-          <TableCell className="text-right text-sm">{formatCurrency(liq.subtotal ?? liq.total_amount)}</TableCell>
-          <TableCell className="text-right">
-            {getStatusBadge(liq.status, 'liquidation')}
-          </TableCell>
-          <TableCell className="text-right text-xs text-muted-foreground">
-            {liq.specialist_invoice_url ? '✅ Factura' : '⏳ Sin factura'}
-          </TableCell>
-        </TableRow>
-      ))}
-    </>
+    <TableRow 
+      className="cursor-pointer hover:bg-muted/50"
+      onClick={() => liq && navigate(`/liquidaciones/${liq.id}`)}
+    >
+      <TableCell className="font-medium">
+        <div className="flex items-center gap-2">
+          {specialist.specialistName}
+          {liq && (
+            <span className="text-xs text-muted-foreground">({liq.code})</span>
+          )}
+        </div>
+      </TableCell>
+      <TableCell className="text-right font-semibold">{formatCurrency(specialist.totalCost)}</TableCell>
+      <TableCell className="text-right">
+        {liq ? getStatusBadge(liq.status, 'liquidation') : '—'}
+      </TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">
+        {liq ? (liq.specialist_invoice_url ? '✅ Factura' : '⏳ Sin factura') : '—'}
+      </TableCell>
+    </TableRow>
   );
 }
 

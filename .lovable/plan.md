@@ -1,32 +1,25 @@
 
 
-## Simplificar filtros de fecha en Solicitudes
+## Flujo de factura de especialista → pendiente de pago
 
 ### Problema
 
-Hay dos filtros de fecha que parecen duplicados y confunden:
-- **"Todos los períodos"** → filtra por `created_at` (fecha de creación)
-- **"Todos los meses"** → filtra por `work_month`/`work_year` (mes de trabajo)
-
-Ambos generan listas de meses casi idénticas y no queda claro cuál usar. El usuario pide un único filtro de fecha que filtre por mes/año.
-
-### Propuesta
-
-**Eliminar "Período creación"** y quedarnos solo con **"Mes trabajo"** renombrado a **"Período"**, que filtra por `work_month`/`work_year` con fallback a `created_at` (lógica que ya existe en líneas 107-120).
+Cuando un especialista sube su factura y el importe coincide, el estado cambia a `invoice_received` pero no avanza a `pending_payment`. El botón "Marcar como Pagada" ya existe en el detalle de liquidación.
 
 ### Cambios
 
-1. **`src/pages/Solicitudes.tsx`**
-   - Eliminar el select "Período creación" (líneas 640-677)
-   - Renombrar el select "Mes trabajo" a **"Período"** (placeholder: "Todos los períodos")
-   - Eliminar del `useRequestFilters` los parámetros `year`/`month` del botón "Limpiar filtros"
-   - Eliminar la lógica de query que filtra por `created_at` con `year`/`month` (líneas 96-105)
+1. **`src/components/liquidations/SpecialistInvoiceUpload.tsx`** (líneas 133-136)
+   - Cuando el importe coincide (±1€) y el estado es early (`draft`, `validated`, `sent`, `accepted`): cambiar estado a `pending_payment` en vez de `invoice_received`
+   - Cuando el importe NO coincide: mantener `invoice_received` (requiere revisión manual)
 
-2. **`src/hooks/useRequestFilters.tsx`**
-   - Eliminar `year` y `month` del tipo `RequestFilters` y de `buildParams`
-   - Mantener solo `workMonth`/`workYear` como filtro de fecha
+2. **`src/components/liquidations/SpecialistInvoiceImportModal.tsx`** (líneas 271-285)
+   - Misma lógica: si importes coinciden → `pending_payment`; si no coinciden → `invoice_received`
+
+3. **`supabase/functions/upload-specialist-invoice/index.ts`** (si aplica la misma lógica en la subida pública)
+   - Verificar si la Edge Function también actualiza el estado y aplicar la misma regla
 
 ### Resultado
 
-Un único selector "Período" que filtra solicitudes por mes de trabajo, con fallback automático a fecha de creación para solicitudes sin `work_month`/`work_year`.
+- Factura subida con importe correcto → estado `pending_payment` → el financiero ve el botón "Marcar como Pagada" y hace clic cuando ejecuta la transferencia
+- Factura subida con importe incorrecto → estado `invoice_received` → requiere revisión antes de pasar a pendiente de pago
 

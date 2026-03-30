@@ -286,7 +286,7 @@ export default function DashboardMensual() {
                   <TableRow>
                     <TableHead>Especialista</TableHead>
                     <TableHead className="text-right">Coste Total</TableHead>
-                    <TableHead className="text-right">Liquidaciones</TableHead>
+                    <TableHead className="text-right">Estado</TableHead>
                     <TableHead className="text-right">Factura</TableHead>
                   </TableRow>
                 </TableHeader>

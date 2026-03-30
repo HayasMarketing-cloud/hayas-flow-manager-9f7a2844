@@ -843,7 +843,7 @@ export default function LiquidacionDetalle() {
   }
 
   const latestSignature = liquidation.liquidation_signatures?.[0] || null;
-  const isEditable = liquidation.status === 'draft' || liquidation.status === 'validated' || liquidation.status === 'sent';
+  const isEditable = liquidation.status === 'draft' || liquidation.status === 'validated' || liquidation.status === 'sent' || liquidation.status === 'disputed';
   const hasSpecialistEmail = !!liquidation.specialist?.email;
   const canMarkAsPaid = canAccessFinance() && liquidation.status !== 'draft' && liquidation.status !== 'paid';
 

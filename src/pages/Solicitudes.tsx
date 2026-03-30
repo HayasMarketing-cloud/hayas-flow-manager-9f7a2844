@@ -656,10 +656,10 @@ const Solicitudes = () => {
               }}
             >
               <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Mes trabajo" />
+                <SelectValue placeholder="Período" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los meses</SelectItem>
+                <SelectItem value="all">Todos los períodos</SelectItem>
                 {(() => {
                   const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
                   const now = new Date();

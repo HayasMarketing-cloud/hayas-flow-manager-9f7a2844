@@ -66,24 +66,38 @@ export function GroupedLiquidationItemsTable({
         </TableCell>
         <TableCell className="max-w-[200px]">
           <div className="truncate">{item.description}</div>
-          {item.description?.startsWith('Comisión') && commissionDetails && (() => {
-            // Find matching commission detail by looking through all details
-            const detail = Object.values(commissionDetails).find(d => {
-              const typeLabel = d.type === 'am' ? 'AM' : d.type === 'pm' ? 'PM' : 'Venta';
-              return item.description?.includes(`Comisión ${typeLabel}`);
-            });
-            if (!detail) return null;
-            const invoiceLabel = detail.invoiceCodes.length === 1
-              ? `Factura Nº ${detail.invoiceCodes[0]}`
-              : detail.invoiceCodes.length > 1
-                ? `Facturas ${detail.invoiceCodes.join(', ')}`
-                : '';
-            return (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {detail.percentage}% sobre {formatCurrency(detail.baseAmount)}
-                {invoiceLabel && !item.description?.includes('Factura') ? ` — ${invoiceLabel}` : ''}
-              </p>
-            );
+          {item.description?.startsWith('Comisión') && (() => {
+            // Try to find matching commission detail from linked sales_commissions
+            if (commissionDetails) {
+              const detail = Object.values(commissionDetails).find(d => {
+                const typeLabel = d.type === 'am' ? 'AM' : d.type === 'pm' ? 'PM' : 'Venta';
+                return item.description?.includes(`Comisión ${typeLabel}`);
+              });
+              if (detail) {
+                const invoiceLabel = detail.invoiceCodes.length === 1
+                  ? `Factura Nº ${detail.invoiceCodes[0]}`
+                  : detail.invoiceCodes.length > 1
+                    ? `Facturas ${detail.invoiceCodes.join(', ')}`
+                    : '';
+                return (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {detail.percentage}% sobre {formatCurrency(detail.baseAmount)}
+                    {invoiceLabel && !item.description?.includes('Factura') ? ` — ${invoiceLabel}` : ''}
+                  </p>
+                );
+              }
+            }
+            // Fallback: parse percentage and origin from the description itself
+            const descMatch = item.description?.match(/Comisión\s+\w+\s+\((\d+(?:[.,]\d+)?)%\)(?:\s*—\s*(.+))?/);
+            if (descMatch) {
+              return (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {descMatch[1]}% sobre {formatCurrency(item.total / (parseFloat(descMatch[1].replace(',', '.')) / 100))}
+                  {descMatch[2] ? ` — ${descMatch[2]}` : ''}
+                </p>
+              );
+            }
+            return null;
           })()}
         </TableCell>
         <TableCell className="text-right tabular-nums">{displayQuantity}</TableCell>

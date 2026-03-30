@@ -418,10 +418,10 @@ export default function LiquidacionDetalle() {
       if (requestsError) throw requestsError;
 
       // Reset linked commissions before deleting liquidation items
-      const { error: commissionsError } = await (supabase
-        .from('sales_commissions' as any)
+      const { error: commissionsError } = await supabase
+        .from('sales_commissions')
         .update({ liquidation_id: null, status: 'approved', paid_at: null })
-        .eq('liquidation_id', id) as any);
+        .eq('liquidation_id', id);
 
       if (commissionsError) throw commissionsError;
 
@@ -491,18 +491,18 @@ export default function LiquidacionDetalle() {
       // If item description starts with "Comisión", reset matching commission
       if (item.description?.startsWith('Comisión')) {
         // Find commission linked to this liquidation with matching amount
-        const { data: linkedCommissions } = await (supabase
-          .from('sales_commissions' as any)
+        const { data: linkedCommissions } = await supabase
+          .from('sales_commissions')
           .select('id')
           .eq('liquidation_id', id)
-          .eq('commission_amount', item.total) as any);
+          .eq('commission_amount', item.total);
         
         if (linkedCommissions?.length) {
           // Reset only the first matching commission
-          await (supabase
-            .from('sales_commissions' as any)
+          await supabase
+            .from('sales_commissions')
             .update({ liquidation_id: null, status: 'approved', paid_at: null })
-            .eq('id', linkedCommissions[0].id) as any);
+            .eq('id', linkedCommissions[0].id);
         }
       }
 
@@ -682,10 +682,10 @@ export default function LiquidacionDetalle() {
         if (insertError) throw insertError;
 
         // Mark commission as paid and link to liquidation
-        const { error: updateError } = await (supabase
-          .from('sales_commissions' as any)
+        const { error: updateError } = await supabase
+          .from('sales_commissions')
           .update({ status: 'paid', paid_at: new Date().toISOString(), liquidation_id: id })
-          .eq('id', commission.id) as any);
+          .eq('id', commission.id);
         if (updateError) throw updateError;
       }
 

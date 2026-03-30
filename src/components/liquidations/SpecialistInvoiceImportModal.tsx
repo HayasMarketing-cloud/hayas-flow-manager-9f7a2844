@@ -267,21 +267,17 @@ export function SpecialistInvoiceImportModal({
         specialist_invoice_url: publicUrlData.publicUrl,
       };
 
-      // Determinar nuevo estado según estado actual
-      if (['draft', 'validated', 'sent'].includes(selectedLiq?.status || '')) {
-        // Auto-aceptar y marcar factura recibida
-        updateData.status = 'invoice_received';
-        
-        // Verificar si importes coinciden (comparar subtotales con tolerancia de 1€)
+      // Determinar nuevo estado según estado actual y coincidencia de importes
+      if (['draft', 'validated', 'sent', 'accepted'].includes(selectedLiq?.status || '')) {
         const amountsMatch = Math.abs((extractedData?.subtotal || 0) - (selectedLiq?.subtotal || 0)) <= 1;
         
         if (amountsMatch) {
-          toast.success('Liquidación aceptada automáticamente - importes coinciden');
+          updateData.status = 'pending_payment';
+          toast.success('Factura verificada - importes coinciden. Pendiente de pago.');
         } else {
+          updateData.status = 'invoice_received';
           toast.warning(`Atención: El importe de la factura (${formatCurrency(extractedData?.subtotal || 0)}) difiere de la liquidación (${formatCurrency(selectedLiq?.subtotal || 0)})`);
         }
-      } else if (selectedLiq?.status === 'accepted') {
-        updateData.status = 'invoice_received';
       }
 
       // Update liquidation

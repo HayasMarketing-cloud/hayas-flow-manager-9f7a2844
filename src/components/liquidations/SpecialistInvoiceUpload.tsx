@@ -130,9 +130,15 @@ export function SpecialistInvoiceUpload({
         specialist_invoice_url: `${publicUrlData.publicUrl}?t=${Date.now()}`,
       };
 
-      // Change status to invoice_received if in early states
+      // Change status based on amount match
       if (['draft', 'validated', 'sent', 'accepted'].includes(currentStatus)) {
-        updateData.status = 'invoice_received';
+        // If we have invoice subtotal data, check match to determine status
+        if (invoiceSubtotal !== null) {
+          const amountsMatch = Math.abs(invoiceSubtotal - liquidationSubtotal) <= 1;
+          updateData.status = amountsMatch ? 'pending_payment' : 'invoice_received';
+        } else {
+          updateData.status = 'invoice_received';
+        }
       }
 
       const { error: updateError } = await supabase

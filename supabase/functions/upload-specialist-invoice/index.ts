@@ -281,10 +281,11 @@ IMPORTANTE:
 
     const invoiceUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`;
 
-    // 7. Update liquidation with invoice URL
+    // 7. Update liquidation with invoice URL and status based on amount match
+    const newStatus = amountsMatch === true ? 'pending_payment' : 'invoice_received';
     const { error: liquidationUpdateError } = await supabase
       .from('liquidations')
-      .update({ specialist_invoice_url: invoiceUrl })
+      .update({ specialist_invoice_url: invoiceUrl, status: newStatus })
       .eq('id', liquidationId);
 
     if (liquidationUpdateError) {

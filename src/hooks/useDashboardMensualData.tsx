@@ -97,8 +97,8 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
       const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
       const endDate = new Date(year, month, 0).toISOString().split('T')[0];
 
-      // For cash-flow: invoices paid this month, liquidations paid this month
-      // For accrual: invoices issued this month, liquidations for this period
+      // Always filter by period month/year to show all entities for the selected month
+      // ViewMode only affects KPI calculations (which amounts to consider)
       const [
         invoicesRes,
         liquidationsRes,
@@ -108,32 +108,18 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
         commissionsRes,
         allocationsRes,
       ] = await Promise.all([
-        // Invoices
-        viewMode === 'cashflow'
-          ? supabase
-              .from('invoices')
-              .select('id, code, client_id, contract_id, budget_id, invoice_date, paid_at, status, subtotal, total_amount, billing_period_month, billing_period_year')
-              .eq('status', 'paid')
-              .gte('paid_at', `${startDate}T00:00:00`)
-              .lte('paid_at', `${endDate}T23:59:59`)
-          : supabase
-              .from('invoices')
-              .select('id, code, client_id, contract_id, budget_id, invoice_date, paid_at, status, subtotal, total_amount, billing_period_month, billing_period_year')
-              .gte('invoice_date', startDate)
-              .lte('invoice_date', endDate),
-        // Liquidations
-        viewMode === 'cashflow'
-          ? supabase
-              .from('liquidations')
-              .select('id, code, specialist_id, period_month, period_year, status, subtotal, total_amount, paid_at, specialist_invoice_url, specialist:specialists(id, name)')
-              .eq('status', 'paid')
-              .gte('paid_at', `${startDate}T00:00:00`)
-              .lte('paid_at', `${endDate}T23:59:59`)
-          : supabase
-              .from('liquidations')
-              .select('id, code, specialist_id, period_month, period_year, status, subtotal, total_amount, paid_at, specialist_invoice_url, specialist:specialists(id, name)')
-              .eq('period_year', year)
-              .eq('period_month', month),
+        // Invoices: filter by billing_period or invoice_date month
+        supabase
+          .from('invoices')
+          .select('id, code, client_id, contract_id, budget_id, invoice_date, paid_at, status, subtotal, total_amount, billing_period_month, billing_period_year')
+          .gte('invoice_date', startDate)
+          .lte('invoice_date', endDate),
+        // Liquidations: always filter by period
+        supabase
+          .from('liquidations')
+          .select('id, code, specialist_id, period_month, period_year, status, subtotal, total_amount, paid_at, specialist_invoice_url, specialist:specialists(id, name)')
+          .eq('period_year', year)
+          .eq('period_month', month),
         // Clients
         supabase.from('clients').select('id, name'),
         // Contracts

@@ -92,17 +92,7 @@ const Solicitudes = () => {
         // All requests without liquidation_id, except cancelled ones
         query = query.is('liquidation_id', null).neq('status', 'cancelled');
       }
-      // Apply year/month filters based on created_at
-      if (filters.year) {
-        const startDate = new Date(filters.year, filters.month ? filters.month - 1 : 0, 1);
-        const endDate = filters.month 
-          ? new Date(filters.year, filters.month, 0, 23, 59, 59, 999)
-          : new Date(filters.year, 11, 31, 23, 59, 59, 999);
-        
-        query = query
-          .gte('created_at', startDate.toISOString())
-          .lte('created_at', endDate.toISOString());
-      }
+
 
       // Apply work period filters (work_month/work_year) with fallback to created_at
       if (filters.workYear && filters.workMonth) {
@@ -637,46 +627,7 @@ const Solicitudes = () => {
               </Select>
             )}
 
-            {/* Período creación (combined year+month) */}
-            <Select
-              value={
-                filters.year && filters.month
-                  ? `${filters.year}-${filters.month}`
-                  : 'all'
-              }
-              onValueChange={(value) => {
-                if (value === 'all') {
-                  updateFilter('year', null);
-                  updateFilter('month', null);
-                } else {
-                  const [y, m] = value.split('-').map(Number);
-                  updateFilter('month', m);
-                  updateFilter('year', y);
-                }
-              }}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Período creación" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los períodos</SelectItem>
-                {(() => {
-                  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-                  const now = new Date();
-                  return Array.from({ length: 18 }, (_, i) => {
-                    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                    const val = `${d.getFullYear()}-${d.getMonth() + 1}`;
-                    return (
-                      <SelectItem key={val} value={val}>
-                        {months[d.getMonth()]} {d.getFullYear()}
-                      </SelectItem>
-                    );
-                  });
-                })()}
-              </SelectContent>
-            </Select>
-
-            {/* Mes trabajo (combined workYear+workMonth) */}
+            {/* Período (work period with fallback) */}
             <Select
               value={
                 filters.workYear && filters.workMonth
@@ -695,10 +646,10 @@ const Solicitudes = () => {
               }}
             >
               <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Mes trabajo" />
+                <SelectValue placeholder="Período" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los meses</SelectItem>
+                <SelectItem value="all">Todos los períodos</SelectItem>
                 {(() => {
                   const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
                   const now = new Date();
@@ -715,7 +666,7 @@ const Solicitudes = () => {
               </SelectContent>
             </Select>
 
-            {(filters.status || filters.clientId || filters.specialistId || filters.budgetId || filters.contractId || filters.searchTerm || filters.year || filters.partnerReference || filters.workYear) && (
+            {(filters.status || filters.clientId || filters.specialistId || filters.budgetId || filters.contractId || filters.searchTerm || filters.partnerReference || filters.workYear) && (
               <Button variant="outline" onClick={resetFilters}>
                 <X className="h-4 w-4 mr-2" />
                 Limpiar filtros

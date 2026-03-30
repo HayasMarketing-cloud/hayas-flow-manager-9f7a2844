@@ -39,27 +39,56 @@ const matchClient = (extractedName: string, clients: Client[]): { client_id: str
 
   const normalizedExtracted = normalize(extractedName);
 
+  // Phase 1: Exact match
   for (const client of clients) {
-    const normalizedClient = normalize(client.name);
-    
-    // Check for exact match or partial match
-    if (normalizedClient === normalizedExtracted ||
-        normalizedClient.includes(normalizedExtracted) ||
-        normalizedExtracted.includes(normalizedClient)) {
+    if (normalize(client.name) === normalizedExtracted) {
       return { client_id: client.id, client_matched: true };
     }
-    
-    // Check for word-level matching (e.g., "Asendia" matches "Asendia Spain")
-    const extractedWords = normalizedExtracted.split(' ').filter(w => w.length > 2);
-    const clientWords = normalizedClient.split(' ').filter(w => w.length > 2);
-    
-    for (const extractedWord of extractedWords) {
-      for (const clientWord of clientWords) {
-        if (extractedWord === clientWord && extractedWord.length > 3) {
-          return { client_id: client.id, client_matched: true };
-        }
+  }
+
+  // Phase 2: Contains match — prefer the LONGEST client name that matches
+  // This ensures "Asendia HQ" matches "ASENDIA HQ" over "Asendia" substring in "Asendia Germany"
+  let bestContainsMatch: Client | null = null;
+  let bestContainsLen = 0;
+
+  for (const client of clients) {
+    const normalizedClient = normalize(client.name);
+    if (normalizedClient.includes(normalizedExtracted) ||
+        normalizedExtracted.includes(normalizedClient)) {
+      // Prefer the client whose normalized name is closest in length to the extracted name
+      const similarity = normalizedClient.length - Math.abs(normalizedClient.length - normalizedExtracted.length);
+      if (similarity > bestContainsLen) {
+        bestContainsLen = similarity;
+        bestContainsMatch = client;
       }
     }
+  }
+
+  if (bestContainsMatch) {
+    return { client_id: bestContainsMatch.id, client_matched: true };
+  }
+
+  // Phase 3: Word-level matching — prefer client with the most matching words
+  let bestWordMatch: Client | null = null;
+  let bestWordScore = 0;
+  const extractedWords = normalizedExtracted.split(' ').filter(w => w.length > 2);
+
+  for (const client of clients) {
+    const clientWords = normalize(client.name).split(' ').filter(w => w.length > 2);
+    let score = 0;
+    for (const ew of extractedWords) {
+      for (const cw of clientWords) {
+        if (ew === cw && ew.length > 3) score++;
+      }
+    }
+    if (score > bestWordScore) {
+      bestWordScore = score;
+      bestWordMatch = client;
+    }
+  }
+
+  if (bestWordMatch) {
+    return { client_id: bestWordMatch.id, client_matched: true };
   }
 
   return { client_id: null, client_matched: false };

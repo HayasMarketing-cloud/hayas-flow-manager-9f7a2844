@@ -18,11 +18,11 @@ import { cn } from '@/lib/utils';
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-const getStatusBadge = (status: string) => {
+const getStatusBadge = (status: string, context: 'invoice' | 'liquidation' = 'invoice') => {
   const map: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
     draft: { label: 'Borrador', variant: 'secondary' },
     sent: { label: 'Enviada', variant: 'outline' },
-    paid: { label: 'Cobrada', variant: 'default' },
+    paid: { label: context === 'liquidation' ? 'Pagada' : 'Cobrada', variant: 'default' },
     overdue: { label: 'Vencida', variant: 'destructive' },
     // Liquidation statuses
     pending_payment: { label: 'Pend. Pago', variant: 'outline' },

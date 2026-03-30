@@ -314,6 +314,10 @@ const handler = async (req: Request): Promise<Response> => {
           </table>
         </div>
         
+        <p style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px 16px; font-size: 14px; color: #065f46;">
+          💰 El pago de esta liquidación está previsto para el <strong>${(() => { const pm = periodMonth === 12 ? 0 : periodMonth; const py = periodMonth === 12 ? periodYear + 1 : periodYear; return new Date(py, pm, 28).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }); })()}</strong>.
+        </p>
+
         <p>Por favor, revisa el documento adjunto y <strong>confirma o disputa</strong> la liquidación haciendo clic en el botón de abajo.</p>
         
         

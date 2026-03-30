@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Mail, FileText, User, Calendar, Euro, Send, Loader2, Shield, Link } from 'lucide-react';
+import { Mail, FileText, User, Calendar, Euro, Send, Loader2, Shield, Link, Banknote } from 'lucide-react';
+import { getExpectedPaymentDate } from '@/lib/liquidation-utils';
 
 interface EmailPreviewModalProps {
   open: boolean;

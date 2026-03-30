@@ -168,7 +168,9 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
       
       clientInvoices.forEach((invs, clientId) => {
         const clientName = clientMap.get(clientId) || 'Cliente desconocido';
-        const revenue = invs.reduce((sum, inv) => sum + inv.subtotal, 0);
+        // For cashflow: only count paid invoices in revenue; for accrual: count all
+        const revenueInvs = viewMode === 'cashflow' ? invs.filter(i => i.status === 'paid') : invs;
+        const revenue = revenueInvs.reduce((sum, inv) => sum + inv.subtotal, 0);
         
         // Group by origin (contract or budget)
         const originMap = new Map<string, { type: 'contract' | 'budget'; id: string; code: string; title: string; invoices: InvoiceRow[]; revenue: number }>();

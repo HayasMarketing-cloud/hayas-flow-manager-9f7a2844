@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Mail, FileText, User, Calendar, Euro, Send, Loader2, Shield, Link } from 'lucide-react';
+import { Mail, FileText, User, Calendar, Euro, Send, Loader2, Shield, Link, Banknote } from 'lucide-react';
+import { getExpectedPaymentDate } from '@/lib/liquidation-utils';
 
 interface EmailPreviewModalProps {
   open: boolean;
@@ -181,6 +182,16 @@ export const EmailPreviewModal = ({
                   </div>
                 </div>
                 
+                <p className="mb-4 flex items-start gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm">
+                  <Banknote className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                  <span>
+                    El pago de esta liquidación está previsto para el{' '}
+                    <strong>
+                      {getExpectedPaymentDate(liquidation.period_year, liquidation.period_month).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </strong>.
+                  </span>
+                </p>
+
                 <p className="mb-4">
                   Por favor, revisa el documento adjunto y <strong>confirma o disputa</strong> la liquidación haciendo clic en el botón de abajo.
                 </p>

@@ -8,8 +8,6 @@ export interface RequestFilters {
   specialistId: string | null;
   budgetId: string | null;
   contractId: string | null;
-  year: number | null;
-  month: number | null;
   partnerReference: string | null;
   workMonth: number | null;
   workYear: number | null;

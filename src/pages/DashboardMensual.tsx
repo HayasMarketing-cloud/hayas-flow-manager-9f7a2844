@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-import { DollarSign, TrendingUp, Wallet, ArrowDownUp, ChevronRight, ChevronDown, RefreshCw, Users, UserCheck, Receipt, FileText } from 'lucide-react';
+import { DollarSign, TrendingUp, Wallet, ArrowDownUp, ChevronRight, ChevronDown, Users, UserCheck, Receipt, FileText } from 'lucide-react';
 import { useDashboardMensualData, ViewMode, ClientSummary, SpecialistSummary } from '@/hooks/useDashboardMensualData';
 import { useUserRole } from '@/hooks/useUserRole';
 import { KPICard } from '@/components/dashboard/kpis/KPICard';
@@ -180,10 +180,6 @@ export default function DashboardMensual() {
                 </Button>
               </div>
 
-              <Button variant="outline" size="sm" onClick={() => refetch()}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Actualizar
-              </Button>
             </div>
           </CardContent>
         </Card>

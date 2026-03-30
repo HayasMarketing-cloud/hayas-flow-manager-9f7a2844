@@ -175,6 +175,9 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
         // Group by origin (contract or budget)
         const originMap = new Map<string, { type: 'contract' | 'budget'; id: string; code: string; title: string; invoices: InvoiceRow[]; revenue: number }>();
         
+        // Set of paid invoice ids for filtering origin revenue in cashflow mode
+        const paidInvIds = new Set(invs.filter(i => i.status === 'paid').map(i => i.id));
+
         invs.forEach(inv => {
           let originKey = 'none';
           let originData: any = null;
@@ -199,12 +202,16 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
             }
           }
 
+          // Only add to revenue if this invoice counts under the current viewMode
+          const countsForRevenue = viewMode === 'cashflow' ? paidInvIds.has(inv.id) : true;
+          const invRevenue = countsForRevenue ? inv.subtotal : 0;
+
           const existing = originMap.get(originKey);
           if (existing) {
             existing.invoices.push(inv);
-            existing.revenue += inv.subtotal;
+            existing.revenue += invRevenue;
           } else {
-            originMap.set(originKey, { ...originData, invoices: [inv], revenue: inv.subtotal });
+            originMap.set(originKey, { ...originData, invoices: [inv], revenue: invRevenue });
           }
         });
 

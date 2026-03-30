@@ -22,12 +22,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Save, FileText, Calculator } from 'lucide-react';
+import { Loader2, Save, FileText, Calculator, Link2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 type CommissionType = 'sales' | 'am' | 'pm';
-type SourceType = 'contract' | 'budget' | 'invoice';
 
 interface Commission {
   id: string;
@@ -52,6 +51,8 @@ interface Invoice {
   code: string;
   subtotal: number;
   invoice_date: string;
+  budget_id: string | null;
+  contract_id: string | null;
   client: { name: string } | null;
   items: { description: string }[] | null;
 }
@@ -85,9 +86,6 @@ export function CommissionFormModal({
     commission_type: 'am' as CommissionType,
     client_id: '',
     seller_user_id: '',
-    source_type: 'budget' as SourceType,
-    contract_id: '',
-    budget_id: '',
     invoice_ids: [] as string[],
     commission_percentage: 5,
     base_amount: 0,
@@ -96,13 +94,18 @@ export function CommissionFormModal({
     notes: '',
   });
 
+  // Derived budget/contract from selected invoices
+  const [derivedBudgetId, setDerivedBudgetId] = useState<string | null>(null);
+  const [derivedContractId, setDerivedContractId] = useState<string | null>(null);
+  const [derivedInfo, setDerivedInfo] = useState<{ budgetCode?: string; budgetTitle?: string; contractCode?: string; contractTitle?: string }>({});
+
   // Fetch default commission percentages
   const { data: commissionSettings } = useQuery({
     queryKey: ['commission-settings'],
     queryFn: async () => {
-      const { data, error } = await (supabase
-        .from('commission_settings' as any)
-        .select('commission_type, default_percentage') as any);
+      const { data, error } = await supabase
+        .from('commission_settings')
+        .select('commission_type, default_percentage');
       if (error) throw error;
       return data as { commission_type: string; default_percentage: number }[];
     },
@@ -137,71 +140,19 @@ export function CommissionFormModal({
     enabled: open,
   });
 
-  // Fetch contracts filtered by client
-  const { data: contracts } = useQuery({
-    queryKey: ['contracts-for-commission', formData.client_id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('contracts')
-        .select('id, title, code, total_amount, client:clients(name)')
-        .eq('status', 'active')
-        .eq('client_id', formData.client_id)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: open && formData.source_type === 'contract' && !!formData.client_id,
-  });
-
-  // Fetch budgets filtered by client
-  const { data: budgets } = useQuery({
-    queryKey: ['budgets-for-commission', formData.client_id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('budgets')
-        .select('id, title, code, total_amount, client:clients(name), am_user_id, pm_user_id')
-        .in('status', ['approved', 'invoiced'])
-        .eq('client_id', formData.client_id)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: open && formData.source_type === 'budget' && !!formData.client_id,
-  });
-
-  // Fetch invoices — either for budget/contract context or directly for client
+  // Fetch invoices for selected client
   const { data: availableInvoices } = useQuery({
-    queryKey: ['invoices-for-commission', formData.client_id, formData.budget_id, formData.contract_id, formData.source_type],
+    queryKey: ['invoices-for-commission', formData.client_id],
     queryFn: async () => {
-      if (formData.source_type === 'invoice') {
-        // Direct invoice selection by client
-        const { data, error } = await supabase
-          .from('invoices')
-          .select('id, code, subtotal, invoice_date, client:clients(name), items:invoice_items(description)')
-          .eq('client_id', formData.client_id)
-          .order('invoice_date', { ascending: false });
-        if (error) throw error;
-        return data as Invoice[];
-      }
-
-      // For budget/contract source, get client invoices
-      let clientId: string | null = formData.client_id || null;
-
-      if (!clientId) return [];
-
       const { data, error } = await supabase
         .from('invoices')
-        .select('id, code, subtotal, invoice_date, client:clients(name), items:invoice_items(description)')
-        .eq('client_id', clientId)
+        .select('id, code, subtotal, invoice_date, budget_id, contract_id, client:clients(name), items:invoice_items(description)')
+        .eq('client_id', formData.client_id)
         .order('invoice_date', { ascending: false });
-
       if (error) throw error;
       return data as Invoice[];
     },
-    enabled: open && (
-      (formData.source_type === 'invoice' && !!formData.client_id) ||
-      (!!formData.budget_id || !!formData.contract_id)
-    ),
+    enabled: open && !!formData.client_id,
   });
 
   // Set default percentage when commission type changes
@@ -214,19 +165,96 @@ export function CommissionFormModal({
     }
   }, [formData.commission_type, commissionSettings, mode]);
 
-  // Auto-suggest AM/PM user when selecting budget
+  // Auto-derive budget/contract and suggest beneficiary from selected invoices
   useEffect(() => {
-    if (mode === 'create' && formData.budget_id && budgets) {
-      const budget = budgets.find(b => b.id === formData.budget_id);
-      if (budget) {
-        if (formData.commission_type === 'am' && budget.am_user_id) {
-          setFormData(prev => ({ ...prev, seller_user_id: budget.am_user_id! }));
-        } else if (formData.commission_type === 'pm' && budget.pm_user_id) {
-          setFormData(prev => ({ ...prev, seller_user_id: budget.pm_user_id! }));
+    if (!availableInvoices || formData.invoice_ids.length === 0) {
+      setDerivedBudgetId(null);
+      setDerivedContractId(null);
+      setDerivedInfo({});
+      return;
+    }
+
+    const selectedInvoices = availableInvoices.filter(inv => formData.invoice_ids.includes(inv.id));
+    
+    // Derive budget_id: use first invoice's budget_id if available
+    const firstBudgetId = selectedInvoices.find(inv => inv.budget_id)?.budget_id || null;
+    setDerivedBudgetId(firstBudgetId);
+    
+    // Derive contract_id: use first invoice's contract_id if available
+    const firstContractId = selectedInvoices.find(inv => inv.contract_id)?.contract_id || null;
+    setDerivedContractId(firstContractId);
+
+    // Fetch budget/contract details for display
+    const fetchDerivedInfo = async () => {
+      const info: typeof derivedInfo = {};
+
+      if (firstBudgetId) {
+        const { data: budget } = await supabase
+          .from('budgets')
+          .select('code, title, am_user_id, pm_user_id')
+          .eq('id', firstBudgetId)
+          .single();
+        if (budget) {
+          info.budgetCode = budget.code;
+          info.budgetTitle = budget.title;
+          // Auto-suggest beneficiary
+          if (mode === 'create' && !formData.seller_user_id) {
+            if (formData.commission_type === 'am' && budget.am_user_id) {
+              setFormData(prev => ({ ...prev, seller_user_id: budget.am_user_id! }));
+            } else if (formData.commission_type === 'pm' && budget.pm_user_id) {
+              setFormData(prev => ({ ...prev, seller_user_id: budget.pm_user_id! }));
+            }
+          }
         }
       }
-    }
-  }, [formData.budget_id, formData.commission_type, budgets, mode]);
+
+      if (firstContractId) {
+        const { data: contract } = await supabase
+          .from('contracts')
+          .select('code, title')
+          .eq('id', firstContractId)
+          .single();
+        if (contract) {
+          info.contractCode = contract.code;
+          info.contractTitle = contract.title;
+        }
+      }
+
+      // Also check invoice_budget_allocations if no direct budget_id
+      if (!firstBudgetId && selectedInvoices.length > 0) {
+        const { data: allocations } = await supabase
+          .from('invoice_budget_allocations')
+          .select('budget_id')
+          .in('invoice_id', selectedInvoices.map(i => i.id))
+          .limit(1);
+        
+        if (allocations && allocations.length > 0) {
+          const allocBudgetId = allocations[0].budget_id;
+          setDerivedBudgetId(allocBudgetId);
+          const { data: budget } = await supabase
+            .from('budgets')
+            .select('code, title, am_user_id, pm_user_id')
+            .eq('id', allocBudgetId)
+            .single();
+          if (budget) {
+            info.budgetCode = budget.code;
+            info.budgetTitle = budget.title;
+            if (mode === 'create' && !formData.seller_user_id) {
+              if (formData.commission_type === 'am' && budget.am_user_id) {
+                setFormData(prev => ({ ...prev, seller_user_id: budget.am_user_id! }));
+              } else if (formData.commission_type === 'pm' && budget.pm_user_id) {
+                setFormData(prev => ({ ...prev, seller_user_id: budget.pm_user_id! }));
+              }
+            }
+          }
+        }
+      }
+
+      setDerivedInfo(info);
+    };
+
+    fetchDerivedInfo();
+  }, [formData.invoice_ids, availableInvoices, formData.commission_type, mode]);
 
   useEffect(() => {
     if (commission && mode !== 'create') {
@@ -240,9 +268,6 @@ export function CommissionFormModal({
         commission_type: (commission.commission_type as CommissionType) || 'am',
         client_id: clientId,
         seller_user_id: commission.seller_user_id,
-        source_type: commission.contract_id ? 'contract' : commission.budget_id ? 'budget' : 'invoice',
-        contract_id: commission.contract_id || '',
-        budget_id: commission.budget_id || '',
         invoice_ids: commission.invoice_ids || [],
         commission_percentage: commission.commission_percentage,
         base_amount: commission.base_amount,
@@ -256,9 +281,6 @@ export function CommissionFormModal({
         commission_type: 'am',
         client_id: '',
         seller_user_id: '',
-        source_type: 'budget',
-        contract_id: '',
-        budget_id: '',
         invoice_ids: [],
         commission_percentage: Number(defaultPercentage),
         base_amount: 0,
@@ -298,8 +320,8 @@ export function CommissionFormModal({
       const payload = {
         commission_type: formData.commission_type,
         seller_user_id: formData.seller_user_id,
-        contract_id: formData.source_type === 'contract' ? formData.contract_id : null,
-        budget_id: formData.source_type === 'budget' ? formData.budget_id : null,
+        contract_id: derivedContractId || null,
+        budget_id: derivedBudgetId || null,
         invoice_ids: formData.invoice_ids,
         commission_percentage: formData.commission_percentage,
         base_amount: formData.base_amount,
@@ -310,15 +332,15 @@ export function CommissionFormModal({
       };
 
       if (mode === 'edit' && commission) {
-        const { error } = await (supabase
-          .from('sales_commissions' as any)
+        const { error } = await supabase
+          .from('sales_commissions')
           .update(payload)
-          .eq('id', commission.id) as any);
+          .eq('id', commission.id);
         if (error) throw error;
       } else {
-        const { error } = await (supabase
-          .from('sales_commissions' as any)
-          .insert(payload) as any);
+        const { error } = await supabase
+          .from('sales_commissions')
+          .insert(payload);
         if (error) throw error;
       }
     },
@@ -349,15 +371,7 @@ export function CommissionFormModal({
       toast({ title: 'Error', description: 'Selecciona un cliente', variant: 'destructive' });
       return;
     }
-    if (formData.source_type === 'contract' && !formData.contract_id) {
-      toast({ title: 'Error', description: 'Selecciona un contrato', variant: 'destructive' });
-      return;
-    }
-    if (formData.source_type === 'budget' && !formData.budget_id) {
-      toast({ title: 'Error', description: 'Selecciona un presupuesto', variant: 'destructive' });
-      return;
-    }
-    if (formData.source_type === 'invoice' && formData.invoice_ids.length === 0) {
+    if (formData.invoice_ids.length === 0) {
       toast({ title: 'Error', description: 'Selecciona al menos una factura', variant: 'destructive' });
       return;
     }
@@ -371,10 +385,6 @@ export function CommissionFormModal({
   const selectedInvoicesSubtotal = availableInvoices
     ?.filter(inv => formData.invoice_ids.includes(inv.id))
     .reduce((sum, inv) => sum + Number(inv.subtotal), 0) || 0;
-
-  const showInvoiceSelector = formData.source_type === 'invoice' && !!formData.client_id;
-  const showInvoiceForSource = (formData.source_type === 'budget' && !!formData.budget_id) || 
-                                (formData.source_type === 'contract' && !!formData.contract_id);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -436,8 +446,6 @@ export function CommissionFormModal({
                 onValueChange={(v) => setFormData(prev => ({ 
                   ...prev, 
                   client_id: v,
-                  contract_id: '',
-                  budget_id: '',
                   invoice_ids: [],
                   base_amount: 0,
                 }))}
@@ -480,91 +488,12 @@ export function CommissionFormModal({
             </div>
           </div>
 
-          {/* Row 3: Origen + Source selector */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Origen</Label>
-              <Select
-                value={formData.source_type}
-                onValueChange={(v) => setFormData(prev => ({ 
-                  ...prev, 
-                  source_type: v as SourceType,
-                  contract_id: '',
-                  budget_id: '',
-                  invoice_ids: [],
-                  base_amount: 0,
-                }))}
-                disabled={isViewMode}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="budget">Presupuesto</SelectItem>
-                  <SelectItem value="contract">Contrato</SelectItem>
-                  <SelectItem value="invoice">Factura</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {formData.source_type !== 'invoice' && (
-              <div className="space-y-2">
-                <Label>{formData.source_type === 'contract' ? 'Contrato' : 'Presupuesto'} *</Label>
-                {formData.source_type === 'contract' ? (
-                  <Select
-                    value={formData.contract_id}
-                    onValueChange={(v) => setFormData(prev => ({ 
-                      ...prev, 
-                      contract_id: v, 
-                      invoice_ids: [],
-                      base_amount: 0,
-                    }))}
-                    disabled={isViewMode || !formData.client_id}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={formData.client_id ? "Seleccionar contrato" : "Selecciona cliente primero"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {contracts?.map((contract) => (
-                        <SelectItem key={contract.id} value={contract.id}>
-                          {contract.code} - {contract.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Select
-                    value={formData.budget_id}
-                    onValueChange={(v) => setFormData(prev => ({ 
-                      ...prev, 
-                      budget_id: v,
-                      invoice_ids: [],
-                      base_amount: 0,
-                    }))}
-                    disabled={isViewMode || !formData.client_id}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={formData.client_id ? "Seleccionar presupuesto" : "Selecciona cliente primero"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {budgets?.map((budget) => (
-                        <SelectItem key={budget.id} value={budget.id}>
-                          {budget.code} - {budget.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Invoice selector — shown when source is invoice OR when budget/contract is selected */}
-          {(showInvoiceSelector || showInvoiceForSource) && (
+          {/* Invoice selector — always visible after client selection */}
+          {!!formData.client_id && (
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <FileText className="h-4 w-4" />
-                {formData.source_type === 'invoice' ? 'Selecciona facturas *' : 'Facturas base para el cálculo'}
+                Selecciona facturas *
               </Label>
               {availableInvoices && availableInvoices.length > 0 ? (
                 <>
@@ -623,8 +552,24 @@ export function CommissionFormModal({
                 </>
               ) : (
                 <div className="text-sm text-muted-foreground p-4 border rounded-md text-center">
-                  No hay facturas disponibles para este {formData.source_type === 'contract' ? 'contrato' : formData.source_type === 'budget' ? 'presupuesto' : 'cliente'}
+                  No hay facturas disponibles para este cliente
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Derived origin info (read-only) */}
+          {formData.invoice_ids.length > 0 && (derivedInfo.budgetCode || derivedInfo.contractCode) && (
+            <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-1 border border-border/50">
+              <span className="font-medium text-muted-foreground flex items-center gap-1.5">
+                <Link2 className="h-3.5 w-3.5" />
+                Origen derivado de facturas:
+              </span>
+              {derivedInfo.budgetCode && (
+                <p className="text-foreground">Presupuesto: {derivedInfo.budgetCode} — {derivedInfo.budgetTitle}</p>
+              )}
+              {derivedInfo.contractCode && (
+                <p className="text-foreground">Contrato: {derivedInfo.contractCode} — {derivedInfo.contractTitle}</p>
               )}
             </div>
           )}

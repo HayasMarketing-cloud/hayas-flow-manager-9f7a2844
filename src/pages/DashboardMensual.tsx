@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+
 import { DollarSign, TrendingUp, Wallet, ArrowDownUp, ChevronRight, ChevronDown, RefreshCw, Users, UserCheck, Receipt, FileText } from 'lucide-react';
 import { useDashboardMensualData, ViewMode, ClientSummary, SpecialistSummary } from '@/hooks/useDashboardMensualData';
 import { useUserRole } from '@/hooks/useUserRole';

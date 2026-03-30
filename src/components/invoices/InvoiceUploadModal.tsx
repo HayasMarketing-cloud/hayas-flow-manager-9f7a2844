@@ -317,6 +317,21 @@ export function InvoiceUploadModal({ isOpen, onClose }: InvoiceUploadModalProps)
         );
       }
 
+      // Check for duplicate codes before inserting
+      const codes = successInvoices.map((inv) => inv.editedCode ?? inv.data!.invoice_code);
+      const { data: existingInvoices } = await supabase
+        .from('invoices')
+        .select('code')
+        .in('code', codes);
+      
+      const existingCodes = new Set((existingInvoices || []).map((inv) => inv.code));
+      const duplicates = codes.filter((code) => existingCodes.has(code));
+      if (duplicates.length > 0) {
+        throw new Error(
+          `Ya existen facturas con los códigos: ${duplicates.join(', ')}. Modifica los códigos antes de importar.`
+        );
+      }
+
       const results = [];
 
       for (const invoice of successInvoices) {

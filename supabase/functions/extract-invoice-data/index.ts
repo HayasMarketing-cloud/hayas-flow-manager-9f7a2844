@@ -144,9 +144,9 @@ serve(async (req) => {
   "invoice_date": "fecha de emisión en formato YYYY-MM-DD",
   "due_date": "fecha de vencimiento en formato YYYY-MM-DD si aparece, o null",
   "subtotal": importe base imponible sin IVA (número),
-  "tax_rate": porcentaje de IVA aplicado (número, ejemplo: 21),
-  "tax_amount": importe del IVA (número),
-  "total_amount": importe total con IVA (número),
+  "tax_rate": porcentaje de IVA aplicado (número, ejemplo: 21). Si NO aparece IVA o la factura está exenta de IVA, pon 0,
+  "tax_amount": importe del IVA (número). Si no hay IVA, pon 0,
+  "total_amount": importe total (número),
   "line_items": [
     {"description": "descripción del servicio", "quantity": cantidad, "unit_price": precio_unitario}
   ]
@@ -155,6 +155,7 @@ serve(async (req) => {
 IMPORTANTE: 
 - Los importes deben ser números, no strings
 - El client_name es a QUIEN se factura, no quien emite la factura
+- Si el total coincide con el subtotal y no se menciona IVA, entonces tax_rate y tax_amount deben ser 0
 - Si no encuentras algún dato, usa null o 0 según corresponda
 - Responde SOLO el JSON, sin texto adicional`
               },

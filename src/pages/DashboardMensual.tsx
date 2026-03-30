@@ -92,6 +92,7 @@ function ClientRow({ client }: { client: ClientSummary }) {
 
 function SpecialistRow({ specialist }: { specialist: SpecialistSummary }) {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -110,14 +111,15 @@ function SpecialistRow({ specialist }: { specialist: SpecialistSummary }) {
       </CollapsibleTrigger>
       <CollapsibleContent>
         {specialist.liquidations.map(liq => (
-          <TableRow key={liq.id} className="bg-muted/10">
+          <TableRow 
+            key={liq.id} 
+            className="bg-muted/10 cursor-pointer hover:bg-muted/30"
+            onClick={() => navigate(`/liquidaciones/${liq.id}`)}
+          >
             <TableCell className="pl-10 text-sm">
               <div className="flex items-center gap-2">
                 <FileText className="h-3 w-3 text-muted-foreground" />
                 {liq.code}
-                <span className="text-xs text-muted-foreground">
-                  ({MONTHS[liq.period_month - 1]} {liq.period_year})
-                </span>
               </div>
             </TableCell>
             <TableCell className="text-right text-sm">{formatCurrency(liq.total_amount)}</TableCell>

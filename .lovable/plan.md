@@ -1,56 +1,56 @@
 
 
-## Problem Analysis
+## Cambio en alta de comisiones: flujo basado en factura
 
-**LIQ-2026-021** has 6 commission items in `liquidation_items` with description "Comisión AM - Sin origen", but the corresponding `sales_commissions` records have `liquidation_id = NULL`. This means:
+### Resumen
 
-1. The query that fetches commission details (`WHERE liquidation_id = id`) returns empty
-2. The UI shows the commission rows but with no calculation breakdown (percentage, base amount, invoice codes)
+Simplificar el formulario de nueva comisión para que **siempre** parta de una factura emitida. El flujo será:
 
-The root cause: when these commissions were originally added, the `sales_commissions.liquidation_id` update either failed silently (likely due to `as any` type casting hiding errors) or was done through an older code path that didn't set it.
+1. **Tipo de comisión** (AM/PM/Venta)
+2. **Cliente**
+3. **Beneficiario**
+4. **Factura(s)** del cliente seleccionado
+5. Auto-carga de presupuesto/contrato asociado a la factura (si existe)
+6. Cálculo automático de comisión sobre el subtotal de la(s) factura(s)
 
-**For future liquidations**: The current code paths (both `LiquidacionDetalle` and `LiquidationFormModal`) DO attempt to set `liquidation_id`, and the descriptions now include percentage and origin. However, the `as any` casting on `sales_commissions` operations could still mask failures.
+### Viabilidad
 
----
+Es totalmente viable. La tabla `invoices` ya tiene campos `budget_id` y `contract_id`, y también existe `invoice_budget_allocations` para relaciones N:M. Al seleccionar una factura podemos derivar automáticamente el presupuesto y/o contrato vinculado.
 
-## Plan
+No hay problemas de compatibilidad: el campo `invoice_ids` en `sales_commissions` ya almacena las facturas asociadas, y `budget_id`/`contract_id` seguirán siendo opcionales (se rellenan si la factura los tiene).
 
-### 1. Fix historical data for LIQ-2026-021
+### Cambios en `CommissionFormModal.tsx`
 
-Run a SQL update to link the orphaned `sales_commissions` records to this liquidation by matching on `seller_user_id` (the specialist's user) and `commission_amount` matching the `liquidation_items.total`.
+| Aspecto | Antes | Después |
+|---------|-------|---------|
+| Selector "Origen" | Dropdown con 3 opciones (Presupuesto/Contrato/Factura) | **Se elimina**. Siempre es factura |
+| Selector Presupuesto/Contrato | Manual, obligatorio según origen | **Automático y read-only**, derivado de la factura seleccionada |
+| Selector Facturas | Solo visible con origen "Factura" o después de elegir presupuesto | **Siempre visible** después de seleccionar cliente |
+| `base_amount` | Manual o calculado según origen | Siempre calculado del subtotal de facturas seleccionadas |
 
-### 2. Remove unnecessary `as any` casting
+### Detalle técnico
 
-In `LiquidacionDetalle.tsx`, remove `as any` from all `sales_commissions` operations. The table IS defined in the TypeScript types, so the casting hides potential errors. This applies to ~4 locations in the file.
+1. **Eliminar campo `source_type`** del formulario de creación (mantenerlo internamente para edit/view de comisiones antiguas)
+2. **Query de facturas**: Tras seleccionar cliente, cargar todas las facturas del cliente (ya existe esta query)
+3. **Auto-derivar presupuesto/contrato**: Al seleccionar factura(s), consultar `invoice_budget_allocations` para obtener `budget_id`, y usar `invoices.contract_id` para obtener el contrato. Mostrar esta info como resumen read-only
+4. **Payload al guardar**: Seguir guardando `budget_id`, `contract_id` e `invoice_ids` en `sales_commissions` como hasta ahora
+5. **Validación**: Requerir al menos una factura seleccionada (en lugar de requerir presupuesto o contrato)
+6. **Modo edit/view**: Sin cambios funcionales, sigue mostrando los datos almacenados
 
-### 3. Add fallback display for commission items without linked details
+### Flujo visual simplificado
 
-In `GroupedLiquidationItemsTable.tsx`, when `commissionDetails` has no matching entry for a commission item, parse the description itself to show whatever info is embedded (e.g., percentage and origin from the description text), instead of showing nothing.
-
-### 4. Ensure item descriptions always include full traceability
-
-Verify both commission-adding paths (`LiquidacionDetalle` and `LiquidationFormModal`) generate descriptions with the format: `Comisión {type} ({percentage}%) — {origin}`. Both already do this in current code — confirmed.
-
----
-
-## Technical Details
-
-**File changes:**
-
-| File | Change |
-|------|--------|
-| `src/pages/LiquidacionDetalle.tsx` | Remove `as any` on `sales_commissions` operations (~4 places) |
-| `src/components/liquidations/GroupedLiquidationItemsTable.tsx` | Add fallback: parse commission description for display when no `commissionDetails` match |
-| Database (data fix) | UPDATE `sales_commissions` to link the 6 orphaned records to LIQ-2026-021's liquidation ID |
-
-**Data fix query** (will use insert tool):
-```sql
--- Match commissions by specialist user_id + amount to liquidation items
-UPDATE sales_commissions 
-SET liquidation_id = (SELECT id FROM liquidations WHERE code = 'LIQ-2026-021')
-WHERE id IN ('<matched commission ids>')
-AND liquidation_id IS NULL;
+```text
+Tipo comisión  |  Cliente
+─────────────────────────
+Beneficiario
+─────────────────────────
+Facturas del cliente (checkbox list)
+  ☑ FAC-2026-001  (5 ene 2026)  1.200,00€
+  ☐ FAC-2026-005  (12 feb 2026)   800,00€
+─────────────────────────
+Origen derivado: PRES-2026-012 — Campaña Q1  (read-only)
+─────────────────────────
+Cálculo de comisión
+  Base: 1.200,00€  |  %: 5  |  Comisión: 60,00€
 ```
-
-This fix resolves the current LIQ-2026-021 issue and hardens the system so future liquidations won't lose commission details.
 

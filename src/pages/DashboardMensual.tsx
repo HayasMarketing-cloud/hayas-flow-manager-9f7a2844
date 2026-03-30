@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+
 import { DollarSign, TrendingUp, Wallet, ArrowDownUp, ChevronRight, ChevronDown, RefreshCw, Users, UserCheck, Receipt, FileText } from 'lucide-react';
 import { useDashboardMensualData, ViewMode, ClientSummary, SpecialistSummary } from '@/hooks/useDashboardMensualData';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -39,54 +39,49 @@ function ClientRow({ client }: { client: ClientSummary }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger asChild>
-        <TableRow className="cursor-pointer hover:bg-muted/50">
-          <TableCell className="font-medium">
+    <>
+      <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => setOpen(!open)}>
+        <TableCell className="font-medium">
+          <div className="flex items-center gap-2">
+            {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            {client.clientName}
+          </div>
+        </TableCell>
+        <TableCell className="text-right font-semibold text-green-700 dark:text-green-400">{formatCurrency(client.revenue)}</TableCell>
+        <TableCell className="text-right text-muted-foreground">{formatCurrency(client.commissions)}</TableCell>
+        <TableCell className={cn("text-right font-semibold", client.margin >= 0 ? "text-green-700 dark:text-green-400" : "text-red-600 dark:text-red-400")}>{formatCurrency(client.margin)}</TableCell>
+        <TableCell className="text-right">{client.marginPercent.toFixed(1)}%</TableCell>
+        <TableCell className="text-right">{client.invoices.length}</TableCell>
+      </TableRow>
+      {open && client.origins.map((origin, idx) => (
+        <TableRow key={idx} className="bg-muted/30">
+          <TableCell className="pl-10 text-sm">
+            <span className="text-muted-foreground">{origin.type === 'contract' ? '📄' : '📋'}</span>{' '}
+            <span className="font-medium">{origin.code}</span> — {origin.title}
+          </TableCell>
+          <TableCell className="text-right text-sm">{formatCurrency(origin.revenue)}</TableCell>
+          <TableCell className="text-right text-sm text-muted-foreground">{formatCurrency(origin.commissions)}</TableCell>
+          <TableCell className="text-right text-sm">{formatCurrency(origin.margin)}</TableCell>
+          <TableCell className="text-right text-sm">{origin.revenue > 0 ? ((origin.margin / origin.revenue) * 100).toFixed(1) : '0.0'}%</TableCell>
+          <TableCell className="text-right text-sm">{origin.invoices.length}</TableCell>
+        </TableRow>
+      ))}
+      {open && client.invoices.map(inv => (
+        <TableRow key={inv.id} className="bg-muted/10">
+          <TableCell className="pl-14 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
-              {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              {client.clientName}
+              <Receipt className="h-3 w-3" />
+              {inv.code}
             </div>
           </TableCell>
-          <TableCell className="text-right font-semibold text-green-700 dark:text-green-400">{formatCurrency(client.revenue)}</TableCell>
-          <TableCell className="text-right text-muted-foreground">{formatCurrency(client.commissions)}</TableCell>
-          <TableCell className={cn("text-right font-semibold", client.margin >= 0 ? "text-green-700 dark:text-green-400" : "text-red-600 dark:text-red-400")}>{formatCurrency(client.margin)}</TableCell>
-          <TableCell className="text-right">{client.marginPercent.toFixed(1)}%</TableCell>
-          <TableCell className="text-right">{client.invoices.length}</TableCell>
+          <TableCell className="text-right text-xs">{formatCurrency(inv.subtotal)}</TableCell>
+          <TableCell />
+          <TableCell />
+          <TableCell />
+          <TableCell className="text-right">{getStatusBadge(inv.status)}</TableCell>
         </TableRow>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        {client.origins.map((origin, idx) => (
-          <TableRow key={idx} className="bg-muted/30">
-            <TableCell className="pl-10 text-sm">
-              <span className="text-muted-foreground">{origin.type === 'contract' ? '📄' : '📋'}</span>{' '}
-              <span className="font-medium">{origin.code}</span> — {origin.title}
-            </TableCell>
-            <TableCell className="text-right text-sm">{formatCurrency(origin.revenue)}</TableCell>
-            <TableCell className="text-right text-sm text-muted-foreground">{formatCurrency(origin.commissions)}</TableCell>
-            <TableCell className="text-right text-sm">{formatCurrency(origin.margin)}</TableCell>
-            <TableCell className="text-right text-sm">{origin.revenue > 0 ? ((origin.margin / origin.revenue) * 100).toFixed(1) : '0.0'}%</TableCell>
-            <TableCell className="text-right text-sm">{origin.invoices.length}</TableCell>
-          </TableRow>
-        ))}
-        {/* Invoice detail rows */}
-        {client.invoices.map(inv => (
-          <TableRow key={inv.id} className="bg-muted/10">
-            <TableCell className="pl-14 text-xs text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <Receipt className="h-3 w-3" />
-                {inv.code}
-              </div>
-            </TableCell>
-            <TableCell className="text-right text-xs">{formatCurrency(inv.subtotal)}</TableCell>
-            <TableCell />
-            <TableCell />
-            <TableCell />
-            <TableCell className="text-right">{getStatusBadge(inv.status)}</TableCell>
-          </TableRow>
-        ))}
-      </CollapsibleContent>
-    </Collapsible>
+      ))}
+    </>
   );
 }
 
@@ -95,44 +90,40 @@ function SpecialistRow({ specialist }: { specialist: SpecialistSummary }) {
   const navigate = useNavigate();
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger asChild>
-        <TableRow className="cursor-pointer hover:bg-muted/50">
-          <TableCell className="font-medium">
+    <>
+      <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => setOpen(!open)}>
+        <TableCell className="font-medium">
+          <div className="flex items-center gap-2">
+            {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            {specialist.specialistName}
+          </div>
+        </TableCell>
+        <TableCell className="text-right font-semibold">{formatCurrency(specialist.totalCost)}</TableCell>
+        <TableCell className="text-right">{specialist.liquidations.length}</TableCell>
+        <TableCell />
+      </TableRow>
+      {open && specialist.liquidations.map(liq => (
+        <TableRow 
+          key={liq.id} 
+          className="bg-muted/10 cursor-pointer hover:bg-muted/30"
+          onClick={() => navigate(`/liquidaciones/${liq.id}`)}
+        >
+          <TableCell className="pl-10 text-sm">
             <div className="flex items-center gap-2">
-              {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              {specialist.specialistName}
+              <FileText className="h-3 w-3 text-muted-foreground" />
+              {liq.code}
             </div>
           </TableCell>
-          <TableCell className="text-right font-semibold">{formatCurrency(specialist.totalCost)}</TableCell>
-          <TableCell className="text-right">{specialist.liquidations.length}</TableCell>
-          <TableCell />
+          <TableCell className="text-right text-sm">{formatCurrency(liq.subtotal ?? liq.total_amount)}</TableCell>
+          <TableCell className="text-right">
+            {getStatusBadge(liq.status)}
+          </TableCell>
+          <TableCell className="text-right text-xs text-muted-foreground">
+            {liq.specialist_invoice_url ? '✅ Factura' : '⏳ Sin factura'}
+          </TableCell>
         </TableRow>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        {specialist.liquidations.map(liq => (
-          <TableRow 
-            key={liq.id} 
-            className="bg-muted/10 cursor-pointer hover:bg-muted/30"
-            onClick={() => navigate(`/liquidaciones/${liq.id}`)}
-          >
-            <TableCell className="pl-10 text-sm">
-              <div className="flex items-center gap-2">
-                <FileText className="h-3 w-3 text-muted-foreground" />
-                {liq.code}
-              </div>
-            </TableCell>
-            <TableCell className="text-right text-sm">{formatCurrency(liq.subtotal ?? liq.total_amount)}</TableCell>
-            <TableCell className="text-right">
-              {getStatusBadge(liq.status)}
-            </TableCell>
-            <TableCell className="text-right text-xs text-muted-foreground">
-              {liq.specialist_invoice_url ? '✅ Factura' : '⏳ Sin factura'}
-            </TableCell>
-          </TableRow>
-        ))}
-      </CollapsibleContent>
-    </Collapsible>
+      ))}
+    </>
   );
 }
 

@@ -379,6 +379,9 @@ export function InvoiceUploadModal({ isOpen, onClose }: InvoiceUploadModalProps)
           .single();
 
         if (invoiceError) {
+          if (invoiceError.message?.includes('duplicate key') || invoiceError.code === '23505') {
+            throw new Error(`Ya existe una factura con el código "${code}". Modifica el código antes de importar.`);
+          }
           throw new Error(`Error guardando ${code}: ${invoiceError.message}`);
         }
 

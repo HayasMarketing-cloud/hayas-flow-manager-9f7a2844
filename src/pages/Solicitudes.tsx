@@ -92,17 +92,7 @@ const Solicitudes = () => {
         // All requests without liquidation_id, except cancelled ones
         query = query.is('liquidation_id', null).neq('status', 'cancelled');
       }
-      // Apply year/month filters based on created_at
-      if (filters.year) {
-        const startDate = new Date(filters.year, filters.month ? filters.month - 1 : 0, 1);
-        const endDate = filters.month 
-          ? new Date(filters.year, filters.month, 0, 23, 59, 59, 999)
-          : new Date(filters.year, 11, 31, 23, 59, 59, 999);
-        
-        query = query
-          .gte('created_at', startDate.toISOString())
-          .lte('created_at', endDate.toISOString());
-      }
+
 
       // Apply work period filters (work_month/work_year) with fallback to created_at
       if (filters.workYear && filters.workMonth) {

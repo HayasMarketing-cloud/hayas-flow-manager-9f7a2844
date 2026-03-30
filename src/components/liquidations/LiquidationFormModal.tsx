@@ -247,7 +247,7 @@ const SignatureDetailsSection = ({ signature }: { signature: any }) => {
 export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: LiquidationFormModalProps) => {
   const queryClient = useQueryClient();
   const isViewMode = mode === 'view';
-  const isEditable = mode === 'create' || (mode === 'edit' && (liquidation?.status === 'draft' || liquidation?.status === 'validated' || liquidation?.status === 'sent'));
+  const isEditable = mode === 'create' || (mode === 'edit' && (liquidation?.status === 'draft' || liquidation?.status === 'validated' || liquidation?.status === 'sent' || liquidation?.status === 'disputed'));
   const [selectedRequests, setSelectedRequests] = useState<Array<{ id: string; cost: number }>>([]);
   const [manualItems, setManualItems] = useState<ManualItem[]>([]);
   const [newManualDescription, setNewManualDescription] = useState('');
@@ -1114,9 +1114,9 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
           <DialogTitle>{getTitle()}</DialogTitle>
         </DialogHeader>
 
-        {mode === 'edit' && liquidation?.status !== 'draft' && (
+        {mode === 'edit' && !isEditable && (
           <div className="bg-muted p-3 rounded-md text-sm text-muted-foreground">
-            Esta liquidación no se puede editar porque su estado no es borrador
+            Esta liquidación no se puede editar porque su estado no lo permite
           </div>
         )}
 

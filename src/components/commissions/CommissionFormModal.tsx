@@ -140,9 +140,28 @@ export function CommissionFormModal({
     enabled: open,
   });
 
-  // Fetch invoices for selected client
+  // Fetch already-used invoice IDs from existing commissions
+  const { data: usedInvoiceIds } = useQuery({
+    queryKey: ['used-invoice-ids-for-commissions', formData.client_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('sales_commissions')
+        .select('id, invoice_ids');
+      if (error) throw error;
+      const usedIds = new Set<string>();
+      (data || []).forEach(c => {
+        // In edit mode, exclude current commission's invoices from the "used" set
+        if (mode === 'edit' && commission && c.id === commission.id) return;
+        (c.invoice_ids || []).forEach((id: string) => usedIds.add(id));
+      });
+      return usedIds;
+    },
+    enabled: open && !!formData.client_id,
+  });
+
+  // Fetch invoices for selected client, excluding already-commissioned ones
   const { data: availableInvoices } = useQuery({
-    queryKey: ['invoices-for-commission', formData.client_id],
+    queryKey: ['invoices-for-commission', formData.client_id, usedInvoiceIds ? Array.from(usedInvoiceIds) : []],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('invoices')
@@ -150,9 +169,11 @@ export function CommissionFormModal({
         .eq('client_id', formData.client_id)
         .order('invoice_date', { ascending: false });
       if (error) throw error;
-      return data as Invoice[];
+      // Filter out invoices already used in other commissions
+      const filtered = (data || []).filter(inv => !usedInvoiceIds?.has(inv.id));
+      return filtered as Invoice[];
     },
-    enabled: open && !!formData.client_id,
+    enabled: open && !!formData.client_id && usedInvoiceIds !== undefined,
   });
 
   // Set default percentage when commission type changes

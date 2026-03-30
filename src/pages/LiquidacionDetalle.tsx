@@ -682,10 +682,10 @@ export default function LiquidacionDetalle() {
         if (insertError) throw insertError;
 
         // Mark commission as paid and link to liquidation
-        const { error: updateError } = await (supabase
-          .from('sales_commissions' as any)
+        const { error: updateError } = await supabase
+          .from('sales_commissions')
           .update({ status: 'paid', paid_at: new Date().toISOString(), liquidation_id: id })
-          .eq('id', commission.id) as any);
+          .eq('id', commission.id);
         if (updateError) throw updateError;
       }
 

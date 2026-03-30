@@ -24,8 +24,6 @@ export const useRequestFilters = () => {
     specialistId: searchParams.get('specialistId'),
     budgetId: searchParams.get('budget_id'),
     contractId: searchParams.get('contractId'),
-    year: searchParams.get('year') ? parseInt(searchParams.get('year')!) : null,
-    month: searchParams.get('month') ? parseInt(searchParams.get('month')!) : null,
     partnerReference: searchParams.get('partnerReference'),
     workMonth: searchParams.get('workMonth') ? parseInt(searchParams.get('workMonth')!) : null,
     workYear: searchParams.get('workYear') ? parseInt(searchParams.get('workYear')!) : null,

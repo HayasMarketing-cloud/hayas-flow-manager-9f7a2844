@@ -371,7 +371,7 @@ export function CommissionFormModal({
       } else {
         const { error } = await supabase
           .from('sales_commissions')
-          .insert(payload);
+          .insert(payload as any);
         if (error) throw error;
       }
     },

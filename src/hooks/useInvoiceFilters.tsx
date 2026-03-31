@@ -44,7 +44,7 @@ export const useInvoiceFilters = () => {
     
     if (newFilters.searchTerm) newParams.set('search', newFilters.searchTerm);
     if (newFilters.status) newParams.set('status', newFilters.status);
-    if (newFilters.clientId) newParams.set('clientId', newFilters.clientId);
+    if (newFilters.clientIds.length > 0) newParams.set('clientIds', newFilters.clientIds.join(','));
     if (newFilters.periodType !== 'all') newParams.set('period', newFilters.periodType);
     if (newFilters.startDate) newParams.set('startDate', newFilters.startDate);
     if (newFilters.endDate) newParams.set('endDate', newFilters.endDate);

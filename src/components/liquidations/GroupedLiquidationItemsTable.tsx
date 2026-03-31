@@ -74,9 +74,15 @@ export function GroupedLiquidationItemsTable({
           {item.description?.startsWith('Comisión') && (() => {
             // Try to find matching commission detail from linked sales_commissions
             if (commissionDetails) {
+              const invoiceMatch = item.description?.match(/Factura Nº\s+(.+)/);
+              const invoiceCode = invoiceMatch?.[1]?.trim();
               const detail = Object.values(commissionDetails).find(d => {
                 const typeLabel = d.type === 'am' ? 'AM' : d.type === 'pm' ? 'PM' : 'Venta';
-                return item.description?.includes(`Comisión ${typeLabel}`);
+                if (!item.description?.includes(`Comisión ${typeLabel}`)) return false;
+                if (invoiceCode && d.invoiceCodes.length) {
+                  return d.invoiceCodes.includes(invoiceCode);
+                }
+                return Math.abs(d.percentage * d.baseAmount / 100 - Number(item.total)) < 0.02;
               });
               if (detail) {
                 const invoiceLabel = detail.invoiceCodes.length === 1

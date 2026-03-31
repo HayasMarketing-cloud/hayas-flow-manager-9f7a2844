@@ -152,20 +152,20 @@ export function OperationalRequestFormModal({
         operational_project_id: request.operational_project_id,
         client_id: request.client_id,
         financial_request_id: request.financial_request_id || "",
-        assignee_user_id: request.assignee_user_id || "",
         assignee_specialist_id: request.assignee_specialist_id || "",
         deadline: request.deadline || "",
         context_url: request.context_url || "",
-        reviewer_type: request.reviewer_type || undefined,
         status: request.status || "pending",
       });
     } else if (projectId) {
+      const project = projects.find((p) => p.id === projectId);
       reset({
         operational_project_id: projectId,
+        client_id: project?.client_id || "",
         status: "pending",
       });
     }
-  }, [request, projectId, reset]);
+  }, [request, projectId, projects, reset]);
 
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {

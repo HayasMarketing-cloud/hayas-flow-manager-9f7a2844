@@ -1,30 +1,40 @@
 
 
-## Fix: Modal de edición no muestra ítems de miembros del equipo
+## Fix: Timeline muestra "Pagada" como completada cuando el estado es "Pendiente de pago"
 
 ### Problema
-Al editar una liquidación de equipo (ej. Daniela + Sandra), el modal solo carga los `liquidation_items` del líder (`liquidation.id`), mostrando 60€ en vez de los 630€ del equipo completo. La vista "Ver" (`LiquidacionDetalle`) sí muestra todo porque usa otra lógica.
+El componente `LiquidationProcessTimeline.tsx` usa índices hardcodeados del array `statusOrder` para determinar qué pasos están completados. El array incluye `disputed` en posición 5, lo que desplaza `pending_payment` a índice 6 y `paid` a índice 7. Sin embargo, las comparaciones de los pasos usan números fijos (4, 5, 6) que no coinciden con estos índices reales.
 
-### Causa raíz
-En `LiquidationFormModal.tsx`, la query de ítems (línea 977) filtra por `.eq('liquidation_id', liquidation.id)`, ignorando los `member_liquidation_ids` que vienen en el objeto de la liquidación de equipo.
+Cuando el estado es `pending_payment` (índice 6):
+- Paso "Pendiente de pago": `6 >= 5` → se marca como **completado** (debería ser **current**)
+- Paso "Pagada": `6 >= 6` → se marca como **completado** (debería ser **pending**)
+
+**No es un bug de datos** — el estado en base de datos es correcto. Es un bug visual en el timeline.
 
 ### Solución
 
-**Archivo: `src/components/liquidations/LiquidationFormModal.tsx`**
+**Archivo: `src/components/liquidations/LiquidationProcessTimeline.tsx`**
 
-1. **Modificar la query `liquidationItems`** (línea ~968-984):
-   - Si `liquidation.is_team` y tiene `member_liquidation_ids`, usar `.in('liquidation_id', [liquidation.id, ...member_liquidation_ids])` en vez de `.eq('liquidation_id', liquidation.id)`
-   - Esto carga los ítems del líder y de todos los miembros
+Reemplazar los índices hardcodeados por referencias dinámicas usando `getStatusIndex()`:
 
-2. **Actualizar la queryKey** para incluir los IDs de miembros y evitar cache stale:
-   ```
-   queryKey: ['liquidation-items', liquidation?.id, liquidation?.member_liquidation_ids]
-   ```
+```typescript
+// Línea ~253-261: Paso "Pendiente de pago"
+const pendingPaymentIndex = getStatusIndex('pending_payment');
+const paidIndex = getStatusIndex('paid');
 
-3. **Sección visual en modo edit**: Agrupar los ítems por `liquidation_id` para que se distinga qué ítems pertenecen al líder y cuáles a cada miembro (read-only para los ítems de miembros, editables solo los del líder).
+// Pendiente de pago
+status: currentIndex >= paidIndex ? 'completed' 
+      : currentIndex >= pendingPaymentIndex ? 'current' 
+      : 'pending',
 
-4. **Recálculo de totales**: Asegurar que las funciones de recálculo tras añadir/eliminar ítems también refresquen correctamente cuando es equipo.
+// Pagada
+status: currentIndex >= paidIndex ? 'completed' 
+      : currentIndex === paidIndex ? 'current'  // (nunca será > paidIndex)
+      : 'pending',
+```
+
+También corregir la misma lógica en el paso de `showPaymentDate` (línea ~253) para que use `getStatusIndex('invoice_received')` en vez de `4`.
 
 ### Resultado
-El modal de edición mostrará todos los ítems del equipo (630€), con los del líder editables y los de miembros visibles en modo lectura, consistente con la vista de detalle.
+El timeline mostrará correctamente "Pendiente de pago" como estado actual y "Pagada" como pendiente cuando la liquidación está en estado `pending_payment`.
 

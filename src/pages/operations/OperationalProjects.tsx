@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Search, Briefcase, Edit, Trash2, Eye, MoreVertical, LayoutGrid, Table2, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Briefcase, Edit, Trash2, Eye, MoreVertical, LayoutGrid, List, AlertTriangle } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useOperationalProjects, useDeleteOperationalProject } from '@/hooks/useOperationalProjects';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -16,7 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { OperationalProjectFormModal } from '@/components/operations/OperationalProjectFormModal';
 import { HierarchicalTrackingTable } from '@/components/operations/HierarchicalTrackingTable';
 import { DebugAccessPanel } from '@/components/operations/DebugAccessPanel';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,7 +65,7 @@ export default function OperationalProjects() {
   const [amPmInitialized, setAmPmInitialized] = useState(false);
   const [budgetFilter, setBudgetFilter] = useState<string>('all');
   const [contractFilter, setContractFilter] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<string>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'tracking'>('cards');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<any>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
@@ -318,29 +318,14 @@ export default function OperationalProjects() {
           </Button>
         </div>
 
-        {/* View Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <TabsList>
-              <TabsTrigger value="cards" className="flex items-center gap-2">
-                <LayoutGrid className="h-4 w-4" />
-                Tarjetas
-              </TabsTrigger>
-              <TabsTrigger value="tracking" className="flex items-center gap-2">
-                <Table2 className="h-4 w-4" />
-                Seguimiento
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          {/* Filters */}
-          <Card className="mt-4">
+        {/* Filters */}
+        <Card>
             <CardContent className="pt-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder={activeTab === 'cards' ? "Buscar proyectos..." : "Buscar milestones..."}
+                    placeholder={viewMode === 'cards' ? "Buscar proyectos..." : "Buscar milestones..."}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
@@ -403,7 +388,7 @@ export default function OperationalProjects() {
                   </SelectContent>
                 </Select>
 
-                {activeTab === 'tracking' && (
+                {viewMode === 'tracking' && (
                   <>
                     <Select value={specialistFilter} onValueChange={setSpecialistFilter}>
                       <SelectTrigger>
@@ -452,12 +437,33 @@ export default function OperationalProjects() {
                     )}
                   </>
                 )}
+
+                {/* View toggle */}
+                <div className="flex items-center gap-1 md:col-start-4 justify-end">
+                  <Button
+                    variant={viewMode === 'cards' ? 'default' : 'outline'}
+                    size="icon"
+                    onClick={() => setViewMode('cards')}
+                    className="h-9 w-9"
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={viewMode === 'tracking' ? 'default' : 'outline'}
+                    size="icon"
+                    onClick={() => setViewMode('tracking')}
+                    className="h-9 w-9"
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Cards View */}
-          <TabsContent value="cards" className="mt-4">
+        {/* Content */}
+        {viewMode === 'cards' ? (
+          <div>
         {projectsError ? (
           <div className="text-center py-12">
             <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
@@ -624,16 +630,13 @@ export default function OperationalProjects() {
             })}
           </div>
         )}
-          </TabsContent>
-
-          {/* Tracking View */}
-          <TabsContent value="tracking" className="mt-4">
-            <HierarchicalTrackingTable
-              filters={trackingFilters}
-              hasFilters={hasActiveFilters}
-            />
-          </TabsContent>
-        </Tabs>
+          </div>
+        ) : (
+          <HierarchicalTrackingTable
+            filters={trackingFilters}
+            hasFilters={hasActiveFilters}
+          />
+        )}
       </div>
       <OperationalProjectFormModal
         open={modalOpen}

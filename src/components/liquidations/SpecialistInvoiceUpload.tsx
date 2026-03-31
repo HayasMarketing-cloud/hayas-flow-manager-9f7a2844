@@ -39,10 +39,12 @@ interface ExtractedData {
 export function SpecialistInvoiceUpload({
   liquidationId,
   liquidationCode,
+  specialistName,
   currentInvoiceUrl,
   currentStatus,
   liquidationSubtotal,
   onUploadSuccess,
+}: SpecialistInvoiceUploadProps) {
 }: SpecialistInvoiceUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);

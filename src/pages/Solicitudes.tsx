@@ -50,8 +50,11 @@ const Solicitudes = () => {
   const showMyRequestsButton = isSpecialist() && !!specialistId;
 
   const { data: requests, isLoading, error } = useQuery({
-    queryKey: ['financial_requests', filters],
+    queryKey: ['financial_requests', filters, needsFiltering, assignedClientIds],
     queryFn: async () => {
+      // AM/PM with no assigned clients → empty
+      if (needsFiltering && assignedClientIds.length === 0) return [];
+
       // Build filters object - exclude virtual statuses from match filters
       const queryFilters: Record<string, string> = {};
       const virtualStatuses = ['liquidated', 'pending_liquidation'];
@@ -85,6 +88,11 @@ const Solicitudes = () => {
         )
         .match(queryFilters)
         .order('created_at', { ascending: false });
+
+      // Filter by assigned clients for AM/PM (app-level since RLS gives PM full access)
+      if (needsFiltering && !filters.clientId) {
+        query = query.in('client_id', assignedClientIds);
+      }
 
       // Apply virtual status filters
       if (filters.status === 'liquidated') {
@@ -121,6 +129,7 @@ const Solicitudes = () => {
       if (error) throw error;
       return data;
     },
+    enabled: !assignedLoading,
   });
 
   const { data: clients } = useQuery({

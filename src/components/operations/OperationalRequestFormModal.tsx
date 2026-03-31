@@ -177,11 +177,9 @@ export function OperationalRequestFormModal({
           client_id: data.client_id,
           created_by: user?.id!,
           financial_request_id: data.financial_request_id || null,
-          assignee_user_id: data.assignee_user_id || null,
           assignee_specialist_id: data.assignee_specialist_id || null,
           deadline: data.deadline || null,
           context_url: data.context_url || null,
-          reviewer_type: data.reviewer_type || null,
           status: data.status || "pending",
         },
       ]);

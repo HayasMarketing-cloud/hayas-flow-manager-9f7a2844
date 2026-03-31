@@ -20,11 +20,9 @@ const formSchema = z.object({
   operational_project_id: z.string().min(1, "El proyecto es requerido"),
   client_id: z.string().min(1, "El cliente es requerido"),
   financial_request_id: z.string().optional(),
-  assignee_user_id: z.string().optional(),
   assignee_specialist_id: z.string().optional(),
   deadline: z.string().optional(),
   context_url: z.string().url().optional().or(z.literal("")),
-  reviewer_type: z.enum(["am", "client"]).optional(),
   status: z.enum(["pending", "in_progress", "in_review", "completed"]).optional(),
 });
 
@@ -107,17 +105,6 @@ export function OperationalRequestFormModal({
     },
   });
 
-  const { data: users = [] } = useQuery({
-    queryKey: ["users-list"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .order("full_name");
-      if (error) throw error;
-      return data;
-    },
-  });
 
   const { data: specialists = [] } = useQuery({
     queryKey: ["specialists-list"],
@@ -165,20 +152,20 @@ export function OperationalRequestFormModal({
         operational_project_id: request.operational_project_id,
         client_id: request.client_id,
         financial_request_id: request.financial_request_id || "",
-        assignee_user_id: request.assignee_user_id || "",
         assignee_specialist_id: request.assignee_specialist_id || "",
         deadline: request.deadline || "",
         context_url: request.context_url || "",
-        reviewer_type: request.reviewer_type || undefined,
         status: request.status || "pending",
       });
     } else if (projectId) {
+      const project = projects.find((p) => p.id === projectId);
       reset({
         operational_project_id: projectId,
+        client_id: project?.client_id || "",
         status: "pending",
       });
     }
-  }, [request, projectId, reset]);
+  }, [request, projectId, projects, reset]);
 
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
@@ -190,11 +177,9 @@ export function OperationalRequestFormModal({
           client_id: data.client_id,
           created_by: user?.id!,
           financial_request_id: data.financial_request_id || null,
-          assignee_user_id: data.assignee_user_id || null,
           assignee_specialist_id: data.assignee_specialist_id || null,
           deadline: data.deadline || null,
           context_url: data.context_url || null,
-          reviewer_type: data.reviewer_type || null,
           status: data.status || "pending",
         },
       ]);
@@ -229,11 +214,9 @@ export function OperationalRequestFormModal({
           operational_project_id: data.operational_project_id,
           client_id: data.client_id,
           financial_request_id: data.financial_request_id || null,
-          assignee_user_id: data.assignee_user_id || null,
           assignee_specialist_id: newSpecialistId,
           deadline: data.deadline || null,
           context_url: data.context_url || null,
-          reviewer_type: data.reviewer_type || null,
           status: data.status,
         })
         .eq("id", requestId);
@@ -290,7 +273,7 @@ export function OperationalRequestFormModal({
               id="name"
               {...register("name")}
               disabled={isReadOnly}
-              placeholder="Nombre del request"
+              placeholder="Nombre del milestone"
             />
             {errors.name && (
               <p className="text-sm text-destructive mt-1">{errors.name.message}</p>
@@ -366,27 +349,6 @@ export function OperationalRequestFormModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="assignee_user_id">Asignar Usuario</Label>
-              <Select
-                value={watch("assignee_user_id") || "none"}
-                onValueChange={(value) => setValue("assignee_user_id", value === "none" ? "" : value)}
-                disabled={isReadOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Ninguno" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Ninguno</SelectItem>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.full_name || "Sin nombre"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
               <Label htmlFor="assignee_specialist_id">Asignar Especialista</Label>
               <Select
                 value={watch("assignee_specialist_id") || "none"}
@@ -403,26 +365,6 @@ export function OperationalRequestFormModal({
                       {specialist.name}
                     </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="reviewer_type">Tipo de Revisor</Label>
-              <Select
-                value={watch("reviewer_type") || "none"}
-                onValueChange={(value) => setValue("reviewer_type", value === "none" ? undefined : value as any)}
-                disabled={isReadOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Ninguno" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Ninguno</SelectItem>
-                  <SelectItem value="am">Account Manager</SelectItem>
-                  <SelectItem value="client">Cliente</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -477,7 +419,7 @@ export function OperationalRequestFormModal({
               {...register("description")}
               disabled={isReadOnly}
               rows={4}
-              placeholder="Descripción detallada del request"
+              placeholder="Descripción detallada del milestone"
             />
           </div>
 

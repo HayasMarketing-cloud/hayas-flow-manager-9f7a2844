@@ -54,10 +54,15 @@ const statusLabels = {
 
 export default function OperationalProjects() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isAccountManager, isProjectManager, isAdmin, canAccessFinance } = useUserRole();
   const [searchTerm, setSearchTerm] = useState('');
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('not_completed');
   const [specialistFilter, setSpecialistFilter] = useState<string>('all');
+  const [amFilter, setAmFilter] = useState<string>('all');
+  const [pmFilter, setPmFilter] = useState<string>('all');
+  const [amPmInitialized, setAmPmInitialized] = useState(false);
   const [budgetFilter, setBudgetFilter] = useState<string>('all');
   const [contractFilter, setContractFilter] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<string>('cards');
@@ -68,6 +73,21 @@ export default function OperationalProjects() {
   const [projectToDelete, setProjectToDelete] = useState<any>(null);
 
   const { assignedClientIds, isLoading: assignedLoading, needsFiltering } = useAssignedClients();
+
+  // Pre-select AM/PM filter for AM/PM users without elevated roles
+  useEffect(() => {
+    if (amPmInitialized || !user) return;
+    const hasElevated = isAdmin() || canAccessFinance();
+    if (!hasElevated && isAccountManager()) {
+      setAmFilter(user.id);
+      setAmPmInitialized(true);
+    } else if (!hasElevated && isProjectManager()) {
+      setPmFilter(user.id);
+      setAmPmInitialized(true);
+    } else {
+      setAmPmInitialized(true);
+    }
+  }, [user, isAdmin, canAccessFinance, isAccountManager, isProjectManager, amPmInitialized]);
 
   const { data: projects, isLoading, error: projectsError } = useOperationalProjects({
     clientId: clientFilter === 'all' ? undefined : clientFilter,

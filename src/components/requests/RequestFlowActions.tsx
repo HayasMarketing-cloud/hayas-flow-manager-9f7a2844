@@ -72,31 +72,6 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
     return specialistEmail && currentUserEmail && specialistEmail === currentUserEmail;
   };
 
-  const handleSendSlackDM = async () => {
-    const specialist = request.specialist;
-    const specialistEmail = specialist?.email;
-    const specialistName = specialist?.name || 'Especialista';
-    if (!specialistEmail) return;
-
-    const blocks = buildSlackDMToSpecialistBlocks({
-      code: request.code,
-      title: request.title,
-      clientName: request.client?.name ?? 'Cliente',
-      deadline: request.deadline,
-      requestId: request.id,
-      customMessage: slackMessage || undefined,
-    });
-
-    await sendSlackDM(
-      specialistEmail,
-      `📩 Mensaje de Hayas Flow Manager: ${request.code} — ${request.title}`,
-      blocks
-    );
-
-    toast.success(`DM enviado a ${specialistName}`);
-    setSlackDialogOpen(false);
-    setSlackMessage('');
-  };
 
 
   const sendNotification = async (

@@ -11,6 +11,11 @@ interface CommissionDetail {
   percentage: number;
   baseAmount: number;
   invoiceCodes: string[];
+  clientId?: string;
+  clientName?: string;
+  budgetId?: string;
+  budgetCode?: string;
+  budgetTitle?: string;
 }
 
 interface GroupedLiquidationItemsTableProps {

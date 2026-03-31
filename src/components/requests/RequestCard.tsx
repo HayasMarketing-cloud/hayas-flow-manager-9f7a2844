@@ -234,8 +234,11 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
 
         {/* Flow Actions */}
         {canManage && (
-          <div className="pt-3 border-t mt-3">
+          <div className="pt-3 border-t mt-3 flex items-center gap-2 flex-wrap">
             <RequestFlowActions request={request} onSuccess={onRefresh} compact />
+            {request.specialist && request.status !== 'completed' && request.status !== 'cancelled' && (
+              <SlackDMButton request={request} compact />
+            )}
           </div>
         )}
 

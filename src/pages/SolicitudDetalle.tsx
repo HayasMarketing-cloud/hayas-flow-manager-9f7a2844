@@ -355,7 +355,9 @@ const SolicitudDetalle = () => {
 
               <div className="flex flex-wrap items-center gap-2">
                 <RequestFlowActions request={request} onSuccess={handleRefresh} compact />
-                
+                {canManage && request.specialist && request.status !== 'completed' && request.status !== 'cancelled' && (
+                  <SlackDMButton request={request} compact />
+                )}
                 {canManage && !existingProject && (
                   <Button variant="default" size="sm" onClick={() => setShowProjectModal(true)}>
                     <FolderKanban className="h-4 w-4 mr-2" />

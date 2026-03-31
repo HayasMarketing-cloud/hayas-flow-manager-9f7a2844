@@ -162,7 +162,12 @@ export const RequestTableView = ({
                   </TableCell>
                   <TableCell>
                     {canManage && (
-                      <RequestFlowActions request={request} onSuccess={onRefresh} compact />
+                      <div className="flex items-center gap-1">
+                        <RequestFlowActions request={request} onSuccess={onRefresh} compact />
+                        {request.specialist && request.status !== 'completed' && request.status !== 'cancelled' && (
+                          <SlackDMButton request={request} compact />
+                        )}
+                      </div>
                     )}
                   </TableCell>
                   <TableCell>

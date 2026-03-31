@@ -20,11 +20,9 @@ const formSchema = z.object({
   operational_project_id: z.string().min(1, "El proyecto es requerido"),
   client_id: z.string().min(1, "El cliente es requerido"),
   financial_request_id: z.string().optional(),
-  assignee_user_id: z.string().optional(),
   assignee_specialist_id: z.string().optional(),
   deadline: z.string().optional(),
   context_url: z.string().url().optional().or(z.literal("")),
-  reviewer_type: z.enum(["am", "client"]).optional(),
   status: z.enum(["pending", "in_progress", "in_review", "completed"]).optional(),
 });
 

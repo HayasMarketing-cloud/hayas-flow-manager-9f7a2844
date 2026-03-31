@@ -1,50 +1,26 @@
 
 
-## Filtros AM/PM y correcciones en Proyectos Operativos
+## Correcciones en modal "Nuevo Milestone"
 
-### Contexto: Asignación de AM/PM
+### Problemas identificados
 
-Los AM y PM se asignan en **contratos** (`am_user_id`, `pm_user_id`) y **presupuestos** (`am_user_id`, `pm_user_id`). Los proyectos operativos heredan esta relación a través de `contract_id` o `budget_id`. No hay campos AM/PM directos en `operational_projects`.
+1. **Cliente no aparece**: El `useEffect` en línea 154-158 auto-setea `client_id` cuando cambia `selectedProject`, pero el `client_id` del proyecto puede no estar cargado a tiempo o el `setValue` no dispara re-render del Select controlado. El problema es una race condition: cuando se pasa `projectId` como prop, el `reset` en línea 175-180 solo setea `operational_project_id` sin `client_id`, y el effect depende de que `projects` ya esté cargado.
 
-Los AM y PM **ya pueden ver** la página de proyectos (configurado en el sidebar con `requiredRoles: ['admin', 'project_manager', 'account_manager']`). Su vista se filtra automáticamente por clientes asignados mediante el hook `useAssignedClients`.
+2. **Campos a eliminar**: "Asignar Usuario" (líneas 368-387) y "Tipo de Revisor" (líneas 411-428).
 
-### Bug: Filtro "Activos (sin completados)" en Seguimiento
+3. **Placeholder incorrecto**: "Descripción detallada del request" → "Descripción detallada del milestone".
 
-El filtro `not_completed` se aplica a los **milestones** (`operational_requests.status != 'completed'`), no a los **proyectos**. Por eso aparecen proyectos completados en la lista si tienen milestones no completados. Hay que filtrar también los proyectos con `status = 'completed'` en la vista de seguimiento.
+### Cambios en `src/components/operations/OperationalRequestFormModal.tsx`
 
-### Cambios
+1. **Fix cliente**: En el `useEffect` de reset (línea 160), cuando hay `projectId`, buscar el proyecto en la lista y setear también `client_id`. Además, añadir `projects` como dependencia del effect.
 
-1. **Añadir filtros AM y PM** en `src/pages/operations/OperationalProjects.tsx`
-   - Nuevo query para obtener la lista de usuarios que son AM o PM en algún contrato/presupuesto (consultar `contracts` + `budgets` → `profiles` para obtener nombres)
-   - Dos selectores: "Account Manager" y "Project Manager"
-   - Al seleccionar un AM/PM, filtrar proyectos cuyo `contract` o `budget` tenga ese usuario asignado
+2. **Eliminar campo "Asignar Usuario"**: Quitar el select de `assignee_user_id` (líneas 368-387), dejar solo "Asignar Especialista" ocupando el ancho completo. Eliminar también el query de `users` (líneas 110-120) y el campo del schema/form.
 
-2. **Filtrar proyectos completados en vista Seguimiento** en `src/hooks/useProjectMilestones.tsx`
-   - Cuando `status === 'not_completed'`, añadir post-filtro para excluir milestones cuyo `operational_project.status === 'completed'`
+3. **Eliminar campo "Tipo de Revisor"**: Quitar el select de `reviewer_type` (líneas 411-428), dejar "Estado" ocupando ancho completo. Eliminar del schema.
 
-3. **Vista inicial personalizada para AM/PM** en `src/pages/operations/OperationalProjects.tsx`
-   - Si el usuario es AM o PM (sin roles elevados), preseleccionar su propio ID en el filtro AM o PM correspondiente
-   - Esto hace que al entrar vean directamente "sus proyectos activos"
+4. **Cambiar placeholder**: Línea 480, cambiar a "Descripción detallada del milestone".
 
-### Detalle técnico
+5. **Cambiar placeholder nombre**: Línea 293, cambiar "Nombre del request" → "Nombre del milestone".
 
-**Query para obtener AM/PM activos:**
-```sql
--- Unión de am_user_id y pm_user_id de contracts + budgets, luego join con profiles
-SELECT DISTINCT p.id, p.full_name 
-FROM profiles p
-WHERE p.id IN (
-  SELECT am_user_id FROM contracts WHERE am_user_id IS NOT NULL
-  UNION SELECT pm_user_id FROM contracts WHERE pm_user_id IS NOT NULL
-  UNION SELECT am_user_id FROM budgets WHERE am_user_id IS NOT NULL
-  UNION SELECT pm_user_id FROM budgets WHERE pm_user_id IS NOT NULL
-)
-```
-
-**Filtrado por AM/PM en proyectos:** Como los proyectos tienen `contract_id` y `budget_id`, se necesita post-filtro o subquery para verificar que el contrato/presupuesto asociado tenga el AM/PM seleccionado.
-
-**Archivos a modificar:**
-- `src/pages/operations/OperationalProjects.tsx` — filtros AM/PM + vista inicial
-- `src/hooks/useProjectMilestones.tsx` — excluir proyectos completados del filtro `not_completed`
-- `src/hooks/useOperationalProjects.tsx` — aceptar filtros `amUserId`/`pmUserId` y filtrar
+6. **Reorganizar layout**: Sin los campos eliminados, "Asignar Especialista" y "Estado" quedan en una fila de 2 columnas.
 

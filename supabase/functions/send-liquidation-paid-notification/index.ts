@@ -242,7 +242,7 @@ const handler = async (req: Request): Promise<Response> => {
                 <td style="font-weight: bold; text-align: right;">${periodName}</td>
               </tr>
               <tr style="border-top: 2px solid #e5e7eb;">
-                <td style="color: #666; padding: 12px 0; font-size: 18px;">Importe:</td>
+                <td style="color: #666; padding: 12px 0; font-size: 18px;">Importe de liquidación:</td>
                 <td style="font-weight: bold; color: #10b981; font-size: 24px; text-align: right;">${formattedAmount}</td>
               </tr>
             </table>

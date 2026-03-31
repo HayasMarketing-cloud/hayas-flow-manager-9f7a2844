@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,14 +7,18 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
-import { DollarSign, TrendingUp, Wallet, ArrowDownUp, ChevronRight, ChevronDown, Users, UserCheck, Receipt, FileText } from 'lucide-react';
+import { DollarSign, TrendingUp, Wallet, ArrowDownUp, ChevronRight, ChevronDown, Users, UserCheck, Receipt, FileText, Lock, LockOpen, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { useDashboardMensualData, ViewMode, ClientSummary, SpecialistSummary } from '@/hooks/useDashboardMensualData';
+import { useClosedMonths, useIsMonthClosed, useValidateMonthClosure, useCloseMonth, useReopenMonth, getDefaultMonth } from '@/hooks/useClosedMonths';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useAuth } from '@/contexts/AuthContext';
 import { KPICard } from '@/components/dashboard/kpis/KPICard';
 import { KPISkeleton } from '@/components/dashboard/kpis/KPISkeleton';
 import { formatCurrency } from '@/lib/request-utils';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 

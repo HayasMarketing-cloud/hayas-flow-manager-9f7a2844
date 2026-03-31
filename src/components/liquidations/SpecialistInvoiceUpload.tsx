@@ -15,6 +15,7 @@ type LiquidationStatus = Database['public']['Enums']['liquidation_status'];
 interface SpecialistInvoiceUploadProps {
   liquidationId: string;
   liquidationCode: string;
+  specialistName: string;
   currentInvoiceUrl: string | null;
   currentStatus: LiquidationStatus;
   liquidationSubtotal: number;

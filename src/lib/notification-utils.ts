@@ -149,20 +149,30 @@ export const notifySpecialistResponse = async (
   requestCode: string,
   requestId: string,
   specialistName: string,
-  accepted: boolean
+  accepted: boolean,
+  clientId?: string
 ) => {
-  await notifyByRole(
-    ['admin', 'finanzas', 'project_manager', 'account_manager'],
-    {
-      title: accepted ? 'Especialista aceptó solicitud' : 'Especialista rechazó solicitud',
-      message: `${specialistName} ${accepted ? 'aceptó' : 'rechazó'} ${requestCode}`,
-      type: accepted ? 'success' : 'warning',
-      category: 'request',
-      entity_id: requestId,
-      entity_type: 'financial_request',
-      action_url: `/solicitudes/${requestId}`,
-    }
-  );
+  const roles: AppRole[] = ['admin', 'finanzas', 'project_manager', 'account_manager'];
+  const userIds = await getRelevantUserIds(roles, clientId);
+
+  if (userIds.length === 0) return;
+
+  const notifications = userIds.map(userId => ({
+    user_id: userId,
+    title: accepted ? 'Especialista aceptó solicitud' : 'Especialista rechazó solicitud',
+    message: `${specialistName} ${accepted ? 'aceptó' : 'rechazó'} ${requestCode}`,
+    type: accepted ? 'success' : 'warning',
+    category: 'request',
+    entity_id: requestId,
+    entity_type: 'financial_request',
+    action_url: `/solicitudes/${requestId}`,
+  }));
+
+  try {
+    await supabase.from('notifications').insert(notifications);
+  } catch (error) {
+    console.error('Error creating specialist response notifications:', error);
+  }
 };
 
 export const notifySpecialistAssigned = async (

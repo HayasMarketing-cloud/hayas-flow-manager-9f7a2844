@@ -74,7 +74,7 @@ export const useInvoiceFilters = () => {
     const emptyFilters: InvoiceFilters = {
       searchTerm: '',
       status: null,
-      clientId: null,
+      clientIds: [],
       periodType: 'all',
       startDate: null,
       endDate: null,

@@ -38,8 +38,8 @@ export const useOperationalProjects = (filters?: {
         created_at,
         created_by,
         client:clients(id, name, code, hub_client_url),
-        contract:contracts(id, title),
-        budget:budgets(id, title),
+        contract:contracts(id, title, am_user_id, pm_user_id),
+        budget:budgets(id, title, am_user_id, pm_user_id),
         owner:profiles!operational_projects_owner_user_id_fkey(id, full_name)
       `;
 

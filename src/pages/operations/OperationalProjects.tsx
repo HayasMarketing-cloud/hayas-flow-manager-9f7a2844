@@ -165,6 +165,8 @@ export default function OperationalProjects() {
     clientFilter !== 'all' || 
     (statusFilter !== 'all' && statusFilter !== 'not_completed') || 
     specialistFilter !== 'all' ||
+    amFilter !== 'all' ||
+    pmFilter !== 'all' ||
     budgetFilter !== 'all' ||
     contractFilter !== 'all'
   );

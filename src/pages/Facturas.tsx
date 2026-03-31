@@ -108,8 +108,8 @@ export default function Facturas() {
           }
         }
 
-        if (filters.clientId) {
-          query = query.eq('client_id', filters.clientId);
+      if (filters.clientIds.length > 0) {
+          query = query.in('client_id', filters.clientIds);
         }
 
         if (filters.searchTerm) {

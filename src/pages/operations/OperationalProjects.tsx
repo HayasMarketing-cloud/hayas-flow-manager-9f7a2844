@@ -318,23 +318,8 @@ export default function OperationalProjects() {
           </Button>
         </div>
 
-        {/* View Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <TabsList>
-              <TabsTrigger value="cards" className="flex items-center gap-2">
-                <LayoutGrid className="h-4 w-4" />
-                Tarjetas
-              </TabsTrigger>
-              <TabsTrigger value="tracking" className="flex items-center gap-2">
-                <Table2 className="h-4 w-4" />
-                Seguimiento
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          {/* Filters */}
-          <Card className="mt-4">
+        {/* Filters */}
+        <Card>
             <CardContent className="pt-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="relative">

@@ -1,26 +1,42 @@
 
 
-## Correcciones en modal "Nuevo Milestone"
+## Notificación y email cuando especialista sube factura
 
-### Problemas identificados
+### Situación actual
 
-1. **Cliente no aparece**: El `useEffect` en línea 154-158 auto-setea `client_id` cuando cambia `selectedProject`, pero el `client_id` del proyecto puede no estar cargado a tiempo o el `setValue` no dispara re-render del Select controlado. El problema es una race condition: cuando se pasa `projectId` como prop, el `reset` en línea 175-180 solo setea `operational_project_id` sin `client_id`, y el effect depende de que `projects` ya esté cargado.
+- **No hay notificación ni email** cuando un especialista sube su factura.
+- Hay **dos puntos de subida**:
+  1. **Edge Function `upload-specialist-invoice`** — usado desde la página pública de firma (`FirmaLiquidacion.tsx` → `SpecialistInvoiceUploadPublic.tsx`). Este es el flujo principal del especialista.
+  2. **Componente `SpecialistInvoiceUpload.tsx`** — usado desde el detalle de liquidación por usuarios internos (admin/finanzas).
+- Los emails del sistema se envían via **Google Service Account + Gmail API** (no hay email transaccional Lovable configurado).
+- Las notificaciones in-app se crean via `notification-utils.ts` con `notifyByRole()`.
 
-2. **Campos a eliminar**: "Asignar Usuario" (líneas 368-387) y "Tipo de Revisor" (líneas 411-428).
+### Plan
 
-3. **Placeholder incorrecto**: "Descripción detallada del request" → "Descripción detallada del milestone".
+#### 1. Añadir notificación in-app + email en el Edge Function `upload-specialist-invoice`
 
-### Cambios en `src/components/operations/OperationalRequestFormModal.tsx`
+Después del paso 8 (registro de evidencia digital, línea ~323), añadir:
 
-1. **Fix cliente**: En el `useEffect` de reset (línea 160), cuando hay `projectId`, buscar el proyecto en la lista y setear también `client_id`. Además, añadir `projects` como dependencia del effect.
+- **Notificación in-app**: Insertar notificaciones para usuarios con roles `admin` y `finanzas` usando el service role client (ya disponible). Consultar `user_roles` para obtener user_ids, luego insertar en `notifications`.
+- **Email**: Enviar email via Gmail API (mismo patrón que `process-request-action` y `send-liquidation-paid-notification`). Obtener emails de perfiles con roles admin/finanzas que tengan `@hayas.es`. Incluir en el email: código de liquidación, nombre del especialista, si los importes coinciden o no.
 
-2. **Eliminar campo "Asignar Usuario"**: Quitar el select de `assignee_user_id` (líneas 368-387), dejar solo "Asignar Especialista" ocupando el ancho completo. Eliminar también el query de `users` (líneas 110-120) y el campo del schema/form.
+#### 2. Añadir notificación in-app en `SpecialistInvoiceUpload.tsx` (subida interna)
 
-3. **Eliminar campo "Tipo de Revisor"**: Quitar el select de `reviewer_type` (líneas 411-428), dejar "Estado" ocupando ancho completo. Eliminar del schema.
+Después de la actualización exitosa de la liquidación (línea ~149), llamar a `notifyByRole(['admin', 'finanzas'], ...)` desde `notification-utils.ts` con datos de la liquidación.
 
-4. **Cambiar placeholder**: Línea 480, cambiar a "Descripción detallada del milestone".
+#### 3. Crear helper en `notification-utils.ts`
 
-5. **Cambiar placeholder nombre**: Línea 293, cambiar "Nombre del request" → "Nombre del milestone".
+Añadir `notifySpecialistInvoiceUploaded(liquidationCode, liquidationId, specialistName, amountsMatch)` que notifique a admin y finanzas.
 
-6. **Reorganizar layout**: Sin los campos eliminados, "Asignar Especialista" y "Estado" quedan en una fila de 2 columnas.
+### Archivos a modificar
+
+- `supabase/functions/upload-specialist-invoice/index.ts` — notificaciones in-app + email Gmail API
+- `src/lib/notification-utils.ts` — nuevo helper `notifySpecialistInvoiceUploaded`
+- `src/components/liquidations/SpecialistInvoiceUpload.tsx` — llamar al helper tras subida exitosa
+
+### Detalle del email
+
+Asunto: `Factura recibida - {liquidationCode} - {specialistName}`
+
+Contenido: código de liquidación, nombre especialista, estado de verificación de importes (coinciden / no coinciden), enlace al detalle de la liquidación.
 

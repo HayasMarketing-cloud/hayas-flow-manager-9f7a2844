@@ -22,6 +22,7 @@ import { RequestTableView } from '@/components/requests/RequestTableView';
 import { useRequestFilters } from '@/hooks/useRequestFilters';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useCurrentSpecialist } from '@/hooks/useCurrentSpecialist';
+import { useAssignedClients } from '@/hooks/useAssignedClients';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { AddToLiquidationModal } from '@/components/liquidations/AddToLiquidationModal';
 import { AddToInvoiceModal } from '@/components/invoices/AddToInvoiceModal';

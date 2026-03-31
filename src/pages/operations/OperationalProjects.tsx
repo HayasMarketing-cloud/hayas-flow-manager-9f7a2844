@@ -234,6 +234,41 @@ export default function OperationalProjects() {
     },
   });
 
+  // Fetch AM/PM users for filters
+  const { data: amPmUsers } = useQuery({
+    queryKey: ['am-pm-users'],
+    queryFn: async () => {
+      // Get all user IDs that appear as AM or PM in contracts or budgets
+      const [contractsRes, budgetsRes] = await Promise.all([
+        supabase.from('contracts').select('am_user_id, pm_user_id'),
+        supabase.from('budgets').select('am_user_id, pm_user_id'),
+      ]);
+      
+      const amIds = new Set<string>();
+      const pmIds = new Set<string>();
+      
+      [...(contractsRes.data || []), ...(budgetsRes.data || [])].forEach((row: any) => {
+        if (row.am_user_id) amIds.add(row.am_user_id);
+        if (row.pm_user_id) pmIds.add(row.pm_user_id);
+      });
+      
+      const allIds = [...new Set([...amIds, ...pmIds])];
+      if (allIds.length === 0) return { ams: [], pms: [] };
+      
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', allIds)
+        .order('full_name');
+      if (error) throw error;
+      
+      return {
+        ams: (profiles || []).filter(p => amIds.has(p.id)),
+        pms: (profiles || []).filter(p => pmIds.has(p.id)),
+      };
+    },
+  });
+
   const handleCreate = () => {
     setSelectedProject(null);
     setModalMode('create');

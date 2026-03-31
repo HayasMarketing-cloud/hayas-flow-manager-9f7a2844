@@ -61,8 +61,6 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
     recipientName: string;
   } | null>(null);
   const [message, setMessage] = useState('');
-  const [slackDialogOpen, setSlackDialogOpen] = useState(false);
-  const [slackMessage, setSlackMessage] = useState('');
 
   // Permission helpers
   const isManagement = () => isAdmin() || isProjectManager() || isAccountManager();

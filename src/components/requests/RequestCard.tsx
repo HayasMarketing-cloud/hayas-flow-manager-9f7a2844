@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { RequestStatusBadge } from './RequestStatusBadge';
 import { RequestFlowIndicator } from './RequestFlowIndicator';
 import { RequestFlowActions } from './RequestFlowActions';
+import { SlackDMButton } from './SlackDMButton';
 import { FlowStatusCell } from './FlowStatusCell';
 import { OriginCell } from './OriginCell';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';

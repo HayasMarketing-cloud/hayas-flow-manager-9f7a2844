@@ -1,24 +1,30 @@
 
 
-## Unificar vista de Proyectos Operativos: quitar Tabs, usar toggle de iconos
+## Fix: Modal de edición no muestra ítems de miembros del equipo
 
-### Problema actual
-La página usa `Tabs` con dos pestañas ("Tarjetas" y "Seguimiento") que separan las vistas. Otras páginas (Presupuestos, Facturas, Solicitudes, etc.) usan un toggle de iconos (`LayoutGrid` / `TableIcon`) dentro de la barra de filtros, sin pestañas.
+### Problema
+Al editar una liquidación de equipo (ej. Daniela + Sandra), el modal solo carga los `liquidation_items` del líder (`liquidation.id`), mostrando 60€ en vez de los 630€ del equipo completo. La vista "Ver" (`LiquidacionDetalle`) sí muestra todo porque usa otra lógica.
+
+### Causa raíz
+En `LiquidationFormModal.tsx`, la query de ítems (línea 977) filtra por `.eq('liquidation_id', liquidation.id)`, ignorando los `member_liquidation_ids` que vienen en el objeto de la liquidación de equipo.
 
 ### Solución
 
-**Archivo: `src/pages/operations/OperationalProjects.tsx`**
+**Archivo: `src/components/liquidations/LiquidationFormModal.tsx`**
 
-1. **Reemplazar `Tabs` por `viewMode` state** — cambiar `activeTab` por `viewMode: 'cards' | 'tracking'`, eliminar el wrapper `<Tabs>`, `<TabsList>`, `<TabsContent>`
+1. **Modificar la query `liquidationItems`** (línea ~968-984):
+   - Si `liquidation.is_team` y tiene `member_liquidation_ids`, usar `.in('liquidation_id', [liquidation.id, ...member_liquidation_ids])` en vez de `.eq('liquidation_id', liquidation.id)`
+   - Esto carga los ítems del líder y de todos los miembros
 
-2. **Añadir toggle de iconos en la barra de filtros** — igual que en Presupuestos/Facturas: dos botones con `LayoutGrid` y `Table2` (o `TableIcon`) alineados a la derecha dentro del Card de filtros
+2. **Actualizar la queryKey** para incluir los IDs de miembros y evitar cache stale:
+   ```
+   queryKey: ['liquidation-items', liquidation?.id, liquidation?.member_liquidation_ids]
+   ```
 
-3. **Mostrar filtros condicionales** — los filtros de especialista, presupuesto y contrato siguen apareciendo solo cuando `viewMode === 'tracking'`
+3. **Sección visual en modo edit**: Agrupar los ítems por `liquidation_id` para que se distinga qué ítems pertenecen al líder y cuáles a cada miembro (read-only para los ítems de miembros, editables solo los del líder).
 
-4. **Renderizar contenido condicionalmente** — reemplazar `<TabsContent>` por `{viewMode === 'cards' ? (...cards...) : (...tracking...)}`
-
-5. **Limpiar imports** — eliminar `Tabs, TabsContent, TabsList, TabsTrigger`
+4. **Recálculo de totales**: Asegurar que las funciones de recálculo tras añadir/eliminar ítems también refresquen correctamente cuando es equipo.
 
 ### Resultado
-Una única vista con los filtros arriba y un toggle de iconos para cambiar entre cards y tabla de seguimiento, consistente con el resto de páginas.
+El modal de edición mostrará todos los ítems del equipo (630€), con los del líder editables y los de miembros visibles en modo lectura, consistente con la vista de detalle.
 

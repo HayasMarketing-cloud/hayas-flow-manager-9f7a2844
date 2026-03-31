@@ -133,16 +133,25 @@ const Solicitudes = () => {
   });
 
   const { data: clients } = useQuery({
-    queryKey: ['clients-filter'],
+    queryKey: ['clients-filter', needsFiltering, assignedClientIds],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('clients')
         .select('id, name, code')
         .eq('status', 'active')
         .order('name');
+
+      if (needsFiltering && assignedClientIds.length > 0) {
+        query = query.in('id', assignedClientIds);
+      } else if (needsFiltering) {
+        return [];
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
+    enabled: !assignedLoading,
   });
 
   const { data: specialists } = useQuery({

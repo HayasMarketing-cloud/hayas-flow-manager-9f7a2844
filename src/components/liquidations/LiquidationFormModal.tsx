@@ -966,15 +966,24 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
   };
 
   // Query para cargar items de la liquidación (para PDF y para modo edición)
+  // Para liquidaciones de equipo, cargamos items del líder + miembros
+  const allTeamLiquidationIds = useMemo(() => {
+    if (!liquidation?.id) return [];
+    if (liquidation.is_team && liquidation.member_liquidation_ids?.length > 0) {
+      return [liquidation.id, ...liquidation.member_liquidation_ids];
+    }
+    return [liquidation.id];
+  }, [liquidation?.id, liquidation?.is_team, liquidation?.member_liquidation_ids]);
+
   const { data: liquidationItems, refetch: refetchLiquidationItems } = useQuery({
-    queryKey: ['liquidation-items', liquidation?.id],
+    queryKey: ['liquidation-items', liquidation?.id, liquidation?.member_liquidation_ids],
     queryFn: async () => {
       if (!liquidation?.id) return [];
       
       const { data, error } = await supabase
         .from('liquidation_items')
         .select('*, financial_request:financial_requests(code, title, cost_to_agency, client:clients(name))')
-        .eq('liquidation_id', liquidation.id)
+        .in('liquidation_id', allTeamLiquidationIds)
         .order('created_at');
       
       if (error) throw error;

@@ -8,7 +8,6 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
 import { notifyRequestStatusChange } from '@/lib/notification-utils';
 import { notificationFeedback } from '@/lib/notification-feedback';
-import { sendSlackDM, buildSlackDMToSpecialistBlocks } from '@/lib/slack-utils';
 import { 
   Send, 
   Check, 
@@ -19,7 +18,6 @@ import {
   Loader2,
   Clock,
   RefreshCw,
-  MessageSquare
 } from 'lucide-react';
 import {
   AlertDialog,

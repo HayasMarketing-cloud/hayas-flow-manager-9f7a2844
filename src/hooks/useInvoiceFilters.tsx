@@ -21,11 +21,12 @@ export interface InvoiceFilters {
 
 const getFiltersFromParams = (searchParams: URLSearchParams): InvoiceFilters => {
   const specialFilter = searchParams.get('filter') as SpecialFilter;
+  const clientIdsParam = searchParams.get('clientIds');
   
   return {
     searchTerm: searchParams.get('search') || '',
     status: (searchParams.get('status') as InvoiceStatusFilter) || null,
-    clientId: searchParams.get('clientId') || null,
+    clientIds: clientIdsParam ? clientIdsParam.split(',').filter(Boolean) : [],
     periodType: (searchParams.get('period') as PeriodType) || 'all',
     startDate: searchParams.get('startDate') || null,
     endDate: searchParams.get('endDate') || null,

@@ -14,11 +14,11 @@ export const useClosedMonths = () => {
   return useQuery({
     queryKey: ['closed-months'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase
         .from('closed_months' as any)
         .select('*')
         .order('year', { ascending: true })
-        .order('month', { ascending: true });
+        .order('month', { ascending: true }) as any);
       if (error) throw error;
       return (data || []) as ClosedMonth[];
     },

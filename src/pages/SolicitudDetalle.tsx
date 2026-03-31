@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { RequestStatusBadge } from '@/components/requests/RequestStatusBadge';
 import { RequestFlowIndicator } from '@/components/requests/RequestFlowIndicator';
 import { RequestFlowActions } from '@/components/requests/RequestFlowActions';
+import { SlackDMButton } from '@/components/requests/SlackDMButton';
 import { FlowStatusCell } from '@/components/requests/FlowStatusCell';
 import { RequestActivityTimeline } from '@/components/requests/RequestActivityTimeline';
 import { RequestProcessTimeline } from '@/components/requests/RequestProcessTimeline';
@@ -354,7 +355,9 @@ const SolicitudDetalle = () => {
 
               <div className="flex flex-wrap items-center gap-2">
                 <RequestFlowActions request={request} onSuccess={handleRefresh} compact />
-                
+                {canManage && request.specialist && request.status !== 'completed' && request.status !== 'cancelled' && (
+                  <SlackDMButton request={request} compact />
+                )}
                 {canManage && !existingProject && (
                   <Button variant="default" size="sm" onClick={() => setShowProjectModal(true)}>
                     <FolderKanban className="h-4 w-4 mr-2" />

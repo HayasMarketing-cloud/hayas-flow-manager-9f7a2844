@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { RequestStatusBadge } from './RequestStatusBadge';
 import { RequestFlowIndicator } from './RequestFlowIndicator';
 import { RequestFlowActions } from './RequestFlowActions';
+import { SlackDMButton } from './SlackDMButton';
 import { FlowStatusCell } from './FlowStatusCell';
 import { OriginCell } from './OriginCell';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -233,8 +234,11 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
 
         {/* Flow Actions */}
         {canManage && (
-          <div className="pt-3 border-t mt-3">
+          <div className="pt-3 border-t mt-3 flex items-center gap-2 flex-wrap">
             <RequestFlowActions request={request} onSuccess={onRefresh} compact />
+            {request.specialist && request.status !== 'completed' && request.status !== 'cancelled' && (
+              <SlackDMButton request={request} compact />
+            )}
           </div>
         )}
 

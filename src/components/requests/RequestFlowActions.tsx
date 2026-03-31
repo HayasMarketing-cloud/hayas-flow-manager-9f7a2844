@@ -8,7 +8,6 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
 import { notifyRequestStatusChange } from '@/lib/notification-utils';
 import { notificationFeedback } from '@/lib/notification-feedback';
-import { sendSlackDM, buildSlackDMToSpecialistBlocks } from '@/lib/slack-utils';
 import { 
   Send, 
   Check, 
@@ -19,7 +18,6 @@ import {
   Loader2,
   Clock,
   RefreshCw,
-  MessageSquare
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -32,8 +30,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 type NotificationType = 
   | 'specialist_assigned'
@@ -65,8 +61,6 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
     recipientName: string;
   } | null>(null);
   const [message, setMessage] = useState('');
-  const [slackDialogOpen, setSlackDialogOpen] = useState(false);
-  const [slackMessage, setSlackMessage] = useState('');
 
   // Permission helpers
   const isManagement = () => isAdmin() || isProjectManager() || isAccountManager();
@@ -78,31 +72,6 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
     return specialistEmail && currentUserEmail && specialistEmail === currentUserEmail;
   };
 
-  const handleSendSlackDM = async () => {
-    const specialist = request.specialist;
-    const specialistEmail = specialist?.email;
-    const specialistName = specialist?.name || 'Especialista';
-    if (!specialistEmail) return;
-
-    const blocks = buildSlackDMToSpecialistBlocks({
-      code: request.code,
-      title: request.title,
-      clientName: request.client?.name ?? 'Cliente',
-      deadline: request.deadline,
-      requestId: request.id,
-      customMessage: slackMessage || undefined,
-    });
-
-    await sendSlackDM(
-      specialistEmail,
-      `📩 Mensaje de Hayas Flow Manager: ${request.code} — ${request.title}`,
-      blocks
-    );
-
-    toast.success(`DM enviado a ${specialistName}`);
-    setSlackDialogOpen(false);
-    setSlackMessage('');
-  };
 
 
   const sendNotification = async (
@@ -475,46 +444,13 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
   };
 
   const actions = renderActions();
-  const status = request.status;
-  const specialist = request.specialist;
-  const specialistEmail = specialist?.email;
-  const specialistName = specialist?.name || 'Especialista';
-  const showSlackButton =
-    isManagement() &&
-    specialist &&
-    status !== 'completed' &&
-    status !== 'cancelled';
 
-  if (!actions && !showSlackButton) return null;
-
+  if (!actions) return null;
 
   return (
     <>
       <div className="flex items-center gap-2 flex-wrap">
         {actions}
-        {showSlackButton && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span>
-                  <Button
-                    size={compact ? 'sm' : 'default'}
-                    variant="outline"
-                    disabled={!specialistEmail}
-                    onClick={() => setSlackDialogOpen(true)}
-                    className="gap-1.5"
-                  >
-                    <MessageSquare className={compact ? 'h-3 w-3' : 'h-4 w-4'} />
-                    {compact ? 'DM' : 'DM Slack'}
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              {!specialistEmail && (
-                <TooltipContent>El especialista no tiene email configurado</TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
-        )}
       </div>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -552,39 +488,6 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <Dialog open={slackDialogOpen} onOpenChange={setSlackDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Enviar DM a {specialistName}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-2 space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Se enviará un mensaje directo en Slack a <strong>{specialistEmail}</strong> con los detalles de la solicitud <strong>{request.code}</strong>.
-            </p>
-            <div>
-              <label className="text-sm font-medium">Mensaje adicional (opcional)</label>
-              <Textarea
-                placeholder="Por favor, confirma disponibilidad antes del viernes..."
-                value={slackMessage}
-                onChange={(e) => setSlackMessage(e.target.value)}
-                className="mt-2"
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSlackDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSendSlackDM}>
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Enviar DM
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 };

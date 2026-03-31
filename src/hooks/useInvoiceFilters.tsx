@@ -12,7 +12,7 @@ export type SpecialFilter = 'overdue' | null;
 export interface InvoiceFilters {
   searchTerm: string;
   status: InvoiceStatusFilter;
-  clientId: string | null;
+  clientIds: string[];
   periodType: PeriodType;
   startDate: string | null;
   endDate: string | null;

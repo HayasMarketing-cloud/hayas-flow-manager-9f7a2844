@@ -65,7 +65,7 @@ export default function OperationalProjects() {
   const [amPmInitialized, setAmPmInitialized] = useState(false);
   const [budgetFilter, setBudgetFilter] = useState<string>('all');
   const [contractFilter, setContractFilter] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<string>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'tracking'>('cards');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<any>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');

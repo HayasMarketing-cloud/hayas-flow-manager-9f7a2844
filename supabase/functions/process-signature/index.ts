@@ -210,12 +210,8 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Update liquidation status based on action
-    const liquidationStatus = action === 'accept' ? 'paid' : 'disputed';
+    const liquidationStatus = action === 'accept' ? 'accepted' : 'disputed';
     const updateData: any = { status: liquidationStatus };
-    
-    if (action === 'accept') {
-      updateData.paid_at = now;
-    }
 
     const { error: updateLiqError } = await supabase
       .from('liquidations')

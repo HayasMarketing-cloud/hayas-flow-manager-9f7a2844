@@ -630,16 +630,13 @@ export default function OperationalProjects() {
             })}
           </div>
         )}
-          </TabsContent>
-
-          {/* Tracking View */}
-          <TabsContent value="tracking" className="mt-4">
-            <HierarchicalTrackingTable
-              filters={trackingFilters}
-              hasFilters={hasActiveFilters}
-            />
-          </TabsContent>
-        </Tabs>
+          </div>
+        ) : (
+          <HierarchicalTrackingTable
+            filters={trackingFilters}
+            hasFilters={hasActiveFilters}
+          />
+        )}
       </div>
       <OperationalProjectFormModal
         open={modalOpen}

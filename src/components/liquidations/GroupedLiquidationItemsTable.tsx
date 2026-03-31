@@ -32,8 +32,8 @@ export function GroupedLiquidationItemsTable({
   const showActions = isEditable && canEdit;
 
   const groupedItems = useMemo(() => {
-    return groupItemsByClientAndProject(items);
-  }, [items]);
+    return groupItemsByClientAndProject(items, commissionDetails);
+  }, [items, commissionDetails]);
 
   if (!items || items.length === 0) {
     return (

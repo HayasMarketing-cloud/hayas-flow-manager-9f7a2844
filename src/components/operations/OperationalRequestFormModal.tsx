@@ -214,11 +214,9 @@ export function OperationalRequestFormModal({
           operational_project_id: data.operational_project_id,
           client_id: data.client_id,
           financial_request_id: data.financial_request_id || null,
-          assignee_user_id: data.assignee_user_id || null,
           assignee_specialist_id: newSpecialistId,
           deadline: data.deadline || null,
           context_url: data.context_url || null,
-          reviewer_type: data.reviewer_type || null,
           status: data.status,
         })
         .eq("id", requestId);

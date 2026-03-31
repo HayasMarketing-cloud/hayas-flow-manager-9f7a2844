@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { RequestStatusBadge } from '@/components/requests/RequestStatusBadge';
 import { RequestFlowIndicator } from '@/components/requests/RequestFlowIndicator';
 import { RequestFlowActions } from '@/components/requests/RequestFlowActions';
+import { SlackDMButton } from '@/components/requests/SlackDMButton';
 import { FlowStatusCell } from '@/components/requests/FlowStatusCell';
 import { RequestActivityTimeline } from '@/components/requests/RequestActivityTimeline';
 import { RequestProcessTimeline } from '@/components/requests/RequestProcessTimeline';

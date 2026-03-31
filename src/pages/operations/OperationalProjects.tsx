@@ -437,12 +437,33 @@ export default function OperationalProjects() {
                     )}
                   </>
                 )}
+
+                {/* View toggle */}
+                <div className="flex items-center gap-1 md:col-start-4 justify-end">
+                  <Button
+                    variant={viewMode === 'cards' ? 'default' : 'outline'}
+                    size="icon"
+                    onClick={() => setViewMode('cards')}
+                    className="h-9 w-9"
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={viewMode === 'tracking' ? 'default' : 'outline'}
+                    size="icon"
+                    onClick={() => setViewMode('tracking')}
+                    className="h-9 w-9"
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Cards View */}
-          <TabsContent value="cards" className="mt-4">
+        {/* Content */}
+        {viewMode === 'cards' ? (
+          <div>
         {projectsError ? (
           <div className="text-center py-12">
             <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />

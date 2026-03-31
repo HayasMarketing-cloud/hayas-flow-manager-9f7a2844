@@ -75,8 +75,26 @@ export const useOperationalProjects = (filters?: {
         throw error;
       }
 
-      console.log('Operational projects fetched:', data?.length || 0, 'projects');
-      return data || [];
+      let results = data || [];
+
+      // Post-filter by AM
+      if (filters?.amUserId) {
+        results = results.filter((p: any) => 
+          p.contract?.am_user_id === filters.amUserId || 
+          p.budget?.am_user_id === filters.amUserId
+        );
+      }
+
+      // Post-filter by PM
+      if (filters?.pmUserId) {
+        results = results.filter((p: any) => 
+          p.contract?.pm_user_id === filters.pmUserId || 
+          p.budget?.pm_user_id === filters.pmUserId
+        );
+      }
+
+      console.log('Operational projects fetched:', results.length, 'projects');
+      return results;
     },
     enabled: filters?.enabled !== false,
   });

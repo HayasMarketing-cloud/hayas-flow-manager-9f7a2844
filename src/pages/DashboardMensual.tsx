@@ -122,8 +122,26 @@ export default function DashboardMensual() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [viewMode, setViewMode] = useState<ViewMode>('cashflow');
+  const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [defaultApplied, setDefaultApplied] = useState(false);
   const { isAdmin, loading: roleLoading } = useUserRole();
-  const { data, isLoading, refetch } = useDashboardMensualData(year, month, viewMode);
+  const { user } = useAuth();
+  const { data, isLoading } = useDashboardMensualData(year, month, viewMode);
+  const { data: closedMonths, isLoading: loadingClosed } = useClosedMonths();
+  const isClosed = useIsMonthClosed(year, month);
+  const { data: validation, isLoading: validating } = useValidateMonthClosure(year, month);
+  const closeMutation = useCloseMonth();
+  const reopenMutation = useReopenMonth();
+
+  // Set default month to oldest unclosed
+  useEffect(() => {
+    if (!loadingClosed && closedMonths && !defaultApplied) {
+      const def = getDefaultMonth(closedMonths);
+      setYear(def.year);
+      setMonth(def.month);
+      setDefaultApplied(true);
+    }
+  }, [loadingClosed, closedMonths, defaultApplied]);
 
   if (roleLoading) return null;
   

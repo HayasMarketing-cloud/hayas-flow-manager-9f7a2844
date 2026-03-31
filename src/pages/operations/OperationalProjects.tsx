@@ -35,6 +35,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import GoogleDriveIcon from '@/assets/icons8-google-drive.svg';
 import { useAssignedClients } from '@/hooks/useAssignedClients';
+import { useUserRole } from '@/hooks/useUserRole';
+import { useAuth } from '@/contexts/AuthContext';
 
 const statusColors = {
   pending: 'bg-yellow-500',

@@ -16,7 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { OperationalProjectFormModal } from '@/components/operations/OperationalProjectFormModal';
 import { HierarchicalTrackingTable } from '@/components/operations/HierarchicalTrackingTable';
 import { DebugAccessPanel } from '@/components/operations/DebugAccessPanel';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import {
   DropdownMenu,
   DropdownMenuContent,

@@ -40,6 +40,19 @@ export function GroupedLiquidationItemsTable({
     return groupItemsByClientAndProject(items, commissionDetails);
   }, [items, commissionDetails]);
 
+  // Pre-index commission details by invoice code for O(1) lookup
+  const commissionByInvoice = useMemo(() => {
+    const map = new Map<string, CommissionDetail>();
+    if (commissionDetails) {
+      for (const d of Object.values(commissionDetails)) {
+        for (const code of d.invoiceCodes) {
+          map.set(code, d);
+        }
+      }
+    }
+    return map;
+  }, [commissionDetails]);
+
   if (!items || items.length === 0) {
     return (
       <p className="text-center text-muted-foreground py-8">

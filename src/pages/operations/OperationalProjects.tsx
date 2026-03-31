@@ -388,7 +388,7 @@ export default function OperationalProjects() {
                   </SelectContent>
                 </Select>
 
-                {activeTab === 'tracking' && (
+                {viewMode === 'tracking' && (
                   <>
                     <Select value={specialistFilter} onValueChange={setSpecialistFilter}>
                       <SelectTrigger>

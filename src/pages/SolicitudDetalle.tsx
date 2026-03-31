@@ -201,6 +201,7 @@ const SolicitudDetalle = () => {
       contract,
       liquidation,
       client_contact,
+      request_action_tokens,
       billed_invoice_id,
       liquidation_id,
       completed_at,

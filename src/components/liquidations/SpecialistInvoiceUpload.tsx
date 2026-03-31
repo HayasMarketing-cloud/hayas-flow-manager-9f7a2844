@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/liquidation-utils';
+import { notifySpecialistInvoiceUploaded } from '@/lib/notification-utils';
 import { Database } from '@/integrations/supabase/types';
 
 type LiquidationStatus = Database['public']['Enums']['liquidation_status'];

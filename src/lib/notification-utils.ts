@@ -247,6 +247,33 @@ export const notifyLiquidationDisputed = async (
   );
 };
 
+// Notify admin/finanzas when specialist uploads invoice
+export const notifySpecialistInvoiceUploaded = async (
+  liquidationCode: string,
+  liquidationId: string,
+  specialistName: string,
+  amountsMatch: boolean | null
+) => {
+  const matchText = amountsMatch === true
+    ? 'Los importes coinciden ✓'
+    : amountsMatch === false
+      ? '⚠ ATENCIÓN: Los importes NO coinciden'
+      : 'No se pudo verificar el importe';
+
+  await notifyByRole(
+    ['admin', 'finanzas'],
+    {
+      title: 'Factura de especialista recibida',
+      message: `${specialistName} ha subido su factura para ${liquidationCode}. ${matchText}`,
+      type: amountsMatch === false ? 'warning' : 'info',
+      category: 'liquidation',
+      entity_id: liquidationId,
+      entity_type: 'liquidation',
+      action_url: `/liquidaciones/${liquidationId}`,
+    }
+  );
+};
+
 // Notify when operational project is completed - for billing and liquidation
 export const notifyProjectCompleted = async (
   projectName: string,

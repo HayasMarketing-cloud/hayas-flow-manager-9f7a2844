@@ -419,7 +419,7 @@ export function OperationalRequestFormModal({
               {...register("description")}
               disabled={isReadOnly}
               rows={4}
-              placeholder="Descripción detallada del request"
+              placeholder="Descripción detallada del milestone"
             />
           </div>
 

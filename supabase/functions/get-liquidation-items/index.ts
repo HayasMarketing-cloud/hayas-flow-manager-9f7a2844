@@ -113,32 +113,64 @@ Deno.serve(async (req) => {
     // Fetch commission details for this liquidation
     const { data: commissions } = await supabase
       .from('sales_commissions')
-      .select('id, commission_type, commission_percentage, base_amount, invoice_ids, commission_amount')
+      .select('id, commission_type, commission_percentage, base_amount, invoice_ids, commission_amount, budget_id, contract_id')
       .eq('liquidation_id', liquidation_id);
 
     let commissionDetails: Record<string, any> = {};
     if (commissions?.length) {
-      // Fetch invoice codes
+      // Fetch all invoice data (codes + client + budget)
       const allInvoiceIds = [...new Set(commissions.flatMap((c: any) => c.invoice_ids || []))];
-      let invoiceCodesMap = new Map<string, string>();
+      let invoicesDataMap = new Map<string, any>();
       if (allInvoiceIds.length > 0) {
         const { data: invoicesData } = await supabase
           .from('invoices')
-          .select('id, code')
+          .select('id, code, client_id, budget_id')
           .in('id', allInvoiceIds);
-        invoiceCodesMap = new Map((invoicesData || []).map((i: any) => [i.id, i.code]));
+        
+        // Fetch client names
+        const clientIds = [...new Set((invoicesData || []).map((i: any) => i.client_id).filter(Boolean))];
+        let clientMap = new Map<string, string>();
+        if (clientIds.length > 0) {
+          const { data: clients } = await supabase.from('clients').select('id, name').in('id', clientIds);
+          for (const c of (clients || [])) clientMap.set(c.id, c.name);
+        }
+
+        // Fetch budget info
+        const budgetIds = [...new Set((invoicesData || []).map((i: any) => i.budget_id).filter(Boolean))];
+        let budgetMap = new Map<string, any>();
+        if (budgetIds.length > 0) {
+          const { data: budgets } = await supabase.from('budgets').select('id, code, title').in('id', budgetIds);
+          for (const b of (budgets || [])) budgetMap.set(b.id, b);
+        }
+
+        for (const inv of (invoicesData || [])) {
+          invoicesDataMap.set(inv.id, {
+            code: inv.code,
+            client_id: inv.client_id,
+            client_name: clientMap.get(inv.client_id) || null,
+            budget_id: inv.budget_id,
+            budget: budgetMap.get(inv.budget_id) || null,
+          });
+        }
       }
 
       for (const comm of commissions) {
-        const invoiceCodes = (comm.invoice_ids || [])
-          .map((id: string) => invoiceCodesMap.get(id))
+        const invoiceEntries = (comm.invoice_ids || [])
+          .map((id: string) => invoicesDataMap.get(id))
           .filter(Boolean);
+        const invoiceCodes = invoiceEntries.map((i: any) => i.code);
+        const firstInv = invoiceEntries[0];
         commissionDetails[comm.id] = {
           type: comm.commission_type,
           percentage: Number(comm.commission_percentage),
           baseAmount: Number(comm.base_amount),
           amount: Number(comm.commission_amount),
           invoiceCodes,
+          clientId: firstInv?.client_id || undefined,
+          clientName: firstInv?.client_name || undefined,
+          budgetId: firstInv?.budget_id || comm.budget_id || undefined,
+          budgetCode: firstInv?.budget?.code || undefined,
+          budgetTitle: firstInv?.budget?.title || undefined,
         };
       }
     }

@@ -375,6 +375,34 @@ export default function OperationalProjects() {
                   </SelectContent>
                 </Select>
 
+                <Select value={amFilter} onValueChange={setAmFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos los AM" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los AM</SelectItem>
+                    {amPmUsers?.ams?.map((am) => (
+                      <SelectItem key={am.id} value={am.id}>
+                        {am.full_name || am.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={pmFilter} onValueChange={setPmFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos los PM" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los PM</SelectItem>
+                    {amPmUsers?.pms?.map((pm) => (
+                      <SelectItem key={pm.id} value={pm.id}>
+                        {pm.full_name || pm.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
                 {activeTab === 'tracking' && (
                   <>
                     <Select value={specialistFilter} onValueChange={setSpecialistFilter}>

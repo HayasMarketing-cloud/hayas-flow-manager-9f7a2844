@@ -556,23 +556,10 @@ const buildHierarchicalTableData = (items: any[], commissionDetails?: Record<str
 
         // Add commission detail sub-line if applicable
         if (!item.financial_request && item.description?.startsWith('Comisión') && commissionDetails) {
-          const invoiceMatch = item.description?.match(/Factura Nº\s+(.+)/);
-          const invoiceCode = invoiceMatch?.[1]?.trim();
-          const detail = Object.values(commissionDetails).find(d => {
-            const typeLabel = d.type === 'am' ? 'AM' : d.type === 'pm' ? 'PM' : 'Venta';
-            if (!item.description?.includes(`Comisión ${typeLabel}`)) return false;
-            if (invoiceCode && d.invoiceCodes.length) {
-              return d.invoiceCodes.includes(invoiceCode);
-            }
-            return Math.abs(d.percentage * d.baseAmount / 100 - Number(item.total)) < 0.02;
-          });
+          const invoiceCode = item.description?.match(/Factura Nº\s+(.+)/)?.[1]?.trim();
+          const detail = invoiceCode ? commissionByInvoice.get(invoiceCode) : undefined;
           if (detail) {
-            const invoiceLabel = detail.invoiceCodes.length === 1
-              ? `Factura Nº ${detail.invoiceCodes[0]}`
-              : detail.invoiceCodes.length > 1
-                ? `Facturas ${detail.invoiceCodes.join(', ')}`
-                : '';
-            const subLine = `        ${detail.percentage}% sobre ${formatCurrency(detail.baseAmount)}${invoiceLabel ? ` — ${invoiceLabel}` : ''}`;
+            const subLine = `        ${detail.percentage}% sobre ${formatCurrency(detail.baseAmount)}`;
             tableData.push([
               { content: subLine, styles: { fontSize: 7, textColor: [120, 120, 120] } },
               { content: '', styles: { fontSize: 7 } },

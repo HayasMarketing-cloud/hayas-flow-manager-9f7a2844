@@ -85,33 +85,17 @@ export function GroupedLiquidationItemsTable({
         <TableCell className="max-w-[200px]">
           <div className="truncate">{item.description}</div>
           {item.description?.startsWith('Comisión') && (() => {
-            // Try to find matching commission detail from linked sales_commissions
-            if (commissionDetails) {
-              const invoiceMatch = item.description?.match(/Factura Nº\s+(.+)/);
-              const invoiceCode = invoiceMatch?.[1]?.trim();
-              const detail = Object.values(commissionDetails).find(d => {
-                const typeLabel = d.type === 'am' ? 'AM' : d.type === 'pm' ? 'PM' : 'Venta';
-                if (!item.description?.includes(`Comisión ${typeLabel}`)) return false;
-                if (invoiceCode && d.invoiceCodes.length) {
-                  return d.invoiceCodes.includes(invoiceCode);
-                }
-                return Math.abs(d.percentage * d.baseAmount / 100 - Number(item.total)) < 0.02;
-              });
-              if (detail) {
-                const invoiceLabel = detail.invoiceCodes.length === 1
-                  ? `Factura Nº ${detail.invoiceCodes[0]}`
-                  : detail.invoiceCodes.length > 1
-                    ? `Facturas ${detail.invoiceCodes.join(', ')}`
-                    : '';
-                return (
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {detail.percentage}% sobre {formatCurrency(detail.baseAmount)}
-                    {invoiceLabel && !item.description?.includes('Factura') ? ` — ${invoiceLabel}` : ''}
-                  </p>
-                );
-              }
+            // Lookup commission detail via pre-indexed map by invoice code
+            const invoiceCode = item.description?.match(/Factura Nº\s+(.+)/)?.[1]?.trim();
+            const detail = invoiceCode ? commissionByInvoice.get(invoiceCode) : undefined;
+            if (detail) {
+              return (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {detail.percentage}% sobre {formatCurrency(detail.baseAmount)}
+                </p>
+              );
             }
-            // Fallback: parse percentage and origin from the description itself
+            // Fallback: parse percentage from description
             const descMatch = item.description?.match(/Comisión\s+\w+\s+\((\d+(?:[.,]\d+)?)%\)(?:\s*—\s*(.+))?/);
             if (descMatch) {
               return (

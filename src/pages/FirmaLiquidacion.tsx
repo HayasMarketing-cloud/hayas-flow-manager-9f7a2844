@@ -341,10 +341,12 @@ export default function FirmaLiquidacion() {
                     const isCommission = item.description?.startsWith('Comisión');
                     let commDetail: any = null;
                     if (isCommission && commissionDetails) {
-                      commDetail = Object.values(commissionDetails).find((d: any) => {
-                        const typeLabel = d.type === 'am' ? 'AM' : d.type === 'pm' ? 'PM' : 'Venta';
-                        return item.description?.includes(`Comisión ${typeLabel}`);
-                      });
+                      const invoiceCode = item.description?.match(/Factura Nº\s+(.+)/)?.[1]?.trim();
+                      if (invoiceCode) {
+                        commDetail = Object.values(commissionDetails).find((d: any) =>
+                          d.invoiceCodes.includes(invoiceCode)
+                        );
+                      }
                     }
 
                     return (

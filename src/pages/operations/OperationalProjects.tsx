@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Search, Briefcase, Edit, Trash2, Eye, MoreVertical, LayoutGrid, Table2, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Briefcase, Edit, Trash2, Eye, MoreVertical, LayoutGrid, List, AlertTriangle } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useOperationalProjects, useDeleteOperationalProject } from '@/hooks/useOperationalProjects';
 import { Skeleton } from '@/components/ui/skeleton';

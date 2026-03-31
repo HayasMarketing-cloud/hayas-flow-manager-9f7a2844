@@ -332,18 +332,28 @@ export const notifySpecialistInvoiceUploaded = async (
 export const notifyProjectCompleted = async (
   projectName: string,
   projectId: string,
-  clientName: string
+  clientName: string,
+  clientId?: string
 ) => {
-  await notifyByRole(
-    ['admin', 'finanzas', 'account_manager', 'project_manager'],
-    {
-      title: 'Proyecto completado - Pendiente facturación',
-      message: `${projectName} de ${clientName} completado. Revisar solicitudes para facturación y liquidación.`,
-      type: 'success',
-      category: 'project',
-      entity_id: projectId,
-      entity_type: 'operational_project',
-      action_url: `/operaciones/proyectos/${projectId}`,
-    }
-  );
+  const roles: AppRole[] = ['admin', 'finanzas', 'account_manager', 'project_manager'];
+  const userIds = await getRelevantUserIds(roles, clientId);
+
+  if (userIds.length === 0) return;
+
+  const notifications = userIds.map(userId => ({
+    user_id: userId,
+    title: 'Proyecto completado - Pendiente facturación',
+    message: `${projectName} de ${clientName} completado. Revisar solicitudes para facturación y liquidación.`,
+    type: 'success',
+    category: 'project',
+    entity_id: projectId,
+    entity_type: 'operational_project',
+    action_url: `/operaciones/proyectos/${projectId}`,
+  }));
+
+  try {
+    await supabase.from('notifications').insert(notifications);
+  } catch (error) {
+    console.error('Error creating project completed notifications:', error);
+  }
 };

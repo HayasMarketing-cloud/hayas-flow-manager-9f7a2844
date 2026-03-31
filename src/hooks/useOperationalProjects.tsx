@@ -196,7 +196,8 @@ export const useUpdateOperationalProject = () => {
         const clientName = (project.client as any)?.name || 'Cliente';
         
         // In-app notification
-        await notifyProjectCompleted(project.name, project.id, clientName);
+        const projectClientId = (project.client as any)?.id;
+        await notifyProjectCompleted(project.name, project.id, clientName, projectClientId);
 
         // Email notification
         let emailSent = false;

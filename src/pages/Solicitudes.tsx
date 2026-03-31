@@ -45,6 +45,7 @@ const Solicitudes = () => {
   const { canAccessFinance, canAccessOperations, isSpecialist, loading: rolesLoading } = useUserRole();
   const { specialistId } = useCurrentSpecialist();
   const { logActivity } = useRequestActivityLog();
+  const { assignedClientIds, isLoading: assignedLoading, needsFiltering } = useAssignedClients();
   const canManage = canAccessFinance() || canAccessOperations();
   const showMyRequestsButton = isSpecialist() && !!specialistId;
 

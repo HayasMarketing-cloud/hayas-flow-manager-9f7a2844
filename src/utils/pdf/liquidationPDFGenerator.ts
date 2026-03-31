@@ -506,7 +506,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
 
 // Build table data with hierarchical grouping: Client → Project/Budget → Items
 const buildHierarchicalTableData = (items: any[], commissionDetails?: Record<string, CommissionDetail>): any[][] => {
-  const groupedItems = groupItemsByClientAndProject(items);
+  const groupedItems = groupItemsByClientAndProject(items, commissionDetails);
   const tableData: any[][] = [];
 
   groupedItems.forEach((clientGroup) => {

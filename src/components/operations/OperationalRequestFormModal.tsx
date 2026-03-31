@@ -273,7 +273,7 @@ export function OperationalRequestFormModal({
               id="name"
               {...register("name")}
               disabled={isReadOnly}
-              placeholder="Nombre del request"
+              placeholder="Nombre del milestone"
             />
             {errors.name && (
               <p className="text-sm text-destructive mt-1">{errors.name.message}</p>

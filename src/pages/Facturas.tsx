@@ -5,7 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, LayoutGrid, Table as TableIcon, X, Download, Upload, CreditCard, Undo2 } from 'lucide-react';
+import { Plus, LayoutGrid, Table as TableIcon, X, Download, Upload, CreditCard, Undo2, Check, ChevronsUpDown } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { exportInvoicesToExcel } from '@/utils/excel/invoicesExporter';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -104,8 +108,8 @@ export default function Facturas() {
           }
         }
 
-        if (filters.clientId) {
-          query = query.eq('client_id', filters.clientId);
+      if (filters.clientIds.length > 0) {
+          query = query.in('client_id', filters.clientIds);
         }
 
         if (filters.searchTerm) {
@@ -299,7 +303,7 @@ export default function Facturas() {
     setUploadModalOpen(true);
   };
 
-  const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId || isOverdueFilter;
+  const hasActiveFilters = filters.searchTerm || filters.status || filters.clientIds.length > 0 || isOverdueFilter;
 
   return (
     <AppLayout title="Gestión de Facturas">
@@ -369,22 +373,55 @@ export default function Facturas() {
                     </SelectContent>
                   </Select>
 
-                  <Select
-                    value={filters.clientId || 'all'}
-                    onValueChange={(value) => updateFilter('clientId', value === 'all' ? null : value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todos los clientes" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los clientes</SelectItem>
-                      {clients?.map((client) => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="justify-between h-10 font-normal"
+                      >
+                        {filters.clientIds.length === 0
+                          ? 'Todos los clientes'
+                          : filters.clientIds.length === 1
+                            ? clients?.find(c => c.id === filters.clientIds[0])?.name || '1 cliente'
+                            : `${filters.clientIds.length} clientes`}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[280px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Buscar cliente..." />
+                        <CommandList>
+                          <CommandEmpty>No se encontraron clientes.</CommandEmpty>
+                          <CommandGroup>
+                            {clients?.map((client) => {
+                              const isSelected = filters.clientIds.includes(client.id);
+                              return (
+                                <CommandItem
+                                  key={client.id}
+                                  value={client.name}
+                                  onSelect={() => {
+                                    const newIds = isSelected
+                                      ? filters.clientIds.filter(id => id !== client.id)
+                                      : [...filters.clientIds, client.id];
+                                    updateFilter('clientIds', newIds);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      isSelected ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {client.name}
+                                </CommandItem>
+                              );
+                            })}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
 
                   <Select
                     value={filters.periodType}

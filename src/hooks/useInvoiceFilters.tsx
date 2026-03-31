@@ -12,7 +12,7 @@ export type SpecialFilter = 'overdue' | null;
 export interface InvoiceFilters {
   searchTerm: string;
   status: InvoiceStatusFilter;
-  clientId: string | null;
+  clientIds: string[];
   periodType: PeriodType;
   startDate: string | null;
   endDate: string | null;
@@ -21,11 +21,12 @@ export interface InvoiceFilters {
 
 const getFiltersFromParams = (searchParams: URLSearchParams): InvoiceFilters => {
   const specialFilter = searchParams.get('filter') as SpecialFilter;
+  const clientIdsParam = searchParams.get('clientIds');
   
   return {
     searchTerm: searchParams.get('search') || '',
     status: (searchParams.get('status') as InvoiceStatusFilter) || null,
-    clientId: searchParams.get('clientId') || null,
+    clientIds: clientIdsParam ? clientIdsParam.split(',').filter(Boolean) : [],
     periodType: (searchParams.get('period') as PeriodType) || 'all',
     startDate: searchParams.get('startDate') || null,
     endDate: searchParams.get('endDate') || null,
@@ -43,7 +44,7 @@ export const useInvoiceFilters = () => {
     
     if (newFilters.searchTerm) newParams.set('search', newFilters.searchTerm);
     if (newFilters.status) newParams.set('status', newFilters.status);
-    if (newFilters.clientId) newParams.set('clientId', newFilters.clientId);
+    if (newFilters.clientIds.length > 0) newParams.set('clientIds', newFilters.clientIds.join(','));
     if (newFilters.periodType !== 'all') newParams.set('period', newFilters.periodType);
     if (newFilters.startDate) newParams.set('startDate', newFilters.startDate);
     if (newFilters.endDate) newParams.set('endDate', newFilters.endDate);
@@ -73,7 +74,7 @@ export const useInvoiceFilters = () => {
     const emptyFilters: InvoiceFilters = {
       searchTerm: '',
       status: null,
-      clientId: null,
+      clientIds: [],
       periodType: 'all',
       startDate: null,
       endDate: null,

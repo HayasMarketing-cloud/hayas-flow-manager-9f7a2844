@@ -31,6 +31,41 @@ export const getUsersByRole = async (roles: AppRole[]): Promise<string[]> => {
   }
 };
 
+// Get relevant users filtering AM/PM by client assignment
+const getRelevantUserIds = async (
+  roles: AppRole[],
+  clientId?: string,
+  excludeUserId?: string
+): Promise<string[]> => {
+  const elevatedRoles = roles.filter(r => ['admin', 'finanzas'].includes(r));
+  const filterableRoles = roles.filter(r => ['project_manager', 'account_manager'].includes(r));
+
+  // Admin/finanzas: all users with these roles
+  const elevated = elevatedRoles.length > 0
+    ? await getUsersByRole(elevatedRoles) : [];
+
+  // AM/PM: only those assigned to the client
+  let assigned: string[] = [];
+  if (filterableRoles.length > 0 && clientId) {
+    const [{ data: contracts }, { data: budgets }] = await Promise.all([
+      supabase.from('contracts').select('am_user_id, pm_user_id').eq('client_id', clientId),
+      supabase.from('budgets').select('am_user_id, pm_user_id').eq('client_id', clientId),
+    ]);
+
+    assigned = [...new Set([
+      ...(contracts?.flatMap(c => [c.am_user_id, c.pm_user_id]) || []),
+      ...(budgets?.flatMap(b => [b.am_user_id, b.pm_user_id]) || []),
+    ].filter(Boolean) as string[])];
+  } else if (filterableRoles.length > 0 && !clientId) {
+    // Fallback: if no clientId provided, include all (backwards compat)
+    const allManagers = await getUsersByRole(filterableRoles);
+    assigned = allManagers;
+  }
+
+  const all = [...new Set([...elevated, ...assigned])];
+  return excludeUserId ? all.filter(id => id !== excludeUserId) : all;
+};
+
 // Notify users with specific roles
 export const notifyByRole = async (
   roles: AppRole[],
@@ -73,7 +108,8 @@ export const notifyRequestStatusChange = async (
   requestCode: string,
   requestId: string,
   newStatus: string,
-  excludeUserId?: string
+  excludeUserId?: string,
+  clientId?: string
 ) => {
   const statusLabels: Record<string, string> = {
     draft: 'borrador',
@@ -86,39 +122,57 @@ export const notifyRequestStatusChange = async (
     cancelled: 'cancelado',
   };
 
-  await notifyByRole(
-    ['admin', 'finanzas', 'project_manager', 'account_manager'],
-    {
-      title: 'Cambio de estado en solicitud',
-      message: `${requestCode} cambió a: ${statusLabels[newStatus] || newStatus}`,
-      type: 'info',
-      category: 'request',
-      entity_id: requestId,
-      entity_type: 'financial_request',
-      action_url: `/solicitudes/${requestId}`,
-    },
-    excludeUserId
-  );
+  const roles: AppRole[] = ['admin', 'finanzas', 'project_manager', 'account_manager'];
+  const userIds = await getRelevantUserIds(roles, clientId, excludeUserId);
+
+  if (userIds.length === 0) return;
+
+  const notifications = userIds.map(userId => ({
+    user_id: userId,
+    title: 'Cambio de estado en solicitud',
+    message: `${requestCode} cambió a: ${statusLabels[newStatus] || newStatus}`,
+    type: 'info',
+    category: 'request',
+    entity_id: requestId,
+    entity_type: 'financial_request',
+    action_url: `/solicitudes/${requestId}`,
+  }));
+
+  try {
+    await supabase.from('notifications').insert(notifications);
+  } catch (error) {
+    console.error('Error creating request status notifications:', error);
+  }
 };
 
 export const notifySpecialistResponse = async (
   requestCode: string,
   requestId: string,
   specialistName: string,
-  accepted: boolean
+  accepted: boolean,
+  clientId?: string
 ) => {
-  await notifyByRole(
-    ['admin', 'finanzas', 'project_manager', 'account_manager'],
-    {
-      title: accepted ? 'Especialista aceptó solicitud' : 'Especialista rechazó solicitud',
-      message: `${specialistName} ${accepted ? 'aceptó' : 'rechazó'} ${requestCode}`,
-      type: accepted ? 'success' : 'warning',
-      category: 'request',
-      entity_id: requestId,
-      entity_type: 'financial_request',
-      action_url: `/solicitudes/${requestId}`,
-    }
-  );
+  const roles: AppRole[] = ['admin', 'finanzas', 'project_manager', 'account_manager'];
+  const userIds = await getRelevantUserIds(roles, clientId);
+
+  if (userIds.length === 0) return;
+
+  const notifications = userIds.map(userId => ({
+    user_id: userId,
+    title: accepted ? 'Especialista aceptó solicitud' : 'Especialista rechazó solicitud',
+    message: `${specialistName} ${accepted ? 'aceptó' : 'rechazó'} ${requestCode}`,
+    type: accepted ? 'success' : 'warning',
+    category: 'request',
+    entity_id: requestId,
+    entity_type: 'financial_request',
+    action_url: `/solicitudes/${requestId}`,
+  }));
+
+  try {
+    await supabase.from('notifications').insert(notifications);
+  } catch (error) {
+    console.error('Error creating specialist response notifications:', error);
+  }
 };
 
 export const notifySpecialistAssigned = async (
@@ -278,18 +332,28 @@ export const notifySpecialistInvoiceUploaded = async (
 export const notifyProjectCompleted = async (
   projectName: string,
   projectId: string,
-  clientName: string
+  clientName: string,
+  clientId?: string
 ) => {
-  await notifyByRole(
-    ['admin', 'finanzas', 'account_manager', 'project_manager'],
-    {
-      title: 'Proyecto completado - Pendiente facturación',
-      message: `${projectName} de ${clientName} completado. Revisar solicitudes para facturación y liquidación.`,
-      type: 'success',
-      category: 'project',
-      entity_id: projectId,
-      entity_type: 'operational_project',
-      action_url: `/operaciones/proyectos/${projectId}`,
-    }
-  );
+  const roles: AppRole[] = ['admin', 'finanzas', 'account_manager', 'project_manager'];
+  const userIds = await getRelevantUserIds(roles, clientId);
+
+  if (userIds.length === 0) return;
+
+  const notifications = userIds.map(userId => ({
+    user_id: userId,
+    title: 'Proyecto completado - Pendiente facturación',
+    message: `${projectName} de ${clientName} completado. Revisar solicitudes para facturación y liquidación.`,
+    type: 'success',
+    category: 'project',
+    entity_id: projectId,
+    entity_type: 'operational_project',
+    action_url: `/operaciones/proyectos/${projectId}`,
+  }));
+
+  try {
+    await supabase.from('notifications').insert(notifications);
+  } catch (error) {
+    console.error('Error creating project completed notifications:', error);
+  }
 };

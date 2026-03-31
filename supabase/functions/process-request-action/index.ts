@@ -313,15 +313,32 @@ const handler = async (req: Request): Promise<Response> => {
       // Don't fail the action if logging fails
     }
 
-    // Create in-app notifications for admins/project managers/account managers
-    const { data: usersToNotify } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .in('role', ['admin', 'finanzas', 'project_manager', 'account_manager']);
-
-    const uniqueUserIds = [...new Set(usersToNotify?.map(u => u.user_id) || [])];
+    // Create in-app notifications — admin/finanzas get all, AM/PM only if assigned to client
+    const clientId = request.client_id;
     const specialistName = request.specialist?.name || 'Especialista';
     const requestCode = request.code;
+
+    // 1. Get all admin + finanzas users
+    const { data: elevatedUsers } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .in('role', ['admin', 'finanzas']);
+
+    // 2. Get AM/PM assigned to this client via contracts or budgets
+    const [{ data: contracts }, { data: budgets }] = await Promise.all([
+      supabase.from('contracts').select('am_user_id, pm_user_id').eq('client_id', clientId),
+      supabase.from('budgets').select('am_user_id, pm_user_id').eq('client_id', clientId),
+    ]);
+
+    const assignedManagerIds = [...new Set([
+      ...(contracts?.flatMap(c => [c.am_user_id, c.pm_user_id]) || []),
+      ...(budgets?.flatMap(b => [b.am_user_id, b.pm_user_id]) || []),
+    ].filter(Boolean))];
+
+    const uniqueUserIds = [...new Set([
+      ...(elevatedUsers?.map(u => u.user_id) || []),
+      ...assignedManagerIds,
+    ])];
 
     if (uniqueUserIds.length > 0) {
       try {

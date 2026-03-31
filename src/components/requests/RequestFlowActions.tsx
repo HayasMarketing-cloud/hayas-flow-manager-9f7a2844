@@ -194,7 +194,8 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
         request.code,
         request.id,
         newStatus,
-        user?.id
+        user?.id,
+        request.client_id
       );
 
       // Show feedback for in-app notification

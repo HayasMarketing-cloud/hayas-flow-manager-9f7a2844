@@ -15,18 +15,52 @@ export interface GroupedClient {
   subtotal: number;
 }
 
+export interface CommissionSourceInfo {
+  type: string;
+  percentage: number;
+  baseAmount: number;
+  invoiceCodes: string[];
+  clientId?: string;
+  clientName?: string;
+  budgetId?: string;
+  budgetCode?: string;
+  budgetTitle?: string;
+}
+
 /**
  * Groups liquidation items hierarchically: Client → Project/Budget → Items
  * Manual concepts (no financial_request) are grouped under "Otros conceptos"
+ * Commission items are grouped by their invoice's client/budget when available
  */
-export const groupItemsByClientAndProject = (items: any[]): GroupedClient[] => {
+export const groupItemsByClientAndProject = (
+  items: any[],
+  commissionDetails?: Record<string, CommissionSourceInfo>
+): GroupedClient[] => {
   const clientMap = new Map<string, GroupedClient>();
 
   items.forEach((item) => {
+    // Check if this is a commission item with enriched source data
+    const isCommission = !item.financial_request_id && item.description?.startsWith('Comisión');
+    let commissionSource: CommissionSourceInfo | undefined;
+    if (isCommission && commissionDetails) {
+      // Match commission detail by description content (type label)
+      commissionSource = Object.values(commissionDetails).find(d => {
+        const typeLabel = d.type === 'am' ? 'AM' : d.type === 'pm' ? 'PM' : 'Venta';
+        return item.description?.includes(`Comisión ${typeLabel}`) && 
+               Math.abs((d.percentage * d.baseAmount / 100) - Number(item.total)) < 0.02;
+      });
+    }
+
     // Determine client
-    const clientId = item.financial_request?.client?.id || 'no-client';
-    const clientName = item.financial_request?.client?.name || 
+    let clientId = item.financial_request?.client?.id || 'no-client';
+    let clientName = item.financial_request?.client?.name || 
       (item.financial_request_id ? 'Sin cliente' : 'Otros conceptos');
+
+    // Override with commission source if available
+    if (commissionSource?.clientId) {
+      clientId = commissionSource.clientId;
+      clientName = commissionSource.clientName || 'Sin cliente';
+    }
 
     // Determine project or budget
     const opRequest = item.financial_request?.operational_request?.[0];
@@ -44,6 +78,10 @@ export const groupItemsByClientAndProject = (items: any[]): GroupedClient[] => {
     } else if (budget) {
       projectBudgetId = budget.id;
       projectBudgetName = budget.title || budget.code;
+      projectBudgetType = 'budget';
+    } else if (commissionSource?.budgetId) {
+      projectBudgetId = commissionSource.budgetId;
+      projectBudgetName = commissionSource.budgetTitle || commissionSource.budgetCode || 'Presupuesto';
       projectBudgetType = 'budget';
     }
 

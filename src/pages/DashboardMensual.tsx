@@ -153,6 +153,24 @@ export default function DashboardMensual() {
     );
   }
 
+  const handleCloseMonth = () => {
+    if (!user?.id) return;
+    closeMutation.mutate({ year, month, userId: user.id }, {
+      onSuccess: () => {
+        toast.success(`${MONTHS[month - 1]} ${year} cerrado correctamente`);
+        setShowCloseDialog(false);
+      },
+      onError: (err: Error) => toast.error(`Error: ${err.message}`),
+    });
+  };
+
+  const handleReopenMonth = () => {
+    reopenMutation.mutate({ year, month }, {
+      onSuccess: () => toast.success(`${MONTHS[month - 1]} ${year} reabierto`),
+      onError: (err: Error) => toast.error(`Error: ${err.message}`),
+    });
+  };
+
   return (
     <AppLayout
       title="Dashboard Mensual"
@@ -180,11 +198,26 @@ export default function DashboardMensual() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {MONTHS.map((m, i) => (
-                      <SelectItem key={i + 1} value={(i + 1).toString()}>{m}</SelectItem>
-                    ))}
+                    {MONTHS.map((m, i) => {
+                      const monthClosed = closedMonths?.some(cm => cm.year === year && cm.month === i + 1);
+                      return (
+                        <SelectItem key={i + 1} value={(i + 1).toString()}>
+                          <span className="flex items-center gap-2">
+                            {m}
+                            {monthClosed && <Lock className="h-3 w-3 text-muted-foreground" />}
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
+
+                {isClosed && (
+                  <Badge variant="secondary" className="gap-1">
+                    <Lock className="h-3 w-3" />
+                    Mes cerrado
+                  </Badge>
+                )}
 
                 <Button
                   variant={viewMode === 'cashflow' ? 'default' : 'outline'}
@@ -202,9 +235,82 @@ export default function DashboardMensual() {
                 </Button>
               </div>
 
+              <div className="flex gap-2">
+                {isClosed ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleReopenMonth}
+                    disabled={reopenMutation.isPending}
+                    className="gap-1"
+                  >
+                    {reopenMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockOpen className="h-4 w-4" />}
+                    Reabrir mes
+                  </Button>
+                ) : (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setShowCloseDialog(true)}
+                    className="gap-1"
+                  >
+                    <Lock className="h-4 w-4" />
+                    Cerrar mes
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Close Month Dialog */}
+        <Dialog open={showCloseDialog} onOpenChange={setShowCloseDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Lock className="h-5 w-5" />
+                Cerrar {MONTHS[month - 1]} {year}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {validating ? (
+                <div className="flex items-center gap-2 py-4 justify-center text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Validando...
+                </div>
+              ) : validation?.canClose ? (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400">
+                  <CheckCircle2 className="h-5 w-5 shrink-0" />
+                  <p className="text-sm">Todas las facturas están cobradas y todas las liquidaciones pagadas. El mes puede cerrarse.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive">
+                    <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium">No se puede cerrar el mes. Hay elementos pendientes:</p>
+                      <ul className="text-sm mt-2 space-y-1 list-disc list-inside">
+                        {validation?.issues.map((issue, i) => (
+                          <li key={i}>{issue}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCloseDialog(false)}>Cancelar</Button>
+              <Button
+                onClick={handleCloseMonth}
+                disabled={!validation?.canClose || closeMutation.isPending}
+              >
+                {closeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Confirmar cierre
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* KPIs */}
         {isLoading ? (

@@ -377,27 +377,49 @@ export default function LiquidacionDetalle() {
     queryFn: async () => {
       const { data } = await supabase
         .from('sales_commissions')
-        .select('id, commission_type, commission_percentage, base_amount, invoice_ids, commission_amount')
+        .select('id, commission_type, commission_percentage, base_amount, invoice_ids, commission_amount, budget_id, contract_id')
         .eq('liquidation_id', id!);
       
       if (!data?.length) return {};
 
-      // Fetch invoice codes for each commission
-      const details: Record<string, { type: string; percentage: number; baseAmount: number; invoiceCodes: string[] }> = {};
-      for (const comm of data) {
-        let invoiceCodes: string[] = [];
-        if (comm.invoice_ids?.length) {
-          const { data: invoices } = await supabase
-            .from('invoices')
-            .select('code')
-            .in('id', comm.invoice_ids as string[]);
-          invoiceCodes = invoices?.map((i: any) => i.code) || [];
+      // Collect all invoice IDs to fetch codes + client/budget info
+      const allInvoiceIds = [...new Set(data.flatMap(c => (c.invoice_ids as string[]) || []))];
+      let invoicesMap = new Map<string, { code: string; client_id: string | null; client_name: string | null; budget_id: string | null; budget_code: string | null; budget_title: string | null; contract_id: string | null }>();
+      
+      if (allInvoiceIds.length > 0) {
+        const { data: invoices } = await supabase
+          .from('invoices')
+          .select('id, code, client_id, budget_id, contract_id, client:clients(id, name), budget:budgets(id, code, title)')
+          .in('id', allInvoiceIds);
+        for (const inv of (invoices || []) as any[]) {
+          invoicesMap.set(inv.id, {
+            code: inv.code,
+            client_id: inv.client?.id || inv.client_id,
+            client_name: inv.client?.name || null,
+            budget_id: inv.budget?.id || inv.budget_id,
+            budget_code: inv.budget?.code || null,
+            budget_title: inv.budget?.title || null,
+            contract_id: inv.contract_id,
+          });
         }
+      }
+
+      const details: Record<string, { type: string; percentage: number; baseAmount: number; invoiceCodes: string[]; clientId?: string; clientName?: string; budgetId?: string; budgetCode?: string; budgetTitle?: string }> = {};
+      for (const comm of data) {
+        const invoiceData = (comm.invoice_ids as string[] || []).map(iid => invoicesMap.get(iid)).filter(Boolean);
+        const invoiceCodes = invoiceData.map(i => i!.code);
+        // Use first invoice's client/budget as source
+        const firstInv = invoiceData[0];
         details[comm.id] = {
           type: comm.commission_type,
           percentage: Number(comm.commission_percentage),
           baseAmount: Number(comm.base_amount),
           invoiceCodes,
+          clientId: firstInv?.client_id || undefined,
+          clientName: firstInv?.client_name || undefined,
+          budgetId: firstInv?.budget_id || comm.budget_id || undefined,
+          budgetCode: firstInv?.budget_code || undefined,
+          budgetTitle: firstInv?.budget_title || undefined,
         };
       }
       return details;

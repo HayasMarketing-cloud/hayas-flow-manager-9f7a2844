@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RequestFlowIndicator } from './RequestFlowIndicator';
 import { RequestFlowActions } from './RequestFlowActions';
+import { SlackDMButton } from './SlackDMButton';
 import { FlowStatusCell } from './FlowStatusCell';
 import { RequestStatusBadge } from './RequestStatusBadge';
 import { OriginCell } from './OriginCell';

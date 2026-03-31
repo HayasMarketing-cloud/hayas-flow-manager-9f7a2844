@@ -12,6 +12,8 @@ export const useOperationalProjects = (filters?: {
   searchTerm?: string;
   assignedClientIds?: string[];
   needsFiltering?: boolean;
+  amUserId?: string;
+  pmUserId?: string;
   enabled?: boolean;
 }) => {
   const { user } = useAuth();

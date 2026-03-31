@@ -1,34 +1,24 @@
 
 
-## Multi-select de clientes en filtros de Facturas
+## Unificar vista de Proyectos Operativos: quitar Tabs, usar toggle de iconos
 
 ### Problema actual
-El filtro de clientes es un `Select` simple que solo permite elegir un cliente a la vez. Se necesita poder seleccionar múltiples clientes simultáneamente.
+La página usa `Tabs` con dos pestañas ("Tarjetas" y "Seguimiento") que separan las vistas. Otras páginas (Presupuestos, Facturas, Solicitudes, etc.) usan un toggle de iconos (`LayoutGrid` / `TableIcon`) dentro de la barra de filtros, sin pestañas.
 
 ### Solución
 
-#### 1. `src/hooks/useInvoiceFilters.tsx` — Cambiar `clientId: string | null` a `clientIds: string[]`
+**Archivo: `src/pages/operations/OperationalProjects.tsx`**
 
-- Actualizar la interfaz `InvoiceFilters` para usar un array de IDs
-- Serializar en URL como `clientIds=id1,id2,id3`
-- Actualizar `syncToUrl`, `getFiltersFromParams`, `resetFilters`
+1. **Reemplazar `Tabs` por `viewMode` state** — cambiar `activeTab` por `viewMode: 'cards' | 'tracking'`, eliminar el wrapper `<Tabs>`, `<TabsList>`, `<TabsContent>`
 
-#### 2. `src/pages/Facturas.tsx` — Reemplazar Select simple por multi-select con Popover + Checkboxes
+2. **Añadir toggle de iconos en la barra de filtros** — igual que en Presupuestos/Facturas: dos botones con `LayoutGrid` y `Table2` (o `TableIcon`) alineados a la derecha dentro del Card de filtros
 
-- Sustituir el `<Select>` de clientes por un `<Popover>` que muestra una lista de checkboxes con los clientes disponibles
-- Mostrar badges con los clientes seleccionados en el trigger (o "Todos los clientes" si ninguno seleccionado)
-- Botón X para quitar clientes individuales
-- Actualizar la query de invoices: cambiar `.eq('client_id', filters.clientId)` por `.in('client_id', filters.clientIds)`
-- Actualizar `hasActiveFilters` para usar `filters.clientIds.length > 0`
+3. **Mostrar filtros condicionales** — los filtros de especialista, presupuesto y contrato siguen apareciendo solo cuando `viewMode === 'tracking'`
 
-#### 3. Componente inline de multi-select
+4. **Renderizar contenido condicionalmente** — reemplazar `<TabsContent>` por `{viewMode === 'cards' ? (...cards...) : (...tracking...)}`
 
-Implementar directamente en Facturas.tsx usando `Popover` + `Command` (ya disponibles en el proyecto) para crear un dropdown con búsqueda y checkboxes, similar a patrones comunes de shadcn/ui.
+5. **Limpiar imports** — eliminar `Tabs, TabsContent, TabsList, TabsTrigger`
 
-### Archivos a modificar
-
-| Archivo | Cambio |
-|---|---|
-| `src/hooks/useInvoiceFilters.tsx` | `clientId: string` → `clientIds: string[]`, URL sync |
-| `src/pages/Facturas.tsx` | Multi-select UI con Popover+Command, query con `.in()` |
+### Resultado
+Una única vista con los filtros arriba y un toggle de iconos para cambiar entre cards y tabla de seguimiento, consistente con el resto de páginas.
 

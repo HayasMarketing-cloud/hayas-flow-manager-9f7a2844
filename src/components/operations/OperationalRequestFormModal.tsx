@@ -349,27 +349,6 @@ export function OperationalRequestFormModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="assignee_user_id">Asignar Usuario</Label>
-              <Select
-                value={watch("assignee_user_id") || "none"}
-                onValueChange={(value) => setValue("assignee_user_id", value === "none" ? "" : value)}
-                disabled={isReadOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Ninguno" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Ninguno</SelectItem>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.full_name || "Sin nombre"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
               <Label htmlFor="assignee_specialist_id">Asignar Especialista</Label>
               <Select
                 value={watch("assignee_specialist_id") || "none"}
@@ -386,26 +365,6 @@ export function OperationalRequestFormModal({
                       {specialist.name}
                     </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="reviewer_type">Tipo de Revisor</Label>
-              <Select
-                value={watch("reviewer_type") || "none"}
-                onValueChange={(value) => setValue("reviewer_type", value === "none" ? undefined : value as any)}
-                disabled={isReadOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Ninguno" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Ninguno</SelectItem>
-                  <SelectItem value="am">Account Manager</SelectItem>
-                  <SelectItem value="client">Cliente</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/liquidation-utils';
+import { notifySpecialistInvoiceUploaded } from '@/lib/notification-utils';
 import { Database } from '@/integrations/supabase/types';
 
 type LiquidationStatus = Database['public']['Enums']['liquidation_status'];
@@ -14,6 +15,7 @@ type LiquidationStatus = Database['public']['Enums']['liquidation_status'];
 interface SpecialistInvoiceUploadProps {
   liquidationId: string;
   liquidationCode: string;
+  specialistName: string;
   currentInvoiceUrl: string | null;
   currentStatus: LiquidationStatus;
   liquidationSubtotal: number;
@@ -37,6 +39,7 @@ interface ExtractedData {
 export function SpecialistInvoiceUpload({
   liquidationId,
   liquidationCode,
+  specialistName,
   currentInvoiceUrl,
   currentStatus,
   liquidationSubtotal,
@@ -163,6 +166,11 @@ export function SpecialistInvoiceUpload({
       } else {
         toast.success('Factura subida correctamente');
       }
+      // Send in-app notification to admin/finanzas
+      const finalAmountsMatch = invoiceSubtotal !== null 
+        ? Math.abs(invoiceSubtotal - liquidationSubtotal) <= 1 
+        : null;
+      notifySpecialistInvoiceUploaded(liquidationCode, liquidationId, specialistName, finalAmountsMatch);
       
       onUploadSuccess();
     } catch (error) {

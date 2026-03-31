@@ -509,6 +509,16 @@ const buildHierarchicalTableData = (items: any[], commissionDetails?: Record<str
   const groupedItems = groupItemsByClientAndProject(items, commissionDetails);
   const tableData: any[][] = [];
 
+  // Pre-index commission details by invoice code
+  const commissionByInvoice = new Map<string, CommissionDetail>();
+  if (commissionDetails) {
+    for (const d of Object.values(commissionDetails)) {
+      for (const code of d.invoiceCodes) {
+        commissionByInvoice.set(code, d);
+      }
+    }
+  }
+
   groupedItems.forEach((clientGroup) => {
     // Client header row
     tableData.push([

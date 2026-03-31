@@ -250,11 +250,13 @@ const buildTimelineSteps = (
   });
 
   // 7. Pendiente de pago
-  const showPaymentDate = currentIndex >= 4 || signature?.status === 'accepted';
+  const pendingPaymentIndex = getStatusIndex('pending_payment');
+  const paidIndex = getStatusIndex('paid');
+  const showPaymentDate = currentIndex >= getStatusIndex('invoice_received') || signature?.status === 'accepted';
   steps.push({
     id: 'pending_payment',
     label: 'Pendiente de pago',
-    status: currentIndex >= 5 ? 'completed' : (currentIndex === 4 ? 'current' : 'pending'),
+    status: currentIndex >= paidIndex ? 'completed' : (currentIndex >= pendingPaymentIndex ? 'current' : 'pending'),
     description: showPaymentDate 
       ? `Pago previsto: ${formatExpectedPaymentDate(liquidation.period_year, liquidation.period_month)}`
       : undefined,
@@ -264,7 +266,7 @@ const buildTimelineSteps = (
   steps.push({
     id: 'paid',
     label: 'Pagada',
-    status: currentIndex >= 6 ? 'completed' : (currentIndex === 5 ? 'current' : 'pending'),
+    status: currentIndex >= paidIndex ? 'completed' : 'pending',
     date: liquidation.paid_at ? formatDate(liquidation.paid_at) : undefined,
   });
 

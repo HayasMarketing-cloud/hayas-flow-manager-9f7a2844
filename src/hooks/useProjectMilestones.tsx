@@ -134,6 +134,11 @@ export const useProjectMilestones = (filters?: MilestoneFilters) => {
         results = results.filter(m => m.operational_project?.budget?.id === filters.budgetId);
       }
       
+      // When filtering "not_completed", also exclude milestones from completed projects
+      if (filters?.status === 'not_completed') {
+        results = results.filter(m => m.operational_project?.status !== 'completed');
+      }
+      
       // Post-filter by search term (searches milestone name and project name)
       if (filters?.searchTerm) {
         const term = filters.searchTerm.toLowerCase();

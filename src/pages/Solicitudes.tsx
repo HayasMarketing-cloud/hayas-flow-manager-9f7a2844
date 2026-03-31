@@ -74,7 +74,7 @@ const Solicitudes = () => {
           *,
           client:clients(id, name, code),
           service:services(id, name),
-          specialist:specialists(id, name),
+          specialist:specialists(id, name, email),
           budget:budgets(id, title, code, client_contact_id),
           contract:contracts(id, title, code),
           invoice:invoices(id, code, status),

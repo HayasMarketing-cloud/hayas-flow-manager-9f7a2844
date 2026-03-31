@@ -12,6 +12,8 @@ export const useOperationalProjects = (filters?: {
   searchTerm?: string;
   assignedClientIds?: string[];
   needsFiltering?: boolean;
+  amUserId?: string;
+  pmUserId?: string;
   enabled?: boolean;
 }) => {
   const { user } = useAuth();
@@ -36,8 +38,8 @@ export const useOperationalProjects = (filters?: {
         created_at,
         created_by,
         client:clients(id, name, code, hub_client_url),
-        contract:contracts(id, title),
-        budget:budgets(id, title),
+        contract:contracts(id, title, am_user_id, pm_user_id),
+        budget:budgets(id, title, am_user_id, pm_user_id),
         owner:profiles!operational_projects_owner_user_id_fkey(id, full_name)
       `;
 
@@ -73,8 +75,26 @@ export const useOperationalProjects = (filters?: {
         throw error;
       }
 
-      console.log('Operational projects fetched:', data?.length || 0, 'projects');
-      return data || [];
+      let results = data || [];
+
+      // Post-filter by AM
+      if (filters?.amUserId) {
+        results = results.filter((p: any) => 
+          p.contract?.am_user_id === filters.amUserId || 
+          p.budget?.am_user_id === filters.amUserId
+        );
+      }
+
+      // Post-filter by PM
+      if (filters?.pmUserId) {
+        results = results.filter((p: any) => 
+          p.contract?.pm_user_id === filters.pmUserId || 
+          p.budget?.pm_user_id === filters.pmUserId
+        );
+      }
+
+      console.log('Operational projects fetched:', results.length, 'projects');
+      return results;
     },
     enabled: filters?.enabled !== false,
   });

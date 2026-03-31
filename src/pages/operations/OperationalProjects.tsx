@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import GoogleDriveIcon from '@/assets/icons8-google-drive.svg';
 import { useAssignedClients } from '@/hooks/useAssignedClients';
+import { useUserRole } from '@/hooks/useUserRole';
+import { useAuth } from '@/contexts/AuthContext';
 
 const statusColors = {
   pending: 'bg-yellow-500',
@@ -52,10 +54,15 @@ const statusLabels = {
 
 export default function OperationalProjects() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isAccountManager, isProjectManager, isAdmin, canAccessFinance } = useUserRole();
   const [searchTerm, setSearchTerm] = useState('');
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('not_completed');
   const [specialistFilter, setSpecialistFilter] = useState<string>('all');
+  const [amFilter, setAmFilter] = useState<string>('all');
+  const [pmFilter, setPmFilter] = useState<string>('all');
+  const [amPmInitialized, setAmPmInitialized] = useState(false);
   const [budgetFilter, setBudgetFilter] = useState<string>('all');
   const [contractFilter, setContractFilter] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<string>('cards');
@@ -67,12 +74,29 @@ export default function OperationalProjects() {
 
   const { assignedClientIds, isLoading: assignedLoading, needsFiltering } = useAssignedClients();
 
+  // Pre-select AM/PM filter for AM/PM users without elevated roles
+  useEffect(() => {
+    if (amPmInitialized || !user) return;
+    const hasElevated = isAdmin() || canAccessFinance();
+    if (!hasElevated && isAccountManager()) {
+      setAmFilter(user.id);
+      setAmPmInitialized(true);
+    } else if (!hasElevated && isProjectManager()) {
+      setPmFilter(user.id);
+      setAmPmInitialized(true);
+    } else {
+      setAmPmInitialized(true);
+    }
+  }, [user, isAdmin, canAccessFinance, isAccountManager, isProjectManager, amPmInitialized]);
+
   const { data: projects, isLoading, error: projectsError } = useOperationalProjects({
     clientId: clientFilter === 'all' ? undefined : clientFilter,
     status: statusFilter === 'all' ? undefined : statusFilter,
     searchTerm: searchTerm || undefined,
     assignedClientIds: needsFiltering ? assignedClientIds : undefined,
     needsFiltering,
+    amUserId: amFilter === 'all' ? undefined : amFilter,
+    pmUserId: pmFilter === 'all' ? undefined : pmFilter,
     enabled: !assignedLoading,
   });
 
@@ -141,6 +165,8 @@ export default function OperationalProjects() {
     clientFilter !== 'all' || 
     (statusFilter !== 'all' && statusFilter !== 'not_completed') || 
     specialistFilter !== 'all' ||
+    amFilter !== 'all' ||
+    pmFilter !== 'all' ||
     budgetFilter !== 'all' ||
     contractFilter !== 'all'
   );
@@ -205,6 +231,41 @@ export default function OperationalProjects() {
         .order('name');
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Fetch AM/PM users for filters
+  const { data: amPmUsers } = useQuery({
+    queryKey: ['am-pm-users'],
+    queryFn: async () => {
+      // Get all user IDs that appear as AM or PM in contracts or budgets
+      const [contractsRes, budgetsRes] = await Promise.all([
+        supabase.from('contracts').select('am_user_id, pm_user_id'),
+        supabase.from('budgets').select('am_user_id, pm_user_id'),
+      ]);
+      
+      const amIds = new Set<string>();
+      const pmIds = new Set<string>();
+      
+      [...(contractsRes.data || []), ...(budgetsRes.data || [])].forEach((row: any) => {
+        if (row.am_user_id) amIds.add(row.am_user_id);
+        if (row.pm_user_id) pmIds.add(row.pm_user_id);
+      });
+      
+      const allIds = [...new Set([...amIds, ...pmIds])];
+      if (allIds.length === 0) return { ams: [], pms: [] };
+      
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', allIds)
+        .order('full_name');
+      if (error) throw error;
+      
+      return {
+        ams: (profiles || []).filter(p => amIds.has(p.id)),
+        pms: (profiles || []).filter(p => pmIds.has(p.id)),
+      };
     },
   });
 
@@ -311,6 +372,34 @@ export default function OperationalProjects() {
                     <SelectItem value="in_progress">En Progreso</SelectItem>
                     <SelectItem value="in_review">En Revisión</SelectItem>
                     <SelectItem value="completed">Completado</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={amFilter} onValueChange={setAmFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos los AM" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los AM</SelectItem>
+                    {amPmUsers?.ams?.map((am) => (
+                      <SelectItem key={am.id} value={am.id}>
+                        {am.full_name || am.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={pmFilter} onValueChange={setPmFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos los PM" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los PM</SelectItem>
+                    {amPmUsers?.pms?.map((pm) => (
+                      <SelectItem key={pm.id} value={pm.id}>
+                        {pm.full_name || pm.id}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
 

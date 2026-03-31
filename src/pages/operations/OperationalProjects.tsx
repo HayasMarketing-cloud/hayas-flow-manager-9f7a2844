@@ -95,6 +95,8 @@ export default function OperationalProjects() {
     searchTerm: searchTerm || undefined,
     assignedClientIds: needsFiltering ? assignedClientIds : undefined,
     needsFiltering,
+    amUserId: amFilter === 'all' ? undefined : amFilter,
+    pmUserId: pmFilter === 'all' ? undefined : pmFilter,
     enabled: !assignedLoading,
   });
 

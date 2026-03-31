@@ -45,7 +45,6 @@ export function SpecialistInvoiceUpload({
   liquidationSubtotal,
   onUploadSuccess,
 }: SpecialistInvoiceUploadProps) {
-}: SpecialistInvoiceUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);

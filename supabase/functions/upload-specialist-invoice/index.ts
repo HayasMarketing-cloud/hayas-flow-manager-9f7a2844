@@ -324,7 +324,181 @@ IMPORTANTE:
 
     console.log(`Invoice uploaded successfully for ${liquidation.code}`);
 
-    // 9. Return result
+    // 9. Get specialist name
+    const { data: specialistData } = await supabase
+      .from('specialists')
+      .select('name')
+      .eq('id', liquidation.specialist_id)
+      .single();
+    const specialistName = specialistData?.name || 'Especialista';
+
+    // 10. Send in-app notifications to admin & finanzas
+    try {
+      const { data: adminFinanzaUsers } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .in('role', ['admin', 'finanzas']);
+
+      const uniqueUserIds = [...new Set(adminFinanzaUsers?.map(r => r.user_id) || [])];
+      
+      if (uniqueUserIds.length > 0) {
+        const matchText = amountsMatch === true
+          ? 'Los importes coinciden ✓'
+          : amountsMatch === false
+            ? '⚠ Los importes NO coinciden'
+            : 'No se pudo verificar el importe';
+
+        const notifications = uniqueUserIds.map(userId => ({
+          user_id: userId,
+          title: 'Factura de especialista recibida',
+          message: `${specialistName} ha subido su factura para ${liquidation.code}. ${matchText}`,
+          type: amountsMatch === false ? 'warning' : 'info',
+          category: 'liquidation',
+          entity_id: liquidationId,
+          entity_type: 'liquidation',
+          action_url: `/liquidaciones/${liquidationId}`,
+        }));
+
+        await supabase.from('notifications').insert(notifications);
+        console.log(`Sent ${notifications.length} in-app notifications`);
+      }
+    } catch (notifError) {
+      console.error('Error sending in-app notifications:', notifError);
+    }
+
+    // 11. Send email notification via Gmail API
+    try {
+      const serviceAccountEmail = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL');
+      const serviceAccountPrivateKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY');
+      const gmailUser = Deno.env.get('GMAIL_USER');
+      const appUrl = Deno.env.get('APP_PRODUCTION_URL') || 'https://hayas-flow-manager.lovable.app';
+
+      if (serviceAccountEmail && serviceAccountPrivateKey && gmailUser) {
+        // Get admin/finanzas emails
+        const { data: adminFinanzaUsers } = await supabase
+          .from('user_roles')
+          .select('user_id')
+          .in('role', ['admin', 'finanzas']);
+
+        const uniqueIds = [...new Set(adminFinanzaUsers?.map(r => r.user_id) || [])];
+
+        if (uniqueIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('email')
+            .in('id', uniqueIds);
+
+          const recipientEmails = profiles
+            ?.map(p => p.email)
+            .filter(e => e && e.includes('@hayas.es')) || [];
+
+          if (recipientEmails.length > 0) {
+            // Create JWT and get access token
+            const now = Math.floor(Date.now() / 1000);
+            const header = { alg: "RS256", typ: "JWT" };
+            const payload = {
+              iss: serviceAccountEmail,
+              sub: gmailUser,
+              scope: "https://www.googleapis.com/auth/gmail.send",
+              aud: "https://oauth2.googleapis.com/token",
+              iat: now,
+              exp: now + 3600
+            };
+
+            const b64url = (data: string) => {
+              const b64 = btoa(data);
+              return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            };
+
+            const headerB64 = b64url(JSON.stringify(header));
+            const payloadB64 = b64url(JSON.stringify(payload));
+            const unsignedToken = `${headerB64}.${payloadB64}`;
+
+            const pemContent = serviceAccountPrivateKey
+              .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+              .replace(/-----END PRIVATE KEY-----/g, '')
+              .replace(/\\n/g, '')
+              .replace(/\s/g, '');
+
+            const binaryKey = Uint8Array.from(atob(pemContent), c => c.charCodeAt(0));
+            const cryptoKey = await crypto.subtle.importKey(
+              "pkcs8", binaryKey,
+              { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+              false, ["sign"]
+            );
+
+            const sig = await crypto.subtle.sign(
+              "RSASSA-PKCS1-v1_5", cryptoKey,
+              new TextEncoder().encode(unsignedToken)
+            );
+            const sigB64 = b64url(String.fromCharCode(...new Uint8Array(sig)));
+            const jwt = `${unsignedToken}.${sigB64}`;
+
+            const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+            });
+
+            if (tokenResp.ok) {
+              const tokenData = await tokenResp.json();
+              const accessToken = tokenData.access_token;
+
+              const matchStatus = amountsMatch === true
+                ? '✅ Los importes coinciden'
+                : amountsMatch === false
+                  ? '⚠️ Los importes NO coinciden'
+                  : 'ℹ️ No se pudo verificar el importe';
+
+              const detailUrl = `${appUrl}/liquidaciones/${liquidationId}`;
+              const subject = `Factura recibida - ${liquidation.code} - ${specialistName}`;
+              const htmlContent = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                  <h2 style="color: #1a1a2e;">Factura de especialista recibida</h2>
+                  <p>El especialista <strong>${specialistName}</strong> ha subido su factura para la liquidación <strong>${liquidation.code}</strong>.</p>
+                  <div style="background: ${amountsMatch === false ? '#fef2f2' : '#f0fdf4'}; padding: 12px 16px; border-radius: 8px; margin: 16px 0;">
+                    <p style="margin: 0; font-weight: 600; color: ${amountsMatch === false ? '#dc2626' : '#16a34a'};">${matchStatus}</p>
+                    ${invoiceSubtotal !== null ? `<p style="margin: 4px 0 0; font-size: 14px;">Factura: €${invoiceSubtotal.toFixed(2)} | Liquidación: €${liquidationSubtotal.toFixed(2)}</p>` : ''}
+                  </div>
+                  <a href="${detailUrl}" style="display: inline-block; background: #1a1a2e; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; margin-top: 12px;">Ver liquidación</a>
+                </div>
+              `;
+
+              for (const recipientEmail of recipientEmails) {
+                const encodedSubject = `=?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`;
+                const mimeMessage = [
+                  `From: ${gmailUser}`,
+                  `To: ${recipientEmail}`,
+                  `Subject: ${encodedSubject}`,
+                  `MIME-Version: 1.0`,
+                  `Content-Type: text/html; charset="UTF-8"`,
+                  `Content-Transfer-Encoding: base64`,
+                  ``,
+                  btoa(unescape(encodeURIComponent(htmlContent))),
+                ].join("\r\n");
+
+                const raw = b64url(mimeMessage);
+                await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+                  method: "POST",
+                  headers: {
+                    "Authorization": `Bearer ${accessToken}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({ raw }),
+                });
+              }
+              console.log(`Sent email to ${recipientEmails.length} recipients`);
+            }
+          }
+        }
+      } else {
+        console.warn('Gmail credentials not configured, skipping email notification');
+      }
+    } catch (emailError) {
+      console.error('Error sending email notification:', emailError);
+    }
+
+    // 12. Return result
     return new Response(
       JSON.stringify({
         success: true,

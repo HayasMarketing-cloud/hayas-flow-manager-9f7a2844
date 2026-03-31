@@ -1356,6 +1356,7 @@ export default function LiquidacionDetalle() {
           <SpecialistInvoiceUpload
             liquidationId={liquidation.id}
             liquidationCode={liquidation.code}
+            specialistName={liquidation.specialist?.name || 'Especialista'}
             currentInvoiceUrl={liquidation.specialist_invoice_url}
             currentStatus={liquidation.status}
             liquidationSubtotal={liquidation.subtotal}

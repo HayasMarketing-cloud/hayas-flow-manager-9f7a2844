@@ -166,6 +166,11 @@ export function SpecialistInvoiceUpload({
       } else {
         toast.success('Factura subida correctamente');
       }
+      // Send in-app notification to admin/finanzas
+      const finalAmountsMatch = invoiceSubtotal !== null 
+        ? Math.abs(invoiceSubtotal - liquidationSubtotal) <= 1 
+        : null;
+      notifySpecialistInvoiceUploaded(liquidationCode, liquidationId, specialistName, finalAmountsMatch);
       
       onUploadSuccess();
     } catch (error) {

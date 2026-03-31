@@ -414,6 +414,41 @@ export type Database = {
         }
         Relationships: []
       }
+      closed_months: {
+        Row: {
+          closed_at: string
+          closed_by: string
+          id: string
+          month: number
+          notes: string | null
+          year: number
+        }
+        Insert: {
+          closed_at?: string
+          closed_by: string
+          id?: string
+          month: number
+          notes?: string | null
+          year: number
+        }
+        Update: {
+          closed_at?: string
+          closed_by?: string
+          id?: string
+          month?: number
+          notes?: string | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "closed_months_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commission_settings: {
         Row: {
           commission_type: string

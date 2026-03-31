@@ -105,17 +105,6 @@ export function OperationalRequestFormModal({
     },
   });
 
-  const { data: users = [] } = useQuery({
-    queryKey: ["users-list"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .order("full_name");
-      if (error) throw error;
-      return data;
-    },
-  });
 
   const { data: specialists = [] } = useQuery({
     queryKey: ["specialists-list"],

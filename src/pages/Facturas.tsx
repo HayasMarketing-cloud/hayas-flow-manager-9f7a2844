@@ -303,7 +303,7 @@ export default function Facturas() {
     setUploadModalOpen(true);
   };
 
-  const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId || isOverdueFilter;
+  const hasActiveFilters = filters.searchTerm || filters.status || filters.clientIds.length > 0 || isOverdueFilter;
 
   return (
     <AppLayout title="Gestión de Facturas">

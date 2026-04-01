@@ -546,6 +546,15 @@ export default function Presupuestos() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {selectedIds.length > 0 && (
+                    <span className="text-sm text-muted-foreground">
+                      {selectedIds.length} seleccionado(s)
+                    </span>
+                  )}
+                  <Button variant="outline" size="sm" onClick={handleExport} disabled={!budgets || budgets.length === 0}>
+                    <Download className="h-4 w-4 mr-2" />
+                    {selectedIds.length > 0 ? `Exportar (${selectedIds.length})` : 'Exportar CSV'}
+                  </Button>
                   <Button
                     variant={viewMode === 'cards' ? 'default' : 'outline'}
                     size="sm"

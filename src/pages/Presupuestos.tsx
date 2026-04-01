@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { LayoutGrid, Table as TableIcon, Plus, X, Copy, FileText } from 'lucide-react';
+import { LayoutGrid, Table as TableIcon, Plus, X, Copy, FileText, Download } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBudgetFilters } from '@/hooks/useBudgetFilters';
@@ -15,6 +15,7 @@ import { BudgetTableView } from '@/components/budgets/BudgetTableView';
 import { BudgetFormModal } from '@/components/budgets/BudgetFormModal';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { exportBudgetsToCSV } from '@/utils/excel/budgetsExporter';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -23,6 +24,7 @@ import { useUserBudgetIds } from '@/hooks/useAssignedClients';
 
 export default function Presupuestos() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<any>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
@@ -45,6 +47,21 @@ export default function Presupuestos() {
   
   // Check if user is only specialist (no other management roles)
   const isOnlySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && !isProjectManager() && !shouldFilterByAssignment();
+
+  const applyDateFilter = (query: any) => {
+    if (filters.invoiceYear) {
+      if (filters.invoiceMonth) {
+        const start = `${filters.invoiceYear}-${String(filters.invoiceMonth).padStart(2, '0')}-01`;
+        const endMonth = filters.invoiceMonth === 12 ? 1 : filters.invoiceMonth + 1;
+        const endYear = filters.invoiceMonth === 12 ? filters.invoiceYear + 1 : filters.invoiceYear;
+        const end = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+        query = query.gte('estimated_invoice_date', start).lt('estimated_invoice_date', end);
+      } else {
+        query = query.gte('estimated_invoice_date', `${filters.invoiceYear}-01-01`).lt('estimated_invoice_date', `${filters.invoiceYear + 1}-01-01`);
+      }
+    }
+    return query;
+  };
 
   const { data: budgets, isLoading } = useQuery({
     queryKey: ['budgets', filters, isOnlySpecialist, specialistId, needsFiltering, assignedBudgetIds],
@@ -77,6 +94,7 @@ export default function Presupuestos() {
         if (filters.searchTerm) {
           query = query.or(`title.ilike.%${filters.searchTerm}%`);
         }
+        query = applyDateFilter(query);
 
         const { data, error } = await query;
         if (error) throw error;
@@ -102,6 +120,7 @@ export default function Presupuestos() {
         if (filters.searchTerm) {
           query = query.or(`title.ilike.%${filters.searchTerm}%`);
         }
+        query = applyDateFilter(query);
 
         const { data, error } = await query;
         if (error) throw error;
@@ -126,6 +145,7 @@ export default function Presupuestos() {
       if (filters.searchTerm) {
         query = query.or(`title.ilike.%${filters.searchTerm}%`);
       }
+      query = applyDateFilter(query);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -385,7 +405,33 @@ export default function Presupuestos() {
     convertToContractMutation.mutate(budget);
   };
 
-  const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId;
+  const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId || filters.invoiceMonth || filters.invoiceYear;
+
+  const handleSelectOne = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleSelectAll = () => {
+    if (!budgets) return;
+    setSelectedIds(prev => prev.length === budgets.length ? [] : budgets.map(b => b.id));
+  };
+
+  const handleExport = () => {
+    if (!budgets) return;
+    const toExport = selectedIds.length > 0
+      ? budgets.filter(b => selectedIds.includes(b.id))
+      : budgets;
+    exportBudgetsToCSV(toExport);
+  };
+
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+  const months = [
+    { value: 1, label: 'Enero' }, { value: 2, label: 'Febrero' }, { value: 3, label: 'Marzo' },
+    { value: 4, label: 'Abril' }, { value: 5, label: 'Mayo' }, { value: 6, label: 'Junio' },
+    { value: 7, label: 'Julio' }, { value: 8, label: 'Agosto' }, { value: 9, label: 'Septiembre' },
+    { value: 10, label: 'Octubre' }, { value: 11, label: 'Noviembre' }, { value: 12, label: 'Diciembre' },
+  ];
 
   return (
     <AppLayout title="Presupuestos" description="Gestión de presupuestos">
@@ -403,7 +449,7 @@ export default function Presupuestos() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <div className="relative">
                   <Input
                     placeholder="Buscar por título..."
@@ -456,6 +502,37 @@ export default function Presupuestos() {
                     ))}
                   </SelectContent>
                 </Select>
+
+                <Select
+                  value={filters.invoiceYear?.toString() || 'all'}
+                  onValueChange={(value) => updateFilter('invoiceYear', value === 'all' ? null : parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Año facturación" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los años</SelectItem>
+                    {years.map((y) => (
+                      <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={filters.invoiceMonth?.toString() || 'all'}
+                  onValueChange={(value) => updateFilter('invoiceMonth', value === 'all' ? null : parseInt(value))}
+                  disabled={!filters.invoiceYear}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Mes facturación" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los meses</SelectItem>
+                    {months.map((m) => (
+                      <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -469,6 +546,15 @@ export default function Presupuestos() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {selectedIds.length > 0 && (
+                    <span className="text-sm text-muted-foreground">
+                      {selectedIds.length} seleccionado(s)
+                    </span>
+                  )}
+                  <Button variant="outline" size="sm" onClick={handleExport} disabled={!budgets || budgets.length === 0}>
+                    <Download className="h-4 w-4 mr-2" />
+                    {selectedIds.length > 0 ? `Exportar (${selectedIds.length})` : 'Exportar CSV'}
+                  </Button>
                   <Button
                     variant={viewMode === 'cards' ? 'default' : 'outline'}
                     size="sm"
@@ -542,6 +628,9 @@ export default function Presupuestos() {
             onEdit={handleEdit}
             onDuplicate={handleDuplicate}
             onDelete={handleDelete}
+            selectedIds={selectedIds}
+            onSelectOne={handleSelectOne}
+            onSelectAll={handleSelectAll}
           />
         )}
       </div>

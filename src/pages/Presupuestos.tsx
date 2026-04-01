@@ -628,6 +628,9 @@ export default function Presupuestos() {
             onEdit={handleEdit}
             onDuplicate={handleDuplicate}
             onDelete={handleDelete}
+            selectedIds={selectedIds}
+            onSelectOne={handleSelectOne}
+            onSelectAll={handleSelectAll}
           />
         )}
       </div>

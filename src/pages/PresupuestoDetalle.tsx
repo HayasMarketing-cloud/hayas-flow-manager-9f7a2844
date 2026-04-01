@@ -726,17 +726,23 @@ export default function PresupuestoDetalle() {
     setIsEditingEconomico(false);
   };
 
-  // Extraer especialistas únicos del presupuesto - MUST be before early returns
+  // Extraer especialistas únicos del presupuesto (items + requests) - MUST be before early returns
   const teamSpecialists = React.useMemo(() => {
-    if (!data?.items) return [];
     const specialistMap = new Map();
-    data.items.forEach((item: any) => {
+    // From budget items
+    data?.items?.forEach((item: any) => {
       if (item.specialist && !specialistMap.has(item.specialist.id)) {
         specialistMap.set(item.specialist.id, item.specialist);
       }
     });
+    // From financial requests
+    data?.requests?.forEach((req: any) => {
+      if (req.specialist && req.specialist_id && !specialistMap.has(req.specialist_id)) {
+        specialistMap.set(req.specialist_id, { id: req.specialist_id, name: req.specialist.name, type: 'Especialista' });
+      }
+    });
     return Array.from(specialistMap.values());
-  }, [data?.items]);
+  }, [data?.items, data?.requests]);
 
   if (isLoading) {
     return (

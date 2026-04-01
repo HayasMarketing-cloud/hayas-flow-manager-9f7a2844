@@ -3,16 +3,17 @@
 const escapeCSVField = (field: string | number | null | undefined): string => {
   if (field === null || field === undefined) return '';
   const str = String(field);
-  // Escape fields containing commas, quotes, or newlines
-  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+  // Escape fields containing semicolons, quotes, or newlines
+  if (str.includes(';') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
 };
 
 export const downloadCSV = (data: any[][], fileName: string, _sheetName: string = 'Datos') => {
+  // Use semicolon as delimiter for Spanish locale Excel compatibility
   const csvContent = data
-    .map(row => row.map(escapeCSVField).join(','))
+    .map(row => row.map(escapeCSVField).join(';'))
     .join('\n');
   
   // Add BOM for proper UTF-8 encoding in Excel

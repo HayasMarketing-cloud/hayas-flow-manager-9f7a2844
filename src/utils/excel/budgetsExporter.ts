@@ -26,6 +26,7 @@ export const exportBudgetsToCSV = (budgets: any[]) => {
     b.title || '-',
     b.client?.name || '-',
     b.client_contact?.name || '-',
+    b.client_po_number || 'Pendiente',
     formatCurrency(b.total_amount),
     statusMap[b.status] || b.status || '-',
     formatDate(b.estimated_invoice_date),

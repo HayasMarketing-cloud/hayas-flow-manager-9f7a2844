@@ -120,6 +120,7 @@ export default function Presupuestos() {
         if (filters.searchTerm) {
           query = query.or(`title.ilike.%${filters.searchTerm}%`);
         }
+        query = applyDateFilter(query);
 
         const { data, error } = await query;
         if (error) throw error;

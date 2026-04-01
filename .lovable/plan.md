@@ -1,26 +1,29 @@
 
 
-## Añadir contacto del cliente en listado y exportación de presupuestos
+## Notificación al Account Manager para solicitar PO Number al aprobar presupuesto
 
-### Cambios necesarios
+### Contexto
+Al aprobar un presupuesto, se añadirá una notificación específica dirigida al AM asignado, pidiéndole que solicite el PO Number al cliente.
 
-**1. Actualizar queries en `Presupuestos.tsx`**
-- En las 3 queries de presupuestos (especialista, AM/PM, admin), cambiar el select de `client:clients(id, name)` a incluir también el contacto:
+### Condición de envío
+La notificación **solo se envía** si se cumplen todas estas condiciones:
+- El presupuesto tiene un `am_user_id` asignado.
+- El campo `client_po_number` está vacío (null), es cadena vacía, o tiene el valor "Pendiente".
+
+Si el PO Number ya está informado con un valor real, no se envía notificación.
+
+### Cambios
+
+**1. `src/lib/notification-utils.ts`**
+- Nueva función `notifyAMRequestPONumber(amUserId, budgetCode, budgetId, clientName)` que inserta una notificación tipo `warning`, categoría `budget`, dirigida al AM con `action_url` al detalle del presupuesto.
+
+**2. `src/hooks/useApproveBudget.tsx`**
+- Añadir `client:clients(name)` al select del presupuesto.
+- En `onSuccess`, evaluar la condición:
   ```
-  *, client:clients(id, name), client_contact:client_contacts(id, name, email)
+  const poMissing = !budget.client_po_number 
+    || budget.client_po_number.trim() === '' 
+    || budget.client_po_number.trim().toLowerCase() === 'pendiente';
   ```
-- La tabla `budgets` ya tiene `client_contact_id` que referencia a `client_contacts`.
-
-**2. Actualizar `BudgetTableView.tsx`**
-- Añadir columna "Contacto" después de "Cliente" mostrando `budget.client_contact?.name || '-'`.
-
-**3. Actualizar `budgetsExporter.ts`**
-- Añadir columna "Contacto" en headers y en cada fila extraer `b.client_contact?.name || '-'`.
-
-**4. Actualizar `BudgetCard.tsx`**
-- Mostrar el nombre del contacto si está disponible (opcional, para consistencia con la tabla).
-
-### Notas técnicas
-- `budgets.client_contact_id` ya existe en la tabla, solo falta incluirlo en el select de Supabase.
-- No se requieren cambios en la base de datos.
+- Si `budget.am_user_id` existe y `poMissing` es true, llamar a `notifyAMRequestPONumber`.
 

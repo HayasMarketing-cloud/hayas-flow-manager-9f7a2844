@@ -449,7 +449,7 @@ export default function Presupuestos() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <div className="relative">
                   <Input
                     placeholder="Buscar por título..."
@@ -499,6 +499,37 @@ export default function Presupuestos() {
                       <SelectItem key={client.id} value={client.id}>
                         {client.name}
                       </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={filters.invoiceYear?.toString() || 'all'}
+                  onValueChange={(value) => updateFilter('invoiceYear', value === 'all' ? null : parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Año facturación" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los años</SelectItem>
+                    {years.map((y) => (
+                      <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={filters.invoiceMonth?.toString() || 'all'}
+                  onValueChange={(value) => updateFilter('invoiceMonth', value === 'all' ? null : parseInt(value))}
+                  disabled={!filters.invoiceYear}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Mes facturación" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los meses</SelectItem>
+                    {months.map((m) => (
+                      <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

@@ -41,7 +41,7 @@ const Solicitudes = () => {
   const [bulkEditConfirmOpen, setBulkEditConfirmOpen] = useState(false);
   const [pendingBulkEdit, setPendingBulkEdit] = useState<{ field: string; value: any; label: string } | null>(null);
   const queryClient = useQueryClient();
-  const { filters, updateFilter, resetFilters } = useRequestFilters();
+  const { filters, updateFilter, updateFilters, resetFilters } = useRequestFilters();
   const { canAccessFinance, canAccessOperations, isSpecialist, loading: rolesLoading } = useUserRole();
   const { specialistId } = useCurrentSpecialist();
   const { logActivity } = useRequestActivityLog();

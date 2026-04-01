@@ -656,12 +656,10 @@ const Solicitudes = () => {
               }
               onValueChange={(value) => {
                 if (value === 'all') {
-                  updateFilter('workYear', null);
-                  updateFilter('workMonth', null);
+                  updateFilters({ workYear: null, workMonth: null });
                 } else {
                   const [y, m] = value.split('-').map(Number);
-                  updateFilter('workMonth', m);
-                  updateFilter('workYear', y);
+                  updateFilters({ workYear: y, workMonth: m });
                 }
               }}
             >

@@ -59,6 +59,18 @@ export const useRequestFilters = () => {
     setSearchParams(buildParams(newFilters), { replace: true });
   }, [filters, setSearchParams, buildParams]);
 
+  const updateFilters = useCallback((updates: Partial<RequestFilters>) => {
+    const newFilters = { ...filters, ...updates };
+    if ('clientId' in updates) {
+      newFilters.budgetId = null;
+      newFilters.contractId = null;
+    }
+    if ('workYear' in updates && updates.workYear === null) {
+      newFilters.workMonth = null;
+    }
+    setSearchParams(buildParams(newFilters), { replace: true });
+  }, [filters, setSearchParams, buildParams]);
+
   const resetFilters = useCallback(() => {
     setSearchParams({}, { replace: true });
   }, [setSearchParams]);
@@ -66,6 +78,7 @@ export const useRequestFilters = () => {
   return {
     filters,
     updateFilter,
+    updateFilters,
     resetFilters,
   };
 };

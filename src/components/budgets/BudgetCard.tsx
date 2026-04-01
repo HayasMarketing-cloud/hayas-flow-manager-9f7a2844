@@ -97,6 +97,9 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
             </div>
             <p className="text-sm text-muted-foreground">
               {budget.client?.name || 'Sin cliente'}
+              {budget.client_contact?.name && (
+                <span className="text-xs ml-1">· {budget.client_contact.name}</span>
+              )}
             </p>
           </div>
           {/* Inline status selector */}

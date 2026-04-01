@@ -5,6 +5,7 @@ export const exportBudgetsToCSV = (budgets: any[]) => {
     'Código',
     'Título',
     'Cliente',
+    'Contacto',
     'Monto Total',
     'Estado',
     'Fecha Facturación',
@@ -23,6 +24,7 @@ export const exportBudgetsToCSV = (budgets: any[]) => {
     b.code || '-',
     b.title || '-',
     b.client?.name || '-',
+    b.client_contact?.name || '-',
     formatCurrency(b.total_amount),
     statusMap[b.status] || b.status || '-',
     formatDate(b.estimated_invoice_date),
@@ -35,6 +37,7 @@ export const exportBudgetsToCSV = (budgets: any[]) => {
   rows.push([
     'TOTALES',
     `${budgets.length} presupuestos`,
+    '',
     '',
     formatCurrency(totalAmount),
     '',

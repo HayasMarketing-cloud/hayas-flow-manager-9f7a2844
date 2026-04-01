@@ -48,6 +48,21 @@ export default function Presupuestos() {
   // Check if user is only specialist (no other management roles)
   const isOnlySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && !isProjectManager() && !shouldFilterByAssignment();
 
+  const applyDateFilter = (query: any) => {
+    if (filters.invoiceYear) {
+      if (filters.invoiceMonth) {
+        const start = `${filters.invoiceYear}-${String(filters.invoiceMonth).padStart(2, '0')}-01`;
+        const endMonth = filters.invoiceMonth === 12 ? 1 : filters.invoiceMonth + 1;
+        const endYear = filters.invoiceMonth === 12 ? filters.invoiceYear + 1 : filters.invoiceYear;
+        const end = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+        query = query.gte('estimated_invoice_date', start).lt('estimated_invoice_date', end);
+      } else {
+        query = query.gte('estimated_invoice_date', `${filters.invoiceYear}-01-01`).lt('estimated_invoice_date', `${filters.invoiceYear + 1}-01-01`);
+      }
+    }
+    return query;
+  };
+
   const { data: budgets, isLoading } = useQuery({
     queryKey: ['budgets', filters, isOnlySpecialist, specialistId, needsFiltering, assignedBudgetIds],
     queryFn: async () => {

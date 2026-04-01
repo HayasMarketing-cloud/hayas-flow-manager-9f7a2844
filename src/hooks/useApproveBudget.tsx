@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { notifyBudgetApproved } from '@/lib/notification-utils';
+import { notifyBudgetApproved, notifyAMRequestPONumber } from '@/lib/notification-utils';
 import { notificationFeedback } from '@/lib/notification-feedback';
 
 interface ApproveBudgetParams {

@@ -1,40 +1,30 @@
 
 
-## Fix: Timeline muestra "Pagada" como completada cuando el estado es "Pendiente de pago"
+## Añadir filtro de meses y exportación con selección múltiple en Presupuestos
 
-### Problema
-El componente `LiquidationProcessTimeline.tsx` usa índices hardcodeados del array `statusOrder` para determinar qué pasos están completados. El array incluye `disputed` en posición 5, lo que desplaza `pending_payment` a índice 6 y `paid` a índice 7. Sin embargo, las comparaciones de los pasos usan números fijos (4, 5, 6) que no coinciden con estos índices reales.
+### Cambios necesarios
 
-Cuando el estado es `pending_payment` (índice 6):
-- Paso "Pendiente de pago": `6 >= 5` → se marca como **completado** (debería ser **current**)
-- Paso "Pagada": `6 >= 6` → se marca como **completado** (debería ser **pending**)
+**1. Actualizar `useBudgetFilters.tsx`**
+- Añadir campos `invoiceMonth` y `invoiceYear` al tipo `BudgetFilters` (similar a `workMonth`/`workYear` en requests).
 
-**No es un bug de datos** — el estado en base de datos es correcto. Es un bug visual en el timeline.
+**2. Crear `src/utils/excel/budgetsExporter.ts`**
+- Nuevo archivo con función `exportBudgetsToCSV` que exporte los presupuestos seleccionados (o todos) a CSV con columnas: Código, Título, Cliente, Monto Total, Estado, Fecha Facturación.
+- Incluir fila de totales al final, mismo patrón que `requestsExporter.ts`.
 
-### Solución
+**3. Actualizar `Presupuestos.tsx`**
+- Añadir estado `selectedIds` para selección múltiple.
+- Añadir filtro de período (mes/año) que filtre por `estimated_invoice_date` en la query de Supabase.
+- Añadir botón "Exportar Excel" en la barra de acciones.
+- Añadir barra de acciones en grupo cuando hay seleccionados (con botón exportar y contador).
+- Pasar props de selección (`selectedIds`, `onSelectAll`, `onSelectOne`) al `BudgetTableView`.
 
-**Archivo: `src/components/liquidations/LiquidationProcessTimeline.tsx`**
+**4. Actualizar `BudgetTableView.tsx`**
+- Añadir columna de checkboxes (header con select-all, filas con checkbox individual).
+- Recibir y manejar props de selección.
 
-Reemplazar los índices hardcodeados por referencias dinámicas usando `getStatusIndex()`:
+### Detalles técnicos
 
-```typescript
-// Línea ~253-261: Paso "Pendiente de pago"
-const pendingPaymentIndex = getStatusIndex('pending_payment');
-const paidIndex = getStatusIndex('paid');
-
-// Pendiente de pago
-status: currentIndex >= paidIndex ? 'completed' 
-      : currentIndex >= pendingPaymentIndex ? 'current' 
-      : 'pending',
-
-// Pagada
-status: currentIndex >= paidIndex ? 'completed' 
-      : currentIndex === paidIndex ? 'current'  // (nunca será > paidIndex)
-      : 'pending',
-```
-
-También corregir la misma lógica en el paso de `showPaymentDate` (línea ~253) para que use `getStatusIndex('invoice_received')` en vez de `4`.
-
-### Resultado
-El timeline mostrará correctamente "Pendiente de pago" como estado actual y "Pagada" como pendiente cuando la liquidación está en estado `pending_payment`.
+- El filtro de mes aplicará sobre `estimated_invoice_date` usando `gte`/`lte` con rango del mes seleccionado.
+- La exportación usará la misma utilidad `downloadCSV` de `excelExporter.ts`.
+- Cuando hay elementos seleccionados, se exportan solo esos; si no, se exportan todos los filtrados.
 

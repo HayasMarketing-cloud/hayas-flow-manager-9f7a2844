@@ -328,6 +328,29 @@ export const notifySpecialistInvoiceUploaded = async (
   );
 };
 
+// Notify AM to request PO Number after budget approval
+export const notifyAMRequestPONumber = async (
+  amUserId: string,
+  budgetCode: string,
+  budgetId: string,
+  clientName?: string
+) => {
+  const { error } = await supabase
+    .from('notifications')
+    .insert({
+      user_id: amUserId,
+      title: 'PO Number pendiente',
+      message: `Solicita el PO Number al cliente para ${budgetCode}${clientName ? ` de ${clientName}` : ''}`,
+      type: 'warning',
+      category: 'budget',
+      entity_id: budgetId,
+      entity_type: 'budget',
+      action_url: `/presupuestos/${budgetId}`,
+    });
+
+  if (error) console.error('Error notifying AM for PO Number:', error);
+};
+
 // Notify when operational project is completed - for billing and liquidation
 export const notifyProjectCompleted = async (
   projectName: string,

@@ -111,6 +111,20 @@ export const useApproveBudget = () => {
       // Show notification feedback
       notificationFeedback.budgetApproved(budget.code);
       
+      // Notify AM to request PO Number if missing
+      const poMissing = !budget.client_po_number 
+        || budget.client_po_number.trim() === '' 
+        || budget.client_po_number.trim().toLowerCase() === 'pendiente';
+      
+      if (budget.am_user_id && poMissing) {
+        await notifyAMRequestPONumber(
+          budget.am_user_id,
+          budget.code,
+          budget.id,
+          (budget as any).client?.name
+        );
+      }
+      
       variables.onSuccess?.();
     },
     onError: (error: any) => {

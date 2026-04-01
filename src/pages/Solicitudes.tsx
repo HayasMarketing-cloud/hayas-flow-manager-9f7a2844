@@ -41,7 +41,7 @@ const Solicitudes = () => {
   const [bulkEditConfirmOpen, setBulkEditConfirmOpen] = useState(false);
   const [pendingBulkEdit, setPendingBulkEdit] = useState<{ field: string; value: any; label: string } | null>(null);
   const queryClient = useQueryClient();
-  const { filters, updateFilter, resetFilters } = useRequestFilters();
+  const { filters, updateFilter, updateFilters, resetFilters } = useRequestFilters();
   const { canAccessFinance, canAccessOperations, isSpecialist, loading: rolesLoading } = useUserRole();
   const { specialistId } = useCurrentSpecialist();
   const { logActivity } = useRequestActivityLog();
@@ -656,12 +656,10 @@ const Solicitudes = () => {
               }
               onValueChange={(value) => {
                 if (value === 'all') {
-                  updateFilter('workYear', null);
-                  updateFilter('workMonth', null);
+                  updateFilters({ workYear: null, workMonth: null });
                 } else {
                   const [y, m] = value.split('-').map(Number);
-                  updateFilter('workMonth', m);
-                  updateFilter('workYear', y);
+                  updateFilters({ workYear: y, workMonth: m });
                 }
               }}
             >

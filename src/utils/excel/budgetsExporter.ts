@@ -38,6 +38,7 @@ export const exportBudgetsToCSV = (budgets: any[]) => {
     'TOTALES',
     `${budgets.length} presupuestos`,
     '',
+    '',
     formatCurrency(totalAmount),
     '',
     '',

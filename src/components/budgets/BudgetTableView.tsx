@@ -80,6 +80,7 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete
                   </div>
                 </TableCell>
                 <TableCell>{budget.client?.name || 'Sin cliente'}</TableCell>
+                <TableCell>{budget.client_contact?.name || '-'}</TableCell>
                 <TableCell>{formatCurrency(budget.total_amount || 0)}</TableCell>
                 <TableCell>
                   <BudgetStatusBadge status={budget.status} />

@@ -132,7 +132,8 @@ export default function Presupuestos() {
         .from('budgets')
         .select(`
           *,
-          client:clients(id, name)
+          client:clients(id, name),
+          client_contact:client_contacts(id, name, email)
         `)
         .order('created_at', { ascending: false });
 

@@ -27,7 +27,8 @@ export const useApproveBudget = () => {
         .from('budgets')
         .select(`
           *,
-          budget_items(*)
+          budget_items(*),
+          client:clients(name)
         `)
         .eq('id', budgetId)
         .single();

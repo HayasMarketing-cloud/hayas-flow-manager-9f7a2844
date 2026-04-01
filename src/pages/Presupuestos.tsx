@@ -15,6 +15,7 @@ import { BudgetTableView } from '@/components/budgets/BudgetTableView';
 import { BudgetFormModal } from '@/components/budgets/BudgetFormModal';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { exportBudgetsToCSV } from '@/utils/excel/budgetsExporter';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useUserRole } from '@/hooks/useUserRole';

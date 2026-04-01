@@ -52,7 +52,12 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete
             </TableRow>
           ) : (
             budgets.map((budget) => (
-              <TableRow key={budget.id}>
+              <TableRow key={budget.id} data-state={selectedIds.includes(budget.id) ? 'selected' : undefined}>
+                {onSelectOne && (
+                  <TableCell>
+                    <Checkbox checked={selectedIds.includes(budget.id)} onCheckedChange={() => onSelectOne(budget.id)} />
+                  </TableCell>
+                )}
                 <TableCell className="font-mono text-sm text-muted-foreground">
                   {budget.code || '-'}
                 </TableCell>

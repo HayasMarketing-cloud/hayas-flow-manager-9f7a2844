@@ -24,6 +24,7 @@ import { useUserBudgetIds } from '@/hooks/useAssignedClients';
 
 export default function Presupuestos() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<any>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');

@@ -7,6 +7,7 @@ import { BudgetStatusBadge } from './BudgetStatusBadge';
 import { formatCurrency } from '@/lib/budget-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface BudgetTableViewProps {
   budgets: any[];
@@ -14,16 +15,25 @@ interface BudgetTableViewProps {
   onEdit?: (budget: any) => void;
   onDuplicate?: (budget: any) => void;
   onDelete?: (budget: any) => void;
+  selectedIds?: string[];
+  onSelectOne?: (id: string) => void;
+  onSelectAll?: () => void;
 }
 
-export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete }: BudgetTableViewProps) => {
+export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete, selectedIds = [], onSelectOne, onSelectAll }: BudgetTableViewProps) => {
   const navigate = useNavigate();
+  const allSelected = budgets.length > 0 && selectedIds.length === budgets.length;
   
   return (
     <div className="rounded-md border overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
+            {onSelectOne && (
+              <TableHead className="w-[40px]">
+                <Checkbox checked={allSelected} onCheckedChange={() => onSelectAll?.()} />
+              </TableHead>
+            )}
             <TableHead className="min-w-[100px]">Código</TableHead>
             <TableHead className="min-w-[200px]">Título</TableHead>
             <TableHead className="min-w-[150px]">Cliente</TableHead>

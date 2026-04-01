@@ -405,7 +405,33 @@ export default function Presupuestos() {
     convertToContractMutation.mutate(budget);
   };
 
-  const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId;
+  const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId || filters.invoiceMonth || filters.invoiceYear;
+
+  const handleSelectOne = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleSelectAll = () => {
+    if (!budgets) return;
+    setSelectedIds(prev => prev.length === budgets.length ? [] : budgets.map(b => b.id));
+  };
+
+  const handleExport = () => {
+    if (!budgets) return;
+    const toExport = selectedIds.length > 0
+      ? budgets.filter(b => selectedIds.includes(b.id))
+      : budgets;
+    exportBudgetsToCSV(toExport);
+  };
+
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+  const months = [
+    { value: 1, label: 'Enero' }, { value: 2, label: 'Febrero' }, { value: 3, label: 'Marzo' },
+    { value: 4, label: 'Abril' }, { value: 5, label: 'Mayo' }, { value: 6, label: 'Junio' },
+    { value: 7, label: 'Julio' }, { value: 8, label: 'Agosto' }, { value: 9, label: 'Septiembre' },
+    { value: 10, label: 'Octubre' }, { value: 11, label: 'Noviembre' }, { value: 12, label: 'Diciembre' },
+  ];
 
   return (
     <AppLayout title="Presupuestos" description="Gestión de presupuestos">

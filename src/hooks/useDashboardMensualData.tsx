@@ -108,12 +108,19 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
         commissionsRes,
         allocationsRes,
       ] = await Promise.all([
-        // Invoices: filter by billing_period or invoice_date month
-        supabase
-          .from('invoices')
-          .select('id, code, client_id, contract_id, budget_id, invoice_date, paid_at, status, subtotal, total_amount, billing_period_month, billing_period_year')
-          .gte('invoice_date', startDate)
-          .lte('invoice_date', endDate),
+        // Invoices: in accrual mode filter by billing_period (work month);
+        // in cashflow mode filter by invoice_date (emission date)
+        viewMode === 'accrual'
+          ? supabase
+              .from('invoices')
+              .select('id, code, client_id, contract_id, budget_id, invoice_date, paid_at, status, subtotal, total_amount, billing_period_month, billing_period_year')
+              .eq('billing_period_year', year)
+              .eq('billing_period_month', month)
+          : supabase
+              .from('invoices')
+              .select('id, code, client_id, contract_id, budget_id, invoice_date, paid_at, status, subtotal, total_amount, billing_period_month, billing_period_year')
+              .gte('invoice_date', startDate)
+              .lte('invoice_date', endDate),
         // Liquidations: always filter by period
         supabase
           .from('liquidations')

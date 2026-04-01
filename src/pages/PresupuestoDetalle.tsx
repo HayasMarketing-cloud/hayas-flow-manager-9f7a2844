@@ -1346,6 +1346,29 @@ export default function PresupuestoDetalle() {
                     </div>
                   )}
 
+                  {/* Contacto del cliente */}
+                  {budget.client_contact && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-2">
+                        Contacto del Cliente
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback>
+                            {(budget.client_contact as any).name?.charAt(0) || 'C'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">{(budget.client_contact as any).name}</p>
+                          <p className="text-sm text-muted-foreground">{(budget.client_contact as any).email}</p>
+                          {(budget.client_contact as any).role && (
+                            <Badge variant="outline" className="text-xs mt-1">{(budget.client_contact as any).role}</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Especialistas */}
                   {teamSpecialists.length > 0 && (
                     <div>
@@ -1378,7 +1401,7 @@ export default function PresupuestoDetalle() {
                   )}
 
                   {/* Si no hay nadie asignado */}
-                  {!amProfile && !pmProfile && teamSpecialists.length === 0 && (
+                  {!amProfile && !pmProfile && !budget.client_contact && teamSpecialists.length === 0 && (
                     <p className="text-sm text-muted-foreground">
                       No hay miembros del equipo asignados a este presupuesto.
                     </p>

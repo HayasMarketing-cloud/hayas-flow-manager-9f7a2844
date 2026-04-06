@@ -162,8 +162,21 @@ export function ExtractedInvoiceRow({
   const invoiceStatus = invoice.editedInvoiceStatus ?? 'sent';
   const contractId = invoice.editedContractId ?? null;
   const budgetId = invoice.editedBudgetId ?? null;
-  const billingMonth = invoice.editedBillingMonth ?? new Date().getMonth() + 1;
-  const billingYear = invoice.editedBillingYear ?? currentYear;
+
+  // Auto-derive billing period as month before invoice_date
+  const derivedBillingPeriod = (() => {
+    if (data.invoice_date) {
+      const d = new Date(data.invoice_date);
+      d.setMonth(d.getMonth() - 1);
+      return { month: d.getMonth() + 1, year: d.getFullYear() };
+    }
+    const now = new Date();
+    now.setMonth(now.getMonth() - 1);
+    return { month: now.getMonth() + 1, year: now.getFullYear() };
+  })();
+
+  const billingMonth = invoice.editedBillingMonth ?? derivedBillingPeriod.month;
+  const billingYear = invoice.editedBillingYear ?? derivedBillingPeriod.year;
 
   const taxAmount = subtotal * (taxRate / 100);
   const total = subtotal + taxAmount;

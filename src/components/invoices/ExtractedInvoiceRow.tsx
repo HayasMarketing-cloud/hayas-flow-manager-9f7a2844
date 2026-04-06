@@ -336,6 +336,51 @@ export function ExtractedInvoiceRow({
         <tr className="bg-muted/30">
           <td colSpan={8} className="px-4 py-4">
             <div className="space-y-4">
+              {/* Billing period - always visible */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Período de facturación (mes de trabajo)</Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={String(billingMonth)}
+                    onValueChange={(value) =>
+                      onUpdate(invoice.id, { editedBillingMonth: parseInt(value) })
+                    }
+                  >
+                    <SelectTrigger className="h-9 w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((month) => (
+                        <SelectItem key={month.value} value={String(month.value)}>
+                          {month.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select
+                    value={String(billingYear)}
+                    onValueChange={(value) =>
+                      onUpdate(invoice.id, { editedBillingYear: parseInt(value) })
+                    }
+                  >
+                    <SelectTrigger className="h-9 w-24">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {YEARS.map((year) => (
+                        <SelectItem key={year} value={String(year)}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Auto-derivado de la fecha de emisión (mes anterior)
+                </p>
+              </div>
+
               {/* Association selectors */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Presupuesto */}
@@ -346,7 +391,6 @@ export function ExtractedInvoiceRow({
                     onValueChange={(value) =>
                       onUpdate(invoice.id, { 
                         editedBudgetId: value === 'none' ? null : value,
-                        // Clear contract if budget selected
                         editedContractId: value !== 'none' ? null : invoice.editedContractId,
                       })
                     }
@@ -373,81 +417,35 @@ export function ExtractedInvoiceRow({
                   )}
                 </div>
 
-                {/* Contrato + Período */}
+                {/* Contrato */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Contrato + Período (recurrente)</Label>
-                  <div className="flex gap-2">
-                    <Select
-                      value={contractId || 'none'}
-                      onValueChange={(value) =>
-                        onUpdate(invoice.id, { 
-                          editedContractId: value === 'none' ? null : value,
-                          // Clear budget if contract selected
-                          editedBudgetId: value !== 'none' ? null : invoice.editedBudgetId,
-                          // Set default period if contract selected
-                          editedBillingMonth: value !== 'none' ? billingMonth : null,
-                          editedBillingYear: value !== 'none' ? billingYear : null,
-                        })
-                      }
-                      disabled={!clientId}
-                    >
-                      <SelectTrigger className="h-9 flex-1">
-                        <SelectValue placeholder="Ninguno">
-                          {contractId
-                            ? clientContracts.find((c) => c.id === contractId)?.code || 'Contrato'
-                            : 'Ninguno'}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Ninguno</SelectItem>
-                        {clientContracts.map((contract) => (
-                          <SelectItem key={contract.id} value={contract.id}>
-                            {contract.code} - {contract.title}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    
-                    {contractId && (
-                      <>
-                        <Select
-                          value={String(billingMonth)}
-                          onValueChange={(value) =>
-                            onUpdate(invoice.id, { editedBillingMonth: parseInt(value) })
-                          }
-                        >
-                          <SelectTrigger className="h-9 w-28">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {MONTHS.map((month) => (
-                              <SelectItem key={month.value} value={String(month.value)}>
-                                {month.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        
-                        <Select
-                          value={String(billingYear)}
-                          onValueChange={(value) =>
-                            onUpdate(invoice.id, { editedBillingYear: parseInt(value) })
-                          }
-                        >
-                          <SelectTrigger className="h-9 w-20">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {YEARS.map((year) => (
-                              <SelectItem key={year} value={String(year)}>
-                                {year}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </>
-                    )}
-                  </div>
+                  <Label className="text-xs font-medium">Contrato (recurrente)</Label>
+                  <Select
+                    value={contractId || 'none'}
+                    onValueChange={(value) =>
+                      onUpdate(invoice.id, { 
+                        editedContractId: value === 'none' ? null : value,
+                        editedBudgetId: value !== 'none' ? null : invoice.editedBudgetId,
+                      })
+                    }
+                    disabled={!clientId}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Ninguno">
+                        {contractId
+                          ? clientContracts.find((c) => c.id === contractId)?.code || 'Contrato'
+                          : 'Ninguno'}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Ninguno</SelectItem>
+                      {clientContracts.map((contract) => (
+                        <SelectItem key={contract.id} value={contract.id}>
+                          {contract.code} - {contract.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   {clientContracts.length === 1 && contractId === clientContracts[0].id && (
                     <p className="text-xs text-green-600">✓ único disponible</p>
                   )}

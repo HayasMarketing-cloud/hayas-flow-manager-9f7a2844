@@ -345,8 +345,15 @@ export function InvoiceUploadModal({ isOpen, onClose }: InvoiceUploadModalProps)
         // New association fields
         const budgetId = invoice.editedBudgetId ?? null;
         const contractId = invoice.editedContractId ?? null;
-        const billingMonth = invoice.editedBillingMonth ?? null;
-        const billingYear = invoice.editedBillingYear ?? null;
+        
+        // Derive billing period from invoice_date (month before) as fallback
+        const invoiceDate = new Date(data.invoice_date);
+        invoiceDate.setMonth(invoiceDate.getMonth() - 1);
+        const derivedMonth = invoiceDate.getMonth() + 1;
+        const derivedYear = invoiceDate.getFullYear();
+        
+        const billingMonth = invoice.editedBillingMonth ?? derivedMonth;
+        const billingYear = invoice.editedBillingYear ?? derivedYear;
 
         const taxAmount = subtotal * (taxRate / 100);
         const total = subtotal + taxAmount;

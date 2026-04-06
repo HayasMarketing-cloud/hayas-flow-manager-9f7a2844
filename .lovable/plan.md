@@ -1,29 +1,48 @@
 
 
-## Notificación al Account Manager para solicitar PO Number al aprobar presupuesto
+## Corregir billing_period en importación de facturas de clientes
 
-### Contexto
-Al aprobar un presupuesto, se añadirá una notificación específica dirigida al AM asignado, pidiéndole que solicite el PO Number al cliente.
+### Problema identificado
 
-### Condición de envío
-La notificación **solo se envía** si se cumplen todas estas condiciones:
-- El presupuesto tiene un `am_user_id` asignado.
-- El campo `client_po_number` está vacío (null), es cadena vacía, o tiene el valor "Pendiente".
+Las facturas importadas por PDF no guardan el `billing_period_month/year` correctamente:
 
-Si el PO Number ya está informado con un valor real, no se envía notificación.
+1. **El selector de período solo aparece si se asocia un contrato** — si se asocia un presupuesto o no se asocia nada, no hay opción de indicar el período de facturación.
+2. **El valor por defecto no se guarda** — en el UI, `billingMonth` muestra el mes actual como default, pero al guardar se usa `invoice.editedBillingMonth ?? null`, así que si el usuario no toca el selector, se guarda `null`.
+3. **La IA no extrae el período de facturación** — el prompt de extracción no pide el "billing period" (mes de trabajo facturado).
 
-### Cambios
+Resultado: las 12 facturas emitidas el 1 de abril para el trabajo de marzo tienen `billing_period = NULL` y no aparecen en el Dashboard de marzo en modo devengado.
 
-**1. `src/lib/notification-utils.ts`**
-- Nueva función `notifyAMRequestPONumber(amUserId, budgetCode, budgetId, clientName)` que inserta una notificación tipo `warning`, categoría `budget`, dirigida al AM con `action_url` al detalle del presupuesto.
+### Solución en 3 partes
 
-**2. `src/hooks/useApproveBudget.tsx`**
-- Añadir `client:clients(name)` al select del presupuesto.
-- En `onSuccess`, evaluar la condición:
-  ```
-  const poMissing = !budget.client_po_number 
-    || budget.client_po_number.trim() === '' 
-    || budget.client_po_number.trim().toLowerCase() === 'pendiente';
-  ```
-- Si `budget.am_user_id` existe y `poMissing` es true, llamar a `notifyAMRequestPONumber`.
+**1. Auto-derivar el billing period desde la fecha de emisión**
+
+En `ExtractedInvoiceRow.tsx`, calcular automáticamente el billing period como el **mes anterior** a la fecha de emisión (regla de negocio: trabajo del Mes N se factura el 1 del Mes N+1). Este valor se pre-poblará pero será editable.
+
+```text
+invoice_date = 2026-04-01 → billing_period = Marzo 2026
+invoice_date = 2026-03-02 → billing_period = Febrero 2026
+```
+
+**2. Mostrar el selector de período siempre (no solo con contrato)**
+
+Mover el selector de mes/año de facturación fuera del bloque `{contractId && (...)}` para que esté visible siempre, independientemente de si la factura se asocia a contrato, presupuesto o nada.
+
+**3. Garantizar que el valor por defecto se guarde**
+
+En `InvoiceUploadModal.tsx`, cambiar el fallback de `null` al mismo cálculo del mes anterior:
+```typescript
+const billingMonth = invoice.editedBillingMonth ?? derivedBillingMonth;
+const billingYear = invoice.editedBillingYear ?? derivedBillingYear;
+```
+
+### Datos históricos
+
+Además, corregir las 12 facturas de abril ya importadas con una migración de datos:
+- Facturas con `invoice_date = 2026-04-01` y `billing_period_month IS NULL` → asignar `billing_period_month = 3, billing_period_year = 2026`
+
+### Archivos a modificar
+
+1. **`src/components/invoices/ExtractedInvoiceRow.tsx`** — Calcular billing period automático desde invoice_date; mostrar selector siempre
+2. **`src/components/invoices/InvoiceUploadModal.tsx`** — Usar billing period derivado como fallback en lugar de null
+3. **Migración de datos** — UPDATE facturas existentes con billing_period null
 

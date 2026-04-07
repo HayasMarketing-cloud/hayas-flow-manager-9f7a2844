@@ -20,6 +20,16 @@ export const useAssignedClients = () => {
     queryFn: async () => {
       if (!user?.id) return [];
 
+      // Get client IDs from client_assignments (direct client-level access)
+      const { data: assignedClients, error: assignmentError } = await supabase
+        .from('client_assignments')
+        .select('client_id')
+        .eq('user_id', user.id);
+
+      if (assignmentError) {
+        console.error('Error fetching client assignments:', assignmentError);
+      }
+
       // Get client IDs from contracts where user is AM or PM
       const { data: contractClients, error: contractError } = await supabase
         .from('contracts')
@@ -42,6 +52,7 @@ export const useAssignedClients = () => {
 
       // Combine and deduplicate client IDs
       const allClientIds = [
+        ...(assignedClients?.map(a => a.client_id) || []),
         ...(contractClients?.map(c => c.client_id) || []),
         ...(budgetClients?.map(b => b.client_id) || [])
       ];

@@ -38,6 +38,7 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete
             <TableHead className="min-w-[200px]">Título</TableHead>
             <TableHead className="min-w-[150px]">Cliente</TableHead>
             <TableHead className="min-w-[150px]">Contacto</TableHead>
+            <TableHead className="min-w-[150px]">Creado por</TableHead>
             <TableHead className="min-w-[120px]">PO Number</TableHead>
             <TableHead className="min-w-[120px]">Monto Total</TableHead>
             <TableHead className="min-w-[100px]">Estado</TableHead>
@@ -48,7 +49,7 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete
         <TableBody>
           {budgets.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={onSelectOne ? 10 : 9} className="text-center text-muted-foreground">
+              <TableCell colSpan={onSelectOne ? 11 : 10} className="text-center text-muted-foreground">
                 No se encontraron presupuestos
               </TableCell>
             </TableRow>
@@ -82,6 +83,7 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete
                 </TableCell>
                 <TableCell>{budget.client?.name || 'Sin cliente'}</TableCell>
                 <TableCell>{budget.client_contact?.name || '-'}</TableCell>
+                <TableCell>{budget.creator?.full_name || budget.creator?.email || '-'}</TableCell>
                 <TableCell>{budget.client_po_number || 'Pendiente'}</TableCell>
                 <TableCell>{formatCurrency(budget.total_amount || 0)}</TableCell>
                 <TableCell>

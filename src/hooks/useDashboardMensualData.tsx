@@ -83,22 +83,26 @@ export interface MonthlyKPIs {
   netCashFlow: number;
 }
 
+export interface ReconciliationData {
+  requestsWithoutInvoice: number;
+  requestsWithoutLiquidation: number;
+  requestsWithoutOrigin: number;
+}
+
 export interface DashboardMensualData {
   kpis: MonthlyKPIs;
   clients: ClientSummary[];
   specialists: SpecialistSummary[];
+  reconciliation: ReconciliationData;
 }
 
 export const useDashboardMensualData = (year: number, month: number, viewMode: ViewMode) => {
   return useQuery({
     queryKey: ['dashboard-mensual-data', year, month, viewMode],
     queryFn: async (): Promise<DashboardMensualData> => {
-      // Fetch all needed data in parallel
       const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
       const endDate = new Date(year, month, 0).toISOString().split('T')[0];
 
-      // Always filter by period month/year to show all entities for the selected month
-      // ViewMode only affects KPI calculations (which amounts to consider)
       const [
         invoicesRes,
         liquidationsRes,
@@ -107,9 +111,9 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
         budgetsRes,
         commissionsRes,
         allocationsRes,
+        requestsRes,
+        reconciliationRes,
       ] = await Promise.all([
-        // Invoices: in accrual mode filter by billing_period (work month);
-        // in cashflow mode filter by invoice_date (emission date)
         viewMode === 'accrual'
           ? supabase
               .from('invoices')
@@ -121,22 +125,29 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
               .select('id, code, client_id, contract_id, budget_id, invoice_date, paid_at, status, subtotal, total_amount, billing_period_month, billing_period_year')
               .gte('invoice_date', startDate)
               .lte('invoice_date', endDate),
-        // Liquidations: always filter by period
         supabase
           .from('liquidations')
           .select('id, code, specialist_id, period_month, period_year, status, subtotal, total_amount, paid_at, specialist_invoice_url, specialist:specialists(id, name)')
           .eq('period_year', year)
           .eq('period_month', month),
-        // Clients
         supabase.from('clients').select('id, name'),
-        // Contracts
         supabase.from('contracts').select('id, code, title, client_id'),
-        // Budgets
         supabase.from('budgets').select('id, code, title, client_id'),
-        // Commissions - get commissions linked to invoices of the period
         supabase.from('sales_commissions').select('id, commission_type, commission_amount, status, contract_id, budget_id, invoice_ids, seller_user_id'),
-        // Invoice-budget allocations
         supabase.from('invoice_budget_allocations').select('invoice_id, budget_id, allocated_amount'),
+        // Financial requests for the work period — to cross-reference costs with clients
+        supabase
+          .from('financial_requests')
+          .select('id, client_id, specialist_id, cost_to_agency, billed_invoice_id, liquidation_id, budget_id, contract_id, status')
+          .eq('work_year', year)
+          .eq('work_month', month),
+        // Reconciliation: requests of this month
+        supabase
+          .from('financial_requests')
+          .select('id, billed_invoice_id, liquidation_id, budget_id, contract_id, status')
+          .eq('work_year', year)
+          .eq('work_month', month)
+          .in('status', ['completed', 'billed', 'liquidated']),
       ]);
 
       const invoices = (invoicesRes.data || []) as InvoiceRow[];
@@ -146,11 +157,21 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
       const budgets = budgetsRes.data || [];
       const allCommissions = (commissionsRes.data || []) as CommissionRow[];
       const allocations = allocationsRes.data || [];
+      const requests = requestsRes.data || [];
+      const reconciliationRequests = reconciliationRes.data || [];
 
       // Build lookup maps
       const clientMap = new Map(clients.map(c => [c.id, c.name]));
       const contractMap = new Map(contracts.map(c => [c.id, { code: c.code, title: c.title, client_id: c.client_id }]));
       const budgetMap = new Map(budgets.map(b => [b.id, { code: b.code, title: b.title, client_id: b.client_id }]));
+
+      // Build costs per client from financial_requests
+      const costsByClient = new Map<string, number>();
+      requests.forEach((r: any) => {
+        if (r.cost_to_agency && r.client_id) {
+          costsByClient.set(r.client_id, (costsByClient.get(r.client_id) || 0) + Number(r.cost_to_agency));
+        }
+      });
 
       // Filter commissions relevant to these invoices
       const invoiceIds = new Set(invoices.map(i => i.id));
@@ -166,23 +187,25 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
         clientInvoices.set(inv.client_id, arr);
       });
 
-      // Group liquidations by specialist, also compute costs per client via requests
-      // For now, liquidation costs aren't directly tied to clients in this simple model
-      // We'll show them in the specialists section
-      
+      // Also ensure clients with costs but no invoices appear
+      costsByClient.forEach((_, clientId) => {
+        if (!clientInvoices.has(clientId)) {
+          clientInvoices.set(clientId, []);
+        }
+      });
+
       // Build client summaries
       const clientSummaries: ClientSummary[] = [];
       
       clientInvoices.forEach((invs, clientId) => {
         const clientName = clientMap.get(clientId) || 'Cliente desconocido';
-        // For cashflow: only count paid invoices in revenue; for accrual: count all
         const revenueInvs = viewMode === 'cashflow' ? invs.filter(i => i.status === 'paid') : invs;
         const revenue = revenueInvs.reduce((sum, inv) => sum + inv.subtotal, 0);
+        const clientCosts = costsByClient.get(clientId) || 0;
         
         // Group by origin (contract or budget)
         const originMap = new Map<string, { type: 'contract' | 'budget'; id: string; code: string; title: string; invoices: InvoiceRow[]; revenue: number }>();
         
-        // Set of paid invoice ids for filtering origin revenue in cashflow mode
         const paidInvIds = new Set(invs.filter(i => i.status === 'paid').map(i => i.id));
 
         invs.forEach(inv => {
@@ -198,7 +221,6 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
             const bg = budgetMap.get(inv.budget_id);
             originData = { type: 'budget' as const, id: inv.budget_id, code: bg?.code || '?', title: bg?.title || 'Presupuesto' };
           } else {
-            // Check allocations for budget links
             const alloc = allocations.find(a => a.invoice_id === inv.id);
             if (alloc) {
               originKey = `budget-${alloc.budget_id}`;
@@ -209,7 +231,6 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
             }
           }
 
-          // Only add to revenue if this invoice counts under the current viewMode
           const countsForRevenue = viewMode === 'cashflow' ? paidInvIds.has(inv.id) : true;
           const invRevenue = countsForRevenue ? inv.subtotal : 0;
 
@@ -232,28 +253,28 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
         // Build origin summaries
         const origins: OriginSummary[] = [];
         originMap.forEach(o => {
-          // Commissions per origin (approximate by distributing proportionally)
           const originCommissions = totalClientCommissions * (o.revenue / (revenue || 1));
-          const margin = o.revenue - originCommissions;
+          const originCosts = clientCosts * (o.revenue / (revenue || 1));
+          const margin = o.revenue - originCosts - originCommissions;
           origins.push({
             type: o.type,
             id: o.id,
             code: o.code,
             title: o.title,
             revenue: o.revenue,
-            costs: 0, // specialist costs shown in specialist section
+            costs: originCosts,
             commissions: originCommissions,
             margin,
             invoices: o.invoices,
           });
         });
 
-        const margin = revenue - totalClientCommissions;
+        const margin = revenue - clientCosts - totalClientCommissions;
         clientSummaries.push({
           clientId,
           clientName,
           revenue,
-          costs: 0,
+          costs: clientCosts,
           commissions: totalClientCommissions,
           margin,
           marginPercent: revenue > 0 ? (margin / revenue) * 100 : 0,
@@ -283,16 +304,21 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
         specialistSummaries.push({
           specialistId: specId,
           specialistName: data.name,
-          // Always show total of all liquidations for the period in the row summary
           totalCost: data.liquidations.reduce((sum: number, l: any) => sum + Number(l.subtotal ?? l.total_amount ?? 0), 0),
           liquidations: data.liquidations,
         });
       });
       specialistSummaries.sort((a, b) => b.totalCost - a.totalCost);
 
+      // Reconciliation
+      const reconciliation: ReconciliationData = {
+        requestsWithoutInvoice: reconciliationRequests.filter((r: any) => !r.billed_invoice_id).length,
+        requestsWithoutLiquidation: reconciliationRequests.filter((r: any) => !r.liquidation_id).length,
+        requestsWithoutOrigin: reconciliationRequests.filter((r: any) => !r.budget_id && !r.contract_id).length,
+      };
+
       // KPIs
       const totalRevenue = clientSummaries.reduce((sum, c) => sum + c.revenue, 0);
-      // For KPIs, apply viewMode filter to liquidation costs
       const totalLiquidationCosts = viewMode === 'cashflow'
         ? liquidations
             .filter((l: any) => l.status === 'paid')
@@ -313,6 +339,7 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
         },
         clients: clientSummaries,
         specialists: specialistSummaries,
+        reconciliation,
       };
     },
   });

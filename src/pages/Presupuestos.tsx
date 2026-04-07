@@ -81,7 +81,7 @@ export default function Presupuestos() {
         
         let query = supabase
           .from('budgets')
-          .select(`*, client:clients(id, name), client_contact:client_contacts(id, name, email)`)
+          .select(`*, client:clients(id, name), client_contact:client_contacts(id, name, email), creator:profiles!budgets_created_by_fkey(id, full_name, email)`)
           .in('id', budgetIds)
           .order('created_at', { ascending: false });
 
@@ -107,7 +107,7 @@ export default function Presupuestos() {
         
         let query = supabase
           .from('budgets')
-          .select(`*, client:clients(id, name), client_contact:client_contacts(id, name, email)`)
+          .select(`*, client:clients(id, name), client_contact:client_contacts(id, name, email), creator:profiles!budgets_created_by_fkey(id, full_name, email)`)
           .in('id', assignedBudgetIds)
           .order('created_at', { ascending: false });
 
@@ -133,7 +133,8 @@ export default function Presupuestos() {
         .select(`
           *,
           client:clients(id, name),
-          client_contact:client_contacts(id, name, email)
+          client_contact:client_contacts(id, name, email),
+          creator:profiles!budgets_created_by_fkey(id, full_name, email)
         `)
         .order('created_at', { ascending: false });
 

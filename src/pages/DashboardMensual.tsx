@@ -8,14 +8,18 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
-import { DollarSign, TrendingUp, Wallet, ArrowDownUp, ChevronRight, ChevronDown, Users, UserCheck, Receipt, FileText, Lock, LockOpen, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
+import { DollarSign, TrendingUp, Wallet, ArrowDownUp, ChevronRight, ChevronDown, Users, UserCheck, Receipt, Lock, LockOpen, AlertTriangle, CheckCircle2, Loader2, FileWarning, LinkIcon, FileX } from 'lucide-react';
 import { useDashboardMensualData, ViewMode, ClientSummary, SpecialistSummary } from '@/hooks/useDashboardMensualData';
 import { useClosedMonths, useIsMonthClosed, useValidateMonthClosure, useCloseMonth, useReopenMonth, getDefaultMonth } from '@/hooks/useClosedMonths';
+import { useDashboardAlerts } from '@/hooks/useDashboardAlerts';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { KPICard } from '@/components/dashboard/kpis/KPICard';
 import { KPISkeleton } from '@/components/dashboard/kpis/KPISkeleton';
+import { AlertsWidget } from '@/components/dashboard/widgets/AlertsWidget';
+import { CompletedProjectsWidget } from '@/components/dashboard/widgets/CompletedProjectsWidget';
 import { formatCurrency } from '@/lib/request-utils';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -28,7 +32,6 @@ const getStatusBadge = (status: string, context: 'invoice' | 'liquidation' = 'in
     sent: { label: 'Enviada', variant: 'outline' },
     paid: { label: context === 'liquidation' ? 'Pagada' : 'Cobrada', variant: 'default' },
     overdue: { label: 'Vencida', variant: 'destructive' },
-    // Liquidation statuses
     pending_payment: { label: 'Pend. Pago', variant: 'outline' },
     accepted: { label: 'Aceptada', variant: 'outline' },
     validated: { label: 'Validada', variant: 'outline' },
@@ -52,6 +55,7 @@ function ClientRow({ client }: { client: ClientSummary }) {
           </div>
         </TableCell>
         <TableCell className="text-right font-semibold text-green-700 dark:text-green-400">{formatCurrency(client.revenue)}</TableCell>
+        <TableCell className="text-right text-red-600 dark:text-red-400">{formatCurrency(client.costs)}</TableCell>
         <TableCell className="text-right text-muted-foreground">{formatCurrency(client.commissions)}</TableCell>
         <TableCell className={cn("text-right font-semibold", client.margin >= 0 ? "text-green-700 dark:text-green-400" : "text-red-600 dark:text-red-400")}>{formatCurrency(client.margin)}</TableCell>
         <TableCell className="text-right">{client.marginPercent.toFixed(1)}%</TableCell>
@@ -64,6 +68,7 @@ function ClientRow({ client }: { client: ClientSummary }) {
             <span className="font-medium">{origin.code}</span> — {origin.title}
           </TableCell>
           <TableCell className="text-right text-sm">{formatCurrency(origin.revenue)}</TableCell>
+          <TableCell className="text-right text-sm">{formatCurrency(origin.costs)}</TableCell>
           <TableCell className="text-right text-sm text-muted-foreground">{formatCurrency(origin.commissions)}</TableCell>
           <TableCell className="text-right text-sm">{formatCurrency(origin.margin)}</TableCell>
           <TableCell className="text-right text-sm">{origin.revenue > 0 ? ((origin.margin / origin.revenue) * 100).toFixed(1) : '0.0'}%</TableCell>
@@ -79,6 +84,7 @@ function ClientRow({ client }: { client: ClientSummary }) {
             </div>
           </TableCell>
           <TableCell className="text-right text-xs">{formatCurrency(inv.subtotal)}</TableCell>
+          <TableCell />
           <TableCell />
           <TableCell />
           <TableCell />
@@ -117,13 +123,93 @@ function SpecialistRow({ specialist }: { specialist: SpecialistSummary }) {
   );
 }
 
+function ReconciliationSection({ data, month, year }: { data: { requestsWithoutInvoice: number; requestsWithoutLiquidation: number; requestsWithoutOrigin: number }; month: number; year: number }) {
+  const navigate = useNavigate();
+  const total = data.requestsWithoutInvoice + data.requestsWithoutLiquidation + data.requestsWithoutOrigin;
+
+  if (total === 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-green-500" />
+            Estado del Cierre
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground text-center py-4">✅ Todas las solicitudes de {MONTHS[month - 1]} están correctamente asociadas</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const items = [
+    {
+      icon: FileX,
+      label: 'Sin factura de cliente',
+      count: data.requestsWithoutInvoice,
+      variant: 'destructive' as const,
+      onClick: () => navigate(`/solicitudes?work_month=${month}&work_year=${year}`),
+    },
+    {
+      icon: FileWarning,
+      label: 'Sin liquidación',
+      count: data.requestsWithoutLiquidation,
+      variant: 'default' as const,
+      onClick: () => navigate(`/solicitudes?work_month=${month}&work_year=${year}`),
+    },
+    {
+      icon: LinkIcon,
+      label: 'Sin origen económico',
+      count: data.requestsWithoutOrigin,
+      variant: 'secondary' as const,
+      onClick: () => navigate(`/solicitudes?work_month=${month}&work_year=${year}`),
+    },
+  ];
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-amber-500" />
+          Estado del Cierre — {MONTHS[month - 1]} {year}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {items.map((item) => (
+            <button
+              key={item.label}
+              onClick={item.onClick}
+              disabled={item.count === 0}
+              className={cn(
+                "flex items-center gap-3 p-4 rounded-lg border text-left transition-colors",
+                item.count > 0 ? "hover:bg-muted/50 cursor-pointer" : "opacity-50 cursor-default"
+              )}
+            >
+              <item.icon className={cn("h-5 w-5 shrink-0", item.count > 0 ? "text-amber-500" : "text-green-500")} />
+              <div>
+                <p className="text-2xl font-bold">{item.count}</p>
+                <p className="text-xs text-muted-foreground">{item.label}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function DashboardMensual() {
   const now = new Date();
+  const navigate = useNavigate();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [viewMode, setViewMode] = useState<ViewMode>('cashflow');
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [defaultApplied, setDefaultApplied] = useState(false);
+  const [showAlerts, setShowAlerts] = useState(false);
+  const [showProjects, setShowProjects] = useState(false);
   const { isAdmin, loading: roleLoading } = useUserRole();
   const { user } = useAuth();
   const { data, isLoading } = useDashboardMensualData(year, month, viewMode);
@@ -132,8 +218,8 @@ export default function DashboardMensual() {
   const { data: validation, isLoading: validating } = useValidateMonthClosure(year, month);
   const closeMutation = useCloseMonth();
   const reopenMutation = useReopenMonth();
+  const { data: alerts, isLoading: alertsLoading } = useDashboardAlerts();
 
-  // Set default month to oldest unclosed
   useEffect(() => {
     if (!loadingClosed && closedMonths && !defaultApplied) {
       const def = getDefaultMonth(closedMonths);
@@ -170,6 +256,8 @@ export default function DashboardMensual() {
       onError: (err: Error) => toast.error(`Error: ${err.message}`),
     });
   };
+
+  const totalClientCosts = data?.clients.reduce((sum, c) => sum + c.costs, 0) || 0;
 
   return (
     <AppLayout
@@ -349,12 +437,17 @@ export default function DashboardMensual() {
           </div>
         ) : null}
 
+        {/* Reconciliation */}
+        {data && (
+          <ReconciliationSection data={data.reconciliation} month={month} year={year} />
+        )}
+
         {/* Clients Table */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-muted-foreground" />
-              <CardTitle className="text-lg">Ingresos por Cliente</CardTitle>
+              <CardTitle className="text-lg">P&L por Cliente</CardTitle>
             </div>
           </CardHeader>
           <CardContent>
@@ -366,6 +459,7 @@ export default function DashboardMensual() {
                   <TableRow>
                     <TableHead>Cliente</TableHead>
                     <TableHead className="text-right">Ingresos</TableHead>
+                    <TableHead className="text-right">Costes Esp.</TableHead>
                     <TableHead className="text-right">Comisiones</TableHead>
                     <TableHead className="text-right">Margen</TableHead>
                     <TableHead className="text-right">%</TableHead>
@@ -380,9 +474,10 @@ export default function DashboardMensual() {
                   <TableRow className="border-t-2 font-bold">
                     <TableCell>TOTAL</TableCell>
                     <TableCell className="text-right">{formatCurrency(data.kpis.totalRevenue)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(totalClientCosts)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(data.kpis.totalCommissions)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(data.kpis.totalRevenue - data.kpis.totalCommissions)}</TableCell>
-                    <TableCell className="text-right">{data.kpis.totalRevenue > 0 ? (((data.kpis.totalRevenue - data.kpis.totalCommissions) / data.kpis.totalRevenue) * 100).toFixed(1) : '0.0'}%</TableCell>
+                    <TableCell className="text-right">{formatCurrency(data.kpis.totalRevenue - totalClientCosts - data.kpis.totalCommissions)}</TableCell>
+                    <TableCell className="text-right">{data.kpis.totalRevenue > 0 ? (((data.kpis.totalRevenue - totalClientCosts - data.kpis.totalCommissions) / data.kpis.totalRevenue) * 100).toFixed(1) : '0.0'}%</TableCell>
                     <TableCell className="text-right">{data.clients.reduce((sum, c) => sum + c.invoices.length, 0)}</TableCell>
                   </TableRow>
                 </TableBody>
@@ -432,6 +527,38 @@ export default function DashboardMensual() {
             )}
           </CardContent>
         </Card>
+
+        {/* Collapsible Widgets */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Collapsible open={showProjects} onOpenChange={setShowProjects}>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" className="w-full justify-between px-4 py-3 h-auto">
+                <span className="font-semibold text-sm">Proyectos completados pend. facturar</span>
+                {showProjects ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CompletedProjectsWidget />
+            </CollapsibleContent>
+          </Collapsible>
+
+          <Collapsible open={showAlerts} onOpenChange={setShowAlerts}>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" className="w-full justify-between px-4 py-3 h-auto">
+                <span className="font-semibold text-sm flex items-center gap-2">
+                  Alertas
+                  {alerts && alerts.length > 0 && (
+                    <Badge variant="destructive" className="text-xs">{alerts.length}</Badge>
+                  )}
+                </span>
+                {showAlerts ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <AlertsWidget alerts={alerts} isLoading={alertsLoading} />
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
       </div>
     </AppLayout>
   );

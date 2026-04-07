@@ -1,48 +1,50 @@
 
 
-## Corregir billing_period en importación de facturas de clientes
+## Plan revisado: Sistema de controlling financiero unificado
 
-### Problema identificado
+**Acceso: exclusivamente roles `admin` y `finanzas`** — sin cambios en permisos. El Dashboard Mensual ya está restringido a estos roles y así se mantiene.
 
-Las facturas importadas por PDF no guardan el `billing_period_month/year` correctamente:
+### 1. Consolidar DashboardFinanzas → DashboardMensual
 
-1. **El selector de período solo aparece si se asocia un contrato** — si se asocia un presupuesto o no se asocia nada, no hay opción de indicar el período de facturación.
-2. **El valor por defecto no se guarda** — en el UI, `billingMonth` muestra el mes actual como default, pero al guardar se usa `invoice.editedBillingMonth ?? null`, así que si el usuario no toca el selector, se guarda `null`.
-3. **La IA no extrae el período de facturación** — el prompt de extracción no pide el "billing period" (mes de trabajo facturado).
+DashboardFinanzas está huérfano (sin ruta en sidebar). Absorber sus widgets útiles en DashboardMensual:
+- **AlertsWidget** (facturas vencidas, liquidaciones borrador, requests sin facturar) → sección colapsable
+- **CompletedProjectsWidget** (proyectos completados pendientes de facturar) → sección colapsable
+- **KPIs con tendencia** (comparación vs período anterior) → enriquecer KPIs existentes
 
-Resultado: las 12 facturas emitidas el 1 de abril para el trabajo de marzo tienen `billing_period = NULL` y no aparecen en el Dashboard de marzo en modo devengado.
+Eliminar: `DashboardFinanzas.tsx`, `useDashboardData.tsx`, `useDashboardCharts.tsx`, ruta `/dashboard-finanzas` en App.tsx.
 
-### Solución en 3 partes
+### 2. Cruzar costes de especialistas con clientes en tabla mensual
 
-**1. Auto-derivar el billing period desde la fecha de emisión**
+Modificar `useDashboardMensualData.tsx` para consultar `financial_requests` del período y agrupar `cost_to_agency` por `client_id`. La tabla de clientes mostrará:
 
-En `ExtractedInvoiceRow.tsx`, calcular automáticamente el billing period como el **mes anterior** a la fecha de emisión (regla de negocio: trabajo del Mes N se factura el 1 del Mes N+1). Este valor se pre-poblará pero será editable.
+| Cliente | Ingresos | Costes especialistas | Comisiones | Margen neto | % |
 
-```text
-invoice_date = 2026-04-01 → billing_period = Marzo 2026
-invoice_date = 2026-03-02 → billing_period = Febrero 2026
-```
+### 3. Sección de reconciliación "Estado del cierre"
 
-**2. Mostrar el selector de período siempre (no solo con contrato)**
+Nueva sección en DashboardMensual con contadores clicables:
+- Requests del mes sin factura (`billed_invoice_id IS NULL`)
+- Requests del mes sin liquidación (`liquidation_id IS NULL`)  
+- Requests sin origen económico (`budget_id IS NULL AND contract_id IS NULL`)
 
-Mover el selector de mes/año de facturación fuera del bloque `{contractId && (...)}` para que esté visible siempre, independientemente de si la factura se asocia a contrato, presupuesto o nada.
+Cada contador enlaza a Solicitudes filtradas. Solo visible para admin/finanzas (ya implícito por estar en DashboardMensual).
 
-**3. Garantizar que el valor por defecto se guarde**
+### 4. Corrección de datos históricos (migración)
 
-En `InvoiceUploadModal.tsx`, cambiar el fallback de `null` al mismo cálculo del mes anterior:
-```typescript
-const billingMonth = invoice.editedBillingMonth ?? derivedBillingMonth;
-const billingYear = invoice.editedBillingYear ?? derivedBillingYear;
-```
-
-### Datos históricos
-
-Además, corregir las 12 facturas de abril ya importadas con una migración de datos:
-- Facturas con `invoice_date = 2026-04-01` y `billing_period_month IS NULL` → asignar `billing_period_month = 3, billing_period_year = 2026`
+- Rellenar `work_month/work_year` en requests huérfanos usando `period_month/period_year` de su liquidación
+- Rellenar `contract_id` en facturas importadas por PDF de clientes con contrato activo único
 
 ### Archivos a modificar
 
-1. **`src/components/invoices/ExtractedInvoiceRow.tsx`** — Calcular billing period automático desde invoice_date; mostrar selector siempre
-2. **`src/components/invoices/InvoiceUploadModal.tsx`** — Usar billing period derivado como fallback en lugar de null
-3. **Migración de datos** — UPDATE facturas existentes con billing_period null
+1. `src/hooks/useDashboardMensualData.tsx` — Cruzar costes con clientes; datos de reconciliación
+2. `src/pages/DashboardMensual.tsx` — Columna costes en tabla clientes; sección reconciliación; alertas; KPIs con tendencia
+3. `src/hooks/useDashboardKPIs.tsx` — Simplificar para solo tendencias
+4. `src/App.tsx` — Eliminar ruta `/dashboard-finanzas`
+5. **Eliminar**: `DashboardFinanzas.tsx`, `useDashboardData.tsx`, `useDashboardCharts.tsx`
+6. **Migración SQL** — UPDATE requests y facturas con datos faltantes
+
+### Nota sobre permisos
+
+- El `DashboardMensual` ya está protegido con `RoleBasedRoute allowedRoles={['admin']}` y validación interna `canAccessFinance()`
+- Los hooks `useDashboardAlerts` y `useDashboardKPIs` ya verifican `canAccessFinance()` internamente
+- No se requiere ningún cambio de permisos — todo queda dentro del perímetro admin/finanzas existente
 

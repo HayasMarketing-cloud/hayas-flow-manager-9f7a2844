@@ -147,7 +147,7 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
           .select('id, billed_invoice_id, liquidation_id, budget_id, contract_id, status')
           .eq('work_year', year)
           .eq('work_month', month)
-          .in('status', ['completed', 'billed', 'liquidated']),
+          .eq('status', 'completed'),
       ]);
 
       const invoices = (invoicesRes.data || []) as InvoiceRow[];

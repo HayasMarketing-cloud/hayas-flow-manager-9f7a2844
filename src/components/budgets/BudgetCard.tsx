@@ -101,6 +101,11 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
                 <span className="text-xs ml-1">· {budget.client_contact.name}</span>
               )}
             </p>
+            {budget.creator && (
+              <p className="text-xs text-muted-foreground">
+                Creado por: {budget.creator.full_name || budget.creator.email}
+              </p>
+            )}
           </div>
           {/* Inline status selector */}
           <Select

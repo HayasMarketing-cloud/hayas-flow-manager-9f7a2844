@@ -81,7 +81,7 @@ export default function Presupuestos() {
         
         let query = supabase
           .from('budgets')
-          .select(`*, client:clients(id, name), client_contact:client_contacts(id, name, email), creator:profiles!budgets_created_by_fkey(id, full_name, email)`)
+.select(`*, client:clients(id, name), client_contact:client_contacts(id, name, email), creator:profiles!inner(id, full_name, email)`)
           .in('id', budgetIds)
           .order('created_at', { ascending: false });
 

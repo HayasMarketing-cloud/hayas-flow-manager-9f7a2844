@@ -1,50 +1,32 @@
 
 
-## Plan revisado: Sistema de controlling financiero unificado
+## Plan: Contacto solicitante condicional en presupuestos
 
-**Acceso: exclusivamente roles `admin` y `finanzas`** — sin cambios en permisos. El Dashboard Mensual ya está restringido a estos roles y así se mantiene.
+### Problema actual
+El campo "Contacto Solicitante" es obligatorio para todos los presupuestos, incluso para clientes que no tienen contactos registrados. Esto bloquea la creación de presupuestos para esos clientes.
 
-### 1. Consolidar DashboardFinanzas → DashboardMensual
+### Solución
+Hacer el campo obligatorio **solo cuando el cliente tiene 2+ contactos activos**, y opcional en caso contrario. Si el cliente tiene 0 contactos, ocultar el selector.
 
-DashboardFinanzas está huérfano (sin ruta en sidebar). Absorber sus widgets útiles en DashboardMensual:
-- **AlertsWidget** (facturas vencidas, liquidaciones borrador, requests sin facturar) → sección colapsable
-- **CompletedProjectsWidget** (proyectos completados pendientes de facturar) → sección colapsable
-- **KPIs con tendencia** (comparación vs período anterior) → enriquecer KPIs existentes
+### Cambios en `BudgetFormModal.tsx`
 
-Eliminar: `DashboardFinanzas.tsx`, `useDashboardData.tsx`, `useDashboardCharts.tsx`, ruta `/dashboard-finanzas` en App.tsx.
+1. **Derivar `hasMultipleContacts`** a partir del array `contacts` ya cargado:
+   - `contacts?.length >= 2` → campo obligatorio (asterisco rojo, validación al guardar)
+   - `contacts?.length === 1` → campo visible pero opcional (sin asterisco, sin validación)
+   - `contacts?.length === 0` o sin cliente → ocultar el campo
 
-### 2. Cruzar costes de especialistas con clientes en tabla mensual
+2. **Eliminar validación fija** (líneas 198-201): reemplazar por validación condicional que solo bloquea si `hasMultipleContacts && !formData.client_contact_id`.
 
-Modificar `useDashboardMensualData.tsx` para consultar `financial_requests` del período y agrupar `cost_to_agency` por `client_id`. La tabla de clientes mostrará:
+3. **Auto-seleccionar** cuando hay exactamente 1 contacto: pre-llenar `client_contact_id` automáticamente.
 
-| Cliente | Ingresos | Costes especialistas | Comisiones | Margen neto | % |
-
-### 3. Sección de reconciliación "Estado del cierre"
-
-Nueva sección en DashboardMensual con contadores clicables:
-- Requests del mes sin factura (`billed_invoice_id IS NULL`)
-- Requests del mes sin liquidación (`liquidation_id IS NULL`)  
-- Requests sin origen económico (`budget_id IS NULL AND contract_id IS NULL`)
-
-Cada contador enlaza a Solicitudes filtradas. Solo visible para admin/finanzas (ya implícito por estar en DashboardMensual).
-
-### 4. Corrección de datos históricos (migración)
-
-- Rellenar `work_month/work_year` en requests huérfanos usando `period_month/period_year` de su liquidación
-- Rellenar `contract_id` en facturas importadas por PDF de clientes con contrato activo único
+4. **UI condicional** en el label y helper text:
+   - Con múltiples contactos: mostrar asterisco `*` y texto "obligatorio"
+   - Con un contacto: sin asterisco, texto "opcional"
+   - Sin contactos: no renderizar el bloque
 
 ### Archivos a modificar
+- `src/components/budgets/BudgetFormModal.tsx` — único archivo afectado
 
-1. `src/hooks/useDashboardMensualData.tsx` — Cruzar costes con clientes; datos de reconciliación
-2. `src/pages/DashboardMensual.tsx` — Columna costes en tabla clientes; sección reconciliación; alertas; KPIs con tendencia
-3. `src/hooks/useDashboardKPIs.tsx` — Simplificar para solo tendencias
-4. `src/App.tsx` — Eliminar ruta `/dashboard-finanzas`
-5. **Eliminar**: `DashboardFinanzas.tsx`, `useDashboardData.tsx`, `useDashboardCharts.tsx`
-6. **Migración SQL** — UPDATE requests y facturas con datos faltantes
-
-### Nota sobre permisos
-
-- El `DashboardMensual` ya está protegido con `RoleBasedRoute allowedRoles={['admin']}` y validación interna `canAccessFinance()`
-- Los hooks `useDashboardAlerts` y `useDashboardKPIs` ya verifican `canAccessFinance()` internamente
-- No se requiere ningún cambio de permisos — todo queda dentro del perímetro admin/finanzas existente
+### Sin cambios de base de datos
+La columna `client_contact_id` en `budgets` ya es nullable. No se requiere migración.
 

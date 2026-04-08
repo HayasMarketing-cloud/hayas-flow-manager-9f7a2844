@@ -169,6 +169,16 @@ export const BudgetFormModal = ({
     }
   }, [formData.client_id, budget?.client_id]);
 
+  // Auto-select contact when client has exactly 1 contact
+  const hasMultipleContacts = (contacts?.length || 0) >= 2;
+  const hasContacts = (contacts?.length || 0) > 0;
+
+  useEffect(() => {
+    if (contacts?.length === 1 && !formData.client_contact_id && !budget?.client_contact_id) {
+      setFormData(prev => ({ ...prev, client_contact_id: contacts[0].id }));
+    }
+  }, [contacts, formData.client_contact_id, budget?.client_contact_id]);
+
   // Cargar items si está en modo edición/visualización
   const { data: budgetItems } = useQuery({
     queryKey: ['budget-items', budget?.id],
@@ -195,8 +205,8 @@ export const BudgetFormModal = ({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!formData.client_contact_id) {
-        toast.error('Debes seleccionar un contacto solicitante');
+      if (hasMultipleContacts && !formData.client_contact_id) {
+        toast.error('Debes seleccionar un contacto solicitante (este cliente tiene múltiples contactos)');
         throw new Error('client_contact_id required');
       }
       const totalAmount = calculateBudgetTotal(items);
@@ -404,34 +414,37 @@ export const BudgetFormModal = ({
               </Select>
             </div>
 
-            {/* Contact Selector - Required */}
-            <div className="col-span-2 space-y-2">
-              <Label className="flex items-center gap-2">
-                <User className="h-4 w-4" />
-                Contacto Solicitante <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={formData.client_contact_id || 'none'}
-                onValueChange={(value) => setFormData({ ...formData, client_contact_id: value === 'none' ? '' : value })}
-                disabled={!canEdit || !formData.client_id}
-                required
-              >
-                <SelectTrigger className={!formData.client_contact_id ? 'border-destructive' : ''}>
-                  <SelectValue placeholder="Seleccionar contacto" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none" disabled>Seleccionar contacto</SelectItem>
-                  {contacts?.map((contact) => (
-                    <SelectItem key={contact.id} value={contact.id}>
-                      {contact.name} {contact.role ? `(${contact.role})` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Persona del cliente que solicita este presupuesto (obligatorio)
-              </p>
-            </div>
+            {/* Contact Selector - Conditional */}
+            {hasContacts && (
+              <div className="col-span-2 space-y-2">
+                <Label className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Contacto Solicitante {hasMultipleContacts && <span className="text-destructive">*</span>}
+                </Label>
+                <Select
+                  value={formData.client_contact_id || 'none'}
+                  onValueChange={(value) => setFormData({ ...formData, client_contact_id: value === 'none' ? '' : value })}
+                  disabled={!canEdit || !formData.client_id}
+                >
+                  <SelectTrigger className={hasMultipleContacts && !formData.client_contact_id ? 'border-destructive' : ''}>
+                    <SelectValue placeholder="Seleccionar contacto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin contacto</SelectItem>
+                    {contacts?.map((contact) => (
+                      <SelectItem key={contact.id} value={contact.id}>
+                        {contact.name} {contact.role ? `(${contact.role})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {hasMultipleContacts 
+                    ? 'Persona del cliente que solicita este presupuesto (obligatorio)' 
+                    : 'Persona del cliente que solicita este presupuesto (opcional)'}
+                </p>
+              </div>
+            )}
 
             {/* Contrato Asociado (opcional) */}
             <div className="col-span-2 space-y-2">

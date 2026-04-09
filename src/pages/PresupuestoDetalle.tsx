@@ -1204,7 +1204,7 @@ export default function PresupuestoDetalle() {
             </Card>
 
             {/* Sección Elementos Vinculados - NUEVA */}
-            {budget.status === 'approved' && (
+            {(budget.status === 'approved' || requests.length > 0 || projects.length > 0) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -1223,34 +1223,37 @@ export default function PresupuestoDetalle() {
                         <div>
                           <p className="font-medium">Requests Proyecto</p>
                           <p className="text-sm text-muted-foreground">
-                            {requests.length} {requests.length === 1 ? 'request generada' : 'requests generadas'}
+                            {requests.length} {requests.length === 1 ? 'request vinculada' : 'requests vinculadas'}
                           </p>
                         </div>
                       </div>
-                      {requests.length > 0 ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/solicitudes?budget_id=${budget.id}`)}
-                        >
-                          Ver Requests
-                          <ExternalLink className="h-4 w-4 ml-2" />
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleGenerateRequests}
-                          disabled={isGeneratingRequests}
-                        >
-                          {isGeneratingRequests ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <ListChecks className="h-4 w-4 mr-2" />
-                          )}
-                          Generar Requests
-                        </Button>
-                      )}
+                      <div className="flex gap-2">
+                        {requests.length > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/solicitudes?budget_id=${budget.id}`)}
+                          >
+                            Ver Requests
+                            <ExternalLink className="h-4 w-4 ml-2" />
+                          </Button>
+                        )}
+                        {budget.status === 'approved' && ungeneratedItems.length > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleGenerateRequests}
+                            disabled={isGeneratingRequests}
+                          >
+                            {isGeneratingRequests ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <ListChecks className="h-4 w-4 mr-2" />
+                            )}
+                            Generar Requests
+                          </Button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Proyecto Operativo */}

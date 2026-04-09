@@ -1,45 +1,46 @@
 
 
-## Plan: Asendia Activity Report PDF (March-April 2026)
+## Plan: Show externally-linked requests in budget "Elementos Vinculados"
 
-### What will be generated
+### Problem
+The "Elementos Vinculados" section only appears when `budget.status === 'approved'`, and uses an exclusive if/else: either "Ver Requests" (if requests exist) or "Generar Requests" (if none). Externally-created requests with a `budget_id` are already fetched by `useBudgetDetail`, but:
 
-A professional PDF report in **English**, with Hayas Marketing branding, addressed to **Fiona Sicre, Head of MarCom & Branding** at Asendia. Written from the perspective of her Account Manager.
+1. The section is hidden for non-approved budgets, so you can't see linked requests unless the budget is approved.
+2. When external requests exist, the "Generar Requests" button disappears — even if budget items haven't been converted yet.
+3. The label says "generadas" (generated), which is inaccurate for externally-linked requests.
 
-### Report structure
+### Changes
 
-1. **Cover / Header**: Hayas Marketing logo + "Asendia — Activity Report: March & April 2026" + "Prepared for Fiona Sicre, Head of MarCom & Branding"
+**File: `src/pages/PresupuestoDetalle.tsx`**
 
-2. **Section 1: ASENDIA HQ — Project Budgets** (13 budgets with their requests)
-   - PRE-2025-204: Benchmark Competitors Analysis Report (2 reqs, completed)
-   - PRE-2026-014: Rebranding Website Home Part II (1 req, pending approval)
-   - PRE-2026-015: Strategic Priorities 2026 Video (1 req, completed/invoiced)
-   - PRE-2026-016: Infographic Barometer (1 req, completed/invoiced)
-   - PRE-2026-017: Localization epaq Brochure (6 reqs, 4 completed + 2 pending specialist)
-   - PRE-2026-018: GEO Strategy & Optimization Plan (6 reqs, 1 in progress + 5 draft)
-   - PRE-2026-019: Flex Product Digital Analysis (1 req, completed/invoiced)
-   - PRE-2026-021: Smart Design Translation (3 reqs, completed/invoiced)
-   - PRE-2026-022: Global HotSpot USA Notice (sent, pending approval, no reqs yet)
-   - PRE-2026-023: Translation Newsletter USA (1 req, completed/invoiced)
-   - PRE-2026-024: Adjustments Homepage Part II (1 req, completed/invoiced)
-   - PRE-2026-025: EPAQ GO LPs Adjustments (6 reqs, all pending specialist)
-   - PRE-2026-027: New HubDB Table USA (sent, pending approval)
+1. **Show "Elementos Vinculados" for any budget with requests or projects linked**, not only approved budgets. Change the condition from `budget.status === 'approved'` to `budget.status === 'approved' || requests.length > 0 || projects.length > 0`.
 
-3. **Section 2: ASENDIA HQ — HubSpot Contract (CON-2025-001)** — 11 completed requests in March
+2. **Change label** from "requests generadas" to "requests vinculadas" (linked).
 
-4. **Section 3: ASENDIA SPAIN — Marketing Contract (CON-2025-004)** — 15 requests (March recurring + backlog + April recurring)
+3. **Show both buttons when appropriate**:
+   - "Ver Requests" button: visible when `requests.length > 0`.
+   - "Generar Requests" button: visible when the budget is approved AND there are budget items without a corresponding request (items whose `id` is not in any request's `budget_item_id`). Both buttons can coexist.
 
-5. **Financial Summary**: Total billed, in progress, and pending amounts across all sections
+4. **Update `handleGenerateRequests`** to only generate requests for budget items that don't already have a linked request (filter out items where `budget_item_id` already exists in `requests`).
 
-### Technical approach
+### Technical detail
 
-- Python script using `reportlab` for PDF generation
-- Color-coded status badges (green=completed, blue=in progress, orange=pending, grey=draft)
-- Tables with columns: Ref, Task Description, Service, Specialist, Amount (€), Status, Date
-- Subtotals per budget/contract
-- Output: `/mnt/documents/Asendia_Activity_Report_Mar_Apr_2026.pdf`
-- Mandatory visual QA via `pdftoppm` inspection
+```text
+// Derive which items still need generation
+const generatedItemIds = new Set(
+  requests.filter(r => r.budget_item_id).map(r => r.budget_item_id)
+);
+const ungeneratedItems = items.filter(i => !generatedItemIds.has(i.id));
 
-### Files impacted
-- No codebase changes — standalone script execution only
+// Section visibility
+budget.status === 'approved' || requests.length > 0 || projects.length > 0
+
+// Buttons (both can render simultaneously)
+{requests.length > 0 && <Button>Ver Requests</Button>}
+{budget.status === 'approved' && ungeneratedItems.length > 0 && <Button>Generar Requests</Button>}
+
+// handleGenerateRequests uses ungeneratedItems instead of items
+```
+
+No database changes required — `financial_requests.budget_id` already supports this.
 

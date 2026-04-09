@@ -845,7 +845,7 @@ export default function PresupuestoDetalle() {
       return;
     }
 
-    const itemsWithoutService = items.filter((item: any) => !item.service_id);
+    const itemsWithoutService = ungeneratedItems.filter((item: any) => !item.service_id);
     if (itemsWithoutService.length > 0) {
       toast.error('Hay líneas sin servicio asignado. Edita el presupuesto primero.');
       return;
@@ -855,7 +855,7 @@ export default function PresupuestoDetalle() {
 
     try {
       // Obtener tarifas por hora de los especialistas asignados
-      const specialistIds = items
+      const specialistIds = ungeneratedItems
         .filter((item: any) => item.specialist_id)
         .map((item: any) => item.specialist_id);
 
@@ -871,7 +871,7 @@ export default function PresupuestoDetalle() {
         });
       }
 
-      const requestsToInsert = items.map((item: any) => {
+      const requestsToInsert = ungeneratedItems.map((item: any) => {
         const specialistRate = item.specialist_id 
           ? specialistsMap[item.specialist_id] || 0 
           : 0;

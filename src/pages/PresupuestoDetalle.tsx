@@ -835,9 +835,9 @@ export default function PresupuestoDetalle() {
   // Generar requests desde budget items (sin cambiar estado)
   // Derive which budget items still need request generation
   const generatedItemIds = new Set(
-    requests.filter((r: any) => r.budget_item_id).map((r: any) => r.budget_item_id)
+    data?.requests?.filter((r: any) => r.budget_item_id).map((r: any) => r.budget_item_id) || []
   );
-  const ungeneratedItems = items.filter((i: any) => !generatedItemIds.has(i.id));
+  const ungeneratedItems = (data?.items || []).filter((i: any) => !generatedItemIds.has(i.id));
 
   const handleGenerateRequests = async () => {
     if (!budget || ungeneratedItems.length === 0) {

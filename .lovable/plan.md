@@ -1,39 +1,45 @@
 
 
-## Diagnóstico del problema
+## Plan: Asendia Activity Report PDF (March-April 2026)
 
-Iolanda Carbone tiene los roles: `project_manager`, `account_manager`, `especialista`.
+### What will be generated
 
-**Causa raíz**: La función `shouldFilterByAssignment()` en `useUserRole.ts` trata a `project_manager` como un rol que necesita filtrado por cliente asignado, pero según la matriz de permisos, PM tiene acceso total (CRUD) a Solicitudes, Proyectos y Tareas.
+A professional PDF report in **English**, with Hayas Marketing branding, addressed to **Fiona Sicre, Head of MarCom & Branding** at Asendia. Written from the perspective of her Account Manager.
 
-El flujo del problema:
-1. `shouldFilterByAssignment()` devuelve `true` para Iolanda (tiene AM/PM pero no admin/finanzas)
-2. `useAssignedClients` busca clientes asignados → el presupuesto PRE-2026-026 tiene `am_user_id = null` y `pm_user_id = null`, y no hay registros en `client_assignments` para ella
-3. El cliente "Maria José Boeta Pardo" NO está en su lista → la app filtra el request REQ-2026-266
+### Report structure
 
-A nivel de RLS (base de datos), Iolanda SÍ tiene acceso porque `project_manager` está incluido en las políticas. El problema es exclusivamente el **filtro a nivel de aplicación**.
+1. **Cover / Header**: Hayas Marketing logo + "Asendia — Activity Report: March & April 2026" + "Prepared for Fiona Sicre, Head of MarCom & Branding"
 
-## Solución
+2. **Section 1: ASENDIA HQ — Project Budgets** (13 budgets with their requests)
+   - PRE-2025-204: Benchmark Competitors Analysis Report (2 reqs, completed)
+   - PRE-2026-014: Rebranding Website Home Part II (1 req, pending approval)
+   - PRE-2026-015: Strategic Priorities 2026 Video (1 req, completed/invoiced)
+   - PRE-2026-016: Infographic Barometer (1 req, completed/invoiced)
+   - PRE-2026-017: Localization epaq Brochure (6 reqs, 4 completed + 2 pending specialist)
+   - PRE-2026-018: GEO Strategy & Optimization Plan (6 reqs, 1 in progress + 5 draft)
+   - PRE-2026-019: Flex Product Digital Analysis (1 req, completed/invoiced)
+   - PRE-2026-021: Smart Design Translation (3 reqs, completed/invoiced)
+   - PRE-2026-022: Global HotSpot USA Notice (sent, pending approval, no reqs yet)
+   - PRE-2026-023: Translation Newsletter USA (1 req, completed/invoiced)
+   - PRE-2026-024: Adjustments Homepage Part II (1 req, completed/invoiced)
+   - PRE-2026-025: EPAQ GO LPs Adjustments (6 reqs, all pending specialist)
+   - PRE-2026-027: New HubDB Table USA (sent, pending approval)
 
-Modificar `shouldFilterByAssignment()` para incluir `project_manager` como acceso elevado, ya que según la matriz de permisos el PM tiene visibilidad completa en todos los módulos (Ver o CRUD).
+3. **Section 2: ASENDIA HQ — HubSpot Contract (CON-2025-001)** — 11 completed requests in March
 
-### Cambio en `src/hooks/useUserRole.ts`
+4. **Section 3: ASENDIA SPAIN — Marketing Contract (CON-2025-004)** — 15 requests (March recurring + backlog + April recurring)
 
-Línea actual:
-```typescript
-const hasElevatedAccess = isAdmin() || canAccessFinance();
-```
+5. **Financial Summary**: Total billed, in progress, and pending amounts across all sections
 
-Cambio a:
-```typescript
-const hasElevatedAccess = isAdmin() || canAccessFinance() || isProjectManager();
-```
+### Technical approach
 
-Esto hace que solo los usuarios que sean **únicamente account_manager** (sin rol PM, admin o finanzas) tengan filtrado por cliente asignado. Iolanda, al tener PM, verá todo sin restricciones de cliente — coherente con la matriz de permisos y con las políticas RLS ya configuradas.
+- Python script using `reportlab` for PDF generation
+- Color-coded status badges (green=completed, blue=in progress, orange=pending, grey=draft)
+- Tables with columns: Ref, Task Description, Service, Specialist, Amount (€), Status, Date
+- Subtotals per budget/contract
+- Output: `/mnt/documents/Asendia_Activity_Report_Mar_Apr_2026.pdf`
+- Mandatory visual QA via `pdftoppm` inspection
 
-### Archivos a modificar
-- `src/hooks/useUserRole.ts` — una línea
-
-### Sin cambios de base de datos
-Las políticas RLS ya otorgan acceso completo a `project_manager`. Solo es corrección del filtro de aplicación.
+### Files impacted
+- No codebase changes — standalone script execution only
 

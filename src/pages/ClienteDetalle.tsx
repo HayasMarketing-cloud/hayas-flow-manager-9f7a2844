@@ -49,8 +49,9 @@ const ClienteDetalle = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canManageClients, loading: rolesLoading } = useUserRole();
+  const { canManageClients, canEditAssignedClients, loading: rolesLoading } = useUserRole();
   const canManage = canManageClients();
+  const canEdit = canManage || canEditAssignedClients();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('active');
@@ -267,7 +268,7 @@ const ClienteDetalle = () => {
                       Customer DRIVE
                     </Button>
                   )}
-                  {!rolesLoading && canManage && (
+                  {!rolesLoading && canEdit && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -358,7 +359,7 @@ const ClienteDetalle = () => {
                     <SelectItem value="inactive">Inactivos</SelectItem>
                   </SelectContent>
                 </Select>
-                {!rolesLoading && canManage && (
+                {!rolesLoading && canEdit && (
                   <Button onClick={handleNewContact}>
                     <Plus className="h-4 w-4 mr-2" />
                     Nuevo Contacto
@@ -429,7 +430,7 @@ const ClienteDetalle = () => {
                             {contact.city || '-'}
                           </TableCell>
                           <TableCell className="text-right">
-                            {!rolesLoading && canManage && (
+                            {!rolesLoading && canEdit && (
                               <div className="flex justify-end gap-1">
                                 <Button
                                   variant="ghost"
@@ -438,14 +439,16 @@ const ClienteDetalle = () => {
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => setDeleteContactId(contact.id)}
-                                  className="text-destructive hover:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                {canManage && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setDeleteContactId(contact.id)}
+                                    className="text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
                               </div>
                             )}
                           </TableCell>
@@ -496,7 +499,7 @@ const ClienteDetalle = () => {
                     ? 'No se encontraron contactos'
                     : 'No hay contactos registrados'}
                 </p>
-                {!rolesLoading && canManage && !searchTerm && (
+                {!rolesLoading && canEdit && !searchTerm && (
                   <Button onClick={handleNewContact} className="mt-4">
                     <Plus className="h-4 w-4 mr-2" />
                     Crear primer contacto

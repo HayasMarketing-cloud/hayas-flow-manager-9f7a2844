@@ -21,10 +21,11 @@ const Clientes = () => {
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canManageClients, isSpecialist, isAdmin, canAccessFinance, isProjectManager, shouldFilterByAssignment, loading: rolesLoading } = useUserRole();
+  const { canManageClients, canEditAssignedClients, isSpecialist, isAdmin, canAccessFinance, isProjectManager, shouldFilterByAssignment, loading: rolesLoading } = useUserRole();
   const { specialistId, isLoading: specialistLoading } = useCurrentSpecialist();
   const { assignedClientIds, isLoading: assignedLoading, needsFiltering } = useAssignedClients();
   const canManage = canManageClients();
+  const canEdit = canManage || canEditAssignedClients();
   
   // Check if user is only specialist (no other management roles)
   const isOnlySpecialist = isSpecialist() && !isAdmin() && !canAccessFinance() && !isProjectManager() && !shouldFilterByAssignment();
@@ -225,7 +226,7 @@ const Clientes = () => {
                         Customer DRIVE
                       </Button>
                     )}
-                    {!rolesLoading && canManage && (
+                    {!rolesLoading && canEdit && (
                       <Button
                         variant="outline"
                         size="sm"

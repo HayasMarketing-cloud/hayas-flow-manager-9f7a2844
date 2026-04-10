@@ -60,6 +60,7 @@ export const useUserRole = () => {
   const isProjectManager = () => hasRole('project_manager');
   const isSpecialist = () => hasRole('especialista');
   const canManageClients = () => canAccessFinance() || isAccountManager();
+  const canEditAssignedClients = () => isAccountManager() || isProjectManager();
   
   const canViewAssignedClients = () => isAccountManager();
   const canViewOwnLiquidations = () => isSpecialist();
@@ -97,6 +98,7 @@ export const useUserRole = () => {
     isProjectManager,
     isSpecialist,
     canManageClients,
+    canEditAssignedClients,
     canViewAssignedClients,
     canViewOwnLiquidations,
     canViewClientBudgets,

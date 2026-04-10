@@ -49,8 +49,9 @@ const ClienteDetalle = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canManageClients, loading: rolesLoading } = useUserRole();
+  const { canManageClients, canEditAssignedClients, loading: rolesLoading } = useUserRole();
   const canManage = canManageClients();
+  const canEdit = canManage || canEditAssignedClients();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('active');

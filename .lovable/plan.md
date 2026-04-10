@@ -1,46 +1,49 @@
 
 
-## Plan: Show externally-linked requests in budget "Elementos Vinculados"
+## Plan: Allow Project Managers to see only their assigned budgets and requests
 
 ### Problem
-The "Elementos Vinculados" section only appears when `budget.status === 'approved'`, and uses an exclusive if/else: either "Ver Requests" (if requests exist) or "Generar Requests" (if none). Externally-created requests with a `budget_id` are already fetched by `useBudgetDetail`, but:
+The `shouldFilterByAssignment()` function in `useUserRole.ts` treats `project_manager` as "elevated access" (same level as admin/finance), so PMs bypass all client/budget filtering and see **all** data. The desired behavior is that PMs — like AMs — should only see budgets and requests where they are assigned as PM.
 
-1. The section is hidden for non-approved budgets, so you can't see linked requests unless the budget is approved.
-2. When external requests exist, the "Generar Requests" button disappears — even if budget items haven't been converted yet.
-3. The label says "generadas" (generated), which is inaccurate for externally-linked requests.
+### Root cause
+```typescript
+// Current logic in useUserRole.ts
+const shouldFilterByAssignment = () => {
+    const hasElevatedAccess = isAdmin() || canAccessFinance() || isProjectManager(); // ← PM is elevated
+    const isAmOrPm = isAccountManager() || isProjectManager();
+    return isAmOrPm && !hasElevatedAccess; // ← Always false for PM
+};
+```
 
 ### Changes
 
-**File: `src/pages/PresupuestoDetalle.tsx`**
+**File: `src/hooks/useUserRole.ts`**
+- Remove `isProjectManager()` from `hasElevatedAccess` in `shouldFilterByAssignment()`, so PMs are treated the same as AMs for filtering purposes.
+- This single change makes `shouldFilterByAssignment()` return `true` for PM-only users, which activates the existing filtering logic in `useAssignedClients` and `useUserBudgetIds`.
 
-1. **Show "Elementos Vinculados" for any budget with requests or projects linked**, not only approved budgets. Change the condition from `budget.status === 'approved'` to `budget.status === 'approved' || requests.length > 0 || projects.length > 0`.
-
-2. **Change label** from "requests generadas" to "requests vinculadas" (linked).
-
-3. **Show both buttons when appropriate**:
-   - "Ver Requests" button: visible when `requests.length > 0`.
-   - "Generar Requests" button: visible when the budget is approved AND there are budget items without a corresponding request (items whose `id` is not in any request's `budget_item_id`). Both buttons can coexist.
-
-4. **Update `handleGenerateRequests`** to only generate requests for budget items that don't already have a linked request (filter out items where `budget_item_id` already exists in `requests`).
-
-### Technical detail
-
-```text
-// Derive which items still need generation
-const generatedItemIds = new Set(
-  requests.filter(r => r.budget_item_id).map(r => r.budget_item_id)
-);
-const ungeneratedItems = items.filter(i => !generatedItemIds.has(i.id));
-
-// Section visibility
-budget.status === 'approved' || requests.length > 0 || projects.length > 0
-
-// Buttons (both can render simultaneously)
-{requests.length > 0 && <Button>Ver Requests</Button>}
-{budget.status === 'approved' && ungeneratedItems.length > 0 && <Button>Generar Requests</Button>}
-
-// handleGenerateRequests uses ungeneratedItems instead of items
+```typescript
+const shouldFilterByAssignment = () => {
+    const hasElevatedAccess = isAdmin() || canAccessFinance();  // PM removed
+    const isAmOrPm = isAccountManager() || isProjectManager();
+    return isAmOrPm && !hasElevatedAccess;
+};
 ```
 
-No database changes required — `financial_requests.budget_id` already supports this.
+**File: `src/pages/Presupuestos.tsx`**
+- No changes needed — it already uses `useUserBudgetIds()` which queries budgets where `pm_user_id.eq.${user.id}`, and the `needsFiltering` path at line 99-117 already handles filtered queries.
+
+**File: `src/pages/Solicitudes.tsx`**
+- No changes needed — it already uses `useAssignedClients()` which gathers client IDs from budgets/contracts where user is AM or PM, and filters requests by `client_id` when `needsFiltering` is true.
+
+**File: `src/pages/operations/OperationalProjects.tsx`**
+- Verify no regressions — PMs currently have full access to operational projects. The existing pre-filter by PM assignment on this page should continue working correctly since it uses its own filter logic.
+
+### Impact
+- **PM-only users**: Will see only budgets where they're assigned as PM, and requests under those clients' budgets/contracts.
+- **Admin, Finance, Admin+PM**: Unchanged — `hasElevatedAccess` still true.
+- **AM-only users**: Unchanged — already filtered.
+- **Specialists**: Unchanged — separate filtering path.
+
+### Risk check
+The memory note says *"project_manager role is treated as elevated access... users with this role bypass client-level filtering"*. This change intentionally reverses that decision per the user's request. Need to verify the Operational Projects page still works correctly for PMs after this change.
 

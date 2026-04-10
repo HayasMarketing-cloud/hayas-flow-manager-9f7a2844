@@ -1,49 +1,27 @@
 
 
-## Plan: Allow Project Managers to see only their assigned budgets and requests
+## Plan: Assign Tomas to Asendia USA as PM
 
 ### Problem
-The `shouldFilterByAssignment()` function in `useUserRole.ts` treats `project_manager` as "elevated access" (same level as admin/finance), so PMs bypass all client/budget filtering and see **all** data. The desired behavior is that PMs — like AMs — should only see budgets and requests where they are assigned as PM.
+Tomás White (`c3f5376d`) is PM on several budgets for ASENDIA HQ, and has a `client_assignments` record for that client. However, he has no assignment for **Asendia USA Inc** (`30662760-7724-40a5-8b4b-675b353c29a3`), so he cannot see any budgets for that client.
 
-### Root cause
-```typescript
-// Current logic in useUserRole.ts
-const shouldFilterByAssignment = () => {
-    const hasElevatedAccess = isAdmin() || canAccessFinance() || isProjectManager(); // ← PM is elevated
-    const isAmOrPm = isAccountManager() || isProjectManager();
-    return isAmOrPm && !hasElevatedAccess; // ← Always false for PM
-};
-```
+The two Asendia USA budgets (PRE-2026-027 "New HubDB Table USA" and PRE-2026-005 "Newsletter Q4 USA") were created by Iolanda with herself as both AM and PM.
 
 ### Changes
 
-**File: `src/hooks/useUserRole.ts`**
-- Remove `isProjectManager()` from `hasElevatedAccess` in `shouldFilterByAssignment()`, so PMs are treated the same as AMs for filtering purposes.
-- This single change makes `shouldFilterByAssignment()` return `true` for PM-only users, which activates the existing filtering logic in `useAssignedClients` and `useUserBudgetIds`.
+**Database migration** — Insert a `client_assignments` record linking Tomás to Asendia USA Inc as PM:
 
-```typescript
-const shouldFilterByAssignment = () => {
-    const hasElevatedAccess = isAdmin() || canAccessFinance();  // PM removed
-    const isAmOrPm = isAccountManager() || isProjectManager();
-    return isAmOrPm && !hasElevatedAccess;
-};
+```sql
+INSERT INTO public.client_assignments (user_id, client_id, role)
+VALUES (
+  'c3f5376d-dcc1-46bd-92ef-c5012db6e241',  -- Tomás White
+  '30662760-7724-40a5-8b4b-675b353c29a3',  -- Asendia USA Inc
+  'pm'
+)
+ON CONFLICT DO NOTHING;
 ```
 
-**File: `src/pages/Presupuestos.tsx`**
-- No changes needed — it already uses `useUserBudgetIds()` which queries budgets where `pm_user_id.eq.${user.id}`, and the `needsFiltering` path at line 99-117 already handles filtered queries.
+This will give Tomás visibility over all budgets, contracts, and requests for Asendia USA Inc, matching the existing pattern used for ASENDIA HQ.
 
-**File: `src/pages/Solicitudes.tsx`**
-- No changes needed — it already uses `useAssignedClients()` which gathers client IDs from budgets/contracts where user is AM or PM, and filters requests by `client_id` when `needsFiltering` is true.
-
-**File: `src/pages/operations/OperationalProjects.tsx`**
-- Verify no regressions — PMs currently have full access to operational projects. The existing pre-filter by PM assignment on this page should continue working correctly since it uses its own filter logic.
-
-### Impact
-- **PM-only users**: Will see only budgets where they're assigned as PM, and requests under those clients' budgets/contracts.
-- **Admin, Finance, Admin+PM**: Unchanged — `hasElevatedAccess` still true.
-- **AM-only users**: Unchanged — already filtered.
-- **Specialists**: Unchanged — separate filtering path.
-
-### Risk check
-The memory note says *"project_manager role is treated as elevated access... users with this role bypass client-level filtering"*. This change intentionally reverses that decision per the user's request. Need to verify the Operational Projects page still works correctly for PMs after this change.
+If Iolanda also needs to update the `pm_user_id` on specific Asendia USA budgets from herself to Tomás, that can be done via the budget edit modal in the UI.
 

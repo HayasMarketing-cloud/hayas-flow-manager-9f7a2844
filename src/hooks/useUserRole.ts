@@ -80,7 +80,7 @@ export const useUserRole = () => {
   
   // Returns true if user needs to filter data by assignment (AM or PM without elevated roles)
   const shouldFilterByAssignment = () => {
-    const hasElevatedAccess = isAdmin() || canAccessFinance() || isProjectManager();
+    const hasElevatedAccess = isAdmin() || canAccessFinance();
     const isAmOrPm = isAccountManager() || isProjectManager();
     return isAmOrPm && !hasElevatedAccess;
   };

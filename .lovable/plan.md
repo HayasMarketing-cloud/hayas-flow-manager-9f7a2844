@@ -1,27 +1,36 @@
 
 
-## Plan: Assign Tomas to Asendia USA as PM
+## Plan: Fix RLS policies on `client_contacts` for Project Managers
 
 ### Problem
-Tomás White (`c3f5376d`) is PM on several budgets for ASENDIA HQ, and has a `client_assignments` record for that client. However, he has no assignment for **Asendia USA Inc** (`30662760-7724-40a5-8b4b-675b353c29a3`), so he cannot see any budgets for that client.
+The RLS INSERT policy on `client_contacts` only allows `admin` and `account_manager` roles. When Tomás (a PM) tries to create a contact, it fails with "new row violates row-level security policy".
 
-The two Asendia USA budgets (PRE-2026-027 "New HubDB Table USA" and PRE-2026-005 "Newsletter Q4 USA") were created by Iolanda with herself as both AM and PM.
+### Current policies
+- **INSERT**: `has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'account_manager')`
+- **UPDATE**: Same as INSERT — also excludes PM
 
-### Changes
-
-**Database migration** — Insert a `client_assignments` record linking Tomás to Asendia USA Inc as PM:
+### Change
+Run a database migration to update the INSERT and UPDATE policies to include `project_manager`:
 
 ```sql
-INSERT INTO public.client_assignments (user_id, client_id, role)
-VALUES (
-  'c3f5376d-dcc1-46bd-92ef-c5012db6e241',  -- Tomás White
-  '30662760-7724-40a5-8b4b-675b353c29a3',  -- Asendia USA Inc
-  'pm'
-)
-ON CONFLICT DO NOTHING;
+DROP POLICY "Admin y AM pueden crear contactos" ON public.client_contacts;
+CREATE POLICY "Admin AM y PM pueden crear contactos" ON public.client_contacts
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    has_role(auth.uid(), 'admin'::app_role)
+    OR has_role(auth.uid(), 'account_manager'::app_role)
+    OR has_role(auth.uid(), 'project_manager'::app_role)
+  );
+
+DROP POLICY "Admin y AM pueden actualizar contactos" ON public.client_contacts;
+CREATE POLICY "Admin AM y PM pueden actualizar contactos" ON public.client_contacts
+  FOR UPDATE TO authenticated
+  USING (
+    has_role(auth.uid(), 'admin'::app_role)
+    OR has_role(auth.uid(), 'account_manager'::app_role)
+    OR has_role(auth.uid(), 'project_manager'::app_role)
+  );
 ```
 
-This will give Tomás visibility over all budgets, contracts, and requests for Asendia USA Inc, matching the existing pattern used for ASENDIA HQ.
-
-If Iolanda also needs to update the `pm_user_id` on specific Asendia USA budgets from herself to Tomás, that can be done via the budget edit modal in the UI.
+DELETE policy remains restricted to admin and AM as intended.
 

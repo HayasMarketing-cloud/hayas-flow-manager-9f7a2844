@@ -168,6 +168,7 @@ export const useUpdateRequestNotes = () => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['project-operational-requests'] });
       queryClient.invalidateQueries({ queryKey: ['operational-request', variables.requestId] });
+      queryClient.invalidateQueries({ queryKey: ['project-milestones'] });
     },
     onError: (error: any) => {
       toast.error(`Error: ${error.message}`);

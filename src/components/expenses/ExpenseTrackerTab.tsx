@@ -1,15 +1,16 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Upload, CheckCircle2, Clock, FileCheck, Loader2, FolderUp } from 'lucide-react';
+import { Upload, CheckCircle2, Clock, FileCheck, Loader2, FolderUp, Trash2 } from 'lucide-react';
 import { useExpenses, useExpenseRecords, ExpenseRecord } from '@/hooks/useExpenses';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const MONTH_FULL = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -42,6 +43,7 @@ export function ExpenseTrackerTab() {
   const [bulkModal, setBulkModal] = useState<{ expenseId: string; expenseName: string } | null>(null);
   const [bulkFiles, setBulkFiles] = useState<BulkFile[]>([]);
   const [bulkUploading, setBulkUploading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ expenseId: string; month: number } | null>(null);
 
   const { data: expenses = [] } = useExpenses();
   const { data: records = [], upsertRecord } = useExpenseRecords(year);
@@ -56,6 +58,37 @@ export function ExpenseTrackerTab() {
   }, [records]);
 
   const getRecord = (expenseId: string, month: number) => recordMap[`${expenseId}-${year}-${month}`];
+
+  const getStoragePathFromUrl = (invoiceUrl: string | null) => {
+    if (!invoiceUrl) return null;
+
+    const publicMarker = '/storage/v1/object/public/expense-invoices/';
+    const publicIndex = invoiceUrl.indexOf(publicMarker);
+
+    if (publicIndex >= 0) {
+      return decodeURIComponent(invoiceUrl.slice(publicIndex + publicMarker.length));
+    }
+
+    return null;
+  };
+
+  const buildPendingRecord = (expenseId: string, month: number) => ({
+    expense_id: expenseId,
+    period_year: year,
+    period_month: month,
+    status: 'pending',
+    invoice_url: null,
+    amount: expenses.find(e => e.id === expenseId)?.monthly_cost || null,
+    notes: null,
+    uploaded_at: null,
+    issuer_name: null,
+    description: null,
+    subtotal: null,
+    tax_rate: null,
+    tax_amount: null,
+    total_amount: null,
+    invoice_date: null,
+  });
 
   const extractInvoiceData = async (file: File): Promise<any> => {
     return new Promise((resolve, reject) => {
@@ -207,6 +240,39 @@ export function ExpenseTrackerTab() {
     });
   };
 
+  const handleDeleteInvoice = async () => {
+    if (!deleteTarget) return;
+
+    const { expenseId, month } = deleteTarget;
+    const existing = getRecord(expenseId, month);
+    const cellKey = `${expenseId}-${month}`;
+
+    setExtractingCell(cellKey);
+
+    try {
+      const storagePath = getStoragePathFromUrl(existing?.invoice_url || null);
+
+      if (storagePath) {
+        const { error: removeError } = await supabase.storage.from('expense-invoices').remove([storagePath]);
+        if (removeError) throw removeError;
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        upsertRecord.mutate(buildPendingRecord(expenseId, month), {
+          onSuccess: () => resolve(),
+          onError: (e) => reject(e),
+        });
+      });
+
+      toast.success('Factura eliminada del mes');
+      setDeleteTarget(null);
+    } catch (err: any) {
+      toast.error('Error al eliminar: ' + err.message);
+    } finally {
+      setExtractingCell(null);
+    }
+  };
+
   // Stats
   const totalCells = activeExpenses.length * months.length;
   const uploadedCells = months.reduce((acc, m) => acc + activeExpenses.filter(e => {
@@ -274,7 +340,22 @@ export function ExpenseTrackerTab() {
 
                 return (
                   <TableRow key={exp.id}>
-                    <TableCell className="font-medium">{exp.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex flex-col items-start gap-2">
+                        <span>{exp.name}</span>
+                        {!allUploaded && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 gap-1 text-xs"
+                            onClick={() => handleBulkOpen(exp.id, exp.name)}
+                          >
+                            <FolderUp className="h-3.5 w-3.5" />
+                            Subir trimestre ({pendingMonths.length})
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right font-mono text-sm">
                       {formatCurrency(exp.monthly_cost)}
                     </TableCell>
@@ -329,11 +410,21 @@ export function ExpenseTrackerTab() {
                                   {record?.invoice_url && (
                                     <a href={record.invoice_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 underline">Ver</a>
                                   )}
+                                    <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => setDeleteTarget({ expenseId: exp.id, month: m })}>
+                                      <Trash2 className="h-3 w-3 mr-1" />Eliminar
+                                    </Button>
                                 </>
                               )}
-                              {status === 'verified' && record?.invoice_url && (
-                                <a href={record.invoice_url} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 underline">Ver factura</a>
-                              )}
+                               {status === 'verified' && (
+                                 <>
+                                   {record?.invoice_url && (
+                                     <a href={record.invoice_url} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 underline">Ver factura</a>
+                                   )}
+                                   <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => setDeleteTarget({ expenseId: exp.id, month: m })}>
+                                     <Trash2 className="h-3 w-3 mr-1" />Eliminar
+                                   </Button>
+                                 </>
+                               )}
                             </div>
                           </div>
                         </TableCell>
@@ -410,6 +501,18 @@ export function ExpenseTrackerTab() {
             </div>
           </DialogContent>
         </Dialog>
+
+        <ConfirmDialog
+          open={!!deleteTarget}
+          onOpenChange={(open) => {
+            if (!open) setDeleteTarget(null);
+          }}
+          title="Eliminar factura subida"
+          description="Se borrará el PDF del mes seleccionado y ese mes volverá a estado pendiente para que puedas subir la factura correcta."
+          confirmText="Eliminar PDF"
+          onConfirm={handleDeleteInvoice}
+          variant="destructive"
+        />
       </div>
     </TooltipProvider>
   );

@@ -30,6 +30,14 @@ export interface ExpenseRecord {
   uploaded_at: string | null;
   created_at: string;
   updated_at: string;
+  // AI-extracted fields
+  issuer_name: string | null;
+  description: string | null;
+  subtotal: number | null;
+  tax_rate: number | null;
+  tax_amount: number | null;
+  total_amount: number | null;
+  invoice_date: string | null;
 }
 
 export function useExpenses() {

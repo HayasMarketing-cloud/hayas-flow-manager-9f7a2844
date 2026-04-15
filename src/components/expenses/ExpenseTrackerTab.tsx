@@ -3,11 +3,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Upload, CheckCircle2, Clock, FileCheck } from 'lucide-react';
+import { Upload, CheckCircle2, Clock, FileCheck, Loader2 } from 'lucide-react';
 import { useExpenses, useExpenseRecords, ExpenseRecord } from '@/hooks/useExpenses';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const QUARTERS = [
@@ -23,10 +24,14 @@ const statusConfig: Record<string, { icon: any; color: string; label: string }> 
   verified: { icon: CheckCircle2, color: 'text-green-500', label: 'Verificada' },
 };
 
+const formatCurrency = (v: number | null | undefined) =>
+  v != null ? new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(v) : '—';
+
 export function ExpenseTrackerTab() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [quarter, setQuarter] = useState(Math.ceil((now.getMonth() + 1) / 3));
+  const [extractingCell, setExtractingCell] = useState<string | null>(null);
 
   const { data: expenses = [] } = useExpenses();
   const { data: records = [], upsertRecord } = useExpenseRecords(year);
@@ -42,6 +47,25 @@ export function ExpenseTrackerTab() {
 
   const getRecord = (expenseId: string, month: number) => recordMap[`${expenseId}-${year}-${month}`];
 
+  const extractInvoiceData = async (file: File): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const base64 = (reader.result as string).split(',')[1];
+          const { data, error } = await supabase.functions.invoke('extract-expense-invoice', {
+            body: { pdf_base64: base64 },
+          });
+          if (error) throw error;
+          resolve(data);
+        } catch (e) {
+          reject(e);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFileUpload = async (expenseId: string, month: number) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -49,21 +73,52 @@ export function ExpenseTrackerTab() {
     input.onchange = async (e: any) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const path = `${year}/${month}/${expenseId}/${file.name}`;
-      const { error: uploadError } = await supabase.storage.from('expense-invoices').upload(path, file, { upsert: true });
-      if (uploadError) { toast.error('Error al subir: ' + uploadError.message); return; }
-      const { data: { publicUrl } } = supabase.storage.from('expense-invoices').getPublicUrl(path);
-      upsertRecord.mutate({
-        expense_id: expenseId,
-        period_year: year,
-        period_month: month,
-        status: 'uploaded',
-        invoice_url: publicUrl,
-        amount: expenses.find(e => e.id === expenseId)?.monthly_cost || null,
-        notes: null,
-        uploaded_at: new Date().toISOString(),
-      });
-      toast.success('Factura subida');
+
+      const cellKey = `${expenseId}-${month}`;
+      setExtractingCell(cellKey);
+
+      try {
+        // Upload file
+        const path = `${year}/${month}/${expenseId}/${file.name}`;
+        const { error: uploadError } = await supabase.storage.from('expense-invoices').upload(path, file, { upsert: true });
+        if (uploadError) throw uploadError;
+        const { data: { publicUrl } } = supabase.storage.from('expense-invoices').getPublicUrl(path);
+
+        // Extract data with AI
+        let extracted: any = {};
+        try {
+          toast.info('Extrayendo datos de la factura con IA...');
+          extracted = await extractInvoiceData(file);
+          toast.success('Datos extraídos correctamente');
+        } catch (aiError) {
+          console.error('AI extraction failed:', aiError);
+          toast.warning('No se pudieron extraer datos automáticamente. Se guardará solo el archivo.');
+        }
+
+        const defaultCost = expenses.find(e => e.id === expenseId)?.monthly_cost || null;
+
+        upsertRecord.mutate({
+          expense_id: expenseId,
+          period_year: year,
+          period_month: month,
+          status: 'uploaded',
+          invoice_url: publicUrl,
+          amount: extracted.total_amount ?? defaultCost,
+          notes: null,
+          uploaded_at: new Date().toISOString(),
+          issuer_name: extracted.issuer_name ?? null,
+          description: extracted.description ?? null,
+          subtotal: extracted.subtotal ?? null,
+          tax_rate: extracted.tax_rate ?? null,
+          tax_amount: extracted.tax_amount ?? null,
+          total_amount: extracted.total_amount ?? null,
+          invoice_date: extracted.invoice_date ?? null,
+        });
+      } catch (err: any) {
+        toast.error('Error: ' + err.message);
+      } finally {
+        setExtractingCell(null);
+      }
     };
     input.click();
   };
@@ -79,6 +134,13 @@ export function ExpenseTrackerTab() {
       amount: existing?.amount || expenses.find(e => e.id === expenseId)?.monthly_cost || null,
       notes: existing?.notes || null,
       uploaded_at: existing?.uploaded_at || null,
+      issuer_name: existing?.issuer_name ?? null,
+      description: existing?.description ?? null,
+      subtotal: existing?.subtotal ?? null,
+      tax_rate: existing?.tax_rate ?? null,
+      tax_amount: existing?.tax_amount ?? null,
+      total_amount: existing?.total_amount ?? null,
+      invoice_date: existing?.invoice_date ?? null,
     });
   };
 
@@ -91,92 +153,130 @@ export function ExpenseTrackerTab() {
   const verifiedCells = months.reduce((acc, m) => acc + activeExpenses.filter(e => getRecord(e.id, m)?.status === 'verified').length, 0);
   const completeness = totalCells > 0 ? Math.round((uploadedCells / totalCells) * 100) : 0;
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2 items-center">
-          <Select value={year.toString()} onValueChange={v => setYear(Number(v))}>
-            <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {[2024, 2025, 2026, 2027].map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={quarter.toString()} onValueChange={v => setQuarter(Number(v))}>
-            <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {QUARTERS.map((q, i) => <SelectItem key={i} value={(i + 1).toString()}>{q.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-4 text-sm">
-          <span className="text-muted-foreground">Completado: <span className="font-semibold text-foreground">{completeness}%</span></span>
-          <Progress value={completeness} className="w-32 h-2" />
-          <Badge variant="outline">{uploadedCells}/{totalCells} subidas</Badge>
-          <Badge variant="outline" className="text-green-600">{verifiedCells} verificadas</Badge>
-        </div>
-      </div>
+  const ExtractedDataTooltip = ({ record }: { record: ExpenseRecord }) => (
+    <div className="text-xs space-y-1 max-w-[250px]">
+      {record.issuer_name && <div><span className="font-semibold">Emisor:</span> {record.issuer_name}</div>}
+      {record.description && <div><span className="font-semibold">Concepto:</span> {record.description}</div>}
+      {record.invoice_date && <div><span className="font-semibold">Fecha:</span> {new Date(record.invoice_date).toLocaleDateString('es-ES')}</div>}
+      {record.subtotal != null && <div><span className="font-semibold">Base:</span> {formatCurrency(record.subtotal)}</div>}
+      {(record.tax_rate != null && record.tax_rate > 0) && <div><span className="font-semibold">IVA ({record.tax_rate}%):</span> {formatCurrency(record.tax_amount)}</div>}
+      {record.total_amount != null && <div><span className="font-semibold">Total:</span> {formatCurrency(record.total_amount)}</div>}
+    </div>
+  );
 
-      <div className="rounded-md border overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="min-w-[200px]">Gasto</TableHead>
-              <TableHead className="text-right min-w-[100px]">Coste/mes</TableHead>
-              {months.map(m => (
-                <TableHead key={m} className="text-center min-w-[140px]">{MONTH_NAMES[m - 1]} {year}</TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {activeExpenses.length === 0 ? (
-              <TableRow><TableCell colSpan={2 + months.length} className="text-center text-muted-foreground py-8">No hay gastos activos</TableCell></TableRow>
-            ) : activeExpenses.map(exp => (
-              <TableRow key={exp.id}>
-                <TableCell className="font-medium">{exp.name}</TableCell>
-                <TableCell className="text-right font-mono text-sm">
-                  {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(exp.monthly_cost)}
-                </TableCell>
-                {months.map(m => {
-                  const record = getRecord(exp.id, m);
-                  const status = record?.status || 'pending';
-                  const cfg = statusConfig[status];
-                  const Icon = cfg.icon;
-                  return (
-                    <TableCell key={m} className="text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        <div className={`flex items-center gap-1 text-xs ${cfg.color}`}>
-                          <Icon className="h-3.5 w-3.5" />
-                          <span>{cfg.label}</span>
-                        </div>
-                        <div className="flex gap-1">
-                          {status === 'pending' && (
-                            <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleFileUpload(exp.id, m)}>
-                              <Upload className="h-3 w-3 mr-1" />Subir
-                            </Button>
-                          )}
-                          {status === 'uploaded' && (
+  return (
+    <TooltipProvider>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex gap-2 items-center">
+            <Select value={year.toString()} onValueChange={v => setYear(Number(v))}>
+              <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[2024, 2025, 2026, 2027].map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={quarter.toString()} onValueChange={v => setQuarter(Number(v))}>
+              <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {QUARTERS.map((q, i) => <SelectItem key={i} value={(i + 1).toString()}>{q.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-4 text-sm">
+            <span className="text-muted-foreground">Completado: <span className="font-semibold text-foreground">{completeness}%</span></span>
+            <Progress value={completeness} className="w-32 h-2" />
+            <Badge variant="outline">{uploadedCells}/{totalCells} subidas</Badge>
+            <Badge variant="outline" className="text-green-600">{verifiedCells} verificadas</Badge>
+          </div>
+        </div>
+
+        <div className="rounded-md border overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="min-w-[200px]">Gasto</TableHead>
+                <TableHead className="text-right min-w-[100px]">Coste/mes</TableHead>
+                {months.map(m => (
+                  <TableHead key={m} className="text-center min-w-[160px]">{MONTH_NAMES[m - 1]} {year}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {activeExpenses.length === 0 ? (
+                <TableRow><TableCell colSpan={2 + months.length} className="text-center text-muted-foreground py-8">No hay gastos activos</TableCell></TableRow>
+              ) : activeExpenses.map(exp => (
+                <TableRow key={exp.id}>
+                  <TableCell className="font-medium">{exp.name}</TableCell>
+                  <TableCell className="text-right font-mono text-sm">
+                    {formatCurrency(exp.monthly_cost)}
+                  </TableCell>
+                  {months.map(m => {
+                    const record = getRecord(exp.id, m);
+                    const status = record?.status || 'pending';
+                    const cfg = statusConfig[status];
+                    const Icon = cfg.icon;
+                    const cellKey = `${exp.id}-${m}`;
+                    const isExtracting = extractingCell === cellKey;
+                    const hasExtractedData = record && (record.issuer_name || record.total_amount != null);
+
+                    return (
+                      <TableCell key={m} className="text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          {isExtracting ? (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <span>Procesando...</span>
+                            </div>
+                          ) : (
                             <>
-                              <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleVerify(exp.id, m)}>
-                                <FileCheck className="h-3 w-3 mr-1" />Verificar
-                              </Button>
-                              {record?.invoice_url && (
-                                <a href={record.invoice_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 underline">Ver</a>
+                              <div className={`flex items-center gap-1 text-xs ${cfg.color}`}>
+                                <Icon className="h-3.5 w-3.5" />
+                                <span>{cfg.label}</span>
+                              </div>
+                              {hasExtractedData && record && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="text-[11px] font-mono text-foreground cursor-help">
+                                      {formatCurrency(record.total_amount)}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="bottom">
+                                    <ExtractedDataTooltip record={record} />
+                                  </TooltipContent>
+                                </Tooltip>
                               )}
                             </>
                           )}
-                          {status === 'verified' && record?.invoice_url && (
-                            <a href={record.invoice_url} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 underline">Ver factura</a>
-                          )}
+                          <div className="flex gap-1">
+                            {status === 'pending' && !isExtracting && (
+                              <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleFileUpload(exp.id, m)}>
+                                <Upload className="h-3 w-3 mr-1" />Subir
+                              </Button>
+                            )}
+                            {status === 'uploaded' && (
+                              <>
+                                <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleVerify(exp.id, m)}>
+                                  <FileCheck className="h-3 w-3 mr-1" />Verificar
+                                </Button>
+                                {record?.invoice_url && (
+                                  <a href={record.invoice_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 underline">Ver</a>
+                                )}
+                              </>
+                            )}
+                            {status === 'verified' && record?.invoice_url && (
+                              <a href={record.invoice_url} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 underline">Ver factura</a>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 }

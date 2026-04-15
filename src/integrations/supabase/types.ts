@@ -689,6 +689,104 @@ export type Database = {
           },
         ]
       }
+      expense_records: {
+        Row: {
+          amount: number | null
+          created_at: string
+          expense_id: string
+          id: string
+          invoice_url: string | null
+          notes: string | null
+          period_month: number
+          period_year: number
+          status: string
+          updated_at: string
+          uploaded_at: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          expense_id: string
+          id?: string
+          invoice_url?: string | null
+          notes?: string | null
+          period_month: number
+          period_year: number
+          status?: string
+          updated_at?: string
+          uploaded_at?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          expense_id?: string
+          id?: string
+          invoice_url?: string | null
+          notes?: string | null
+          period_month?: number
+          period_year?: number
+          status?: string
+          updated_at?: string
+          uploaded_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_records_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expenses: {
+        Row: {
+          account_email: string | null
+          category: string
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean
+          monthly_cost: number
+          name: string
+          notes: string | null
+          periodicity: string
+          renewal_month: string | null
+          updated_at: string
+          website_url: string | null
+        }
+        Insert: {
+          account_email?: string | null
+          category?: string
+          created_at?: string
+          created_by: string
+          id?: string
+          is_active?: boolean
+          monthly_cost?: number
+          name: string
+          notes?: string | null
+          periodicity?: string
+          renewal_month?: string | null
+          updated_at?: string
+          website_url?: string | null
+        }
+        Update: {
+          account_email?: string | null
+          category?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean
+          monthly_cost?: number
+          name?: string
+          notes?: string | null
+          periodicity?: string
+          renewal_month?: string | null
+          updated_at?: string
+          website_url?: string | null
+        }
+        Relationships: []
+      }
       financial_requests: {
         Row: {
           billed_invoice_id: string | null

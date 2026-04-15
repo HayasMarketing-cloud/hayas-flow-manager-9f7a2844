@@ -263,32 +263,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signInWithGoogle = async () => {
     try {
-      const isCustomDomain =
-        !window.location.hostname.includes("lovable.app") &&
-        !window.location.hostname.includes("lovableproject.com");
+      const { error } = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+        extraParams: { hd: 'hayas.es', prompt: 'select_account' },
+      });
 
-      if (isCustomDomain) {
-        // Bypass auth-bridge for custom domains
-        const { data, error } = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo: window.location.origin,
-            skipBrowserRedirect: true,
-            queryParams: { hd: 'hayas.es', prompt: 'select_account' },
-          },
-        });
-        if (error) throw error;
-        if (data?.url) {
-          window.location.href = data.url;
-        }
-      } else {
-        // Lovable domains use managed auth-bridge
-        const { error } = await lovable.auth.signInWithOAuth("google", {
-          redirect_uri: window.location.origin,
-          extraParams: { hd: 'hayas.es', prompt: 'select_account' },
-        });
-        if (error) throw error;
-      }
+      if (error) throw error;
+
       return { error: null };
     } catch (error: any) {
       toast({

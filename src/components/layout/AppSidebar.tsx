@@ -39,8 +39,8 @@ const financeItems: NavItem[] = [
   { title: 'Facturas', url: '/facturas', icon: Receipt, requiredRoles: ['admin', 'finanzas', 'account_manager'] },
   { title: 'Liquidaciones', url: '/liquidaciones', icon: Wallet, requiredRoles: ['admin', 'finanzas', 'account_manager', 'especialista'] },
   { title: 'Comisiones', url: '/comisiones', icon: DollarSign, requiredRoles: ['admin', 'finanzas'] },
-  { title: 'Reportes', url: '/reportes', icon: BarChart3, requiredRoles: ['admin', 'finanzas'] },
   { title: 'Gastos', url: '/gastos', icon: CreditCard, requiredRoles: ['admin', 'finanzas'] },
+  { title: 'Reportes', url: '/reportes', icon: BarChart3, requiredRoles: ['admin', 'finanzas'] },
 ];
 
 const adminItems: NavItem[] = [

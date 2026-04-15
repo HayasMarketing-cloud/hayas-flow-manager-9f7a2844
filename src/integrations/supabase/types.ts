@@ -693,39 +693,60 @@ export type Database = {
         Row: {
           amount: number | null
           created_at: string
+          description: string | null
           expense_id: string
           id: string
+          invoice_date: string | null
           invoice_url: string | null
+          issuer_name: string | null
           notes: string | null
           period_month: number
           period_year: number
           status: string
+          subtotal: number | null
+          tax_amount: number | null
+          tax_rate: number | null
+          total_amount: number | null
           updated_at: string
           uploaded_at: string | null
         }
         Insert: {
           amount?: number | null
           created_at?: string
+          description?: string | null
           expense_id: string
           id?: string
+          invoice_date?: string | null
           invoice_url?: string | null
+          issuer_name?: string | null
           notes?: string | null
           period_month: number
           period_year: number
           status?: string
+          subtotal?: number | null
+          tax_amount?: number | null
+          tax_rate?: number | null
+          total_amount?: number | null
           updated_at?: string
           uploaded_at?: string | null
         }
         Update: {
           amount?: number | null
           created_at?: string
+          description?: string | null
           expense_id?: string
           id?: string
+          invoice_date?: string | null
           invoice_url?: string | null
+          issuer_name?: string | null
           notes?: string | null
           period_month?: number
           period_year?: number
           status?: string
+          subtotal?: number | null
+          tax_amount?: number | null
+          tax_rate?: number | null
+          total_amount?: number | null
           updated_at?: string
           uploaded_at?: string | null
         }

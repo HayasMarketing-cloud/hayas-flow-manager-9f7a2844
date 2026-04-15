@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Upload, CheckCircle2, Clock, FileCheck, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Upload, CheckCircle2, Clock, FileCheck, Loader2, FolderUp } from 'lucide-react';
 import { useExpenses, useExpenseRecords, ExpenseRecord } from '@/hooks/useExpenses';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -11,6 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const MONTH_FULL = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const QUARTERS = [
   { label: 'Q1', months: [1, 2, 3] },
   { label: 'Q2', months: [4, 5, 6] },
@@ -27,11 +29,19 @@ const statusConfig: Record<string, { icon: any; color: string; label: string }> 
 const formatCurrency = (v: number | null | undefined) =>
   v != null ? new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(v) : '—';
 
+interface BulkFile {
+  file: File;
+  month: number;
+}
+
 export function ExpenseTrackerTab() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [quarter, setQuarter] = useState(Math.ceil((now.getMonth() + 1) / 3));
   const [extractingCell, setExtractingCell] = useState<string | null>(null);
+  const [bulkModal, setBulkModal] = useState<{ expenseId: string; expenseName: string } | null>(null);
+  const [bulkFiles, setBulkFiles] = useState<BulkFile[]>([]);
+  const [bulkUploading, setBulkUploading] = useState(false);
 
   const { data: expenses = [] } = useExpenses();
   const { data: records = [], upsertRecord } = useExpenseRecords(year);
@@ -66,6 +76,42 @@ export function ExpenseTrackerTab() {
     });
   };
 
+  const uploadSingleFile = async (expenseId: string, month: number, file: File) => {
+    const path = `${year}/${month}/${expenseId}/${file.name}`;
+    const { error: uploadError } = await supabase.storage.from('expense-invoices').upload(path, file, { upsert: true });
+    if (uploadError) throw uploadError;
+    const { data: { publicUrl } } = supabase.storage.from('expense-invoices').getPublicUrl(path);
+
+    let extracted: any = {};
+    try {
+      extracted = await extractInvoiceData(file);
+    } catch (aiError) {
+      console.error('AI extraction failed:', aiError);
+    }
+
+    const defaultCost = expenses.find(e => e.id === expenseId)?.monthly_cost || null;
+
+    await new Promise<void>((resolve, reject) => {
+      upsertRecord.mutate({
+        expense_id: expenseId,
+        period_year: year,
+        period_month: month,
+        status: 'uploaded',
+        invoice_url: publicUrl,
+        amount: extracted.total_amount ?? defaultCost,
+        notes: null,
+        uploaded_at: new Date().toISOString(),
+        issuer_name: extracted.issuer_name ?? null,
+        description: extracted.description ?? null,
+        subtotal: extracted.subtotal ?? null,
+        tax_rate: extracted.tax_rate ?? null,
+        tax_amount: extracted.tax_amount ?? null,
+        total_amount: extracted.total_amount ?? null,
+        invoice_date: extracted.invoice_date ?? null,
+      }, { onSuccess: () => resolve(), onError: (e) => reject(e) });
+    });
+  };
+
   const handleFileUpload = async (expenseId: string, month: number) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -78,42 +124,8 @@ export function ExpenseTrackerTab() {
       setExtractingCell(cellKey);
 
       try {
-        // Upload file
-        const path = `${year}/${month}/${expenseId}/${file.name}`;
-        const { error: uploadError } = await supabase.storage.from('expense-invoices').upload(path, file, { upsert: true });
-        if (uploadError) throw uploadError;
-        const { data: { publicUrl } } = supabase.storage.from('expense-invoices').getPublicUrl(path);
-
-        // Extract data with AI
-        let extracted: any = {};
-        try {
-          toast.info('Extrayendo datos de la factura con IA...');
-          extracted = await extractInvoiceData(file);
-          toast.success('Datos extraídos correctamente');
-        } catch (aiError) {
-          console.error('AI extraction failed:', aiError);
-          toast.warning('No se pudieron extraer datos automáticamente. Se guardará solo el archivo.');
-        }
-
-        const defaultCost = expenses.find(e => e.id === expenseId)?.monthly_cost || null;
-
-        upsertRecord.mutate({
-          expense_id: expenseId,
-          period_year: year,
-          period_month: month,
-          status: 'uploaded',
-          invoice_url: publicUrl,
-          amount: extracted.total_amount ?? defaultCost,
-          notes: null,
-          uploaded_at: new Date().toISOString(),
-          issuer_name: extracted.issuer_name ?? null,
-          description: extracted.description ?? null,
-          subtotal: extracted.subtotal ?? null,
-          tax_rate: extracted.tax_rate ?? null,
-          tax_amount: extracted.tax_amount ?? null,
-          total_amount: extracted.total_amount ?? null,
-          invoice_date: extracted.invoice_date ?? null,
-        });
+        await uploadSingleFile(expenseId, month, file);
+        toast.success('Factura subida y procesada');
       } catch (err: any) {
         toast.error('Error: ' + err.message);
       } finally {
@@ -121,6 +133,57 @@ export function ExpenseTrackerTab() {
       }
     };
     input.click();
+  };
+
+  const handleBulkOpen = (expenseId: string, expenseName: string) => {
+    setBulkFiles([]);
+    setBulkModal({ expenseId, expenseName });
+  };
+
+  const handleBulkFilesSelect = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.jpg,.jpeg,.png';
+    input.multiple = true;
+    input.onchange = (e: any) => {
+      const files = Array.from(e.target.files || []) as File[];
+      // Auto-assign months in order of quarter
+      const newBulkFiles: BulkFile[] = files.map((file, i) => ({
+        file,
+        month: months[i % months.length],
+      }));
+      setBulkFiles(newBulkFiles);
+    };
+    input.click();
+  };
+
+  const handleBulkUpload = async () => {
+    if (!bulkModal || bulkFiles.length === 0) return;
+    setBulkUploading(true);
+    let success = 0;
+    let failed = 0;
+
+    for (const bf of bulkFiles) {
+      try {
+        setExtractingCell(`${bulkModal.expenseId}-${bf.month}`);
+        await uploadSingleFile(bulkModal.expenseId, bf.month, bf.file);
+        success++;
+      } catch (err: any) {
+        console.error(`Error uploading for month ${bf.month}:`, err);
+        failed++;
+      }
+    }
+
+    setExtractingCell(null);
+    setBulkUploading(false);
+    setBulkModal(null);
+    setBulkFiles([]);
+
+    if (failed === 0) {
+      toast.success(`${success} facturas subidas y procesadas correctamente`);
+    } else {
+      toast.warning(`${success} subidas, ${failed} con error`);
+    }
   };
 
   const handleVerify = (expenseId: string, month: number) => {
@@ -199,83 +262,154 @@ export function ExpenseTrackerTab() {
                 {months.map(m => (
                   <TableHead key={m} className="text-center min-w-[160px]">{MONTH_NAMES[m - 1]} {year}</TableHead>
                 ))}
+                <TableHead className="text-center w-[80px]">Trimestre</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {activeExpenses.length === 0 ? (
-                <TableRow><TableCell colSpan={2 + months.length} className="text-center text-muted-foreground py-8">No hay gastos activos</TableCell></TableRow>
-              ) : activeExpenses.map(exp => (
-                <TableRow key={exp.id}>
-                  <TableCell className="font-medium">{exp.name}</TableCell>
-                  <TableCell className="text-right font-mono text-sm">
-                    {formatCurrency(exp.monthly_cost)}
-                  </TableCell>
-                  {months.map(m => {
-                    const record = getRecord(exp.id, m);
-                    const status = record?.status || 'pending';
-                    const cfg = statusConfig[status];
-                    const Icon = cfg.icon;
-                    const cellKey = `${exp.id}-${m}`;
-                    const isExtracting = extractingCell === cellKey;
-                    const hasExtractedData = record && (record.issuer_name || record.total_amount != null);
+                <TableRow><TableCell colSpan={3 + months.length} className="text-center text-muted-foreground py-8">No hay gastos activos</TableCell></TableRow>
+              ) : activeExpenses.map(exp => {
+                const pendingMonths = months.filter(m => !getRecord(exp.id, m) || getRecord(exp.id, m)?.status === 'pending');
+                const allUploaded = pendingMonths.length === 0;
 
-                    return (
-                      <TableCell key={m} className="text-center">
-                        <div className="flex flex-col items-center gap-1">
-                          {isExtracting ? (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              <span>Procesando...</span>
-                            </div>
-                          ) : (
-                            <>
-                              <div className={`flex items-center gap-1 text-xs ${cfg.color}`}>
-                                <Icon className="h-3.5 w-3.5" />
-                                <span>{cfg.label}</span>
+                return (
+                  <TableRow key={exp.id}>
+                    <TableCell className="font-medium">{exp.name}</TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {formatCurrency(exp.monthly_cost)}
+                    </TableCell>
+                    {months.map(m => {
+                      const record = getRecord(exp.id, m);
+                      const status = record?.status || 'pending';
+                      const cfg = statusConfig[status];
+                      const Icon = cfg.icon;
+                      const cellKey = `${exp.id}-${m}`;
+                      const isExtracting = extractingCell === cellKey;
+                      const hasExtractedData = record && (record.issuer_name || record.total_amount != null);
+
+                      return (
+                        <TableCell key={m} className="text-center">
+                          <div className="flex flex-col items-center gap-1">
+                            {isExtracting ? (
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                <span>Procesando...</span>
                               </div>
-                              {hasExtractedData && record && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="text-[11px] font-mono text-foreground cursor-help">
-                                      {formatCurrency(record.total_amount)}
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="bottom">
-                                    <ExtractedDataTooltip record={record} />
-                                  </TooltipContent>
-                                </Tooltip>
-                              )}
-                            </>
-                          )}
-                          <div className="flex gap-1">
-                            {status === 'pending' && !isExtracting && (
-                              <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleFileUpload(exp.id, m)}>
-                                <Upload className="h-3 w-3 mr-1" />Subir
-                              </Button>
-                            )}
-                            {status === 'uploaded' && (
+                            ) : (
                               <>
-                                <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleVerify(exp.id, m)}>
-                                  <FileCheck className="h-3 w-3 mr-1" />Verificar
-                                </Button>
-                                {record?.invoice_url && (
-                                  <a href={record.invoice_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 underline">Ver</a>
+                                <div className={`flex items-center gap-1 text-xs ${cfg.color}`}>
+                                  <Icon className="h-3.5 w-3.5" />
+                                  <span>{cfg.label}</span>
+                                </div>
+                                {hasExtractedData && record && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="text-[11px] font-mono text-foreground cursor-help">
+                                        {formatCurrency(record.total_amount)}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">
+                                      <ExtractedDataTooltip record={record} />
+                                    </TooltipContent>
+                                  </Tooltip>
                                 )}
                               </>
                             )}
-                            {status === 'verified' && record?.invoice_url && (
-                              <a href={record.invoice_url} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 underline">Ver factura</a>
-                            )}
+                            <div className="flex gap-1">
+                              {status === 'pending' && !isExtracting && (
+                                <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleFileUpload(exp.id, m)}>
+                                  <Upload className="h-3 w-3 mr-1" />Subir
+                                </Button>
+                              )}
+                              {status === 'uploaded' && (
+                                <>
+                                  <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => handleVerify(exp.id, m)}>
+                                    <FileCheck className="h-3 w-3 mr-1" />Verificar
+                                  </Button>
+                                  {record?.invoice_url && (
+                                    <a href={record.invoice_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 underline">Ver</a>
+                                  )}
+                                </>
+                              )}
+                              {status === 'verified' && record?.invoice_url && (
+                                <a href={record.invoice_url} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 underline">Ver factura</a>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              ))}
+                        </TableCell>
+                      );
+                    })}
+                    <TableCell className="text-center">
+                      {!allUploaded ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1"
+                              onClick={() => handleBulkOpen(exp.id, exp.name)}
+                            >
+                              <FolderUp className="h-3.5 w-3.5" />
+                              {pendingMonths.length}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Subir {pendingMonths.length} facturas del trimestre</TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4 text-green-500 mx-auto" />
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
+
+        {/* Bulk upload modal */}
+        <Dialog open={!!bulkModal} onOpenChange={v => { if (!v) setBulkModal(null); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Subir facturas del trimestre — {bulkModal?.expenseName}</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Selecciona hasta {months.length} facturas. Asigna cada una al mes correspondiente.
+            </p>
+            <Button variant="outline" onClick={handleBulkFilesSelect} disabled={bulkUploading}>
+              <FolderUp className="h-4 w-4 mr-2" />Seleccionar archivos
+            </Button>
+
+            {bulkFiles.length > 0 && (
+              <div className="space-y-2 mt-2">
+                {bulkFiles.map((bf, idx) => (
+                  <div key={idx} className="flex items-center gap-2 p-2 border rounded-md text-sm">
+                    <span className="truncate flex-1 font-medium">{bf.file.name}</span>
+                    <Select
+                      value={bf.month.toString()}
+                      onValueChange={v => {
+                        setBulkFiles(prev => prev.map((f, i) => i === idx ? { ...f, month: Number(v) } : f));
+                      }}
+                    >
+                      <SelectTrigger className="w-32 h-8"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {months.map(m => (
+                          <SelectItem key={m} value={m.toString()}>{MONTH_FULL[m - 1]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setBulkModal(null)} disabled={bulkUploading}>Cancelar</Button>
+              <Button onClick={handleBulkUpload} disabled={bulkFiles.length === 0 || bulkUploading}>
+                {bulkUploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Procesando...</> : `Subir ${bulkFiles.length} facturas`}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );

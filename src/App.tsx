@@ -41,6 +41,7 @@ import Notificaciones from "./pages/Notificaciones";
 import GuiaRapida from "./pages/GuiaRapida";
 import ResetPassword from "./pages/ResetPassword";
 import PublicQuote from "./pages/PublicQuote";
+import Gastos from "./pages/Gastos";
 
 const queryClient = new QueryClient();
 
@@ -100,6 +101,7 @@ const App = () => {
               <Route path="/liquidaciones/:id" element={<ProtectedRoute><LiquidacionDetalle /></ProtectedRoute>} />
               
               <Route path="/reportes" element={<ProtectedRoute><Reportes /></ProtectedRoute>} />
+              <Route path="/gastos" element={<ProtectedRoute><Gastos /></ProtectedRoute>} />
               <Route path="/usuarios" element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
               <Route path="/comisiones" element={<ProtectedRoute><Comisiones /></ProtectedRoute>} />
               <Route path="/perfil" element={<ProtectedRoute><Perfil /></ProtectedRoute>} />

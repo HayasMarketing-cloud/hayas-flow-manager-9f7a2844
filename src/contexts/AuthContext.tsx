@@ -274,7 +274,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           options: {
             redirectTo: window.location.origin,
             skipBrowserRedirect: true,
-            queryParams: { hd: 'hayas.es' },
+            queryParams: { hd: 'hayas.es', prompt: 'select_account' },
           },
         });
         if (error) throw error;
@@ -285,7 +285,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Lovable domains use managed auth-bridge
         const { error } = await lovable.auth.signInWithOAuth("google", {
           redirect_uri: window.location.origin,
-          extraParams: { hd: 'hayas.es' },
+          extraParams: { hd: 'hayas.es', prompt: 'select_account' },
         });
         if (error) throw error;
       }

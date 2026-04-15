@@ -8,8 +8,8 @@ interface RateSuggestion {
   costRateSource: 'specialist' | 'fallback';
 }
 
-const FALLBACK_SALE_RATE = 50;
-const FALLBACK_COST_RATE = 30;
+const FALLBACK_SALE_RATE = 70;
+const FALLBACK_COST_RATE = 70;
 
 /**
  * Hook that calculates suggested rates based on a hierarchy:

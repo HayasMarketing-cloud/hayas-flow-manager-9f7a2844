@@ -306,6 +306,24 @@ export function SpecialistFormModal({
 
             <FormField
               control={form.control}
+              name="website_url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sitio web</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="https://ejemplo.com"
+                      {...field}
+                      value={field.value || ""}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="active"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">

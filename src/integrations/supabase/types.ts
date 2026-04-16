@@ -1952,6 +1952,7 @@ export type Database = {
           type: Database["public"]["Enums"]["specialist_type"] | null
           updated_at: string
           user_id: string | null
+          website_url: string | null
         }
         Insert: {
           active?: boolean
@@ -1966,6 +1967,7 @@ export type Database = {
           type?: Database["public"]["Enums"]["specialist_type"] | null
           updated_at?: string
           user_id?: string | null
+          website_url?: string | null
         }
         Update: {
           active?: boolean
@@ -1980,6 +1982,7 @@ export type Database = {
           type?: Database["public"]["Enums"]["specialist_type"] | null
           updated_at?: string
           user_id?: string | null
+          website_url?: string | null
         }
         Relationships: [
           {

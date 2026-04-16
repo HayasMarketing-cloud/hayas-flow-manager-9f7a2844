@@ -1,0 +1,1 @@
+ALTER TABLE public.specialists ADD COLUMN website_url text DEFAULT NULL;

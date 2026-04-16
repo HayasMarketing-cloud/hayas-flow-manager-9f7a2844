@@ -153,6 +153,7 @@ export function SpecialistFormModal({
         type: values.type,
         active: values.active,
         hourly_rate: values.hourly_rate || 0,
+        website_url: values.website_url || null,
         notes: values.notes || null,
         team_leader_id: values.team_leader_id || null,
         created_by: user!.id,
@@ -180,6 +181,7 @@ export function SpecialistFormModal({
           type: values.type,
           active: values.active,
           hourly_rate: values.hourly_rate || 0,
+          website_url: values.website_url || null,
           notes: values.notes || null,
           team_leader_id: values.team_leader_id || null,
         })

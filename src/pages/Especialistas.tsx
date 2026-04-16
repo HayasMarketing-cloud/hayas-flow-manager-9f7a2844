@@ -27,6 +27,7 @@ interface Specialist {
   type: SpecialistType | null;
   active: boolean;
   hourly_rate: number | null;
+  website_url: string | null;
   notes: string | null;
   user_id: string | null;
   created_at: string;
@@ -58,7 +59,7 @@ export default function Especialistas() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("specialists")
-        .select("id, name, email, type, active, notes, user_id, created_at, hourly_rate, team_leader_id")
+        .select("id, name, email, type, active, notes, user_id, created_at, hourly_rate, team_leader_id, website_url")
         .order("name");
       if (error) throw error;
       return data as Specialist[];

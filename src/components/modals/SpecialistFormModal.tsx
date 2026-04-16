@@ -46,6 +46,7 @@ const formSchema = z.object({
   }),
   active: z.boolean(),
   hourly_rate: z.coerce.number().min(0, "La tarifa no puede ser negativa").optional(),
+  website_url: z.string().optional(),
   notes: z.string().optional(),
   team_leader_id: z.string().nullable().optional(),
 });
@@ -59,6 +60,7 @@ interface Specialist {
   type: "interno" | "freelance" | "partner" | null;
   active: boolean;
   hourly_rate: number | null;
+  website_url: string | null;
   notes: string | null;
   team_leader_id: string | null;
 }
@@ -111,6 +113,7 @@ export function SpecialistFormModal({
       type: "freelance",
       active: true,
       hourly_rate: 0,
+      website_url: "",
       notes: "",
       team_leader_id: null,
     },
@@ -124,6 +127,7 @@ export function SpecialistFormModal({
         type: specialist.type || "freelance",
         active: specialist.active,
         hourly_rate: specialist.hourly_rate || 0,
+        website_url: (specialist as any).website_url || "",
         notes: specialist.notes || "",
         team_leader_id: specialist.team_leader_id || null,
       });
@@ -134,6 +138,7 @@ export function SpecialistFormModal({
         type: "freelance",
         active: true,
         hourly_rate: 0,
+        website_url: "",
         notes: "",
         team_leader_id: null,
       });

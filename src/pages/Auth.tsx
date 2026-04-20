@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import flowManagerLogo from "@/assets/flowmanager-logo.png";
 
+const PRODUCTION_URL = "https://flow.hayasmarketing.com";
+
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,8 +26,13 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const nextParam = (() => {
+    const p = new URLSearchParams(window.location.search).get('next');
+    return p && p.startsWith('/') ? p : null;
+  })();
+
   if (user) {
-    navigate("/dashboard-mensual");
+    navigate(nextParam || "/dashboard-mensual");
     return null;
   }
 
@@ -35,7 +42,7 @@ export default function Auth() {
     const { error } = await signIn(email, password);
     setLoading(false);
     if (!error) {
-      navigate("/dashboard-mensual");
+      navigate(nextParam || "/dashboard-mensual");
     }
   };
 
@@ -60,17 +67,15 @@ export default function Auth() {
     try { return window.self !== window.top; } catch { return true; }
   })();
 
+  const isPreviewHost = typeof window !== 'undefined' && /lovable\.app$/.test(window.location.hostname);
+  const shouldRedirectForOAuth = isInIframe || isPreviewHost;
+  const productionAuthUrl = `${PRODUCTION_URL}/auth${nextParam ? `?next=${encodeURIComponent(nextParam)}` : ''}`;
+
   const handleGoogleSignIn = async () => {
-    if (isInIframe) {
-      // In iframe, open the app in a new tab so OAuth can work
-      window.open(window.location.href, '_blank');
-      return;
-    }
     setGoogleLoading(true);
     try {
       await signInWithGoogle();
     } finally {
-      // Reset loading after a timeout in case OAuth doesn't redirect
       setTimeout(() => setGoogleLoading(false), 5000);
     }
   };

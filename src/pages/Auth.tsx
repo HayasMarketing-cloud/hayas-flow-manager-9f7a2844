@@ -67,7 +67,7 @@ export default function Auth() {
     try { return window.self !== window.top; } catch { return true; }
   })();
 
-  const isPreviewHost = typeof window !== 'undefined' && /lovable\.app$/.test(window.location.hostname);
+  const isPreviewHost = typeof window !== 'undefined' && /(^|\.)lovable\.app$/.test(window.location.hostname);
   const shouldRedirectForOAuth = isInIframe || isPreviewHost;
   const productionAuthUrl = `${PRODUCTION_URL}/auth${nextParam ? `?next=${encodeURIComponent(nextParam)}` : ''}`;
 

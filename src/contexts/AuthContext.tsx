@@ -215,7 +215,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         description: "Bienvenido de vuelta",
       });
 
-      navigate('/dashboard-mensual');
+      const params = new URLSearchParams(window.location.search);
+      const next = params.get('next');
+      navigate(next && next.startsWith('/') ? next : '/dashboard-mensual');
       return { error: null };
     } catch (error: any) {
       toast({
@@ -264,7 +266,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signInWithGoogle = async () => {
     try {
       const { error } = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+        redirect_uri: window.location.origin + '/auth' + window.location.search,
         extraParams: { hd: 'hayas.es', prompt: 'select_account' },
       });
 

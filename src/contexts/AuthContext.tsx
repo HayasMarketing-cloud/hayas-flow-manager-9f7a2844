@@ -263,6 +263,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signInWithGoogle = async () => {
     try {
+      const isCustomDomain = !window.location.hostname.endsWith('.lovable.app')
+        && window.location.hostname !== 'localhost'
+        && window.location.hostname !== '127.0.0.1';
+
+      if (isCustomDomain) {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin,
+            queryParams: { hd: 'hayas.es', prompt: 'select_account' },
+            skipBrowserRedirect: true,
+          },
+        });
+
+        if (error) throw error;
+        if (!data?.url) throw new Error('No se pudo iniciar el acceso con Google');
+
+        window.location.assign(data.url);
+        return { error: null };
+      }
+
       const { error } = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: window.location.origin,
         extraParams: { hd: 'hayas.es', prompt: 'select_account' },

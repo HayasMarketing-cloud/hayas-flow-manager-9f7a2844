@@ -20,6 +20,7 @@ import Presupuestos from "./pages/Presupuestos";
 import PresupuestoDetalle from "./pages/PresupuestoDetalle";
 import Servicios from "./pages/Servicios";
 import Especialistas from "./pages/Especialistas";
+import EspecialistaDetalle from "./pages/EspecialistaDetalle";
 import Contratos from "./pages/Contratos";
 import Clientes from "./pages/Clientes";
 import ClienteDetalle from "./pages/ClienteDetalle";
@@ -91,6 +92,7 @@ const App = () => {
               <Route path="/clientes/:id" element={<ProtectedRoute><ClienteDetalle /></ProtectedRoute>} />
               <Route path="/servicios" element={<ProtectedRoute><Servicios /></ProtectedRoute>} />
               <Route path="/especialistas" element={<ProtectedRoute><Especialistas /></ProtectedRoute>} />
+              <Route path="/especialistas/:id" element={<ProtectedRoute><EspecialistaDetalle /></ProtectedRoute>} />
               <Route path="/contratos" element={<ProtectedRoute><Contratos /></ProtectedRoute>} />
               <Route path="/presupuestos" element={<ProtectedRoute><Presupuestos /></ProtectedRoute>} />
               <Route path="/presupuestos/:id" element={<ProtectedRoute><PresupuestoDetalle /></ProtectedRoute>} />

@@ -1,85 +1,41 @@
 
+Crear página de detalle de especialista accesible desde el listado, mostrando sus liquidaciones y facturas asociadas.
 
-# Plan: Expenses & Subscriptions Management Module
+## Alcance
 
-## Overview
-New page in the Finance section to register, track, and analyze recurring business expenses (SaaS subscriptions, office rent, accounting fees, etc.). Enables monthly/quarterly invoice upload verification, cost analysis, and cash-flow forecasting.
+**Nueva ruta:** `/especialistas/:id` (`EspecialistaDetalle.tsx`)
 
-## Data Model
+**Acceso desde el listado:** Hacer las cards de `Especialistas.tsx` clicables (navegar al detalle). El botón de editar (lápiz) seguirá abriendo el modal sin propagar el click.
 
-### New table: `expenses`
-Stores each subscription/expense as a record with its metadata.
+## Estructura de la página de detalle
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | uuid PK | |
-| name | text | e.g. "Google Workspace", "Adobe" |
-| category | text | e.g. "software", "office", "services" |
-| is_active | boolean | Currently active subscription |
-| periodicity | text | "monthly" / "annual" / "quarterly" |
-| monthly_cost | numeric | Normalized monthly cost |
-| renewal_month | text | Month of annual renewal (nullable) |
-| account_email | text | Login/billing email |
-| website_url | text | Provider URL |
-| notes | text | Purpose, what it's used for |
-| created_by | uuid | |
-| created_at / updated_at | timestamptz | |
+1. **Header**: Nombre, tipo (badge), estado activo, email, sitio web (link), botón "Editar" (admin) y botón "Volver".
+2. **Resumen rápido**: tarifa por hora, equipo (si es team leader o miembro), notas.
+3. **Tabs/Secciones**:
+   - **Liquidaciones**: Tabla con código, periodo (mes/año), estado (badge), subtotal, total, fecha pago. Cada fila clicable → navega a `/liquidaciones/:id` (ya existe `LiquidacionDetalle`) donde se ve el detalle completo y se puede descargar el PDF generado.
+   - **Facturas recibidas**: Lista de las facturas PDF que el especialista ha subido (`liquidations.specialist_invoice_url` + `liquidation_signatures.invoice_uploaded_at`). Cada fila muestra liquidación asociada, fecha de subida, estado de verificación, y botones **Ver** (abre PDF en nueva pestaña) y **Descargar**.
 
-### New table: `expense_records`
-Tracks each period's invoice upload status (monthly or quarterly verification).
+## Datos a consultar
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | uuid PK | |
-| expense_id | uuid FK | Links to `expenses` |
-| period_year | int | |
-| period_month | int | |
-| status | text | "pending" / "uploaded" / "verified" |
-| invoice_url | text | Uploaded invoice file URL |
-| amount | numeric | Actual amount for this period |
-| notes | text | |
-| uploaded_at | timestamptz | |
-| created_at / updated_at | timestamptz | |
+- `specialists` por `id` (datos básicos, ya filtrados por RLS).
+- `liquidations` filtradas por `specialist_id` con campos: `id, code, period_year, period_month, status, subtotal, total_amount, paid_at, specialist_invoice_url, created_at`.
+- `liquidation_signatures` (join opcional) para `invoice_uploaded_at` y `invoice_verification`.
 
-RLS: Restricted to `admin` and `finanzas` roles.
+Solo accesible para `admin` y roles con `canAccessOperations` (igual que el listado).
 
-## Page Structure: `/gastos`
+## Archivos
 
-### 1. Summary Header (KPI cards)
-- Total monthly recurring cost
-- Total annual cost
-- Pending invoices this month
-- Pending invoices this quarter
+**Nuevos:**
+- `src/pages/EspecialistaDetalle.tsx`
+- `src/hooks/useSpecialistDetail.tsx` (fetch del especialista + liquidaciones + facturas)
 
-### 2. Subscriptions Registry (main tab)
-Table listing all expenses with: Name, Category, Active, Periodicity, Cost, Account, Website link, Actions (edit/deactivate). CRUD modal for adding/editing. Import initial data from the uploaded CSV.
+**Modificados:**
+- `src/App.tsx` — registrar la ruta `/especialistas/:id` dentro del layout protegido.
+- `src/pages/Especialistas.tsx` — envolver cada Card en navegación al detalle (con `stopPropagation` en el botón editar).
 
-### 3. Monthly/Quarterly Tracker (second tab)
-- Period selector (month or quarter)
-- Matrix view: rows = active expenses, columns = months in quarter
-- Each cell shows upload status (pending/uploaded/verified) with color coding
-- Click cell to upload invoice file or mark as verified
-- Quarterly summary showing completeness percentage
+## Consideraciones técnicas
 
-### 4. Analysis (third tab)
-- Category breakdown (pie chart)
-- Monthly trend (bar chart)
-- Cost comparison month-over-month
-- Flagged items: inactive but still being charged, items marked for review
-
-## Technical Steps
-
-1. **Database migration**: Create `expenses` and `expense_records` tables with RLS for admin/finanzas
-2. **Storage bucket**: Create `expense-invoices` bucket for uploaded invoice files
-3. **Seed data**: Insert initial subscriptions from the uploaded CSV
-4. **Page & components**: Build `/gastos` page following existing patterns (Facturas page as reference) with tabs, table view, form modal
-5. **Sidebar**: Add "Gastos" entry under Finance section with `requiredRoles: ['admin', 'finanzas']`
-6. **Route**: Add protected route in App.tsx
-7. **Quarterly tracker**: Matrix component with file upload per cell
-8. **Analysis tab**: Charts using existing Recharts patterns from dashboard
-
-## Scope Boundaries
-- Invoice files are uploaded and stored in the app (replacing the need to go to Biloop)
-- No automatic invoice fetching from provider websites (manual download + upload)
-- Categories are predefined with option to add custom ones
-
+- Reutilizar componentes existentes: `LiquidationStatusBadge`, `Card`, `Table`, `Button`, `Badge`.
+- PDFs de facturas: el bucket `liquidation-invoices` es público → enlace directo a `specialist_invoice_url` con `target="_blank"` para ver, y atributo `download` para descargar.
+- PDF de liquidación: ya se genera en `LiquidacionDetalle` mediante `liquidationPDFGenerator` — no se duplica, se enlaza al detalle existente.
+- Sin cambios de DB ni nuevas migraciones.

@@ -8,8 +8,16 @@ const Index = () => {
 
   useEffect(() => {
     if (!loading) {
-      // Redirigir automáticamente según estado de autenticación
-      navigate(user ? '/proyectos-operativos' : '/auth', { replace: true });
+      const storedRedirect = user ? sessionStorage.getItem('postAuthRedirect') : null;
+      const nextTarget = storedRedirect && storedRedirect.startsWith('/')
+        ? storedRedirect
+        : (user ? '/proyectos-operativos' : '/auth');
+
+      if (storedRedirect) {
+        sessionStorage.removeItem('postAuthRedirect');
+      }
+
+      navigate(nextTarget, { replace: true });
     }
   }, [user, loading, navigate]);
 

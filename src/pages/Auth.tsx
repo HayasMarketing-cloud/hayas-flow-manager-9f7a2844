@@ -31,8 +31,17 @@ export default function Auth() {
     return p && p.startsWith('/') ? p : null;
   })();
 
+  const consumeStoredPostAuthRedirect = () => {
+    const stored = sessionStorage.getItem("postAuthRedirect");
+    if (stored && stored.startsWith('/')) {
+      sessionStorage.removeItem("postAuthRedirect");
+      return stored;
+    }
+    return null;
+  };
+
   if (user) {
-    navigate(nextParam || "/dashboard-mensual");
+    navigate(nextParam || consumeStoredPostAuthRedirect() || "/dashboard-mensual");
     return null;
   }
 
@@ -72,6 +81,12 @@ export default function Auth() {
   const productionAuthUrl = `${PRODUCTION_URL}/auth${nextParam ? `?next=${encodeURIComponent(nextParam)}` : ''}`;
 
   const handleGoogleSignIn = async () => {
+    if (nextParam) {
+      sessionStorage.setItem("postAuthRedirect", nextParam);
+    } else {
+      sessionStorage.removeItem("postAuthRedirect");
+    }
+
     setGoogleLoading(true);
     try {
       await signInWithGoogle();

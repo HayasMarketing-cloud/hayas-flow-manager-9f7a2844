@@ -225,10 +225,20 @@ export default function Especialistas() {
               onClick={() => navigate(`/especialistas/${specialist.id}`)}
             >
               <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <CardTitle className="text-lg font-semibold">
-                    {specialist.name}
-                  </CardTitle>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-2">
+                    <CardTitle className="text-lg font-semibold">
+                      {specialist.name}
+                    </CardTitle>
+                    {specialist.type && (
+                      <Badge
+                        variant="secondary"
+                        className={typeColors[specialist.type]}
+                      >
+                        {typeLabels[specialist.type]}
+                      </Badge>
+                    )}
+                  </div>
                   {canEdit && (
                     <Button
                       variant="ghost"
@@ -242,14 +252,6 @@ export default function Especialistas() {
                     </Button>
                   )}
                 </div>
-                {specialist.type && (
-                  <Badge
-                    variant="secondary"
-                    className={typeColors[specialist.type]}
-                  >
-                    {typeLabels[specialist.type]}
-                  </Badge>
-                )}
               </CardHeader>
               <CardContent className="space-y-3">
                 {specialist.email && (
@@ -273,10 +275,21 @@ export default function Especialistas() {
                   </div>
                 )}
 
-                <div className="pt-2">
+                <div className="flex items-center justify-between pt-2">
                   <Badge variant={specialist.active ? "default" : "secondary"}>
                     {specialist.active ? "Activo" : "Inactivo"}
                   </Badge>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/especialistas/${specialist.id}`);
+                    }}
+                  >
+                    Ver detalle
+                  </Button>
                 </div>
               </CardContent>
             </Card>

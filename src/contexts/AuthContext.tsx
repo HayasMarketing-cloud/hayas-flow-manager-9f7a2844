@@ -215,7 +215,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         description: "Bienvenido de vuelta",
       });
 
-      navigate('/dashboard-mensual');
+      const params = new URLSearchParams(window.location.search);
+      const next = params.get('next');
+      navigate(next && next.startsWith('/') ? next : '/dashboard-mensual');
       return { error: null };
     } catch (error: any) {
       toast({

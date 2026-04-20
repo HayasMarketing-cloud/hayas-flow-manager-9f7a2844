@@ -266,7 +266,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signInWithGoogle = async () => {
     try {
       const { error } = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin + '/auth' + window.location.search,
+        redirect_uri: window.location.origin,
         extraParams: { hd: 'hayas.es', prompt: 'select_account' },
       });
 

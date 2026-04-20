@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -47,6 +48,7 @@ const typeColors: Record<SpecialistType, string> = {
 };
 
 export default function Especialistas() {
+  const navigate = useNavigate();
   const { isAdmin, canAccessOperations, loading: rolesLoading } = useUserRole();
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -217,7 +219,11 @@ export default function Especialistas() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredSpecialists.map((specialist) => (
-            <Card key={specialist.id} className="relative">
+            <Card
+              key={specialist.id}
+              className="relative cursor-pointer transition-shadow hover:shadow-md"
+              onClick={() => navigate(`/especialistas/${specialist.id}`)}
+            >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <CardTitle className="text-lg font-semibold">
@@ -227,7 +233,10 @@ export default function Especialistas() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleEdit(specialist)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEdit(specialist);
+                      }}
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>

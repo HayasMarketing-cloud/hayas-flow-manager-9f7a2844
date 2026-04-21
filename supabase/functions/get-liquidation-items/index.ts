@@ -175,8 +175,15 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Fetch liquidation invoices for the specialist's view
+    const { data: invoicesData } = await supabase
+      .from('liquidation_invoices')
+      .select('id, file_url, file_name, invoice_number, invoice_date, subtotal, total_amount, uploaded_at')
+      .eq('liquidation_id', liquidation_id)
+      .order('uploaded_at', { ascending: true });
+
     return new Response(
-      JSON.stringify({ items: enrichedItems, commissionDetails }),
+      JSON.stringify({ items: enrichedItems, commissionDetails, invoices: invoicesData || [] }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {

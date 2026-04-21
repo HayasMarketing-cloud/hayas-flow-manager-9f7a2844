@@ -3,7 +3,7 @@
 export interface GroupedProjectBudget {
   id: string;
   name: string;
-  type: 'project' | 'budget' | 'none';
+  type: 'project' | 'budget' | 'contract' | 'none';
   items: any[];
   subtotal: number;
 }
@@ -66,10 +66,11 @@ export const groupItemsByClientAndProject = (
     const opRequest = item.financial_request?.operational_request?.[0];
     const project = opRequest?.operational_project;
     const budget = item.financial_request?.budget;
+    const contract = item.financial_request?.contract;
 
     let projectBudgetId = 'no-project';
     let projectBudgetName = 'Sin proyecto/presupuesto';
-    let projectBudgetType: 'project' | 'budget' | 'none' = 'none';
+    let projectBudgetType: 'project' | 'budget' | 'contract' | 'none' = 'none';
 
     if (project) {
       projectBudgetId = project.id;
@@ -79,6 +80,10 @@ export const groupItemsByClientAndProject = (
       projectBudgetId = budget.id;
       projectBudgetName = budget.title || budget.code;
       projectBudgetType = 'budget';
+    } else if (contract) {
+      projectBudgetId = contract.id;
+      projectBudgetName = contract.title || contract.code;
+      projectBudgetType = 'contract';
     } else if (commissionSource?.budgetId) {
       projectBudgetId = commissionSource.budgetId;
       projectBudgetName = commissionSource.budgetTitle || commissionSource.budgetCode || 'Presupuesto';

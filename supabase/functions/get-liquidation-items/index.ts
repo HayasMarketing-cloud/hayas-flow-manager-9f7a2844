@@ -66,7 +66,8 @@ Deno.serve(async (req) => {
           quantity,
           cost_type,
           client:clients(id, name),
-          budget:budgets(id, code, title)
+          budget:budgets(id, code, title),
+          contract:contracts(id, code, title)
         )
       `)
       .eq('liquidation_id', liquidation_id);

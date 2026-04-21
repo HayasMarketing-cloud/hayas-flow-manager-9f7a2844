@@ -1212,6 +1212,71 @@ export type Database = {
           },
         ]
       }
+      liquidation_invoices: {
+        Row: {
+          ai_extracted: Json | null
+          created_at: string
+          file_name: string | null
+          file_url: string
+          id: string
+          invoice_date: string | null
+          invoice_number: string | null
+          irpf_amount: number | null
+          liquidation_id: string
+          storage_path: string | null
+          subtotal: number | null
+          tax_amount: number | null
+          total_amount: number | null
+          updated_at: string
+          uploaded_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          ai_extracted?: Json | null
+          created_at?: string
+          file_name?: string | null
+          file_url: string
+          id?: string
+          invoice_date?: string | null
+          invoice_number?: string | null
+          irpf_amount?: number | null
+          liquidation_id: string
+          storage_path?: string | null
+          subtotal?: number | null
+          tax_amount?: number | null
+          total_amount?: number | null
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          ai_extracted?: Json | null
+          created_at?: string
+          file_name?: string | null
+          file_url?: string
+          id?: string
+          invoice_date?: string | null
+          invoice_number?: string | null
+          irpf_amount?: number | null
+          liquidation_id?: string
+          storage_path?: string | null
+          subtotal?: number | null
+          tax_amount?: number | null
+          total_amount?: number | null
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liquidation_invoices_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "liquidations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       liquidation_items: {
         Row: {
           created_at: string

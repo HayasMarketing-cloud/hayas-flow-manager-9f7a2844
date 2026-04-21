@@ -1,61 +1,82 @@
 
-Objetivo: arreglar el acceso para que puedas entrar bien con Google y entonces ver la nueva página de detalle de especialista en producción.
 
-Diagnóstico
-- La página de detalle sí existe en código: hay ruta `/especialistas/:id`, navegación desde el listado y página `EspecialistaDetalle`.
-- El motivo más probable de “no la veo” no es la página en sí, sino que el login te está dejando fuera o te devuelve a un flujo incorrecto.
-- En preview, Google dentro del iframe no es fiable y puede fallar con `ERR_BLOCKED_BY_RESPONSE`. Ahora mismo la UI intenta abrir “la misma preview” en otra pestaña, pero eso sigue siendo una mala base para OAuth.
-- En los logs, el login empieza desde `flow.hayasmarketing.com` pero el callback aparece referenciado desde la URL publicada `.lovable.app`, lo que indica un rebote de dominios que puede romper la sensación de continuidad y provocar rutas extrañas.
-- Además, tras login no se conserva la ruta destino, así que aunque entres bien, no siempre vuelves a donde querías ir.
+## Permitir múltiples facturas por liquidación (incluyendo histórico)
 
-Plan de arreglo
-1. Corregir el flujo de Google según entorno
-- En preview/iframe: no intentar login Google “ahí”.
-- Mostrar un CTA claro para abrir el login en una pestaña normal del sitio publicado/custom domain (`/auth`), no en la preview.
-- En dominio real: mantener un único flujo de Google estable, evitando rebotes innecesarios entre hosts.
+### Objetivo
+Habilitar la subida de N facturas por liquidación, **funcionando también para liquidaciones ya creadas y firmadas, y para casos donde ya hay una factura subida** (como la de Santiago Riggio de marzo). La factura existente se conservará como la primera del listado y se podrán añadir más sin perder nada.
 
-2. Conservar la ruta destino tras autenticar
-- Modificar `ProtectedRoute` para mandar a `/auth?next=...` cuando el usuario intenta abrir una página protegida.
-- Hacer que `Auth.tsx` lea `next` y, tras login correcto, redirija a esa ruta en vez de mandar siempre al dashboard.
-- Así, si entras desde especialistas, volverás al detalle del especialista y no “perderás” la nueva página.
+### Flujo para liquidaciones existentes (caso Santiago Riggio marzo)
+1. Migración hace **backfill**: por cada `liquidations` con `specialist_invoice_url IS NOT NULL`, inserta automáticamente una fila en la nueva tabla `liquidation_invoices` con esa URL y los datos de extracción IA guardados en `liquidation_signatures.invoice_verification`.
+2. Al abrir esa liquidación (admin o especialista vía link de firma), aparece la factura ya subida como primer item de la lista.
+3. Botón "Añadir otra factura" disponible **independientemente del estado** de la liquidación (excepto `paid` y `draft`), incluyendo `accepted`, `invoice_received` y `pending_payment`.
+4. Subir una segunda factura recalcula el sumatorio y, si destapa diferencia con el subtotal, baja el estado de `pending_payment` a `invoice_received` hasta cuadrar.
 
-3. Endurecer la pantalla de auth
-- Separar claramente:
-  - Login Google en entorno real
-  - Mensaje/acción especial para preview
-- Evitar que el botón de Google en preview acabe cargando Google embebido o una URL técnica confusa.
+### Modelo de datos
+Nueva tabla `liquidation_invoices`:
+```text
+id, liquidation_id (FK cascade), file_url, file_name, storage_path,
+invoice_number, invoice_date, subtotal, tax_amount, irpf_amount,
+total_amount, ai_extracted (jsonb), uploaded_by, uploaded_at
+```
+RLS: idéntica a `liquidations` (admin/finanzas todo; especialista dueño y team leader leen e insertan los suyos; vista pública vía Edge Function con token).
 
-4. Verificar la navegación al detalle de especialista
-- Revisar el flujo completo: listado `Especialistas` → click tarjeta → `/especialistas/:id`.
-- Si hace falta, añadir un affordance más visible (“Ver detalle”) además del click en toda la card para que quede claro que existe esa nueva página.
+Storage: rutas únicas `${liquidationId}/${invoiceId}-${slug(name)}.pdf` para no pisar archivos.
 
-Archivos a tocar
-- `src/pages/Auth.tsx`
-  - Detectar preview/iframe mejor
-  - Abrir el login en dominio real
-  - Leer y aplicar `next`
-- `src/contexts/AuthContext.tsx`
-  - Ajustar redirección post-login para no forzar siempre dashboard
-  - Afinar el inicio de Google para que el dominio real sea el protagonista del flujo
-- `src/components/ProtectedRoute.tsx`
-  - Añadir redirección con `next`
-- `src/pages/Index.tsx`
-  - Revisar la redirección automática para que no pise el retorno tras login
-- `src/pages/Especialistas.tsx`
-  - Solo si hace falta, reforzar visualmente el acceso al detalle
+`liquidations.specialist_invoice_url` se mantiene apuntando a la última factura subida (compatibilidad con Keepango, PDFs y exports).
 
-Resultado esperado
-- En preview, verás un mensaje claro para abrir el login correctamente fuera del iframe.
-- En producción/custom domain, Google iniciará sesión sin llevarte por un flujo extraño que te desoriente.
-- Tras autenticarte, podrás volver directamente a la página protegida que querías abrir.
-- La página de detalle de especialista quedará accesible y usable desde el listado.
+### Migración / Backfill
+SQL único:
+- Crear tabla `liquidation_invoices` + RLS.
+- `INSERT INTO liquidation_invoices` por cada liquidación con `specialist_invoice_url` no nulo, copiando URL, derivando `file_name`/`storage_path` desde la URL, y rellenando datos económicos desde `liquidation_signatures.invoice_verification` cuando existan.
+- No se borra nada del modelo antiguo.
 
-Detalles técnicos
-- No hacen falta cambios de base de datos.
-- No tocaré los archivos auto-generados de integración.
-- La corrección es de flujo de autenticación y routing, no de datos.
-- Después habrá que probar específicamente:
-  1) login Google en custom domain,
-  2) acceso a `/especialistas`,
-  3) apertura de `/especialistas/:id`,
-  4) navegación a liquidación y descarga/visualización de factura.
+### UI
+
+**Admin (`SpecialistInvoiceUpload` + detalle liquidación):**
+- Lista con todas las facturas (la histórica aparece como primera).
+- Cada fila: nombre, importe, fecha, ver, eliminar.
+- Botón "Añadir factura" siempre visible salvo `paid`/`draft`.
+- Pie con resumen: suma de bases vs subtotal, badge verde (±1€) o naranja.
+
+**Especialista (`SpecialistInvoiceUploadPublic` con token):**
+- Misma lista + botón "Añadir otra factura".
+- Mensaje: "Si tu importe se factura desde varias entidades, puedes añadir varias facturas. La suma de las bases imponibles debe igualar el importe de la liquidación."
+
+**Página `EspecialistaDetalle`:**
+- Sustituir enlace único `specialist_invoice_url` por listado de facturas por liquidación.
+
+### Backend
+
+- **`upload-specialist-invoice`**: cambia a `INSERT` en `liquidation_invoices` (no UPDATE en `liquidations`). Tras insertar, recalcula sumatorio y ajusta estado:
+  - Si `|suma - subtotal| ≤ 1€` → `pending_payment`
+  - Si difiere y antes estaba `pending_payment` → vuelve a `invoice_received`
+  - Sigue actualizando `specialist_invoice_url` con la última URL para compatibilidad.
+- **`get-liquidation-items`**: añade array `invoices` al payload para la vista del especialista.
+- **Notificación** admin/finanzas: incluye contador "Factura N · suma X€ / subtotal Y€".
+- Eliminar factura: borra archivo de Storage y reevalúa estado.
+
+### Plan de prueba con Santiago Riggio (marzo)
+1. Tras la migración, abrir su liquidación de marzo desde admin → debe verse la factura ya subida como primer item del listado.
+2. Como admin, pulsar "Añadir factura" y subir un PDF de prueba → aparece como segundo item, recalcula suma.
+3. Si la suma cuadra, estado se mantiene `pending_payment`/`accepted`; si no, baja a `invoice_received`.
+4. Generar el link de firma público y validar que el especialista ve ambas facturas y puede añadir más.
+5. Probar borrar la factura nueva → vuelve al estado anterior, queda solo la histórica.
+
+### Archivos afectados
+- Migración SQL nueva (tabla + RLS + backfill).
+- `src/components/liquidations/SpecialistInvoiceUpload.tsx` — refactor a lista.
+- `src/components/liquidations/SpecialistInvoiceUploadPublic.tsx` — refactor a lista.
+- `src/pages/LiquidacionDetalle.tsx` — pasar lista de facturas.
+- `src/pages/FirmaLiquidacion.tsx` — pasar lista a vista pública.
+- `src/pages/EspecialistaDetalle.tsx` — listar facturas por liquidación.
+- `supabase/functions/upload-specialist-invoice/index.ts` — insertar fila + recálculo de estado.
+- `supabase/functions/get-liquidation-items/index.ts` — incluir array de facturas.
+- `src/lib/notification-utils.ts` — incluir contador y suma.
+- `src/integrations/supabase/types.ts` — autogenerado.
+
+### Consideraciones
+- Tolerancia ±1€ aplicada al **sumatorio**, no a cada factura individual.
+- Bucket `liquidation-invoices` ya es público.
+- Compatibilidad total: nada se rompe en exports, PDFs ni Keepango porque `specialist_invoice_url` sigue rellenándose.
+- Estados desde los que se permite añadir factura: `accepted`, `invoice_received`, `pending_payment`. Bloqueado en `draft` y `paid`.
+

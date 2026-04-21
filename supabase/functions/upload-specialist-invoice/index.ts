@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { token, pdf_base64 } = await req.json();
+    const { token, pdf_base64, file_name } = await req.json();
 
     if (!token) {
       return new Response(
@@ -75,6 +75,7 @@ Deno.serve(async (req) => {
           id,
           code,
           subtotal,
+          status,
           specialist_id,
           specialist_invoice_url
         )
@@ -252,18 +253,25 @@ IMPORTANTE:
       amountsMatch 
     });
 
-    // 6. Upload PDF to storage using service role
-    const filePath = `${liquidationId}/factura-especialista.pdf`;
-    const pdfBuffer = Uint8Array.from(atob(pdf_base64), c => c.charCodeAt(0));
+    // 6. Upload PDF to storage with unique path (no overwrite)
+    const slug = (s: string) =>
+      s.toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9.]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 60) || 'factura.pdf';
 
-    // Delete existing file if present
-    await supabase.storage.from('liquidation-invoices').remove([filePath]);
+    const newInvoiceId = crypto.randomUUID();
+    const safeName = slug(file_name || 'factura.pdf');
+    const filePath = `${liquidationId}/${newInvoiceId}-${safeName}`;
+    const pdfBuffer = Uint8Array.from(atob(pdf_base64), c => c.charCodeAt(0));
 
     const { error: uploadError } = await supabase.storage
       .from('liquidation-invoices')
       .upload(filePath, pdfBuffer, {
         contentType: 'application/pdf',
-        upsert: true,
+        upsert: false,
       });
 
     if (uploadError) {
@@ -274,37 +282,87 @@ IMPORTANTE:
       );
     }
 
-    // Get public URL with cache buster
     const { data: publicUrlData } = supabase.storage
       .from('liquidation-invoices')
       .getPublicUrl(filePath);
-
     const invoiceUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`;
 
-    // 7. Update liquidation with invoice URL and status based on amount match
-    const newStatus = amountsMatch === true ? 'pending_payment' : 'invoice_received';
-    const { error: liquidationUpdateError } = await supabase
-      .from('liquidations')
-      .update({ specialist_invoice_url: invoiceUrl, status: newStatus })
-      .eq('id', liquidationId);
+    // 7. Insert row in liquidation_invoices
+    const { error: insertInvoiceError } = await supabase
+      .from('liquidation_invoices')
+      .insert({
+        id: newInvoiceId,
+        liquidation_id: liquidationId,
+        file_url: invoiceUrl,
+        file_name: file_name || 'factura.pdf',
+        storage_path: filePath,
+        invoice_number: extractedData?.invoice_number || null,
+        invoice_date: extractedData?.invoice_date || null,
+        subtotal: extractedData?.subtotal ?? null,
+        tax_amount: extractedData?.tax_amount ?? null,
+        irpf_amount: extractedData?.irpf_amount ?? null,
+        total_amount: extractedData?.total_amount ?? null,
+        ai_extracted: extractedData,
+      });
 
-    if (liquidationUpdateError) {
-      console.error('Liquidation update error:', liquidationUpdateError);
+    if (insertInvoiceError) {
+      console.error('Insert invoice error:', insertInvoiceError);
       return new Response(
-        JSON.stringify({ error: 'Error al actualizar la liquidación' }),
+        JSON.stringify({ error: 'Error al registrar la factura' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 8. Record digital evidence in signature
+    // 8. Recompute sum across all invoices and adjust status
+    const { data: allInvoices } = await supabase
+      .from('liquidation_invoices')
+      .select('id, file_url, file_name, invoice_number, invoice_date, subtotal, total_amount, uploaded_at')
+      .eq('liquidation_id', liquidationId)
+      .order('uploaded_at', { ascending: true });
+
+    const invoicesSum = (allInvoices || []).reduce(
+      (acc: number, i: any) => acc + (Number(i.subtotal) || 0),
+      0,
+    );
+    const sumMatches = Math.abs(invoicesSum - liquidationSubtotal) <= 1;
+
+    const currentStatus = (liquidation as any).status as string | undefined;
+    let newStatus: string | null = null;
+    if (sumMatches && ['accepted', 'invoice_received'].includes(currentStatus || '')) {
+      newStatus = 'pending_payment';
+    } else if (!sumMatches && currentStatus === 'pending_payment') {
+      newStatus = 'invoice_received';
+    } else if (!sumMatches && currentStatus === 'accepted') {
+      newStatus = 'invoice_received';
+    } else if (!currentStatus || ['draft', 'validated', 'sent'].includes(currentStatus)) {
+      newStatus = sumMatches ? 'pending_payment' : 'invoice_received';
+    }
+
+    const liquidationUpdate: { specialist_invoice_url: string; status?: string } = {
+      specialist_invoice_url: invoiceUrl,
+    };
+    if (newStatus) liquidationUpdate.status = newStatus;
+
+    const { error: liquidationUpdateError } = await supabase
+      .from('liquidations')
+      .update(liquidationUpdate)
+      .eq('id', liquidationId);
+
+    if (liquidationUpdateError) {
+      console.error('Liquidation update error:', liquidationUpdateError);
+    }
+
+    // 9. Record digital evidence in signature
     const verificationData = {
       uploaded_at: new Date().toISOString(),
       ip_address: ipAddress,
       user_agent: userAgent,
       extracted_data: extractedData,
       invoice_subtotal: invoiceSubtotal,
+      invoices_sum: invoicesSum,
+      invoice_count: (allInvoices || []).length,
       liquidation_subtotal: liquidationSubtotal,
-      amounts_match: amountsMatch,
+      amounts_match: sumMatches,
       tolerance_applied: '±1€',
       ai_error: aiError,
     };
@@ -503,8 +561,11 @@ IMPORTANTE:
       JSON.stringify({
         success: true,
         invoiceUrl,
-        amountsMatch,
+        amountsMatch: sumMatches,
         invoiceSubtotal,
+        invoicesSum,
+        invoiceCount: (allInvoices || []).length,
+        invoices: allInvoices || [],
         liquidationSubtotal,
         extractedData,
         digitalEvidence: {

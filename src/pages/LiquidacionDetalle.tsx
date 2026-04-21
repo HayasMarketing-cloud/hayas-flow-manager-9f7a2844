@@ -292,6 +292,7 @@ export default function LiquidacionDetalle() {
               budget_id,
               client:clients(id, name),
               budget:budgets(id, code, title),
+              contract:contracts(id, code, title),
               operational_request:operational_requests!financial_request_id(
                 id,
                 operational_project:operational_projects(id, name)

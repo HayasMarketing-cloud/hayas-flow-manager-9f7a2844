@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Trash2, Building2, FolderKanban, FileSpreadsheet, Package } from 'lucide-react';
+import { Trash2, Building2, FolderKanban, FileSpreadsheet, FileText, Package } from 'lucide-react';
 import { formatCurrency } from '@/lib/liquidation-utils';
 import { groupItemsByClientAndProject, GroupedClient, GroupedProjectBudget } from '@/lib/liquidation-grouping';
 
@@ -139,13 +139,17 @@ export function GroupedLiquidationItemsTable({
       ? FolderKanban 
       : projectGroup.type === 'budget' 
         ? FileSpreadsheet 
-        : Package;
+        : projectGroup.type === 'contract'
+          ? FileText
+          : Package;
 
     const colorClass = projectGroup.type === 'project'
       ? 'text-emerald-600 dark:text-emerald-400'
       : projectGroup.type === 'budget'
         ? 'text-primary'
-        : 'text-muted-foreground';
+        : projectGroup.type === 'contract'
+          ? 'text-blue-600 dark:text-blue-400'
+          : 'text-muted-foreground';
 
     return (
       <TableRow 

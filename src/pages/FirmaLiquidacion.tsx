@@ -251,11 +251,10 @@ export default function FirmaLiquidacion() {
               <div className="w-full text-left">
                 <SpecialistInvoiceUploadPublic
                   token={token || ''}
+                  liquidationId={liquidation?.id || ''}
                   liquidationSubtotal={liquidation?.subtotal || totalAmount}
-                  currentInvoiceUrl={null}
-                  onUploadSuccess={(result) => {
+                  onUploadSuccess={() => {
                     setInvoiceUploaded(true);
-                    console.log('Invoice uploaded:', result);
                   }}
                 />
               </div>

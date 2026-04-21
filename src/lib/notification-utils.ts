@@ -306,7 +306,10 @@ export const notifySpecialistInvoiceUploaded = async (
   liquidationCode: string,
   liquidationId: string,
   specialistName: string,
-  amountsMatch: boolean | null
+  amountsMatch: boolean | null,
+  invoiceCount?: number,
+  invoicesSum?: number,
+  liquidationSubtotal?: number,
 ) => {
   const matchText = amountsMatch === true
     ? 'Los importes coinciden ✓'
@@ -314,11 +317,19 @@ export const notifySpecialistInvoiceUploaded = async (
       ? '⚠ ATENCIÓN: Los importes NO coinciden'
       : 'No se pudo verificar el importe';
 
+  const fmt = (n: number) =>
+    new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
+
+  const detail =
+    invoiceCount && invoicesSum != null && liquidationSubtotal != null
+      ? ` (Factura ${invoiceCount} · suma ${fmt(invoicesSum)} / ${fmt(liquidationSubtotal)})`
+      : '';
+
   await notifyByRole(
     ['admin', 'finanzas'],
     {
       title: 'Factura de especialista recibida',
-      message: `${specialistName} ha subido su factura para ${liquidationCode}. ${matchText}`,
+      message: `${specialistName} ha subido su factura para ${liquidationCode}${detail}. ${matchText}`,
       type: amountsMatch === false ? 'warning' : 'info',
       category: 'liquidation',
       entity_id: liquidationId,

@@ -75,6 +75,7 @@ Deno.serve(async (req) => {
           id,
           code,
           subtotal,
+          status,
           specialist_id,
           specialist_invoice_url
         )
@@ -560,8 +561,11 @@ IMPORTANTE:
       JSON.stringify({
         success: true,
         invoiceUrl,
-        amountsMatch,
+        amountsMatch: sumMatches,
         invoiceSubtotal,
+        invoicesSum,
+        invoiceCount: (allInvoices || []).length,
+        invoices: allInvoices || [],
         liquidationSubtotal,
         extractedData,
         digitalEvidence: {

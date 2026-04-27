@@ -165,6 +165,13 @@ function ReconciliationSection({ data, month, year }: { data: { requestsWithoutI
       variant: 'secondary' as const,
       onClick: () => navigate(`/solicitudes?work_month=${month}&work_year=${year}`),
     },
+    {
+      icon: Receipt,
+      label: 'Facturas sin periodo asignado',
+      count: data.invoicesWithoutPeriod,
+      variant: 'destructive' as const,
+      onClick: () => navigate(`/facturas`),
+    },
   ];
 
   return (
@@ -176,7 +183,7 @@ function ReconciliationSection({ data, month, year }: { data: { requestsWithoutI
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {items.map((item) => (
             <button
               key={item.label}

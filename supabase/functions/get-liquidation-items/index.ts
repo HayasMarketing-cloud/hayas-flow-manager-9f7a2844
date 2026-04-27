@@ -119,9 +119,11 @@ Deno.serve(async (req) => {
 
     let commissionDetails: Record<string, any> = {};
     if (commissions?.length) {
-      // Fetch all invoice data (codes + client + budget)
+      // Fetch all invoice data (codes + client + budget + contract)
       const allInvoiceIds = [...new Set(commissions.flatMap((c: any) => c.invoice_ids || []))];
       let invoicesDataMap = new Map<string, any>();
+      let contractMap = new Map<string, any>();
+
       if (allInvoiceIds.length > 0) {
         const { data: invoicesData } = await supabase
           .from('invoices')
@@ -151,7 +153,6 @@ Deno.serve(async (req) => {
             ...commissions.map((c: any) => c.contract_id).filter(Boolean),
           ]),
         ];
-        let contractMap = new Map<string, any>();
         if (contractIds.length > 0) {
           const { data: contracts } = await supabase.from('contracts').select('id, code, title').in('id', contractIds);
           for (const c of (contracts || [])) contractMap.set(c.id, c);
@@ -168,12 +169,14 @@ Deno.serve(async (req) => {
             contract: contractMap.get(inv.contract_id) || null,
           });
         }
-        // Expose contractMap to outer scope via closure (re-read below)
-        (commissionDetails as any).__contractMap = contractMap;
+      } else {
+        // Even with no invoice_ids, commissions may have a fallback contract_id
+        const contractIds = [...new Set(commissions.map((c: any) => c.contract_id).filter(Boolean))];
+        if (contractIds.length > 0) {
+          const { data: contracts } = await supabase.from('contracts').select('id, code, title').in('id', contractIds);
+          for (const c of (contracts || [])) contractMap.set(c.id, c);
+        }
       }
-
-      const contractMapForFallback: Map<string, any> = (commissionDetails as any).__contractMap || new Map();
-      delete (commissionDetails as any).__contractMap;
 
       for (const comm of commissions) {
         const invoiceEntries = (comm.invoice_ids || [])
@@ -181,7 +184,7 @@ Deno.serve(async (req) => {
           .filter(Boolean);
         const invoiceCodes = invoiceEntries.map((i: any) => i.code);
         const firstInv = invoiceEntries[0];
-        const fallbackContract = comm.contract_id ? contractMapForFallback.get(comm.contract_id) : null;
+        const fallbackContract = comm.contract_id ? contractMap.get(comm.contract_id) : null;
         commissionDetails[comm.id] = {
           type: comm.commission_type,
           percentage: Number(comm.commission_percentage),

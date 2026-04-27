@@ -87,6 +87,7 @@ export interface ReconciliationData {
   requestsWithoutInvoice: number;
   requestsWithoutLiquidation: number;
   requestsWithoutOrigin: number;
+  invoicesWithoutPeriod: number;
 }
 
 export interface DashboardMensualData {

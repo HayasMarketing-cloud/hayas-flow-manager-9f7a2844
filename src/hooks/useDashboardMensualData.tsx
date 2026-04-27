@@ -104,6 +104,10 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
       const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
       const endDate = new Date(year, month, 0).toISOString().split('T')[0];
 
+      // Range to detect invoices without billing_period emitted in the selected month or in N+1 (typical case)
+      const nextMonthStart = new Date(year, month, 1).toISOString().split('T')[0];
+      const nextMonthEnd = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
       const [
         invoicesRes,
         liquidationsRes,
@@ -114,18 +118,15 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
         allocationsRes,
         requestsRes,
         reconciliationRes,
+        invoicesWithoutPeriodRes,
       ] = await Promise.all([
-        viewMode === 'accrual'
-          ? supabase
-              .from('invoices')
-              .select('id, code, client_id, contract_id, budget_id, invoice_date, paid_at, status, subtotal, total_amount, billing_period_month, billing_period_year')
-              .eq('billing_period_year', year)
-              .eq('billing_period_month', month)
-          : supabase
-              .from('invoices')
-              .select('id, code, client_id, contract_id, budget_id, invoice_date, paid_at, status, subtotal, total_amount, billing_period_month, billing_period_year')
-              .gte('invoice_date', startDate)
-              .lte('invoice_date', endDate),
+        // Invoices: ALWAYS filter by billing_period (the work month).
+        // The cashflow vs accrual difference is applied later when computing revenue.
+        supabase
+          .from('invoices')
+          .select('id, code, client_id, contract_id, budget_id, invoice_date, paid_at, status, subtotal, total_amount, billing_period_month, billing_period_year')
+          .eq('billing_period_year', year)
+          .eq('billing_period_month', month),
         supabase
           .from('liquidations')
           .select('id, code, specialist_id, period_month, period_year, status, subtotal, total_amount, paid_at, specialist_invoice_url, specialist:specialists(id, name)')

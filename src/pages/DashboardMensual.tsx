@@ -123,9 +123,9 @@ function SpecialistRow({ specialist }: { specialist: SpecialistSummary }) {
   );
 }
 
-function ReconciliationSection({ data, month, year }: { data: { requestsWithoutInvoice: number; requestsWithoutLiquidation: number; requestsWithoutOrigin: number }; month: number; year: number }) {
+function ReconciliationSection({ data, month, year }: { data: { requestsWithoutInvoice: number; requestsWithoutLiquidation: number; requestsWithoutOrigin: number; invoicesWithoutPeriod: number }; month: number; year: number }) {
   const navigate = useNavigate();
-  const total = data.requestsWithoutInvoice + data.requestsWithoutLiquidation + data.requestsWithoutOrigin;
+  const total = data.requestsWithoutInvoice + data.requestsWithoutLiquidation + data.requestsWithoutOrigin + data.invoicesWithoutPeriod;
 
   if (total === 0) {
     return (

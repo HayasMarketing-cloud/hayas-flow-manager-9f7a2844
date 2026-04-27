@@ -91,6 +91,10 @@ export const groupItemsByClientAndProject = (
       projectBudgetId = commissionSource.budgetId;
       projectBudgetName = commissionSource.budgetTitle || commissionSource.budgetCode || 'Presupuesto';
       projectBudgetType = 'budget';
+    } else if (commissionSource?.contractId) {
+      projectBudgetId = commissionSource.contractId;
+      projectBudgetName = commissionSource.contractTitle || commissionSource.contractCode || 'Contrato';
+      projectBudgetType = 'contract';
     }
 
     // Get or create client group

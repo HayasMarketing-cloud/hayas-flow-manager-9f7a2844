@@ -269,7 +269,7 @@ export default function DashboardMensual() {
   return (
     <AppLayout
       title="Dashboard Mensual"
-      description={`${MONTHS[month - 1]} ${year} — Vista ${viewMode === 'cashflow' ? 'Cash-flow' : 'Devengado'}`}
+      description={`Trabajo de ${MONTHS[month - 1]} ${year} — Vista ${viewMode === 'cashflow' ? 'Cash-flow (solo cobradas)' : 'Devengado (todas)'}`}
     >
       <div className="space-y-6">
         {/* Filters */}

@@ -123,9 +123,9 @@ function SpecialistRow({ specialist }: { specialist: SpecialistSummary }) {
   );
 }
 
-function ReconciliationSection({ data, month, year }: { data: { requestsWithoutInvoice: number; requestsWithoutLiquidation: number; requestsWithoutOrigin: number }; month: number; year: number }) {
+function ReconciliationSection({ data, month, year }: { data: { requestsWithoutInvoice: number; requestsWithoutLiquidation: number; requestsWithoutOrigin: number; invoicesWithoutPeriod: number }; month: number; year: number }) {
   const navigate = useNavigate();
-  const total = data.requestsWithoutInvoice + data.requestsWithoutLiquidation + data.requestsWithoutOrigin;
+  const total = data.requestsWithoutInvoice + data.requestsWithoutLiquidation + data.requestsWithoutOrigin + data.invoicesWithoutPeriod;
 
   if (total === 0) {
     return (
@@ -165,6 +165,13 @@ function ReconciliationSection({ data, month, year }: { data: { requestsWithoutI
       variant: 'secondary' as const,
       onClick: () => navigate(`/solicitudes?work_month=${month}&work_year=${year}`),
     },
+    {
+      icon: Receipt,
+      label: 'Facturas sin periodo asignado',
+      count: data.invoicesWithoutPeriod,
+      variant: 'destructive' as const,
+      onClick: () => navigate(`/facturas`),
+    },
   ];
 
   return (
@@ -176,7 +183,7 @@ function ReconciliationSection({ data, month, year }: { data: { requestsWithoutI
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {items.map((item) => (
             <button
               key={item.label}
@@ -262,7 +269,7 @@ export default function DashboardMensual() {
   return (
     <AppLayout
       title="Dashboard Mensual"
-      description={`${MONTHS[month - 1]} ${year} — Vista ${viewMode === 'cashflow' ? 'Cash-flow' : 'Devengado'}`}
+      description={`Trabajo de ${MONTHS[month - 1]} ${year} — Vista ${viewMode === 'cashflow' ? 'Cash-flow (solo cobradas)' : 'Devengado (todas)'}`}
     >
       <div className="space-y-6">
         {/* Filters */}

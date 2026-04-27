@@ -150,6 +150,13 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
           .eq('work_year', year)
           .eq('work_month', month)
           .eq('status', 'completed'),
+        // Invoices without billing_period emitted in this month or the next month (typical N+1 pattern)
+        supabase
+          .from('invoices')
+          .select('id', { count: 'exact', head: true })
+          .is('billing_period_year', null)
+          .gte('invoice_date', startDate)
+          .lte('invoice_date', nextMonthEnd),
       ]);
 
       const invoices = (invoicesRes.data || []) as InvoiceRow[];

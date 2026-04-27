@@ -324,6 +324,7 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
         requestsWithoutInvoice: reconciliationRequests.filter((r: any) => !r.billed_invoice_id).length,
         requestsWithoutLiquidation: reconciliationRequests.filter((r: any) => !r.liquidation_id).length,
         requestsWithoutOrigin: reconciliationRequests.filter((r: any) => !r.budget_id && !r.contract_id).length,
+        invoicesWithoutPeriod: invoicesWithoutPeriodRes.count || 0,
       };
 
       // KPIs

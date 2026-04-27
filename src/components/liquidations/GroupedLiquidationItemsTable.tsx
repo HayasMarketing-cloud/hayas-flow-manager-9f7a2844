@@ -16,6 +16,9 @@ interface CommissionDetail {
   budgetId?: string;
   budgetCode?: string;
   budgetTitle?: string;
+  contractId?: string;
+  contractCode?: string;
+  contractTitle?: string;
 }
 
 interface GroupedLiquidationItemsTableProps {

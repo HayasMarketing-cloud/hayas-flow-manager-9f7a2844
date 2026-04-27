@@ -383,14 +383,14 @@ export default function LiquidacionDetalle() {
       
       if (!data?.length) return {};
 
-      // Collect all invoice IDs to fetch codes + client/budget info
+      // Collect all invoice IDs to fetch codes + client/budget/contract info
       const allInvoiceIds = [...new Set(data.flatMap(c => (c.invoice_ids as string[]) || []))];
-      let invoicesMap = new Map<string, { code: string; client_id: string | null; client_name: string | null; budget_id: string | null; budget_code: string | null; budget_title: string | null; contract_id: string | null }>();
+      let invoicesMap = new Map<string, { code: string; client_id: string | null; client_name: string | null; budget_id: string | null; budget_code: string | null; budget_title: string | null; contract_id: string | null; contract_code: string | null; contract_title: string | null }>();
       
       if (allInvoiceIds.length > 0) {
         const { data: invoices } = await supabase
           .from('invoices')
-          .select('id, code, client_id, budget_id, contract_id, client:clients(id, name), budget:budgets(id, code, title)')
+          .select('id, code, client_id, budget_id, contract_id, client:clients(id, name), budget:budgets(id, code, title), contract:contracts(id, code, title)')
           .in('id', allInvoiceIds);
         for (const inv of (invoices || []) as any[]) {
           invoicesMap.set(inv.id, {
@@ -400,17 +400,35 @@ export default function LiquidacionDetalle() {
             budget_id: inv.budget?.id || inv.budget_id,
             budget_code: inv.budget?.code || null,
             budget_title: inv.budget?.title || null,
-            contract_id: inv.contract_id,
+            contract_id: inv.contract?.id || inv.contract_id,
+            contract_code: inv.contract?.code || null,
+            contract_title: inv.contract?.title || null,
           });
         }
       }
 
-      const details: Record<string, { type: string; percentage: number; baseAmount: number; invoiceCodes: string[]; clientId?: string; clientName?: string; budgetId?: string; budgetCode?: string; budgetTitle?: string }> = {};
+      // Fallback: fetch contract info for commissions whose invoices have no contract but commission has contract_id
+      const fallbackContractIds = [...new Set(
+        data.map(c => c.contract_id).filter((cid): cid is string => !!cid)
+      )];
+      const contractsFallback = new Map<string, { code: string; title: string }>();
+      if (fallbackContractIds.length > 0) {
+        const { data: contracts } = await supabase
+          .from('contracts')
+          .select('id, code, title')
+          .in('id', fallbackContractIds);
+        for (const c of (contracts || []) as any[]) {
+          contractsFallback.set(c.id, { code: c.code, title: c.title });
+        }
+      }
+
+      const details: Record<string, { type: string; percentage: number; baseAmount: number; invoiceCodes: string[]; clientId?: string; clientName?: string; budgetId?: string; budgetCode?: string; budgetTitle?: string; contractId?: string; contractCode?: string; contractTitle?: string }> = {};
       for (const comm of data) {
         const invoiceData = (comm.invoice_ids as string[] || []).map(iid => invoicesMap.get(iid)).filter(Boolean);
         const invoiceCodes = invoiceData.map(i => i!.code);
-        // Use first invoice's client/budget as source
+        // Use first invoice's client/budget/contract as source
         const firstInv = invoiceData[0];
+        const fallbackContract = comm.contract_id ? contractsFallback.get(comm.contract_id) : undefined;
         details[comm.id] = {
           type: comm.commission_type,
           percentage: Number(comm.commission_percentage),
@@ -421,6 +439,9 @@ export default function LiquidacionDetalle() {
           budgetId: firstInv?.budget_id || comm.budget_id || undefined,
           budgetCode: firstInv?.budget_code || undefined,
           budgetTitle: firstInv?.budget_title || undefined,
+          contractId: firstInv?.contract_id || comm.contract_id || undefined,
+          contractCode: firstInv?.contract_code || fallbackContract?.code || undefined,
+          contractTitle: firstInv?.contract_title || fallbackContract?.title || undefined,
         };
       }
       return details;

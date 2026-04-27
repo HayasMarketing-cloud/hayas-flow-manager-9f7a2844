@@ -119,13 +119,15 @@ Deno.serve(async (req) => {
 
     let commissionDetails: Record<string, any> = {};
     if (commissions?.length) {
-      // Fetch all invoice data (codes + client + budget)
+      // Fetch all invoice data (codes + client + budget + contract)
       const allInvoiceIds = [...new Set(commissions.flatMap((c: any) => c.invoice_ids || []))];
       let invoicesDataMap = new Map<string, any>();
+      let contractMap = new Map<string, any>();
+
       if (allInvoiceIds.length > 0) {
         const { data: invoicesData } = await supabase
           .from('invoices')
-          .select('id, code, client_id, budget_id')
+          .select('id, code, client_id, budget_id, contract_id')
           .in('id', allInvoiceIds);
         
         // Fetch client names
@@ -144,6 +146,18 @@ Deno.serve(async (req) => {
           for (const b of (budgets || [])) budgetMap.set(b.id, b);
         }
 
+        // Fetch contract info (from invoices + commission fallback)
+        const contractIds = [
+          ...new Set([
+            ...(invoicesData || []).map((i: any) => i.contract_id).filter(Boolean),
+            ...commissions.map((c: any) => c.contract_id).filter(Boolean),
+          ]),
+        ];
+        if (contractIds.length > 0) {
+          const { data: contracts } = await supabase.from('contracts').select('id, code, title').in('id', contractIds);
+          for (const c of (contracts || [])) contractMap.set(c.id, c);
+        }
+
         for (const inv of (invoicesData || [])) {
           invoicesDataMap.set(inv.id, {
             code: inv.code,
@@ -151,7 +165,16 @@ Deno.serve(async (req) => {
             client_name: clientMap.get(inv.client_id) || null,
             budget_id: inv.budget_id,
             budget: budgetMap.get(inv.budget_id) || null,
+            contract_id: inv.contract_id,
+            contract: contractMap.get(inv.contract_id) || null,
           });
+        }
+      } else {
+        // Even with no invoice_ids, commissions may have a fallback contract_id
+        const contractIds = [...new Set(commissions.map((c: any) => c.contract_id).filter(Boolean))];
+        if (contractIds.length > 0) {
+          const { data: contracts } = await supabase.from('contracts').select('id, code, title').in('id', contractIds);
+          for (const c of (contracts || [])) contractMap.set(c.id, c);
         }
       }
 
@@ -161,6 +184,7 @@ Deno.serve(async (req) => {
           .filter(Boolean);
         const invoiceCodes = invoiceEntries.map((i: any) => i.code);
         const firstInv = invoiceEntries[0];
+        const fallbackContract = comm.contract_id ? contractMap.get(comm.contract_id) : null;
         commissionDetails[comm.id] = {
           type: comm.commission_type,
           percentage: Number(comm.commission_percentage),
@@ -172,6 +196,9 @@ Deno.serve(async (req) => {
           budgetId: firstInv?.budget_id || comm.budget_id || undefined,
           budgetCode: firstInv?.budget?.code || undefined,
           budgetTitle: firstInv?.budget?.title || undefined,
+          contractId: firstInv?.contract_id || comm.contract_id || undefined,
+          contractCode: firstInv?.contract?.code || fallbackContract?.code || undefined,
+          contractTitle: firstInv?.contract?.title || fallbackContract?.title || undefined,
         };
       }
     }

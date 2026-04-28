@@ -215,7 +215,65 @@ export default function Reportes() {
     },
   });
 
+  // IRPF quarterly query
+  const { data: irpfData, isLoading: loadingIrpf } = useIrpfQuarterly(year);
+
   const handleExportReport = () => {
+    // IRPF Trimestral export
+    if (selectedReport === 'irpf_quarterly') {
+      if (!irpfData || irpfData.rows.length === 0) {
+        toast.error('No hay datos de IRPF para exportar');
+        return;
+      }
+
+      const header = ['Especialista', ...MONTH_NAMES_FULL, 'T1', 'T2', 'T3', 'T4', 'Total Año'];
+      const data: any[][] = [
+        [`Liquidación IRPF Trimestral - ${year}`],
+        [`Generado: ${new Date().toLocaleDateString('es-ES')}`],
+        [],
+        header,
+      ];
+
+      irpfData.rows.forEach((row) => {
+        data.push([
+          row.name,
+          ...row.monthly.map((v) => formatCurrency(v)),
+          formatCurrency(row.quarterly[0]),
+          formatCurrency(row.quarterly[1]),
+          formatCurrency(row.quarterly[2]),
+          formatCurrency(row.quarterly[3]),
+          formatCurrency(row.yearTotal),
+        ]);
+      });
+
+      // Totals row
+      data.push([
+        'TOTAL',
+        ...irpfData.monthlyTotals.map((v) => formatCurrency(v)),
+        ...irpfData.quarterlyTotals.map((v) => formatCurrency(v)),
+        formatCurrency(irpfData.yearTotal),
+      ]);
+
+      data.push([]);
+      data.push(['Resumen Trimestral']);
+      data.push(['Trimestre', 'Meses', 'Pago a Hacienda', 'Total IRPF', 'Ya pagado (cierto)', 'Pendiente (previsión)', 'Estado']);
+      irpfData.quarters.forEach((q) => {
+        data.push([
+          `${q.quarter}T`,
+          q.months.map((m) => MONTH_NAMES_FULL[m - 1]).join(' + '),
+          q.paymentDueDate.toLocaleDateString('es-ES'),
+          formatCurrency(q.total),
+          formatCurrency(q.totalPaid),
+          formatCurrency(q.totalForecast),
+          QUARTER_STATUS_LABEL[q.status]?.label ?? q.status,
+        ]);
+      });
+
+      downloadExcel(data, `irpf_trimestral_${year}`);
+      toast.success('Reporte IRPF exportado a Excel');
+      return;
+    }
+
     // For P&L by project, use consolidated data
     if (selectedReport === 'pnl_by_project') {
       if (!consolidatedPnL || consolidatedPnL.items.length === 0) {

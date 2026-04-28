@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
-import { DollarSign, TrendingUp, Wallet, ArrowDownUp, ChevronRight, ChevronDown, Users, UserCheck, Receipt, Lock, LockOpen, AlertTriangle, CheckCircle2, Loader2, FileWarning, LinkIcon, FileX } from 'lucide-react';
+import { DollarSign, TrendingUp, Wallet, ChevronRight, ChevronDown, Users, UserCheck, Receipt, Lock, LockOpen, AlertTriangle, CheckCircle2, Loader2, FileWarning, LinkIcon, FileX } from 'lucide-react';
 import { useDashboardMensualData, ViewMode, ClientSummary, SpecialistSummary } from '@/hooks/useDashboardMensualData';
 import { useClosedMonths, useIsMonthClosed, useValidateMonthClosure, useCloseMonth, useReopenMonth, getDefaultMonth } from '@/hooks/useClosedMonths';
 import { useDashboardAlerts } from '@/hooks/useDashboardAlerts';
@@ -212,7 +212,7 @@ export default function DashboardMensual() {
   const navigate = useNavigate();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [viewMode, setViewMode] = useState<ViewMode>('cashflow');
+  const viewMode: ViewMode = 'accrual';
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [defaultApplied, setDefaultApplied] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
@@ -269,7 +269,7 @@ export default function DashboardMensual() {
   return (
     <AppLayout
       title="Dashboard Mensual"
-      description={`Trabajo de ${MONTHS[month - 1]} ${year} — Vista ${viewMode === 'cashflow' ? 'Cash-flow (solo cobradas)' : 'Devengado (todas)'}`}
+      description={`Trabajo de ${MONTHS[month - 1]} ${year} — Vista Devengado (todas las facturas del periodo)`}
     >
       <div className="space-y-6">
         {/* Filters */}
@@ -314,20 +314,6 @@ export default function DashboardMensual() {
                   </Badge>
                 )}
 
-                <Button
-                  variant={viewMode === 'cashflow' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('cashflow')}
-                >
-                  Cash-flow
-                </Button>
-                <Button
-                  variant={viewMode === 'accrual' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('accrual')}
-                >
-                  Devengado
-                </Button>
               </div>
 
               <div className="flex gap-2">
@@ -413,7 +399,7 @@ export default function DashboardMensual() {
             {[...Array(4)].map((_, i) => <KPISkeleton key={i} />)}
           </div>
         ) : data ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <KPICard
               title="Ingresos"
               value={formatCurrency(data.kpis.totalRevenue)}
@@ -433,13 +419,6 @@ export default function DashboardMensual() {
               subtitle={formatCurrency(data.kpis.grossMargin)}
               icon={TrendingUp}
               variant={data.kpis.grossMarginPercent >= 30 ? 'success' : data.kpis.grossMarginPercent >= 20 ? 'warning' : 'danger'}
-            />
-            <KPICard
-              title="Cash-flow Neto"
-              value={formatCurrency(data.kpis.netCashFlow)}
-              subtitle="Ingresos - Liquidaciones"
-              icon={ArrowDownUp}
-              variant={data.kpis.netCashFlow >= 0 ? 'success' : 'danger'}
             />
           </div>
         ) : null}

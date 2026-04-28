@@ -443,6 +443,12 @@ export default function Reportes() {
       description: 'Cuenta de resultados por proyecto y presupuesto',
       icon: FolderKanban,
     },
+    {
+      id: 'irpf_quarterly' as ReportType,
+      title: 'Liquidación IRPF Trimestral',
+      description: 'IRPF retenido a especialistas por mes y trimestre',
+      icon: Landmark,
+    },
   ];
 
   const currentReport = reports.find((r) => r.id === selectedReport);

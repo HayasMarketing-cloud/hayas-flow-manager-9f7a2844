@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
-import { DollarSign, TrendingUp, Wallet, ArrowDownUp, ChevronRight, ChevronDown, Users, UserCheck, Receipt, Lock, LockOpen, AlertTriangle, CheckCircle2, Loader2, FileWarning, LinkIcon, FileX } from 'lucide-react';
+import { DollarSign, TrendingUp, Wallet, ChevronRight, ChevronDown, Users, UserCheck, Receipt, Lock, LockOpen, AlertTriangle, CheckCircle2, Loader2, FileWarning, LinkIcon, FileX } from 'lucide-react';
 import { useDashboardMensualData, ViewMode, ClientSummary, SpecialistSummary } from '@/hooks/useDashboardMensualData';
 import { useClosedMonths, useIsMonthClosed, useValidateMonthClosure, useCloseMonth, useReopenMonth, getDefaultMonth } from '@/hooks/useClosedMonths';
 import { useDashboardAlerts } from '@/hooks/useDashboardAlerts';

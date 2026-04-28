@@ -256,7 +256,7 @@ export const notifyLiquidationSent = async (
     category: 'liquidation',
     entity_id: liquidationId,
     entity_type: 'liquidation',
-    action_url: '/mis-liquidaciones',
+    action_url: `/liquidaciones/${liquidationId}`,
   });
 };
 

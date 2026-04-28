@@ -10,6 +10,8 @@ export interface LiquidationInvoiceRow {
   invoice_number: string | null;
   invoice_date: string | null;
   subtotal: number | null;
+  tax_amount?: number | null;
+  irpf_amount?: number | null;
   total_amount: number | null;
   uploaded_at: string;
 }

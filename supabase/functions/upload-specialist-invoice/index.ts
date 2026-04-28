@@ -233,9 +233,47 @@ Los importes deben ser números (no strings, no símbolos). Responde SOLO el JSO
             total_amount: Number(parsed.total_amount) || 0,
             specialist_name: parsed.specialist_name || null,
           };
-          console.log('AI extraction successful:', { 
-            invoice: extractedData.invoice_number, 
-            subtotal: extractedData.subtotal 
+
+          // === Coherence post-processing ===
+          const irpf = extractedData.irpf_amount ?? 0;
+          const expectedTotal = extractedData.subtotal + extractedData.tax_amount - irpf;
+          const coherent = Math.abs(expectedTotal - extractedData.total_amount) <= 1;
+          if (!coherent && extractedData.total_amount > 0) {
+            console.warn('Incoherent extraction, reconstructing:', {
+              subtotal: extractedData.subtotal,
+              tax_amount: extractedData.tax_amount,
+              irpf_amount: irpf,
+              total_amount: extractedData.total_amount,
+              expectedTotal,
+            });
+            if (extractedData.tax_rate > 0) {
+              const taxFactor = extractedData.tax_rate / 100;
+              const irpfFactor = (extractedData.irpf_rate ?? 0) / 100;
+              const denom = 1 + taxFactor - irpfFactor;
+              if (denom > 0) {
+                const newSubtotal = extractedData.total_amount / denom;
+                extractedData.subtotal = Math.round(newSubtotal * 100) / 100;
+                extractedData.tax_amount = Math.round(newSubtotal * taxFactor * 100) / 100;
+                if (extractedData.irpf_rate != null) {
+                  extractedData.irpf_amount = Math.round(newSubtotal * irpfFactor * 100) / 100;
+                }
+                console.log('Reconstructed:', {
+                  subtotal: extractedData.subtotal,
+                  tax_amount: extractedData.tax_amount,
+                  irpf_amount: extractedData.irpf_amount,
+                });
+              }
+            } else if (extractedData.tax_amount > 0 && extractedData.tax_rate > 0) {
+              extractedData.subtotal = Math.round((extractedData.tax_amount / (extractedData.tax_rate / 100)) * 100) / 100;
+            }
+          }
+
+          console.log('AI extraction successful:', {
+            invoice: extractedData.invoice_number,
+            subtotal: extractedData.subtotal,
+            tax_amount: extractedData.tax_amount,
+            irpf_amount: extractedData.irpf_amount,
+            total_amount: extractedData.total_amount,
           });
         }
       } else {

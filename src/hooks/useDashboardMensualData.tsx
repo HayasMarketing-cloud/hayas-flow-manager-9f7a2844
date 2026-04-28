@@ -295,25 +295,53 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
       // Sort by revenue desc
       clientSummaries.sort((a, b) => b.revenue - a.revenue);
 
-      // Build specialist summaries
-      const specMap = new Map<string, { name: string; liquidations: any[] }>();
+      // Build specialist summaries — consolidate team-member liquidations under their team leader
+      // so a "team liquidation" appears only once and we don't duplicate amounts.
+      const memberLiquidations = liquidations.filter((l: any) => l.specialist?.team_leader_id);
+      const leaderIds = new Set(memberLiquidations.map((l: any) => l.specialist.team_leader_id));
+
+      const specMap = new Map<string, { name: string; liquidations: any[]; memberLiquidations: any[] }>();
       liquidations.forEach((liq: any) => {
+        // Skip member liquidations whose leader has their own liquidation in the same period —
+        // they're already included in the team leader's row.
+        if (liq.specialist?.team_leader_id && leaderIds.has(liq.specialist.team_leader_id)) {
+          return;
+        }
         const specName = liq.specialist?.name || 'Especialista desconocido';
         const specId = liq.specialist_id;
         const existing = specMap.get(specId);
         if (existing) {
           existing.liquidations.push(liq);
         } else {
-          specMap.set(specId, { name: specName, liquidations: [liq] });
+          specMap.set(specId, { name: specName, liquidations: [liq], memberLiquidations: [] });
         }
+      });
+
+      // Attach member liquidations of the same period to the leader's bucket
+      memberLiquidations.forEach((ml: any) => {
+        const leaderId = ml.specialist.team_leader_id;
+        const leaderBucket = specMap.get(leaderId);
+        if (!leaderBucket) return;
+        const matchesPeriod = leaderBucket.liquidations.some(
+          (ll: any) => ll.period_month === ml.period_month && ll.period_year === ml.period_year
+        );
+        if (matchesPeriod) leaderBucket.memberLiquidations.push(ml);
       });
 
       const specialistSummaries: SpecialistSummary[] = [];
       specMap.forEach((data, specId) => {
+        const leaderTotal = data.liquidations.reduce(
+          (sum: number, l: any) => sum + Number(l.subtotal ?? l.total_amount ?? 0),
+          0,
+        );
+        const memberTotal = data.memberLiquidations.reduce(
+          (sum: number, l: any) => sum + Number(l.subtotal ?? l.total_amount ?? 0),
+          0,
+        );
         specialistSummaries.push({
           specialistId: specId,
           specialistName: data.name,
-          totalCost: data.liquidations.reduce((sum: number, l: any) => sum + Number(l.subtotal ?? l.total_amount ?? 0), 0),
+          totalCost: leaderTotal + memberTotal,
           liquidations: data.liquidations,
         });
       });

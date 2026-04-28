@@ -7,14 +7,25 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Download, FileBarChart, TrendingUp, Users, DollarSign, Receipt, Wallet, FolderKanban } from 'lucide-react';
+import { Download, FileBarChart, TrendingUp, Users, DollarSign, Receipt, Wallet, FolderKanban, Landmark } from 'lucide-react';
 import { toast } from 'sonner';
 import { downloadExcel, formatCurrency } from '@/utils/excel/excelExporter';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useConsolidatedPnL } from '@/hooks/useEntityPnL';
 import { Badge } from '@/components/ui/badge';
+import { useIrpfQuarterly } from '@/hooks/useIrpfQuarterly';
 
-type ReportType = 'revenue_vs_costs' | 'margin_by_client' | 'liquidations_by_specialist' | 'requests_summary' | 'pnl_by_project';
+type ReportType = 'revenue_vs_costs' | 'margin_by_client' | 'liquidations_by_specialist' | 'requests_summary' | 'pnl_by_project' | 'irpf_quarterly';
+
+const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const MONTH_NAMES_FULL = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+const QUARTER_STATUS_LABEL: Record<string, { label: string; className: string }> = {
+  closed: { label: 'Cerrado', className: 'bg-green-100 text-green-700 border-green-300' },
+  pending_payment: { label: 'Pendiente liquidar a Hacienda', className: 'bg-amber-100 text-amber-700 border-amber-300' },
+  in_progress: { label: 'En curso', className: 'bg-blue-100 text-blue-700 border-blue-300' },
+  forecast: { label: 'Previsión', className: 'bg-muted text-muted-foreground border-border' },
+};
 
 export default function Reportes() {
   const [selectedReport, setSelectedReport] = useState<ReportType>('revenue_vs_costs');

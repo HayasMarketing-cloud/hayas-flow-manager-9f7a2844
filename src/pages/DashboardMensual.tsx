@@ -212,7 +212,7 @@ export default function DashboardMensual() {
   const navigate = useNavigate();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [viewMode, setViewMode] = useState<ViewMode>('cashflow');
+  const viewMode: ViewMode = 'accrual';
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [defaultApplied, setDefaultApplied] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
@@ -269,7 +269,7 @@ export default function DashboardMensual() {
   return (
     <AppLayout
       title="Dashboard Mensual"
-      description={`Trabajo de ${MONTHS[month - 1]} ${year} — Vista ${viewMode === 'cashflow' ? 'Cash-flow (solo cobradas)' : 'Devengado (todas)'}`}
+      description={`Trabajo de ${MONTHS[month - 1]} ${year} — Vista Devengado (todas las facturas del periodo)`}
     >
       <div className="space-y-6">
         {/* Filters */}
@@ -314,20 +314,6 @@ export default function DashboardMensual() {
                   </Badge>
                 )}
 
-                <Button
-                  variant={viewMode === 'cashflow' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('cashflow')}
-                >
-                  Cash-flow
-                </Button>
-                <Button
-                  variant={viewMode === 'accrual' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('accrual')}
-                >
-                  Devengado
-                </Button>
               </div>
 
               <div className="flex gap-2">
@@ -433,13 +419,6 @@ export default function DashboardMensual() {
               subtitle={formatCurrency(data.kpis.grossMargin)}
               icon={TrendingUp}
               variant={data.kpis.grossMarginPercent >= 30 ? 'success' : data.kpis.grossMarginPercent >= 20 ? 'warning' : 'danger'}
-            />
-            <KPICard
-              title="Cash-flow Neto"
-              value={formatCurrency(data.kpis.netCashFlow)}
-              subtitle="Ingresos - Liquidaciones"
-              icon={ArrowDownUp}
-              variant={data.kpis.netCashFlow >= 0 ? 'success' : 'danger'}
             />
           </div>
         ) : null}

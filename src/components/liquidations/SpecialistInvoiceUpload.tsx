@@ -57,12 +57,12 @@ export function SpecialistInvoiceUpload({
   const [isDragOver, setIsDragOver] = useState(false);
   const [invoices, setInvoices] = useState<LiquidationInvoiceRow[]>([]);
 
-  const canUpload = !['paid'].includes(currentStatus);
+  const canUpload = true;
 
   const loadInvoices = useCallback(async () => {
     const { data, error } = await supabase
       .from('liquidation_invoices')
-      .select('id, file_url, file_name, invoice_number, invoice_date, subtotal, total_amount, uploaded_at')
+      .select('id, file_url, file_name, invoice_number, invoice_date, subtotal, tax_amount, irpf_amount, total_amount, uploaded_at')
       .eq('liquidation_id', liquidationId)
       .order('uploaded_at', { ascending: true });
     if (!error && data) setInvoices(data as LiquidationInvoiceRow[]);

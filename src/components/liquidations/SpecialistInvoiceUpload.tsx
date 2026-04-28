@@ -171,7 +171,7 @@ export function SpecialistInvoiceUpload({
             total_amount: extracted?.total_amount ?? null,
             ai_extracted: extracted as any,
           })
-          .select('id, file_url, file_name, invoice_number, invoice_date, subtotal, total_amount, uploaded_at')
+          .select('id, file_url, file_name, invoice_number, invoice_date, subtotal, tax_amount, irpf_amount, total_amount, uploaded_at')
           .single();
 
         if (insertError) throw insertError;

@@ -363,7 +363,7 @@ Los importes deben ser números (no strings, no símbolos). Responde SOLO el JSO
     // 8. Recompute sum across all invoices and adjust status
     const { data: allInvoices } = await supabase
       .from('liquidation_invoices')
-      .select('id, file_url, file_name, invoice_number, invoice_date, subtotal, total_amount, uploaded_at')
+      .select('id, file_url, file_name, invoice_number, invoice_date, subtotal, tax_amount, irpf_amount, total_amount, uploaded_at')
       .eq('liquidation_id', liquidationId)
       .order('uploaded_at', { ascending: true });
 

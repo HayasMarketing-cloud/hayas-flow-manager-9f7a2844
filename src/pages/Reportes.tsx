@@ -571,25 +571,27 @@ export default function Reportes() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Mes (Opcional)</Label>
-                <Select
-                  value={month?.toString() || 'all'}
-                  onValueChange={(v) => setMonth(v === 'all' ? null : parseInt(v))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todo el año" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todo el año</SelectItem>
-                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                      <SelectItem key={m} value={m.toString()}>
-                        {new Date(2024, m - 1).toLocaleDateString('es-ES', { month: 'long' })}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {selectedReport !== 'irpf_quarterly' && (
+                <div className="space-y-2">
+                  <Label>Mes (Opcional)</Label>
+                  <Select
+                    value={month?.toString() || 'all'}
+                    onValueChange={(v) => setMonth(v === 'all' ? null : parseInt(v))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todo el año" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todo el año</SelectItem>
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                        <SelectItem key={m} value={m.toString()}>
+                          {new Date(2024, m - 1).toLocaleDateString('es-ES', { month: 'long' })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="flex items-end">
                 <Button

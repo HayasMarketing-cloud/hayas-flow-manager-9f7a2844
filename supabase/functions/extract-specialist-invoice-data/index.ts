@@ -196,14 +196,57 @@ NUNCA pongas el "total a pagar" en el campo "subtotal". El subtotal es siempre l
       specialist_name: extractedData.specialist_name || null,
     };
 
+    // === Coherence post-processing ===
+    // Validate: subtotal + tax_amount - (irpf_amount || 0) ≈ total_amount
+    const irpf = result.irpf_amount ?? 0;
+    const expectedTotal = result.subtotal + result.tax_amount - irpf;
+    const coherent = Math.abs(expectedTotal - result.total_amount) <= 1;
+
+    if (!coherent && result.total_amount > 0) {
+      console.warn('Incoherent extraction, attempting reconstruction:', {
+        subtotal: result.subtotal,
+        tax_amount: result.tax_amount,
+        irpf_amount: irpf,
+        total_amount: result.total_amount,
+        expectedTotal,
+      });
+
+      // Strategy A: reconstruct subtotal from total + rates
+      if (result.tax_rate > 0) {
+        const taxFactor = result.tax_rate / 100;
+        const irpfFactor = (result.irpf_rate ?? 0) / 100;
+        const denom = 1 + taxFactor - irpfFactor;
+        if (denom > 0) {
+          const newSubtotal = result.total_amount / denom;
+          const newTax = newSubtotal * taxFactor;
+          const newIrpf = result.irpf_rate != null ? newSubtotal * irpfFactor : null;
+          result.subtotal = Math.round(newSubtotal * 100) / 100;
+          result.tax_amount = Math.round(newTax * 100) / 100;
+          if (newIrpf !== null) result.irpf_amount = Math.round(newIrpf * 100) / 100;
+          console.log('Reconstructed from total + rates:', {
+            subtotal: result.subtotal,
+            tax_amount: result.tax_amount,
+            irpf_amount: result.irpf_amount,
+          });
+        }
+      } else if (result.tax_amount > 0 && result.tax_rate > 0) {
+        // Strategy B: reconstruct subtotal from tax_amount / tax_rate
+        result.subtotal = Math.round((result.tax_amount / (result.tax_rate / 100)) * 100) / 100;
+        console.log('Reconstructed subtotal from tax:', result.subtotal);
+      }
+    }
+
     console.log('Specialist invoice data extracted:', {
       invoice_number: result.invoice_number,
       invoice_date: result.invoice_date,
-      period: result.period_month && result.period_year 
-        ? `${result.period_month}/${result.period_year}` 
+      period: result.period_month && result.period_year
+        ? `${result.period_month}/${result.period_year}`
         : 'unknown',
+      subtotal: result.subtotal,
+      tax_amount: result.tax_amount,
+      irpf_amount: result.irpf_amount,
       total_amount: result.total_amount,
-      irpf_rate: result.irpf_rate,
+      coherent,
     });
 
     return new Response(

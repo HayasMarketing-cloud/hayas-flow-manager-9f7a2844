@@ -7,14 +7,25 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Download, FileBarChart, TrendingUp, Users, DollarSign, Receipt, Wallet, FolderKanban } from 'lucide-react';
+import { Download, FileBarChart, TrendingUp, Users, DollarSign, Receipt, Wallet, FolderKanban, Landmark } from 'lucide-react';
 import { toast } from 'sonner';
 import { downloadExcel, formatCurrency } from '@/utils/excel/excelExporter';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useConsolidatedPnL } from '@/hooks/useEntityPnL';
 import { Badge } from '@/components/ui/badge';
+import { useIrpfQuarterly } from '@/hooks/useIrpfQuarterly';
 
-type ReportType = 'revenue_vs_costs' | 'margin_by_client' | 'liquidations_by_specialist' | 'requests_summary' | 'pnl_by_project';
+type ReportType = 'revenue_vs_costs' | 'margin_by_client' | 'liquidations_by_specialist' | 'requests_summary' | 'pnl_by_project' | 'irpf_quarterly';
+
+const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const MONTH_NAMES_FULL = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+const QUARTER_STATUS_LABEL: Record<string, { label: string; className: string }> = {
+  closed: { label: 'Cerrado', className: 'bg-green-100 text-green-700 border-green-300' },
+  pending_payment: { label: 'Pendiente liquidar a Hacienda', className: 'bg-amber-100 text-amber-700 border-amber-300' },
+  in_progress: { label: 'En curso', className: 'bg-blue-100 text-blue-700 border-blue-300' },
+  forecast: { label: 'Previsión', className: 'bg-muted text-muted-foreground border-border' },
+};
 
 export default function Reportes() {
   const [selectedReport, setSelectedReport] = useState<ReportType>('revenue_vs_costs');
@@ -204,7 +215,65 @@ export default function Reportes() {
     },
   });
 
+  // IRPF quarterly query
+  const { data: irpfData, isLoading: loadingIrpf } = useIrpfQuarterly(year);
+
   const handleExportReport = () => {
+    // IRPF Trimestral export
+    if (selectedReport === 'irpf_quarterly') {
+      if (!irpfData || irpfData.rows.length === 0) {
+        toast.error('No hay datos de IRPF para exportar');
+        return;
+      }
+
+      const header = ['Especialista', ...MONTH_NAMES_FULL, 'T1', 'T2', 'T3', 'T4', 'Total Año'];
+      const data: any[][] = [
+        [`Liquidación IRPF Trimestral - ${year}`],
+        [`Generado: ${new Date().toLocaleDateString('es-ES')}`],
+        [],
+        header,
+      ];
+
+      irpfData.rows.forEach((row) => {
+        data.push([
+          row.name,
+          ...row.monthly.map((v) => formatCurrency(v)),
+          formatCurrency(row.quarterly[0]),
+          formatCurrency(row.quarterly[1]),
+          formatCurrency(row.quarterly[2]),
+          formatCurrency(row.quarterly[3]),
+          formatCurrency(row.yearTotal),
+        ]);
+      });
+
+      // Totals row
+      data.push([
+        'TOTAL',
+        ...irpfData.monthlyTotals.map((v) => formatCurrency(v)),
+        ...irpfData.quarterlyTotals.map((v) => formatCurrency(v)),
+        formatCurrency(irpfData.yearTotal),
+      ]);
+
+      data.push([]);
+      data.push(['Resumen Trimestral']);
+      data.push(['Trimestre', 'Meses', 'Pago a Hacienda', 'Total IRPF', 'Ya pagado (cierto)', 'Pendiente (previsión)', 'Estado']);
+      irpfData.quarters.forEach((q) => {
+        data.push([
+          `${q.quarter}T`,
+          q.months.map((m) => MONTH_NAMES_FULL[m - 1]).join(' + '),
+          q.paymentDueDate.toLocaleDateString('es-ES'),
+          formatCurrency(q.total),
+          formatCurrency(q.totalPaid),
+          formatCurrency(q.totalForecast),
+          QUARTER_STATUS_LABEL[q.status]?.label ?? q.status,
+        ]);
+      });
+
+      downloadExcel(data, `irpf_trimestral_${year}`);
+      toast.success('Reporte IRPF exportado a Excel');
+      return;
+    }
+
     // For P&L by project, use consolidated data
     if (selectedReport === 'pnl_by_project') {
       if (!consolidatedPnL || consolidatedPnL.items.length === 0) {
@@ -432,6 +501,12 @@ export default function Reportes() {
       description: 'Cuenta de resultados por proyecto y presupuesto',
       icon: FolderKanban,
     },
+    {
+      id: 'irpf_quarterly' as ReportType,
+      title: 'Liquidación IRPF Trimestral',
+      description: 'IRPF retenido a especialistas por mes y trimestre',
+      icon: Landmark,
+    },
   ];
 
   const currentReport = reports.find((r) => r.id === selectedReport);
@@ -496,25 +571,27 @@ export default function Reportes() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Mes (Opcional)</Label>
-                <Select
-                  value={month?.toString() || 'all'}
-                  onValueChange={(v) => setMonth(v === 'all' ? null : parseInt(v))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todo el año" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todo el año</SelectItem>
-                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                      <SelectItem key={m} value={m.toString()}>
-                        {new Date(2024, m - 1).toLocaleDateString('es-ES', { month: 'long' })}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {selectedReport !== 'irpf_quarterly' && (
+                <div className="space-y-2">
+                  <Label>Mes (Opcional)</Label>
+                  <Select
+                    value={month?.toString() || 'all'}
+                    onValueChange={(v) => setMonth(v === 'all' ? null : parseInt(v))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todo el año" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todo el año</SelectItem>
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                        <SelectItem key={m} value={m.toString()}>
+                          {new Date(2024, m - 1).toLocaleDateString('es-ES', { month: 'long' })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="flex items-end">
                 <Button
@@ -544,7 +621,127 @@ export default function Reportes() {
               </div>
             </CardHeader>
             <CardContent>
-              {selectedReport === 'pnl_by_project' ? (
+              {selectedReport === 'irpf_quarterly' ? (
+                loadingIrpf ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-32 w-full" />
+                    <Skeleton className="h-32 w-full" />
+                  </div>
+                ) : irpfData && irpfData.rows.length > 0 ? (
+                  <div className="space-y-6">
+                    {/* Top summary */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Card className="border-primary/30">
+                        <CardContent className="pt-6">
+                          <p className="text-sm text-muted-foreground">Total IRPF {year}</p>
+                          <p className="text-2xl font-bold">{formatCurrency(irpfData.yearTotal)}</p>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-green-200">
+                        <CardContent className="pt-6">
+                          <p className="text-sm text-muted-foreground">Ya devengado (pagado a especialistas)</p>
+                          <p className="text-2xl font-bold text-green-600">{formatCurrency(irpfData.totalPaid)}</p>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-amber-200">
+                        <CardContent className="pt-6">
+                          <p className="text-sm text-muted-foreground">Previsión (pendiente de pago)</p>
+                          <p className="text-2xl font-bold text-amber-600">{formatCurrency(irpfData.totalForecast)}</p>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Quarterly cards */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {irpfData.quarters.map((q) => {
+                        const status = QUARTER_STATUS_LABEL[q.status];
+                        const quarterRows = irpfData.rows.filter(
+                          (r) => r.quarterly[q.quarter - 1] > 0
+                        );
+                        return (
+                          <Card key={q.quarter} className="border">
+                            <CardHeader className="pb-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <CardTitle className="text-lg">
+                                    {q.quarter}T {year} · {q.months.map((m) => MONTH_NAMES_FULL[m - 1]).join(' + ')}
+                                  </CardTitle>
+                                  <CardDescription>
+                                    Pago a Hacienda (modelo 111): {q.paymentDueDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                  </CardDescription>
+                                </div>
+                                <Badge variant="outline" className={status.className}>
+                                  {status.label}
+                                </Badge>
+                              </div>
+                              <div className="pt-2">
+                                <p className="text-xs text-muted-foreground">Total IRPF a ingresar</p>
+                                <p className="text-2xl font-bold">{formatCurrency(q.total)}</p>
+                                {q.totalForecast > 0 && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {formatCurrency(q.totalPaid)} ya devengado · {formatCurrency(q.totalForecast)} en previsión
+                                  </p>
+                                )}
+                              </div>
+                            </CardHeader>
+                            <CardContent>
+                              {quarterRows.length > 0 ? (
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Especialista</TableHead>
+                                      {q.months.map((m) => (
+                                        <TableHead key={m} className="text-right">{MONTH_NAMES[m - 1]}</TableHead>
+                                      ))}
+                                      <TableHead className="text-right font-bold">Total</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {quarterRows.map((row) => (
+                                      <TableRow key={row.specialistId}>
+                                        <TableCell className="font-medium">{row.name}</TableCell>
+                                        {q.months.map((m) => (
+                                          <TableCell key={m} className="text-right">
+                                            {row.monthly[m - 1] > 0 ? formatCurrency(row.monthly[m - 1]) : '—'}
+                                          </TableCell>
+                                        ))}
+                                        <TableCell className="text-right font-bold">
+                                          {formatCurrency(row.quarterly[q.quarter - 1])}
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                    <TableRow className="bg-muted/50 font-bold">
+                                      <TableCell>TOTAL MES</TableCell>
+                                      {q.months.map((m) => (
+                                        <TableCell key={m} className="text-right">
+                                          {formatCurrency(irpfData.monthlyTotals[m - 1])}
+                                        </TableCell>
+                                      ))}
+                                      <TableCell className="text-right">{formatCurrency(q.total)}</TableCell>
+                                    </TableRow>
+                                  </TableBody>
+                                </Table>
+                              ) : (
+                                <p className="text-sm text-muted-foreground text-center py-4">
+                                  Sin retenciones de IRPF en este trimestre
+                                </p>
+                              )}
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                      El IRPF se devenga en el mes en que se paga la factura del especialista. Las liquidaciones aún no pagadas se proyectan según su período de trabajo y se muestran como "previsión".
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-6">
+                    No hay retenciones de IRPF registradas para {year}.
+                  </p>
+                )
+              ) : selectedReport === 'pnl_by_project' ? (
                 loadingPnL ? (
                   <div className="space-y-2">
                     <Skeleton className="h-10 w-full" />

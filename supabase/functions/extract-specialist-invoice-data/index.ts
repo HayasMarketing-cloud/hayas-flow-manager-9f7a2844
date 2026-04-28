@@ -68,22 +68,40 @@ serve(async (req) => {
   "invoice_date": "fecha de emisión en formato YYYY-MM-DD",
   "period_month": mes del período facturado (1-12) o null si no se encuentra,
   "period_year": año del período facturado o null si no se encuentra,
-  "subtotal": importe base sin impuestos (número),
+  "subtotal": BASE IMPONIBLE (importe de servicios SIN IVA y SIN restar IRPF),
   "tax_rate": porcentaje de IVA aplicado (número, ej: 21),
-  "tax_amount": importe del IVA (número),
-  "irpf_rate": porcentaje de retención IRPF si existe (número, ej: 15) o null,
-  "irpf_amount": importe de la retención IRPF (número) o null,
-  "total_amount": importe total a pagar (base + IVA - IRPF),
+  "tax_amount": importe del IVA en euros,
+  "irpf_rate": porcentaje de retención IRPF si existe (número, ej: 7 o 15) o null,
+  "irpf_amount": importe de la retención IRPF en euros o null,
+  "total_with_tax": subtotal + IVA (antes de restar IRPF),
+  "total_amount": importe LÍQUIDO a pagar después de restar IRPF (subtotal + IVA - IRPF),
   "specialist_name": nombre del emisor de la factura
 }
 
-IMPORTANTE:
-- Esta es una factura emitida POR un profesional/freelance
-- El IRPF es una retención que SE RESTA del total (común en España: 7%, 15%)
-- La fórmula es: total = subtotal + IVA - IRPF
+REGLAS CRÍTICAS DE EXTRACCIÓN:
+- Esta es una factura emitida POR un profesional/freelance hacia una agencia
+- "subtotal" = BASE IMPONIBLE. NO es el total a pagar. NO incluye IVA. NO resta IRPF.
+- El IRPF es una retención que SE RESTA del total a pagar (común en España: 7%, 15%)
+- Fórmula obligatoria: subtotal + tax_amount - irpf_amount = total_amount
+- Verificación: total_with_tax = subtotal + tax_amount
+
+EJEMPLO 1 (con IVA 21% e IRPF 15%):
+  Servicios prestados: 1.000,00 €  ← este es el "subtotal" (base imponible)
+  IVA 21%:               210,00 €  ← "tax_amount"
+  IRPF -15%:            -150,00 €  ← "irpf_amount" (positivo: 150)
+  Total a pagar:       1.060,00 €  ← "total_amount" (líquido)
+  → subtotal=1000, tax_amount=210, irpf_amount=150, total_amount=1060, total_with_tax=1210
+
+EJEMPLO 2 (solo IVA 21%, sin IRPF):
+  Base:        500,00 €  ← "subtotal"
+  IVA 21%:     105,00 €  ← "tax_amount"
+  Total:       605,00 €  ← "total_amount"
+  → subtotal=500, tax_amount=105, irpf_rate=null, irpf_amount=null, total_amount=605
+
+NUNCA pongas el "total a pagar" en el campo "subtotal". El subtotal es siempre la cifra menor antes de impuestos.
 - Si no hay IRPF, usa null para irpf_rate e irpf_amount
 - Busca el período de trabajo facturado (ej: "Trabajos enero 2026", "Servicios mes de enero")
-- Los importes deben ser números, no strings
+- Los importes deben ser números (no strings, no euros, no símbolos)
 - Responde SOLO el JSON, sin texto adicional`
               },
               {
@@ -178,14 +196,57 @@ IMPORTANTE:
       specialist_name: extractedData.specialist_name || null,
     };
 
+    // === Coherence post-processing ===
+    // Validate: subtotal + tax_amount - (irpf_amount || 0) ≈ total_amount
+    const irpf = result.irpf_amount ?? 0;
+    const expectedTotal = result.subtotal + result.tax_amount - irpf;
+    const coherent = Math.abs(expectedTotal - result.total_amount) <= 1;
+
+    if (!coherent && result.total_amount > 0) {
+      console.warn('Incoherent extraction, attempting reconstruction:', {
+        subtotal: result.subtotal,
+        tax_amount: result.tax_amount,
+        irpf_amount: irpf,
+        total_amount: result.total_amount,
+        expectedTotal,
+      });
+
+      // Strategy A: reconstruct subtotal from total + rates
+      if (result.tax_rate > 0) {
+        const taxFactor = result.tax_rate / 100;
+        const irpfFactor = (result.irpf_rate ?? 0) / 100;
+        const denom = 1 + taxFactor - irpfFactor;
+        if (denom > 0) {
+          const newSubtotal = result.total_amount / denom;
+          const newTax = newSubtotal * taxFactor;
+          const newIrpf = result.irpf_rate != null ? newSubtotal * irpfFactor : null;
+          result.subtotal = Math.round(newSubtotal * 100) / 100;
+          result.tax_amount = Math.round(newTax * 100) / 100;
+          if (newIrpf !== null) result.irpf_amount = Math.round(newIrpf * 100) / 100;
+          console.log('Reconstructed from total + rates:', {
+            subtotal: result.subtotal,
+            tax_amount: result.tax_amount,
+            irpf_amount: result.irpf_amount,
+          });
+        }
+      } else if (result.tax_amount > 0 && result.tax_rate > 0) {
+        // Strategy B: reconstruct subtotal from tax_amount / tax_rate
+        result.subtotal = Math.round((result.tax_amount / (result.tax_rate / 100)) * 100) / 100;
+        console.log('Reconstructed subtotal from tax:', result.subtotal);
+      }
+    }
+
     console.log('Specialist invoice data extracted:', {
       invoice_number: result.invoice_number,
       invoice_date: result.invoice_date,
-      period: result.period_month && result.period_year 
-        ? `${result.period_month}/${result.period_year}` 
+      period: result.period_month && result.period_year
+        ? `${result.period_month}/${result.period_year}`
         : 'unknown',
+      subtotal: result.subtotal,
+      tax_amount: result.tax_amount,
+      irpf_amount: result.irpf_amount,
       total_amount: result.total_amount,
-      irpf_rate: result.irpf_rate,
+      coherent,
     });
 
     return new Response(

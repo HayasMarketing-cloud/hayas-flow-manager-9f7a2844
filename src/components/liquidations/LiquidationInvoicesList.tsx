@@ -10,6 +10,8 @@ export interface LiquidationInvoiceRow {
   invoice_number: string | null;
   invoice_date: string | null;
   subtotal: number | null;
+  tax_amount?: number | null;
+  irpf_amount?: number | null;
   total_amount: number | null;
   uploaded_at: string;
 }
@@ -57,11 +59,24 @@ export function LiquidationInvoicesList({
                     {inv.file_name || 'factura.pdf'}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
-                    {inv.invoice_number ? `Nº ${inv.invoice_number} · ` : ''}
-                    {inv.subtotal != null
-                      ? `Base ${formatCurrency(Number(inv.subtotal))}`
-                      : 'Sin importe extraído'}
+                    {inv.invoice_number ? `Nº ${inv.invoice_number}` : 'Sin número'}
                   </p>
+                  {inv.subtotal != null ? (
+                    <p className="text-xs text-muted-foreground truncate">
+                      Base {formatCurrency(Number(inv.subtotal))}
+                      {inv.tax_amount != null && Number(inv.tax_amount) !== 0
+                        ? ` · IVA ${formatCurrency(Number(inv.tax_amount))}`
+                        : ''}
+                      {inv.irpf_amount != null && Number(inv.irpf_amount) !== 0
+                        ? ` · IRPF -${formatCurrency(Number(inv.irpf_amount))}`
+                        : ''}
+                      {inv.total_amount != null
+                        ? ` · Total ${formatCurrency(Number(inv.total_amount))}`
+                        : ''}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground truncate">Sin importe extraído</p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -108,10 +123,10 @@ export function LiquidationInvoicesList({
           )}
           <div className="flex-1">
             <p className="font-medium">
-              {matches ? 'Importes verificados ✓' : 'Discrepancia de importes'}
+              {matches ? 'Bases imponibles verificadas ✓' : 'Discrepancia de bases imponibles'}
             </p>
             <p className="text-muted-foreground mt-0.5">
-              Suma de bases: {formatCurrency(sumOfBases)} ·{' '}
+              Suma de bases (sin IVA/IRPF): {formatCurrency(sumOfBases)} ·{' '}
               Subtotal liquidación: {formatCurrency(liquidationSubtotal)}
             </p>
             {!matches && (

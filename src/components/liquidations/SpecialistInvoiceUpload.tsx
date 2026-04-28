@@ -57,12 +57,12 @@ export function SpecialistInvoiceUpload({
   const [isDragOver, setIsDragOver] = useState(false);
   const [invoices, setInvoices] = useState<LiquidationInvoiceRow[]>([]);
 
-  const canUpload = !['paid'].includes(currentStatus);
+  const canUpload = true;
 
   const loadInvoices = useCallback(async () => {
     const { data, error } = await supabase
       .from('liquidation_invoices')
-      .select('id, file_url, file_name, invoice_number, invoice_date, subtotal, total_amount, uploaded_at')
+      .select('id, file_url, file_name, invoice_number, invoice_date, subtotal, tax_amount, irpf_amount, total_amount, uploaded_at')
       .eq('liquidation_id', liquidationId)
       .order('uploaded_at', { ascending: true });
     if (!error && data) setInvoices(data as LiquidationInvoiceRow[]);
@@ -81,17 +81,19 @@ export function SpecialistInvoiceUpload({
       const matches = Math.abs(sum - liquidationSubtotal) <= 1;
       let newStatus: LiquidationStatus | null = null;
 
-      if (allInvoices.length === 0) {
-        // No invoices left → revert to accepted if was further along
-        if (['invoice_received', 'pending_payment'].includes(currentStatus)) {
-          newStatus = 'accepted';
+      // Never alter status if liquidation is already paid — just keep last invoice URL
+      if (currentStatus !== 'paid') {
+        if (allInvoices.length === 0) {
+          if (['invoice_received', 'pending_payment'].includes(currentStatus)) {
+            newStatus = 'accepted';
+          }
+        } else if (matches && ['accepted', 'invoice_received'].includes(currentStatus)) {
+          newStatus = 'pending_payment';
+        } else if (!matches && currentStatus === 'pending_payment') {
+          newStatus = 'invoice_received';
+        } else if (!matches && currentStatus === 'accepted') {
+          newStatus = 'invoice_received';
         }
-      } else if (matches && ['accepted', 'invoice_received'].includes(currentStatus)) {
-        newStatus = 'pending_payment';
-      } else if (!matches && currentStatus === 'pending_payment') {
-        newStatus = 'invoice_received';
-      } else if (!matches && currentStatus === 'accepted') {
-        newStatus = 'invoice_received';
       }
 
       const lastUrl = allInvoices[allInvoices.length - 1]?.file_url ?? null;
@@ -169,7 +171,7 @@ export function SpecialistInvoiceUpload({
             total_amount: extracted?.total_amount ?? null,
             ai_extracted: extracted as any,
           })
-          .select('id, file_url, file_name, invoice_number, invoice_date, subtotal, total_amount, uploaded_at')
+          .select('id, file_url, file_name, invoice_number, invoice_date, subtotal, tax_amount, irpf_amount, total_amount, uploaded_at')
           .single();
 
         if (insertError) throw insertError;

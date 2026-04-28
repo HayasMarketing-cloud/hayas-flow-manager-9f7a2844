@@ -169,22 +169,31 @@ Deno.serve(async (req) => {
   "invoice_date": "fecha de emisión en formato YYYY-MM-DD",
   "period_month": mes del período facturado (1-12) o null si no se encuentra,
   "period_year": año del período facturado o null si no se encuentra,
-  "subtotal": importe base sin impuestos (número),
+  "subtotal": BASE IMPONIBLE (importe de servicios SIN IVA y SIN restar IRPF),
   "tax_rate": porcentaje de IVA aplicado (número, ej: 21),
-  "tax_amount": importe del IVA (número),
-  "irpf_rate": porcentaje de retención IRPF si existe (número, ej: 15) o null,
-  "irpf_amount": importe de la retención IRPF (número) o null,
-  "total_amount": importe total a pagar (base + IVA - IRPF),
+  "tax_amount": importe del IVA en euros,
+  "irpf_rate": porcentaje de retención IRPF si existe (número, ej: 7 o 15) o null,
+  "irpf_amount": importe de la retención IRPF en euros o null,
+  "total_with_tax": subtotal + IVA (antes de restar IRPF),
+  "total_amount": importe LÍQUIDO a pagar después de restar IRPF (subtotal + IVA - IRPF),
   "specialist_name": nombre del emisor de la factura
 }
 
-IMPORTANTE:
-- Esta es una factura emitida POR un profesional/freelance
-- El IRPF es una retención que SE RESTA del total (común en España: 7%, 15%)
-- La fórmula es: total = subtotal + IVA - IRPF
-- Si no hay IRPF, usa null para irpf_rate e irpf_amount
-- Los importes deben ser números, no strings
-- Responde SOLO el JSON, sin texto adicional`
+REGLAS CRÍTICAS DE EXTRACCIÓN:
+- "subtotal" = BASE IMPONIBLE. NO es el total a pagar. NO incluye IVA. NO resta IRPF.
+- El IRPF es una retención que SE RESTA del total a pagar (común en España: 7%, 15%)
+- Fórmula obligatoria: subtotal + tax_amount - irpf_amount = total_amount
+
+EJEMPLO 1 (con IVA 21% e IRPF 15%):
+  Servicios: 1.000,00 € (subtotal) | IVA 21%: 210,00 € | IRPF -15%: -150,00 € | Total: 1.060,00 €
+  → subtotal=1000, tax_amount=210, irpf_amount=150, total_amount=1060
+
+EJEMPLO 2 (solo IVA 21%):
+  Base: 500 € | IVA 21%: 105 € | Total: 605 €
+  → subtotal=500, tax_amount=105, irpf_amount=null, total_amount=605
+
+NUNCA pongas el "total a pagar" en el campo "subtotal".
+Los importes deben ser números (no strings, no símbolos). Responde SOLO el JSON.`
                 },
                 {
                   type: 'image_url',
@@ -224,9 +233,47 @@ IMPORTANTE:
             total_amount: Number(parsed.total_amount) || 0,
             specialist_name: parsed.specialist_name || null,
           };
-          console.log('AI extraction successful:', { 
-            invoice: extractedData.invoice_number, 
-            subtotal: extractedData.subtotal 
+
+          // === Coherence post-processing ===
+          const irpf = extractedData.irpf_amount ?? 0;
+          const expectedTotal = extractedData.subtotal + extractedData.tax_amount - irpf;
+          const coherent = Math.abs(expectedTotal - extractedData.total_amount) <= 1;
+          if (!coherent && extractedData.total_amount > 0) {
+            console.warn('Incoherent extraction, reconstructing:', {
+              subtotal: extractedData.subtotal,
+              tax_amount: extractedData.tax_amount,
+              irpf_amount: irpf,
+              total_amount: extractedData.total_amount,
+              expectedTotal,
+            });
+            if (extractedData.tax_rate > 0) {
+              const taxFactor = extractedData.tax_rate / 100;
+              const irpfFactor = (extractedData.irpf_rate ?? 0) / 100;
+              const denom = 1 + taxFactor - irpfFactor;
+              if (denom > 0) {
+                const newSubtotal = extractedData.total_amount / denom;
+                extractedData.subtotal = Math.round(newSubtotal * 100) / 100;
+                extractedData.tax_amount = Math.round(newSubtotal * taxFactor * 100) / 100;
+                if (extractedData.irpf_rate != null) {
+                  extractedData.irpf_amount = Math.round(newSubtotal * irpfFactor * 100) / 100;
+                }
+                console.log('Reconstructed:', {
+                  subtotal: extractedData.subtotal,
+                  tax_amount: extractedData.tax_amount,
+                  irpf_amount: extractedData.irpf_amount,
+                });
+              }
+            } else if (extractedData.tax_amount > 0 && extractedData.tax_rate > 0) {
+              extractedData.subtotal = Math.round((extractedData.tax_amount / (extractedData.tax_rate / 100)) * 100) / 100;
+            }
+          }
+
+          console.log('AI extraction successful:', {
+            invoice: extractedData.invoice_number,
+            subtotal: extractedData.subtotal,
+            tax_amount: extractedData.tax_amount,
+            irpf_amount: extractedData.irpf_amount,
+            total_amount: extractedData.total_amount,
           });
         }
       } else {
@@ -316,7 +363,7 @@ IMPORTANTE:
     // 8. Recompute sum across all invoices and adjust status
     const { data: allInvoices } = await supabase
       .from('liquidation_invoices')
-      .select('id, file_url, file_name, invoice_number, invoice_date, subtotal, total_amount, uploaded_at')
+      .select('id, file_url, file_name, invoice_number, invoice_date, subtotal, tax_amount, irpf_amount, total_amount, uploaded_at')
       .eq('liquidation_id', liquidationId)
       .order('uploaded_at', { ascending: true });
 

@@ -123,10 +123,10 @@ export function LiquidationInvoicesList({
           )}
           <div className="flex-1">
             <p className="font-medium">
-              {matches ? 'Importes verificados ✓' : 'Discrepancia de importes'}
+              {matches ? 'Bases imponibles verificadas ✓' : 'Discrepancia de bases imponibles'}
             </p>
             <p className="text-muted-foreground mt-0.5">
-              Suma de bases: {formatCurrency(sumOfBases)} ·{' '}
+              Suma de bases (sin IVA/IRPF): {formatCurrency(sumOfBases)} ·{' '}
               Subtotal liquidación: {formatCurrency(liquidationSubtotal)}
             </p>
             {!matches && (

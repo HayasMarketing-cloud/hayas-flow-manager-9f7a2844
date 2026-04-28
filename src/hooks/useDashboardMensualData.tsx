@@ -129,7 +129,7 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
           .eq('billing_period_month', month),
         supabase
           .from('liquidations')
-          .select('id, code, specialist_id, period_month, period_year, status, subtotal, total_amount, paid_at, specialist_invoice_url, specialist:specialists(id, name)')
+          .select('id, code, specialist_id, period_month, period_year, status, subtotal, total_amount, paid_at, specialist_invoice_url, specialist:specialists(id, name, team_leader_id)')
           .eq('period_year', year)
           .eq('period_month', month),
         supabase.from('clients').select('id, name'),

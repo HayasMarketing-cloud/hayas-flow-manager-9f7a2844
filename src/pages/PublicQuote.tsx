@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, FileDown, AlertCircle } from 'lucide-react';
+import { Loader2, FileDown, AlertCircle, Receipt, Calendar, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { generateBudgetPDF } from '@/utils/pdf/budgetPDFGenerator';
 
@@ -75,10 +75,19 @@ export default function PublicQuote() {
     );
   }
 
-  const { budget, items } = data;
+  const { budget, items, allocations = [] } = data;
   const client = budget.client;
   const groupedItems = groupItemsByCategory(items);
   const total = budget.total_amount || items.reduce((sum: number, i: any) => sum + i.total, 0);
+
+  const totalInvoiced = allocations.reduce((sum: number, a: any) => sum + Number(a.allocated_amount), 0);
+  const pending = Math.max(total - totalInvoiced, 0);
+  const invoicedPct = total > 0 ? Math.round((totalInvoiced / total) * 100) : 0;
+  const billingState: 'none' | 'partial' | 'full' =
+    totalInvoiced <= 0 ? 'none' : totalInvoiced >= total ? 'full' : 'partial';
+
+  const formatDate = (d?: string | null) =>
+    d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null;
 
   const handleDownloadPDF = () => {
     generateBudgetPDF({
@@ -90,6 +99,26 @@ export default function PublicQuote() {
   const validUntilFormatted = budget.valid_until
     ? new Date(budget.valid_until).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
+
+  const estimatedInvoiceFormatted = formatDate(budget.estimated_invoice_date);
+
+  const invoiceStatusLabel: Record<string, string> = {
+    draft: 'Borrador',
+    pending: 'Pendiente',
+    sent: 'Enviada',
+    paid: 'Cobrada',
+    overdue: 'Vencida',
+    cancelled: 'Cancelada',
+  };
+
+  const invoiceStatusClass: Record<string, string> = {
+    draft: 'bg-gray-100 text-gray-700',
+    pending: 'bg-yellow-100 text-yellow-800',
+    sent: 'bg-blue-100 text-blue-800',
+    paid: 'bg-green-100 text-green-800',
+    overdue: 'bg-red-100 text-red-800',
+    cancelled: 'bg-gray-100 text-gray-500',
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -181,6 +210,119 @@ export default function PublicQuote() {
             <div className="text-right">
               <span className="text-gray-500 text-sm uppercase mr-8">Total</span>
               <span className="text-2xl font-bold text-[#00467E]">{formatCurrency(total)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Estado de Facturación / Billing Status */}
+        <div className="px-8 pb-8">
+          <div className="border rounded-lg bg-white">
+            <div className="px-6 py-4 border-b flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-[#00467E]" />
+              <h3 className="font-semibold text-gray-800">Billing Status</h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-2 text-sm">
+                <Calendar className="h-4 w-4 text-gray-400" />
+                <span className="text-gray-500">Estimated invoice date:</span>
+                {estimatedInvoiceFormatted ? (
+                  <span className="font-medium text-gray-800">{estimatedInvoiceFormatted}</span>
+                ) : (
+                  <span className="italic text-gray-400">Not specified</span>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div>
+                  {billingState === 'none' && (
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                      Not invoiced yet
+                    </span>
+                  )}
+                  {billingState === 'partial' && (
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                      Partially invoiced
+                    </span>
+                  )}
+                  {billingState === 'full' && (
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      Fully invoiced
+                    </span>
+                  )}
+                </div>
+                {billingState !== 'none' && (
+                  <p className="text-sm text-gray-600">
+                    {formatCurrency(totalInvoiced)} / {formatCurrency(total)} ({invoicedPct}%)
+                    {pending > 0 && <> • Pending: {formatCurrency(pending)}</>}
+                  </p>
+                )}
+              </div>
+
+              {allocations.length > 0 ? (
+                <div className="border rounded-md overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase">
+                        <th className="text-left py-2 px-4">Invoice</th>
+                        <th className="text-left py-2 px-4">Date</th>
+                        <th className="text-right py-2 px-4">Allocated</th>
+                        <th className="text-left py-2 px-4">Status</th>
+                        <th className="text-center py-2 px-4 w-16">Doc</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allocations.map((a: any) => {
+                        const inv = a.invoice;
+                        return (
+                          <tr key={a.id} className="border-b border-gray-100">
+                            <td className="py-3 px-4 text-sm font-medium">{inv.code}</td>
+                            <td className="py-3 px-4 text-sm">{formatDate(inv.invoice_date) || '-'}</td>
+                            <td className="py-3 px-4 text-sm text-right font-medium">
+                              {formatCurrency(Number(a.allocated_amount))}
+                            </td>
+                            <td className="py-3 px-4 text-sm">
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  invoiceStatusClass[inv.status] || 'bg-gray-100 text-gray-700'
+                                }`}
+                              >
+                                {invoiceStatusLabel[inv.status] || inv.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              {inv.pdf_url ? (
+                                <a
+                                  href={inv.pdf_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center justify-center text-[#00467E] hover:text-[#003562]"
+                                  aria-label="View invoice document"
+                                >
+                                  <FileText className="h-4 w-4" />
+                                </a>
+                              ) : (
+                                <FileText className="h-4 w-4 text-gray-300 inline" />
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <div className="flex justify-between items-center px-4 py-2 bg-gray-50 border-t text-sm">
+                    <span className="text-gray-500">
+                      {allocations.length} invoice{allocations.length !== 1 ? 's' : ''} linked
+                    </span>
+                    <span className="font-medium text-gray-800">
+                      Total invoiced: {formatCurrency(totalInvoiced)}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  No invoices linked to this quote yet.
+                </p>
+              )}
             </div>
           </div>
         </div>

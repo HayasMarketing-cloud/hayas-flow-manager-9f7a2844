@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, FileDown, AlertCircle } from 'lucide-react';
+import { Loader2, FileDown, AlertCircle, Receipt, Calendar, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { generateBudgetPDF } from '@/utils/pdf/budgetPDFGenerator';
 

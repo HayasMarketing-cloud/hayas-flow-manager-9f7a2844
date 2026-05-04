@@ -78,7 +78,7 @@ export default function PublicQuote() {
       
       const res = await fetch(
         `${SUPABASE_URL}/functions/v1/get-public-quote?${param}`,
-        { headers: { apikey: SUPABASE_ANON_KEY } }
+        { headers: { apikey: SUPABASE_ANON_KEY }, cache: 'no-store' }
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

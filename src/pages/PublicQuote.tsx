@@ -75,10 +75,19 @@ export default function PublicQuote() {
     );
   }
 
-  const { budget, items } = data;
+  const { budget, items, allocations = [] } = data;
   const client = budget.client;
   const groupedItems = groupItemsByCategory(items);
   const total = budget.total_amount || items.reduce((sum: number, i: any) => sum + i.total, 0);
+
+  const totalInvoiced = allocations.reduce((sum: number, a: any) => sum + Number(a.allocated_amount), 0);
+  const pending = Math.max(total - totalInvoiced, 0);
+  const invoicedPct = total > 0 ? Math.round((totalInvoiced / total) * 100) : 0;
+  const billingState: 'none' | 'partial' | 'full' =
+    totalInvoiced <= 0 ? 'none' : totalInvoiced >= total ? 'full' : 'partial';
+
+  const formatDate = (d?: string | null) =>
+    d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null;
 
   const handleDownloadPDF = () => {
     generateBudgetPDF({
@@ -90,6 +99,26 @@ export default function PublicQuote() {
   const validUntilFormatted = budget.valid_until
     ? new Date(budget.valid_until).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
+
+  const estimatedInvoiceFormatted = formatDate(budget.estimated_invoice_date);
+
+  const invoiceStatusLabel: Record<string, string> = {
+    draft: 'Borrador',
+    pending: 'Pendiente',
+    sent: 'Enviada',
+    paid: 'Cobrada',
+    overdue: 'Vencida',
+    cancelled: 'Cancelada',
+  };
+
+  const invoiceStatusClass: Record<string, string> = {
+    draft: 'bg-gray-100 text-gray-700',
+    pending: 'bg-yellow-100 text-yellow-800',
+    sent: 'bg-blue-100 text-blue-800',
+    paid: 'bg-green-100 text-green-800',
+    overdue: 'bg-red-100 text-red-800',
+    cancelled: 'bg-gray-100 text-gray-500',
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">

@@ -211,13 +211,15 @@ export const BudgetFormModal = ({
       }
       const totalAmount = calculateBudgetTotal(items);
 
-      // Limpiar campos UUID vacíos para evitar error "invalid input syntax for type uuid"
+      // Limpiar campos UUID y fecha vacíos para evitar errores de tipo en Postgres
       const cleanedFormData = {
         ...formData,
         client_contact_id: formData.client_contact_id || null,
         contract_id: formData.contract_id || null,
         am_user_id: formData.am_user_id || null,
         pm_user_id: formData.pm_user_id || null,
+        estimated_invoice_date: formData.estimated_invoice_date || null,
+        valid_until: formData.valid_until || null,
       };
 
       if (budget?.id) {

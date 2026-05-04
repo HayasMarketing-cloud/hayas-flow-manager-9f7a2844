@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2, FileDown, AlertCircle, Receipt, Calendar, FileText } from 'lucide-react';
@@ -35,6 +36,39 @@ const groupItemsByCategory = (items: any[]): GroupedCategory[] => {
 export default function PublicQuote() {
   const { token } = useParams<{ token: string }>();
 
+  // Kill-switch: si un cliente tiene un Service Worker antiguo cacheando este
+  // bundle, lo desregistramos y limpiamos cachés para que siempre vea la
+  // última versión del presupuesto. Solo se ejecuta una vez por carga.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const FLAG = 'quote-sw-cleaned-v1';
+    if (sessionStorage.getItem(FLAG)) return;
+
+    (async () => {
+      try {
+        let didUnregister = false;
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for (const reg of regs) {
+            await reg.unregister();
+            didUnregister = true;
+          }
+        }
+        if (typeof caches !== 'undefined') {
+          const names = await caches.keys();
+          await Promise.all(names.map((n) => caches.delete(n)));
+        }
+        sessionStorage.setItem(FLAG, '1');
+        if (didUnregister) {
+          // Recarga limpia para servir el bundle nuevo desde el origen
+          window.location.reload();
+        }
+      } catch {
+        sessionStorage.setItem(FLAG, '1');
+      }
+    })();
+  }, []);
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['public-quote', token],
     queryFn: async () => {
@@ -44,7 +78,7 @@ export default function PublicQuote() {
       
       const res = await fetch(
         `${SUPABASE_URL}/functions/v1/get-public-quote?${param}`,
-        { headers: { apikey: SUPABASE_ANON_KEY } }
+        { headers: { apikey: SUPABASE_ANON_KEY }, cache: 'no-store' }
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

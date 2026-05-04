@@ -122,6 +122,13 @@ Deno.serve(async (req) => {
         ...item,
         service: item.services,
       })),
+      allocations: (allocations || [])
+        .filter((a: any) => a.invoice)
+        .map((a: any) => ({
+          id: a.id,
+          allocated_amount: Number(a.allocated_amount),
+          invoice: a.invoice,
+        })),
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

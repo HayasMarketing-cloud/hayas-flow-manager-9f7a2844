@@ -905,7 +905,7 @@ export const RequestFormModal = ({
                             placeholder="0"
                             {...field}
                             value={field.value ?? ''}
-                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                            onChange={(e) => field.onChange(parseNum(e.target.value))}
                             disabled={isViewMode}
                           />
                         </FormControl>
@@ -930,7 +930,7 @@ export const RequestFormModal = ({
                               placeholder="0.00"
                               {...field}
                               value={field.value ?? ''}
-                              onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                              onChange={(e) => field.onChange(parseNum(e.target.value))}
                               disabled={isViewMode}
                             />
                           </FormControl>
@@ -973,7 +973,7 @@ export const RequestFormModal = ({
                             placeholder="0.00"
                             {...field}
                             value={field.value ?? ''}
-                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                            onChange={(e) => field.onChange(parseNum(e.target.value))}
                             disabled={isViewMode}
                           />
                         </FormControl>
@@ -1010,7 +1010,7 @@ export const RequestFormModal = ({
                         value={field.value || ''}
                         onChange={(e) => {
                           const val = e.target.value;
-                          field.onChange(val === '' ? 0 : parseFloat(val) || 0);
+                          field.onChange(parseNum(val) ?? 0);
                         }}
                         disabled={isViewMode}
                       />
@@ -1101,7 +1101,7 @@ export const RequestFormModal = ({
                             value={field.value !== null && field.value !== undefined ? field.value : ''}
                             onChange={(e) => {
                               const val = e.target.value;
-                              field.onChange(val === '' ? null : parseFloat(val));
+                              field.onChange(parseNum(val));
                             }}
                             disabled={isViewMode}
                           />
@@ -1134,7 +1134,7 @@ export const RequestFormModal = ({
                               value={field.value !== null && field.value !== undefined ? field.value : ''}
                               onChange={(e) => {
                                 const val = e.target.value;
-                                field.onChange(val === '' ? null : parseFloat(val));
+                                field.onChange(parseNum(val));
                               }}
                               disabled={isViewMode}
                             />
@@ -1178,7 +1178,7 @@ export const RequestFormModal = ({
                             placeholder="0.00"
                             {...field}
                             value={field.value ?? ''}
-                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                            onChange={(e) => field.onChange(parseNum(e.target.value))}
                             disabled={isViewMode}
                           />
                         </FormControl>

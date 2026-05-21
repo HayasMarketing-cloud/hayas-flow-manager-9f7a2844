@@ -73,6 +73,22 @@ const requestSchema = z.object({
   }
 );
 
+// Normaliza coma decimal a punto y parsea como número (o null si vacío)
+const parseNum = (val: string): number | null => {
+  if (val === '' || val === null || val === undefined) return null;
+  const normalized = String(val).replace(',', '.');
+  const n = parseFloat(normalized);
+  return isNaN(n) ? null : n;
+};
+
+// Castea valores numeric provenientes de Supabase (string) a number
+const toNum = (v: unknown): number | null => {
+  if (v === null || v === undefined || v === '') return null;
+  const n = typeof v === 'number' ? v : Number(v);
+  return isNaN(n) ? null : n;
+};
+
+
 type RequestFormData = z.infer<typeof requestSchema>;
 
 interface RequestFormModalProps {

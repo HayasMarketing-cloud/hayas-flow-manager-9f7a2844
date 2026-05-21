@@ -468,19 +468,19 @@ export const RequestFormModal = ({
           client_contact_id: contactToUse,
           title: initialData.title,
           description: initialData.description ?? null,
-          quantity: initialData.quantity ?? 1,
+          quantity: toNum(initialData.quantity) ?? 1,
           deadline: initialData.deadline ?? null,
           status: initialData.status,
           // Sale fields
           sale_type: initialData.sale_type ?? 'fixed',
-          unit_price: initialData.unit_price ?? null,
-          sale_rate: initialData.sale_rate ?? null,
-          sale_hours: initialData.sale_hours ?? null,
+          unit_price: toNum(initialData.unit_price),
+          sale_rate: toNum(initialData.sale_rate),
+          sale_hours: toNum(initialData.sale_hours),
           // Cost fields
           cost_type: initialData.cost_type ?? 'fixed',
-          hours: initialData.hours ?? null,
-          cost_rate: initialData.cost_rate ?? null,
-          fixed_cost: initialData.fixed_cost ?? null,
+          hours: toNum(initialData.hours),
+          cost_rate: toNum(initialData.cost_rate),
+          fixed_cost: toNum(initialData.fixed_cost),
           // Partner reference
           partner_reference: initialData.partner_reference ?? null,
         });

@@ -433,6 +433,10 @@ export const RequestFormModal = ({
 
   useEffect(() => {
     if (open) {
+      if (initialData?.id) {
+        queryClient.invalidateQueries({ queryKey: ['financial_request', initialData.id] });
+        queryClient.invalidateQueries({ queryKey: ['financial-requests'] });
+      }
       if (initialData) {
         // Pre-fill contact from budget if no contact is set on the request
         const contactToUse = initialData.client_contact_id 

@@ -73,6 +73,22 @@ const requestSchema = z.object({
   }
 );
 
+// Normaliza coma decimal a punto y parsea como número (o null si vacío)
+const parseNum = (val: string): number | null => {
+  if (val === '' || val === null || val === undefined) return null;
+  const normalized = String(val).replace(',', '.');
+  const n = parseFloat(normalized);
+  return isNaN(n) ? null : n;
+};
+
+// Castea valores numeric provenientes de Supabase (string) a number
+const toNum = (v: unknown): number | null => {
+  if (v === null || v === undefined || v === '') return null;
+  const n = typeof v === 'number' ? v : Number(v);
+  return isNaN(n) ? null : n;
+};
+
+
 type RequestFormData = z.infer<typeof requestSchema>;
 
 interface RequestFormModalProps {
@@ -452,19 +468,19 @@ export const RequestFormModal = ({
           client_contact_id: contactToUse,
           title: initialData.title,
           description: initialData.description ?? null,
-          quantity: initialData.quantity ?? 1,
+          quantity: toNum(initialData.quantity) ?? 1,
           deadline: initialData.deadline ?? null,
           status: initialData.status,
           // Sale fields
           sale_type: initialData.sale_type ?? 'fixed',
-          unit_price: initialData.unit_price ?? null,
-          sale_rate: initialData.sale_rate ?? null,
-          sale_hours: initialData.sale_hours ?? null,
+          unit_price: toNum(initialData.unit_price),
+          sale_rate: toNum(initialData.sale_rate),
+          sale_hours: toNum(initialData.sale_hours),
           // Cost fields
           cost_type: initialData.cost_type ?? 'fixed',
-          hours: initialData.hours ?? null,
-          cost_rate: initialData.cost_rate ?? null,
-          fixed_cost: initialData.fixed_cost ?? null,
+          hours: toNum(initialData.hours),
+          cost_rate: toNum(initialData.cost_rate),
+          fixed_cost: toNum(initialData.fixed_cost),
           // Partner reference
           partner_reference: initialData.partner_reference ?? null,
         });
@@ -889,7 +905,7 @@ export const RequestFormModal = ({
                             placeholder="0"
                             {...field}
                             value={field.value ?? ''}
-                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                            onChange={(e) => field.onChange(parseNum(e.target.value))}
                             disabled={isViewMode}
                           />
                         </FormControl>
@@ -914,7 +930,7 @@ export const RequestFormModal = ({
                               placeholder="0.00"
                               {...field}
                               value={field.value ?? ''}
-                              onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                              onChange={(e) => field.onChange(parseNum(e.target.value))}
                               disabled={isViewMode}
                             />
                           </FormControl>
@@ -957,7 +973,7 @@ export const RequestFormModal = ({
                             placeholder="0.00"
                             {...field}
                             value={field.value ?? ''}
-                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                            onChange={(e) => field.onChange(parseNum(e.target.value))}
                             disabled={isViewMode}
                           />
                         </FormControl>
@@ -994,7 +1010,7 @@ export const RequestFormModal = ({
                         value={field.value || ''}
                         onChange={(e) => {
                           const val = e.target.value;
-                          field.onChange(val === '' ? 0 : parseFloat(val) || 0);
+                          field.onChange(parseNum(val) ?? 0);
                         }}
                         disabled={isViewMode}
                       />
@@ -1085,7 +1101,7 @@ export const RequestFormModal = ({
                             value={field.value !== null && field.value !== undefined ? field.value : ''}
                             onChange={(e) => {
                               const val = e.target.value;
-                              field.onChange(val === '' ? null : parseFloat(val));
+                              field.onChange(parseNum(val));
                             }}
                             disabled={isViewMode}
                           />
@@ -1118,7 +1134,7 @@ export const RequestFormModal = ({
                               value={field.value !== null && field.value !== undefined ? field.value : ''}
                               onChange={(e) => {
                                 const val = e.target.value;
-                                field.onChange(val === '' ? null : parseFloat(val));
+                                field.onChange(parseNum(val));
                               }}
                               disabled={isViewMode}
                             />
@@ -1162,7 +1178,7 @@ export const RequestFormModal = ({
                             placeholder="0.00"
                             {...field}
                             value={field.value ?? ''}
-                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                            onChange={(e) => field.onChange(parseNum(e.target.value))}
                             disabled={isViewMode}
                           />
                         </FormControl>

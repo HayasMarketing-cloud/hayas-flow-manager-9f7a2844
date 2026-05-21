@@ -9,7 +9,7 @@ interface RateSuggestion {
 }
 
 const FALLBACK_SALE_RATE = 70;
-const FALLBACK_COST_RATE = 70;
+const FALLBACK_COST_RATE = 30;
 
 /**
  * Hook that calculates suggested rates based on a hierarchy:

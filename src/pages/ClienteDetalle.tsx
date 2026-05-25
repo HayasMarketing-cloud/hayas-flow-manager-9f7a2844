@@ -38,10 +38,15 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ClientFormModal } from '@/components/modals/ClientFormModal';
 import { ContactFormModal } from '@/components/modals/ContactFormModal';
+import { ClientContractsTab } from '@/components/clients/ClientContractsTab';
+import { ClientBudgetsTab } from '@/components/clients/ClientBudgetsTab';
+import { ClientProjectsTab } from '@/components/clients/ClientProjectsTab';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useUserRole } from '@/hooks/useUserRole';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import GoogleDriveIcon from '@/assets/icons8-google-drive.svg';
+
 
 const CONTACTS_PER_PAGE = 10;
 

@@ -3,10 +3,10 @@ import { registerSW } from "virtual:pwa-register";
 import App from "./App.tsx";
 import "./index.css";
 
-registerSW({
+const updateSW = registerSW({
   immediate: true,
   onNeedRefresh() {
-    window.location.reload();
+    updateSW(true);
   },
   onRegisteredSW(_swUrl, registration) {
     registration?.update();

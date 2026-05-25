@@ -514,7 +514,35 @@ const ClienteDetalle = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Activity tabs: Contracts / Budgets / Projects */}
+        {id && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Actividad del cliente</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="contracts">
+                <TabsList>
+                  <TabsTrigger value="contracts">Contratos</TabsTrigger>
+                  <TabsTrigger value="budgets">Presupuestos</TabsTrigger>
+                  <TabsTrigger value="projects">Proyectos</TabsTrigger>
+                </TabsList>
+                <TabsContent value="contracts" className="mt-4">
+                  <ClientContractsTab clientId={id} canEdit={canEdit} />
+                </TabsContent>
+                <TabsContent value="budgets" className="mt-4">
+                  <ClientBudgetsTab clientId={id} canEdit={canEdit} />
+                </TabsContent>
+                <TabsContent value="projects" className="mt-4">
+                  <ClientProjectsTab clientId={id} canEdit={canEdit} />
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        )}
       </div>
+
 
       {/* Client edit modal */}
       <ClientFormModal

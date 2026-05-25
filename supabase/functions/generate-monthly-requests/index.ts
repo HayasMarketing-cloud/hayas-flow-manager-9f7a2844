@@ -349,7 +349,7 @@ Deno.serve(async (req) => {
           console.log(`[generate-monthly-requests] Created project ${projectId} for ${contract.code}`);
 
           // Clone milestones and tasks from service templates
-          await cloneTemplateStructures(supabaseAdmin, contract, newProject.id, monthlyServices, createdRequests || []);
+          await cloneTemplateStructures(supabaseAdmin, contract, newProject.id, monthlyServices, createdRequests || [], workMonth, workYear);
         }
       } else {
         console.log(`[generate-monthly-requests] Skipping project creation for ${contract.code}: No PM or AM assigned`);

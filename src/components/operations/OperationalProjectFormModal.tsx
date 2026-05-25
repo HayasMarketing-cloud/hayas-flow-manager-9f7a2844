@@ -53,6 +53,7 @@ interface OperationalProjectFormModalProps {
   onOpenChange: (open: boolean) => void;
   initialData?: any | null;
   mode?: 'create' | 'edit' | 'view';
+  defaultClientId?: string;
 }
 
 export const OperationalProjectFormModal = ({
@@ -60,7 +61,9 @@ export const OperationalProjectFormModal = ({
   onOpenChange,
   initialData,
   mode = 'create',
+  defaultClientId,
 }: OperationalProjectFormModalProps) => {
+
   const { user } = useAuth();
   const isViewMode = mode === 'view';
   const createMutation = useCreateOperationalProject();
@@ -150,7 +153,7 @@ export const OperationalProjectFormModal = ({
     } else {
       form.reset({
         name: '',
-        client_id: '',
+        client_id: defaultClientId || '',
         contract_id: null,
         budget_id: null,
         owner_user_id: user?.id || null,
@@ -161,7 +164,8 @@ export const OperationalProjectFormModal = ({
         drive_folder_url: null,
       });
     }
-  }, [initialData, user?.id, form]);
+  }, [initialData, user?.id, form, defaultClientId]);
+
 
   const selectedClientId = form.watch('client_id');
 

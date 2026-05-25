@@ -1,61 +1,74 @@
-# Plan: fallback coste 30€ + arreglo campo Horas
+## Objetivo
 
-## 1. Fallback coste 30€ (Opción C)
+Añadir en `ClienteDetalle.tsx` un bloque con **Contratos, Presupuestos y Proyectos** del cliente, reutilizando componentes existentes. Edición inline con modal.
 
-Archivo: `src/hooks/useDefaultRates.tsx`
+## Viabilidad
 
-- Cambiar `FALLBACK_COST_RATE = 70` → `30`.
-- Nada más en la jerarquía: cost rate sigue siendo `specialists.hourly_rate` → `30€`.
-- Venta no se toca.
+Todo lo necesario ya existe:
+- `ContractTableView`, `BudgetTableView` reutilizables con props.
+- `ContractFormModal`, `BudgetFormModal`, `OperationalProjectFormModal` soportan `initialData` y crear con cliente preasignado.
+- Las queries ya filtran por `client_id`. RLS ya filtra por cliente asignado.
+- 0 cambios en BBDD.
 
-## 2. Bug "Horas del especialista" muestra 0 al editar
+## Diseño
 
-Encontré dos causas que explican lo que viste en REQ-2026-352:
+Debajo del bloque actual de **Contactos**, una `Card` con `Tabs` de 3 pestañas (Contratos / Presupuestos / Proyectos). Cada pestaña:
+- Header: buscador + filtro de estado + botón "Nuevo …" (preasigna `client_id`).
+- Tabla reutilizada.
+- Acciones por fila: **Editar inline con modal** + un enlace pequeño "Ver detalle →" para profundizar.
 
-### Causa A — Decimal con coma se pierde al guardar
+## Implementación
 
-En `RequestFormModal.tsx` el `onChange` del input hace `parseFloat(val)`. JavaScript `parseFloat("3,5")` devuelve `3` (corta en la coma). Por eso tu "3,5 horas" se guardó como `3` en BBDD (verificado: la fila tiene `hours = 3`, no `3.5`).
+1. **Extraer** la tabla actual de proyectos de `OperationalProjects.tsx` a `src/components/operations/OperationalProjectsTableView.tsx` (props: `projects`, `onEdit`, `onView`, `onDelete`).
 
-Fix: normalizar la coma a punto antes de parsear en los inputs decimales:
+2. **Crear** 3 contenedores en `src/components/clients/`:
+   - `ClientContractsTab.tsx` — query `contracts` por `client_id`, search + status local, render `ContractTableView`, gestiona modal `ContractFormModal` para crear/editar inline.
+   - `ClientBudgetsTab.tsx` — análogo con `BudgetTableView` + `BudgetFormModal`.
+   - `ClientProjectsTab.tsx` — análogo con `OperationalProjectsTableView` + `OperationalProjectFormModal`.
 
-```ts
-const normalized = val.replace(',', '.');
-field.onChange(normalized === '' ? null : parseFloat(normalized));
+   Cada uno acepta `clientId: string` y `canEdit: boolean`. Las acciones de editar abren el modal con `initialData` de la fila. "Nuevo" abre el modal con `initialData={{ client_id: clientId }}` para preasignar cliente.
+
+3. **Integrar** en `ClienteDetalle.tsx`:
+
+```tsx
+<Card>
+  <CardHeader>
+    <CardTitle className="text-lg">Actividad del cliente</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <Tabs defaultValue="contracts">
+      <TabsList>
+        <TabsTrigger value="contracts">Contratos</TabsTrigger>
+        <TabsTrigger value="budgets">Presupuestos</TabsTrigger>
+        <TabsTrigger value="projects">Proyectos</TabsTrigger>
+      </TabsList>
+      <TabsContent value="contracts"><ClientContractsTab clientId={id!} canEdit={canEdit} /></TabsContent>
+      <TabsContent value="budgets"><ClientBudgetsTab clientId={id!} canEdit={canEdit} /></TabsContent>
+      <TabsContent value="projects"><ClientProjectsTab clientId={id!} canEdit={canEdit} /></TabsContent>
+    </Tabs>
+  </CardContent>
+</Card>
 ```
 
-Aplicar en los 4 inputs decimales del modal: `hours` (línea 1086), `sale_hours` (~877), `cost_rate` (~1110+), `sale_rate`, y `quantity` si también admite decimales.
+4. **Modales**: verificar que aceptan `initialData={{ client_id }}` para crear con cliente preasignado. Si alguno no lo soporta, añadir esa rama mínima.
 
-### Causa B — Valor numeric llega como string desde Supabase
+## Eficiencia
 
-Postgres `numeric` se devuelve como **string** por la librería supabase-js (`"3"` en vez de `3`). En el `form.reset` (línea 465) hacemos `hours: initialData.hours ?? null`, así que el formulario guarda `"3"`. El esquema Zod usa `z.coerce.number()` para el submit, pero `useWatch` y el render del `<Input type="number">` reciben el string. En la mayoría de casos React lo muestra, pero combinado con el ciclo de `field.value !== null && field.value !== undefined ? field.value : ''` puede acabar enseñando el placeholder cuando hay re-render por el `invalidateQueries` que añadimos hace un rato.
+- Lazy: cada tab solo monta su query al activarse (TanStack Query cachea por `[entidad, clientId]`).
+- Reutilización máxima: ~80 líneas por contenedor + un refactor menor para la tabla de proyectos.
+- Sin duplicar lógica de filtros (search/status local por tab).
+- Sin cambios en backend.
 
-Fix defensivo en el `form.reset` del bloque edición: castear a número explícitamente los numéricos que vienen de la BBDD.
+## QA
 
-```ts
-const toNum = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v));
-form.reset({
-  ...,
-  quantity: toNum(initialData.quantity) ?? 1,
-  sale_hours: toNum(initialData.sale_hours),
-  unit_price: toNum(initialData.unit_price),
-  sale_rate: toNum(initialData.sale_rate),
-  hours: toNum(initialData.hours),
-  cost_rate: toNum(initialData.cost_rate),
-  fixed_cost: toNum(initialData.fixed_cost),
-  ...
-});
-```
-
-Esto asegura que el campo se rellena con `3` (número) y el input lo muestra.
-
-## Verificación tras el cambio
-
-1. Editar REQ-2026-352: el campo "Horas" debe mostrar `3` (no `0`).
-2. Crear request nuevo escribiendo `3,5` en horas: debe guardarse `3.5` y al editar mostrarse `3.5`.
-3. Crear request con especialista sin `hourly_rate`: el coste estimado debe usar fallback `30€` en vez de `70€`.
+- Cliente Asendia Spain: 3 pestañas con los contratos/presupuestos/proyectos correctos.
+- Buscar y filtrar por estado funciona en cada tab.
+- "Editar" abre modal con datos cargados, guarda y refresca la tabla.
+- "Nuevo" abre modal con cliente preasignado y bloqueado.
+- AM/PM solo ve clientes asignados (RLS).
 
 ## Fuera de alcance
 
-- No se toca la jerarquía de venta.
-- No se añade campo de coste en `contract_services` (descartada Opción A).
-- No se toca la UI más allá del normalizado de coma en los inputs decimales.
+- Páginas `/contratos`, `/presupuestos`, `/proyectos` no se tocan.
+- No se añaden filtros nuevos más allá de search + estado.
+- No se añade exportación desde estas pestañas (lo tienen las páginas principales).

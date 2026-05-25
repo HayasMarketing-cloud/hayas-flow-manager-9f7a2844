@@ -53,6 +53,7 @@ interface OperationalProjectFormModalProps {
   onOpenChange: (open: boolean) => void;
   initialData?: any | null;
   mode?: 'create' | 'edit' | 'view';
+  defaultClientId?: string;
 }
 
 export const OperationalProjectFormModal = ({
@@ -60,7 +61,9 @@ export const OperationalProjectFormModal = ({
   onOpenChange,
   initialData,
   mode = 'create',
+  defaultClientId,
 }: OperationalProjectFormModalProps) => {
+
   const { user } = useAuth();
   const isViewMode = mode === 'view';
   const createMutation = useCreateOperationalProject();

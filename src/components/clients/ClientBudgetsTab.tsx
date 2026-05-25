@@ -36,8 +36,7 @@ export const ClientBudgetsTab = ({ clientId, canEdit }: Props) => {
         .select(`
           *,
           client:clients(id, name),
-          client_contact:client_contacts(id, name),
-          creator:profiles!budgets_created_by_fkey(id, full_name, email)
+          client_contact:client_contacts(id, name)
         `)
         .eq('client_id', clientId)
         .order('created_at', { ascending: false });
@@ -47,9 +46,24 @@ export const ClientBudgetsTab = ({ clientId, canEdit }: Props) => {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+
+      // Enrich with creator profiles (same pattern as Presupuestos page)
+      const creatorIds = [...new Set((data || []).map((b: any) => b.created_by).filter(Boolean))];
+      if (creatorIds.length === 0) return data;
+
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', creatorIds);
+
+      const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+      return (data || []).map((b: any) => ({
+        ...b,
+        creator: profileMap.get(b.created_by) || null,
+      }));
     },
   });
+
 
   const handleClose = () => {
     setModalOpen(false);

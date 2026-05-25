@@ -299,7 +299,7 @@ Deno.serve(async (req) => {
       const { data: createdRequests, error: requestsError } = await supabaseAdmin
         .from('financial_requests')
         .insert(requestsToInsert)
-        .select('id, code');
+        .select('id, code, title');
 
       if (requestsError) {
         console.error(`Error creating requests for ${contract.code}:`, requestsError);

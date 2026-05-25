@@ -299,7 +299,7 @@ Deno.serve(async (req) => {
       const { data: createdRequests, error: requestsError } = await supabaseAdmin
         .from('financial_requests')
         .insert(requestsToInsert)
-        .select('id, code');
+        .select('id, code, title');
 
       if (requestsError) {
         console.error(`Error creating requests for ${contract.code}:`, requestsError);
@@ -349,7 +349,7 @@ Deno.serve(async (req) => {
           console.log(`[generate-monthly-requests] Created project ${projectId} for ${contract.code}`);
 
           // Clone milestones and tasks from service templates
-          await cloneTemplateStructures(supabaseAdmin, contract, newProject.id, monthlyServices, createdRequests || []);
+          await cloneTemplateStructures(supabaseAdmin, contract, newProject.id, monthlyServices, createdRequests || [], workMonth, workYear);
         }
       } else {
         console.log(`[generate-monthly-requests] Skipping project creation for ${contract.code}: No PM or AM assigned`);
@@ -401,10 +401,15 @@ async function cloneTemplateStructures(
   contract: Contract,
   projectId: string,
   services: ContractService[],
-  createdRequests: { id: string; code: string }[]
+  createdRequests: { id: string; code: string; title: string }[],
+  workMonth: number,
+  workYear: number
 ): Promise<void> {
   try {
     const createdBy = contract.pm_user_id || contract.am_user_id;
+
+    // Default milestone deadline = last day of work_month (e.g. June 30)
+    const milestoneDeadline = new Date(workYear, workMonth, 0).toISOString().split('T')[0];
 
     // Iterate over ALL services (1:1 with createdRequests)
     for (let i = 0; i < services.length; i++) {
@@ -421,7 +426,7 @@ async function cloneTemplateStructures(
           const { data: newMilestone, error: milestoneError } = await supabaseClient
             .from('operational_requests')
             .insert({
-              name: milestone.name,
+              name: `${milestone.name} - ${correspondingRequest.code}`,
               client_id: contract.client_id,
               operational_project_id: projectId,
               created_by: createdBy,
@@ -429,6 +434,7 @@ async function cloneTemplateStructures(
               financial_request_id: correspondingRequest.id,
               assignee_specialist_id: service.specialist_id,
               description: milestone.description || `Milestone de ${service.description}`,
+              deadline: milestoneDeadline,
             })
             .select('id')
             .single();
@@ -446,6 +452,7 @@ async function cloneTemplateStructures(
               order_index: taskIndex,
               status: 'pending',
               assignee_specialist_id: service.specialist_id,
+              deadline: milestoneDeadline,
             }));
 
             const { error: tasksError } = await supabaseClient
@@ -459,10 +466,11 @@ async function cloneTemplateStructures(
         }
       } else {
         // CASE B: no template → 1 simple milestone per request
+        // Use request.title (already includes the month, e.g. "Plan Marketing - junio 2026") for traceability
         const { error: milestoneError } = await supabaseClient
           .from('operational_requests')
           .insert({
-            name: service.description,
+            name: correspondingRequest.title,
             client_id: contract.client_id,
             operational_project_id: projectId,
             created_by: createdBy,
@@ -470,6 +478,7 @@ async function cloneTemplateStructures(
             financial_request_id: correspondingRequest.id,
             assignee_specialist_id: service.specialist_id,
             description: service.notes || `Milestone generado desde request ${correspondingRequest.code}`,
+            deadline: milestoneDeadline,
           });
 
         if (milestoneError) {
@@ -478,7 +487,7 @@ async function cloneTemplateStructures(
       }
     }
 
-    console.log(`[generate-monthly-requests] Milestones created for ${services.length} requests`);
+    console.log(`[generate-monthly-requests] Milestones created for ${services.length} requests (deadline: ${milestoneDeadline})`);
   } catch (error) {
     console.error('Error creating milestones:', error);
   }

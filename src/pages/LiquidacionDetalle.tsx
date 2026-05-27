@@ -393,7 +393,7 @@ export default function LiquidacionDetalle() {
 
       // Collect all invoice IDs to fetch codes + client/budget/contract info
       const allInvoiceIds = [...new Set(data.flatMap(c => (c.invoice_ids as string[]) || []))];
-      let invoicesMap = new Map<string, { code: string; client_id: string | null; client_name: string | null; budget_id: string | null; budget_code: string | null; budget_title: string | null; contract_id: string | null; contract_code: string | null; contract_title: string | null }>();
+      const invoicesMap = new Map<string, { code: string; client_id: string | null; client_name: string | null; budget_id: string | null; budget_code: string | null; budget_title: string | null; contract_id: string | null; contract_code: string | null; contract_title: string | null }>();
       const budgetAllocationByInvoice = new Map<string, { budget_id: string; budget_code: string | null; budget_title: string | null }>();
       
       if (allInvoiceIds.length > 0) {

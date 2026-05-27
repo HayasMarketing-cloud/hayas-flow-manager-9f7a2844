@@ -55,7 +55,14 @@ function PendingRequestsSection({
     
     setAddingRequestId(request.id);
     try {
-      const cost = Number(request.cost_to_agency) || 0;
+      const total = Number(request.cost_to_agency) || 0;
+      const isHourly = (request as any).cost_type === 'hourly';
+      const quantity = isHourly
+        ? (Number((request as any).hours) || 1)
+        : (Number((request as any).quantity) || 1);
+      const unitPrice = isHourly
+        ? (Number((request as any).cost_rate) || (quantity > 0 ? total / quantity : 0))
+        : (Number((request as any).fixed_cost) || total);
 
       // Create liquidation item
       const { error: itemError } = await supabase
@@ -64,12 +71,13 @@ function PendingRequestsSection({
           liquidation_id: liquidationId,
           financial_request_id: request.id,
           description: `${request.code} - ${request.title}`,
-          quantity: 1,
-          unit_price: cost,
-          total: cost,
+          quantity,
+          unit_price: unitPrice,
+          total,
         });
 
       if (itemError) throw itemError;
+
 
       // Update financial request
       const { error: requestError } = await supabase

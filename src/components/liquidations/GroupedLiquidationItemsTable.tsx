@@ -87,15 +87,26 @@ export function GroupedLiquidationItemsTable({
         </TableCell>
         <TableCell className="max-w-[200px]">
           <div className="truncate">{item.description}</div>
-          {item.description?.startsWith('Comisión') && (() => {
+        {item.description?.startsWith('Comisión') && (() => {
             // Lookup commission detail via pre-indexed map by invoice code
             const invoiceCode = item.description?.match(/Factura Nº\s+(.+)/)?.[1]?.trim();
             const detail = invoiceCode ? commissionByInvoice.get(invoiceCode) : undefined;
             if (detail) {
               return (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {detail.percentage}% sobre {formatCurrency(detail.baseAmount)}
-                </p>
+                <>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {detail.percentage}% sobre {formatCurrency(detail.baseAmount)}
+                  </p>
+                  {detail.budgetTitle || detail.budgetCode ? (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Presupuesto: {detail.budgetTitle || detail.budgetCode}
+                    </p>
+                  ) : detail.contractTitle || detail.contractCode ? (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Contrato: {detail.contractTitle || detail.contractCode}
+                    </p>
+                  ) : null}
+                </>
               );
             }
             // Fallback: parse percentage from description

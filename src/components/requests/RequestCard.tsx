@@ -18,7 +18,7 @@ import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { getFinancialRequestStatusLabel } from '@/lib/request-utils';
+import { getFinancialRequestStatusLabel, formatCurrency } from '@/lib/request-utils';
 import { Database } from '@/integrations/supabase/types';
 
 type FinancialRequestStatus = Database['public']['Enums']['financial_request_status'];

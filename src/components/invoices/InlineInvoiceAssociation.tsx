@@ -22,6 +22,8 @@ interface InlineInvoiceAssociationProps {
   invoiceId: string;
   clientId: string;
   subtotal: number;
+  triggerLabel?: string;
+  suggestionLabel?: string;
 }
 
 const TOLERANCE = 1; // euros
@@ -30,6 +32,8 @@ export const InlineInvoiceAssociation = ({
   invoiceId,
   clientId,
   subtotal,
+  triggerLabel = 'Asociar',
+  suggestionLabel = 'Asociar (match)',
 }: InlineInvoiceAssociationProps) => {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'budget' | 'contract'>('budget');
@@ -142,7 +146,7 @@ export const InlineInvoiceAssociation = ({
           }`}
         >
           {hasSuggestion ? <Sparkles className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
-          {hasSuggestion ? 'Asociar (match)' : 'Asociar'}
+          {hasSuggestion ? suggestionLabel : triggerLabel}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[360px] p-0" align="start">

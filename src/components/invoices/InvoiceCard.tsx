@@ -2,10 +2,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { InvoiceStatusBadge } from './InvoiceStatusBadge';
 import { InvoiceStatusActions } from './InvoiceStatusActions';
+import { InvoiceOriginCell } from './InvoiceOriginCell';
+import { InlineInvoiceAssociation } from './InlineInvoiceAssociation';
 import { Edit, Calendar, DollarSign, AlertCircle, FileText, Trash2 } from 'lucide-react';
 import { formatCurrency, getDaysUntilDue } from '@/lib/invoice-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+
+const months = [
+  'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+  'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
+];
 
 interface InvoiceCardProps {
   invoice: any;
@@ -17,6 +24,46 @@ interface InvoiceCardProps {
 export const InvoiceCard = ({ invoice, onEdit, onDelete, canManage }: InvoiceCardProps) => {
   const daysUntilDue = getDaysUntilDue(invoice.due_date);
   const isOverdue = daysUntilDue !== null && daysUntilDue < 0;
+
+  const renderAssociation = () => {
+    const allocations = invoice.invoice_budget_allocations || [];
+    const budgetItems = allocations
+      .filter((allocation: any) => allocation.budget)
+      .map((allocation: any) => ({
+        id: allocation.budget.id,
+        code: allocation.budget.code,
+        title: allocation.budget.title,
+      }));
+
+    if (budgetItems.length > 0) {
+      return <InvoiceOriginCell items={budgetItems} type="budget" />;
+    }
+
+    if (invoice.budget_id && invoice.budget) {
+      return <InvoiceOriginCell items={[invoice.budget]} type="budget" />;
+    }
+
+    if (invoice.contract_id && invoice.contract) {
+      const periodLabel = invoice.billing_period_month && invoice.billing_period_year
+        ? `${months[invoice.billing_period_month - 1]} ${invoice.billing_period_year}`
+        : '';
+
+      return (
+        <div className="flex flex-col gap-1">
+          <InvoiceOriginCell items={[invoice.contract]} type="contract" />
+          {periodLabel && <span className="text-xs text-muted-foreground pl-5">{periodLabel}</span>}
+        </div>
+      );
+    }
+
+    return (
+      <InlineInvoiceAssociation
+        invoiceId={invoice.id}
+        clientId={invoice.client_id}
+        subtotal={Number(invoice.subtotal || 0)}
+      />
+    );
+  };
 
   return (
     <Card className={`hover:shadow-lg transition-shadow ${isOverdue ? 'border-red-500' : ''}`}>
@@ -59,6 +106,11 @@ export const InvoiceCard = ({ invoice, onEdit, onDelete, canManage }: InvoiceCar
           <span className="font-semibold text-foreground">
             {formatCurrency(invoice.total_amount)}
           </span>
+        </div>
+
+        <div className="flex items-start justify-between gap-3 rounded-md border border-border/60 p-2">
+          <span className="text-xs text-muted-foreground">Asociación</span>
+          <div className="min-w-0 text-right">{renderAssociation()}</div>
         </div>
 
         {invoice.pdf_url ? (

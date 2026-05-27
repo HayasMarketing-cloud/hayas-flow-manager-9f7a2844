@@ -1,14 +1,10 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getMonthName } from '@/lib/liquidation-utils';
-import { groupItemsByClientAndProject } from '@/lib/liquidation-grouping';
+import { groupItemsByClientAndProject, CommissionSourceInfo } from '@/lib/liquidation-grouping';
 
-interface CommissionDetail {
-  type: string;
-  percentage: number;
-  baseAmount: number;
-  invoiceCodes: string[];
-}
+type CommissionDetail = CommissionSourceInfo;
+
 
 interface TeamMemberLiquidation {
   specialist: { name: string };

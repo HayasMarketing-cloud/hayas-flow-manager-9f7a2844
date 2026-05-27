@@ -479,6 +479,9 @@ export default function LiquidacionDetalle() {
       return details;
     },
     enabled: !!id,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   const deleteMutation = useMutation({

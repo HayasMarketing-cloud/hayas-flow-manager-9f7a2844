@@ -546,23 +546,32 @@ const buildHierarchicalTableData = (items: any[], commissionDetails?: Record<str
       ]);
 
       projectGroup.items.forEach((item) => {
-        const costToAgency = Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0;
-        const requestCode = item.financial_request?.code || '-';
-        const requestTitle = item.financial_request?.title;
+        const fr = item.financial_request;
+        const costToAgency = Number(fr?.cost_to_agency) || Number(item.total) || Number(item.unit_price) || 0;
+        const requestCode = fr?.code || '-';
+        const requestTitle = fr?.title;
         const description = requestTitle 
           ? `      ${requestCode} - ${requestTitle.substring(0, 30)}${requestTitle.length > 30 ? '...' : ''}` 
           : `      ${item.description}`;
-        const displayQuantity = item.financial_request?.cost_type === 'hourly'
-          ? (item.financial_request?.hours || item.quantity || 1)
-          : (item.financial_request?.quantity || item.quantity || 1);
+        const isHourly = fr?.cost_type === 'hourly';
+        const displayQuantity = isHourly
+          ? (fr?.hours || item.quantity || 1)
+          : (fr?.quantity || item.quantity || 1);
+        const qtyNum = Number(displayQuantity) || 0;
+        const displayUnitPrice = fr
+          ? (isHourly
+              ? (Number(fr.cost_rate) || (qtyNum > 0 ? costToAgency / qtyNum : costToAgency))
+              : (Number(fr.fixed_cost) || costToAgency))
+          : (qtyNum > 0 ? costToAgency / qtyNum : costToAgency);
         
         tableData.push([
           description,
           displayQuantity.toString(),
-          formatCurrency(costToAgency),
+          formatCurrency(displayUnitPrice),
           formatCurrency(costToAgency),
           '',
         ]);
+
 
         // Add commission detail sub-line if applicable
         if (!item.financial_request && item.description?.startsWith('Comisión') && commissionDetails) {

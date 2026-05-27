@@ -66,9 +66,22 @@ export function GroupedLiquidationItemsTable({
 
   const renderItemRow = (item: any, isLast: boolean) => {
     const opRequest = item.financial_request?.operational_request?.[0];
-    const displayQuantity = item.financial_request?.cost_type === 'hourly'
-      ? (item.financial_request?.hours ?? item.quantity)
-      : (item.financial_request?.quantity ?? item.quantity);
+    const fr = item.financial_request;
+    const isHourly = fr?.cost_type === 'hourly';
+    const displayQuantity = fr
+      ? (isHourly ? (fr.hours ?? item.quantity) : (fr.quantity ?? item.quantity))
+      : item.quantity;
+    const qtyNum = Number(displayQuantity) || 0;
+    const totalNum = Number(item.total) || 0;
+    // Derive unit price from request rates when available; fall back to total/qty,
+    // otherwise to the stored unit_price (which historically equals total).
+    const displayUnitPrice = fr
+      ? (isHourly
+          ? (Number(fr.cost_rate) || (qtyNum > 0 ? totalNum / qtyNum : Number(item.unit_price) || 0))
+          : (Number(fr.fixed_cost) || Number(item.unit_price) || 0))
+      : (qtyNum > 0 ? totalNum / qtyNum : Number(item.unit_price) || 0);
+
+
 
     return (
       <TableRow
@@ -123,8 +136,9 @@ export function GroupedLiquidationItemsTable({
           })()}
         </TableCell>
         <TableCell className="text-right tabular-nums">{displayQuantity}</TableCell>
-        <TableCell className="text-right tabular-nums">{formatCurrency(item.unit_price)}</TableCell>
+        <TableCell className="text-right tabular-nums">{formatCurrency(displayUnitPrice)}</TableCell>
         <TableCell className="text-right font-medium tabular-nums">{formatCurrency(item.total)}</TableCell>
+
         {showActions && (
           <TableCell className="text-right">
             <Button

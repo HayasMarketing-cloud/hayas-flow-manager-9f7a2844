@@ -74,14 +74,23 @@ export function AddRequestsToLiquidationModal({
       }
 
       // Create liquidation_items
-      const items = selectedRequests.map((req) => ({
-        liquidation_id: liquidationId,
-        financial_request_id: req.id,
-        description: req.title || 'Servicio',
-        quantity: 1,
-        unit_price: Number(req.cost_to_agency) || 0,
-        total: Number(req.cost_to_agency) || 0,
-      }));
+      const items = selectedRequests.map((req: any) => {
+        const total = Number(req.cost_to_agency) || 0;
+        const isHourly = req.cost_type === 'hourly';
+        const quantity = isHourly ? (Number(req.hours) || 1) : (Number(req.quantity) || 1);
+        const unitPrice = isHourly
+          ? (Number(req.cost_rate) || (quantity > 0 ? total / quantity : 0))
+          : (Number(req.fixed_cost) || total);
+        return {
+          liquidation_id: liquidationId,
+          financial_request_id: req.id,
+          description: req.title || 'Servicio',
+          quantity,
+          unit_price: unitPrice,
+          total,
+        };
+      });
+
 
       const { error: itemsError } = await supabase
         .from('liquidation_items')

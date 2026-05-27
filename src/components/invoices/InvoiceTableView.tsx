@@ -6,6 +6,7 @@ import { InvoiceStatusBadge } from './InvoiceStatusBadge';
 import { InvoiceStatusActions } from './InvoiceStatusActions';
 import { AllocationStatusBadge } from './AllocationStatusBadge';
 import { InvoiceOriginCell } from './InvoiceOriginCell';
+import { InlineInvoiceAssociation } from './InlineInvoiceAssociation';
 import { Edit, Eye, FileText, AlertCircle, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/invoice-utils';
 import { format } from 'date-fns';
@@ -117,8 +118,14 @@ export const InvoiceTableView = ({
       );
     }
 
-    // No association
-    return <span className="text-muted-foreground text-sm">Sin asociar</span>;
+    // No association — inline editor with auto-match suggestion
+    return (
+      <InlineInvoiceAssociation
+        invoiceId={invoice.id}
+        clientId={invoice.client_id}
+        subtotal={Number(invoice.subtotal || 0)}
+      />
+    );
   };
 
   return (

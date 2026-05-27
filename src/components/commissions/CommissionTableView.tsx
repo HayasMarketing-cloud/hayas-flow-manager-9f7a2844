@@ -198,9 +198,16 @@ export function CommissionTableView({
                     return (
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <div className="flex items-center gap-2 text-sm cursor-help">
-                            <Briefcase className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{commission.budget.code}</span>
+                          <div className="flex flex-col gap-0.5 text-sm cursor-help max-w-[240px]">
+                            <div className="flex items-center gap-2">
+                              <Briefcase className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                              <span className="font-medium">{commission.budget.code}</span>
+                            </div>
+                            {commission.budget.title && (
+                              <span className="text-xs text-muted-foreground truncate pl-6">
+                                {commission.budget.title}
+                              </span>
+                            )}
                           </div>
                         </TooltipTrigger>
                         <TooltipContent>

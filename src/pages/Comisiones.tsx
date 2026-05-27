@@ -114,24 +114,59 @@ function ComisionesContent() {
 
       const profilesMap = new Map(profiles?.map(p => [p.id, p]) || []);
 
-      // Fetch invoice codes for commissions with invoice_ids
+      // Fetch invoice codes and derive budget/contract origin from linked invoices when needed
       const allInvoiceIds = [...new Set((data || []).flatMap((c: any) => c.invoice_ids || []))];
-      let invoicesMap = new Map<string, { id: string; code: string; client_id: string }>();
+      let invoicesMap = new Map<string, { id: string; code: string; client_id: string; budget_id: string | null; contract_id: string | null }>();
+      const invoiceBudgetMap = new Map<string, { id: string; code: string; title: string; client_id?: string; client?: { name: string } | null }>();
+      const invoiceContractMap = new Map<string, { id: string; code: string; title: string; client_id?: string; client?: { name: string } | null }>();
       if (allInvoiceIds.length > 0) {
         const { data: invoicesData } = await supabase
           .from('invoices')
-          .select('id, code, client_id')
+          .select('id, code, client_id, budget_id, contract_id, budget:budgets(id, code, title, client_id, client:clients(name)), contract:contracts(id, code, title, client_id, client:clients(name))')
           .in('id', allInvoiceIds);
-        invoicesMap = new Map((invoicesData || []).map(i => [i.id, i]));
+        invoicesMap = new Map((invoicesData || []).map((i: any) => [i.id, i]));
+
+        for (const invoice of (invoicesData || []) as any[]) {
+          if (invoice.budget) invoiceBudgetMap.set(invoice.id, invoice.budget);
+          if (invoice.contract) invoiceContractMap.set(invoice.id, invoice.contract);
+        }
+
+        const invoiceIdsWithoutDirectBudget = (invoicesData || [])
+          .filter((invoice: any) => !invoice.budget_id)
+          .map((invoice: any) => invoice.id);
+
+        if (invoiceIdsWithoutDirectBudget.length > 0) {
+          const { data: allocations } = await supabase
+            .from('invoice_budget_allocations')
+            .select('invoice_id, allocated_amount, budget:budgets(id, code, title, client_id, client:clients(name))')
+            .in('invoice_id', invoiceIdsWithoutDirectBudget)
+            .order('allocated_amount', { ascending: false });
+
+          for (const allocation of (allocations || []) as any[]) {
+            if (!invoiceBudgetMap.has(allocation.invoice_id) && allocation.budget) {
+              invoiceBudgetMap.set(allocation.invoice_id, allocation.budget);
+            }
+          }
+        }
       }
 
-      return (data || []).map((c: any) => ({
-        ...c,
-        seller_profile: profilesMap.get(c.seller_user_id) || null,
-        invoices: (c.invoice_ids || [])
-          .map((id: string) => invoicesMap.get(id))
-          .filter(Boolean),
-      })) as Commission[];
+      return (data || []).map((c: any) => {
+        const invoiceIds = c.invoice_ids || [];
+        const derivedBudget = c.budget || invoiceIds.map((id: string) => invoiceBudgetMap.get(id)).find(Boolean) || null;
+        const derivedContract = c.contract || invoiceIds.map((id: string) => invoiceContractMap.get(id)).find(Boolean) || null;
+
+        return {
+          ...c,
+          budget: derivedBudget,
+          budget_id: c.budget_id || derivedBudget?.id || null,
+          contract: derivedContract,
+          contract_id: c.contract_id || derivedContract?.id || null,
+          seller_profile: profilesMap.get(c.seller_user_id) || null,
+          invoices: invoiceIds
+            .map((id: string) => invoicesMap.get(id))
+            .filter(Boolean),
+        };
+      }) as Commission[];
     },
   });
 

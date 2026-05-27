@@ -1,7 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
 import { InvoiceStatusBadge } from './InvoiceStatusBadge';
 import { InvoiceStatusActions } from './InvoiceStatusActions';
 import { AllocationStatusBadge } from './AllocationStatusBadge';
@@ -72,21 +71,7 @@ export const InvoiceTableView = ({
 
     // Direct budget association (legacy)
     if (invoice.budget_id && invoice.budget) {
-      return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 cursor-pointer">
-                {invoice.budget.code}
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="font-medium">Presupuesto</p>
-              <p className="text-sm">{invoice.budget.title}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      );
+      return <InvoiceOriginCell items={[invoice.budget]} type="budget" />;
     }
 
     // Direct contract association
@@ -96,25 +81,12 @@ export const InvoiceTableView = ({
         : '';
       
       return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex flex-col gap-1">
-                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 cursor-pointer">
-                  {invoice.contract.code}
-                </Badge>
-                {periodLabel && (
-                  <span className="text-xs text-muted-foreground">{periodLabel}</span>
-                )}
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="font-medium">Contrato</p>
-              <p className="text-sm">{invoice.contract.title}</p>
-              {periodLabel && <p className="text-sm">Período: {periodLabel}</p>}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <div className="flex flex-col gap-1">
+          <InvoiceOriginCell items={[invoice.contract]} type="contract" />
+          {periodLabel && (
+            <span className="text-xs text-muted-foreground">{periodLabel}</span>
+          )}
+        </div>
       );
     }
 

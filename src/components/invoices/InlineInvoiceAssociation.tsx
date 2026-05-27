@@ -101,13 +101,16 @@ export const InlineInvoiceAssociation = ({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
-          className="h-7 px-2 text-xs gap-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+          className={`h-7 px-2 text-xs gap-1 border-dashed ${
+            hasSuggestion
+              ? 'border-primary text-primary bg-primary/5 hover:bg-primary/10'
+              : 'border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-400'
+          }`}
         >
-          <AlertCircle className="h-3.5 w-3.5" />
-          Sin asociar
-          {hasSuggestion && <Sparkles className="h-3 w-3 text-primary ml-0.5" />}
+          {hasSuggestion ? <Sparkles className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+          {hasSuggestion ? 'Asociar (match)' : 'Asociar'}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[360px] p-0" align="start">

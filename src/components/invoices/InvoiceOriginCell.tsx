@@ -68,14 +68,22 @@ export const InvoiceOriginCell = ({ items, type }: InvoiceOriginCellProps) => {
         <TooltipTrigger asChild>
           <button
             onClick={(e) => handleClick(e, firstItem.id)}
-            className={`flex items-center gap-1.5 text-xs ${config.color} hover:underline cursor-pointer max-w-[100px]`}
+            className={`flex flex-col items-start gap-0.5 text-xs ${config.color} hover:underline cursor-pointer max-w-[200px]`}
           >
-            <Icon className="h-3.5 w-3.5 flex-shrink-0" />
-            <span className="truncate">{label}</span>
+            <span className="flex items-center gap-1.5">
+              <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="truncate font-medium">{label}</span>
+            </span>
+            {type === 'budget' && firstItem.title && firstItem.title !== label && (
+              <span className="truncate text-[11px] text-muted-foreground pl-5 max-w-[200px]">
+                {firstItem.title}
+              </span>
+            )}
           </button>
         </TooltipTrigger>
         <TooltipContent>
           <p>{config.label}: {label}</p>
+          {type === 'budget' && firstItem.title && <p className="text-xs">{firstItem.title}</p>}
           <p className="text-xs text-muted-foreground">Clic para ver detalles</p>
         </TooltipContent>
       </Tooltip>

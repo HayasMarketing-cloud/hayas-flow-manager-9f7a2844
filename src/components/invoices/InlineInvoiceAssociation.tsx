@@ -119,6 +119,10 @@ export const InlineInvoiceAssociation = ({
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-allocation-summaries'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-allocations'] });
+      // Invalidate liquidation commission details so origin (budget/contract) shows up immediately
+      queryClient.invalidateQueries({ queryKey: ['linked-commission-details'] });
+      queryClient.invalidateQueries({ queryKey: ['specialist-commissions'] });
+      queryClient.invalidateQueries({ queryKey: ['liquidation-items'] });
       toast.success('Factura asociada correctamente');
       setOpen(false);
     },

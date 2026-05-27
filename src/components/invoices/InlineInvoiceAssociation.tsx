@@ -47,7 +47,7 @@ export const InlineInvoiceAssociation = ({
       if (error) throw error;
       return data || [];
     },
-    enabled: open && !!clientId,
+    enabled: !!clientId,
   });
 
   const { data: contracts = [] } = useQuery({
@@ -76,6 +76,36 @@ export const InlineInvoiceAssociation = ({
 
   const updateMutation = useMutation({
     mutationFn: async (payload: { budget_id?: string | null; contract_id?: string | null }) => {
+      if (payload.budget_id) {
+        const { error: invoiceError } = await supabase
+          .from('invoices')
+          .update({ budget_id: null, contract_id: null, billing_period_month: null, billing_period_year: null })
+          .eq('id', invoiceId);
+        if (invoiceError) throw invoiceError;
+
+        const { error: deleteError } = await supabase
+          .from('invoice_budget_allocations')
+          .delete()
+          .eq('invoice_id', invoiceId);
+        if (deleteError) throw deleteError;
+
+        const { error: allocationError } = await supabase
+          .from('invoice_budget_allocations')
+          .insert({
+            invoice_id: invoiceId,
+            budget_id: payload.budget_id,
+            allocated_amount: subtotal,
+          });
+        if (allocationError) throw allocationError;
+        return;
+      }
+
+      const { error: clearAllocationsError } = await supabase
+        .from('invoice_budget_allocations')
+        .delete()
+        .eq('invoice_id', invoiceId);
+      if (clearAllocationsError) throw clearAllocationsError;
+
       const { error } = await supabase
         .from('invoices')
         .update(payload)
@@ -84,6 +114,8 @@ export const InlineInvoiceAssociation = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-allocation-summaries'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-allocations'] });
       toast.success('Factura asociada correctamente');
       setOpen(false);
     },

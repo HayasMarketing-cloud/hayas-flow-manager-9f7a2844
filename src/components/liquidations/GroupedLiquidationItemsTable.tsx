@@ -136,8 +136,9 @@ export function GroupedLiquidationItemsTable({
           })()}
         </TableCell>
         <TableCell className="text-right tabular-nums">{displayQuantity}</TableCell>
-        <TableCell className="text-right tabular-nums">{formatCurrency(item.unit_price)}</TableCell>
+        <TableCell className="text-right tabular-nums">{formatCurrency(displayUnitPrice)}</TableCell>
         <TableCell className="text-right font-medium tabular-nums">{formatCurrency(item.total)}</TableCell>
+
         {showActions && (
           <TableCell className="text-right">
             <Button

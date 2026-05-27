@@ -394,20 +394,44 @@ export default function LiquidacionDetalle() {
       // Collect all invoice IDs to fetch codes + client/budget/contract info
       const allInvoiceIds = [...new Set(data.flatMap(c => (c.invoice_ids as string[]) || []))];
       let invoicesMap = new Map<string, { code: string; client_id: string | null; client_name: string | null; budget_id: string | null; budget_code: string | null; budget_title: string | null; contract_id: string | null; contract_code: string | null; contract_title: string | null }>();
+      const budgetAllocationByInvoice = new Map<string, { budget_id: string; budget_code: string | null; budget_title: string | null }>();
       
       if (allInvoiceIds.length > 0) {
         const { data: invoices } = await supabase
           .from('invoices')
           .select('id, code, client_id, budget_id, contract_id, client:clients(id, name), budget:budgets(id, code, title), contract:contracts(id, code, title)')
           .in('id', allInvoiceIds);
+
+        const invoiceIdsWithoutDirectBudget = (invoices || [])
+          .filter((inv: any) => !inv.budget_id)
+          .map((inv: any) => inv.id);
+
+        if (invoiceIdsWithoutDirectBudget.length > 0) {
+          const { data: allocations } = await supabase
+            .from('invoice_budget_allocations')
+            .select('invoice_id, budget_id, allocated_amount, budget:budgets(id, code, title)')
+            .in('invoice_id', invoiceIdsWithoutDirectBudget)
+            .order('allocated_amount', { ascending: false });
+
+          for (const allocation of (allocations || []) as any[]) {
+            if (budgetAllocationByInvoice.has(allocation.invoice_id)) continue;
+            budgetAllocationByInvoice.set(allocation.invoice_id, {
+              budget_id: allocation.budget?.id || allocation.budget_id,
+              budget_code: allocation.budget?.code || null,
+              budget_title: allocation.budget?.title || null,
+            });
+          }
+        }
+
         for (const inv of (invoices || []) as any[]) {
+          const allocationBudget = budgetAllocationByInvoice.get(inv.id);
           invoicesMap.set(inv.id, {
             code: inv.code,
             client_id: inv.client?.id || inv.client_id,
             client_name: inv.client?.name || null,
-            budget_id: inv.budget?.id || inv.budget_id,
-            budget_code: inv.budget?.code || null,
-            budget_title: inv.budget?.title || null,
+            budget_id: inv.budget?.id || inv.budget_id || allocationBudget?.budget_id || null,
+            budget_code: inv.budget?.code || allocationBudget?.budget_code || null,
+            budget_title: inv.budget?.title || allocationBudget?.budget_title || null,
             contract_id: inv.contract?.id || inv.contract_id,
             contract_code: inv.contract?.code || null,
             contract_title: inv.contract?.title || null,

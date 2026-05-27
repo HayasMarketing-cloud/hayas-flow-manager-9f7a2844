@@ -388,19 +388,60 @@ export default function LiquidacionDetalle() {
         .from('sales_commissions')
         .select('id, commission_type, commission_percentage, base_amount, invoice_ids, commission_amount, budget_id, contract_id')
         .eq('liquidation_id', id!);
-      
-      if (!data?.length) return {};
+
+      const { data: commissionItems } = await supabase
+        .from('liquidation_items')
+        .select('id, description, total')
+        .eq('liquidation_id', id!)
+        .ilike('description', 'Comisión%');
+
+      const commissionRows = (data || []) as any[];
+      const itemRows = (commissionItems || []) as any[];
+      if (!commissionRows.length && !itemRows.length) return {};
+
+      const parseCommissionItem = (item: any) => {
+        const description = item.description || '';
+        const typeMatch = description.match(/Comisión\s+(AM|PM|Venta)/i);
+        const percentageMatch = description.match(/\((\d+(?:[.,]\d+)?)%\)/);
+        const invoiceMatch = description.match(/Facturas?\s*(?:Nº\s*)?(.+)$/i);
+        const invoiceCodes = invoiceMatch?.[1]
+          ?.split(',')
+          .map((code: string) => code.trim())
+          .filter(Boolean) || [];
+        const percentage = percentageMatch ? Number(percentageMatch[1].replace(',', '.')) : 0;
+
+        return {
+          itemId: item.id,
+          type: typeMatch?.[1]?.toLowerCase() === 'venta' ? 'sales' : typeMatch?.[1]?.toLowerCase(),
+          percentage,
+          baseAmount: percentage ? Number(item.total) / (percentage / 100) : 0,
+          invoiceCodes,
+        };
+      };
+
+      const parsedItems = itemRows.map(parseCommissionItem).filter((item) => item.type && item.percentage);
 
       // Collect all invoice IDs to fetch codes + client/budget/contract info
-      const allInvoiceIds = [...new Set(data.flatMap(c => (c.invoice_ids as string[]) || []))];
+      const allInvoiceIds = [...new Set(commissionRows.flatMap(c => (c.invoice_ids as string[]) || []))];
+      const allInvoiceCodes = [...new Set(parsedItems.flatMap((item) => item.invoiceCodes))];
       const invoicesMap = new Map<string, { code: string; client_id: string | null; client_name: string | null; budget_id: string | null; budget_code: string | null; budget_title: string | null; contract_id: string | null; contract_code: string | null; contract_title: string | null }>();
+      const invoicesByCode = new Map<string, { code: string; client_id: string | null; client_name: string | null; budget_id: string | null; budget_code: string | null; budget_title: string | null; contract_id: string | null; contract_code: string | null; contract_title: string | null }>();
       const budgetAllocationByInvoice = new Map<string, { budget_id: string; budget_code: string | null; budget_title: string | null }>();
       
-      if (allInvoiceIds.length > 0) {
-        const { data: invoices } = await supabase
+      if (allInvoiceIds.length > 0 || allInvoiceCodes.length > 0) {
+        const { data: invoicesById } = allInvoiceIds.length > 0 ? await supabase
           .from('invoices')
           .select('id, code, client_id, budget_id, contract_id, client:clients(id, name), budget:budgets(id, code, title), contract:contracts(id, code, title)')
-          .in('id', allInvoiceIds);
+          .in('id', allInvoiceIds) : { data: [] };
+
+        const { data: invoicesFromCodes } = allInvoiceCodes.length > 0 ? await supabase
+          .from('invoices')
+          .select('id, code, client_id, budget_id, contract_id, client:clients(id, name), budget:budgets(id, code, title), contract:contracts(id, code, title)')
+          .in('code', allInvoiceCodes) : { data: [] };
+
+        const invoices = Array.from(
+          new Map([...(invoicesById || []), ...(invoicesFromCodes || [])].map((inv: any) => [inv.id, inv])).values()
+        );
 
         const invoiceIdsWithoutDirectBudget = (invoices || [])
           .filter((inv: any) => !inv.budget_id)
@@ -425,7 +466,7 @@ export default function LiquidacionDetalle() {
 
         for (const inv of (invoices || []) as any[]) {
           const allocationBudget = budgetAllocationByInvoice.get(inv.id);
-          invoicesMap.set(inv.id, {
+          const invoiceInfo = {
             code: inv.code,
             client_id: inv.client?.id || inv.client_id,
             client_name: inv.client?.name || null,
@@ -435,13 +476,15 @@ export default function LiquidacionDetalle() {
             contract_id: inv.contract?.id || inv.contract_id,
             contract_code: inv.contract?.code || null,
             contract_title: inv.contract?.title || null,
-          });
+          };
+          invoicesMap.set(inv.id, invoiceInfo);
+          invoicesByCode.set(inv.code, invoiceInfo);
         }
       }
 
       // Fallback: fetch contract info for commissions whose invoices have no contract but commission has contract_id
       const fallbackContractIds = [...new Set(
-        data.map(c => c.contract_id).filter((cid): cid is string => !!cid)
+        commissionRows.map(c => c.contract_id).filter((cid): cid is string => !!cid)
       )];
       const contractsFallback = new Map<string, { code: string; title: string }>();
       if (fallbackContractIds.length > 0) {

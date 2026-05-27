@@ -96,7 +96,7 @@ function PendingRequestsSection({
 
       if (fetchError) throw fetchError;
 
-      const newSubtotal = (Number(liquidation.subtotal) || 0) + cost;
+      const newSubtotal = (Number(liquidation.subtotal) || 0) + total;
       const taxRate = liquidation.tax_rate || 0;
       const newTaxAmount = (newSubtotal * taxRate) / 100;
       const newTotal = newSubtotal + newTaxAmount;

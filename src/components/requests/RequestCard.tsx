@@ -18,7 +18,7 @@ import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { getFinancialRequestStatusLabel } from '@/lib/request-utils';
+import { getFinancialRequestStatusLabel, formatCurrency } from '@/lib/request-utils';
 import { Database } from '@/integrations/supabase/types';
 
 type FinancialRequestStatus = Database['public']['Enums']['financial_request_status'];
@@ -139,10 +139,19 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
           </div>
         )}
         
-        {request.hours ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Clock className="h-4 w-4 flex-shrink-0" />
-            <span>{request.hours}h</span>
+        {(request.hours || request.sale_amount) ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+            {request.hours ? (
+              <span className="inline-flex items-center gap-1">
+                <Clock className="h-4 w-4 flex-shrink-0" />
+                {request.hours}h
+              </span>
+            ) : null}
+            {request.sale_amount ? (
+              <span className="inline-flex items-center font-semibold text-foreground">
+                {formatCurrency(Number(request.sale_amount))}
+              </span>
+            ) : null}
           </div>
         ) : null}
 

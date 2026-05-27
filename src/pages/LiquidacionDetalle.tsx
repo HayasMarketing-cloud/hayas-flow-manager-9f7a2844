@@ -856,6 +856,7 @@ export default function LiquidacionDetalle() {
       queryClient.invalidateQueries({ queryKey: ['liquidation-detail', id] });
       queryClient.invalidateQueries({ queryKey: ['liquidations'] });
       queryClient.invalidateQueries({ queryKey: ['specialist-commissions'] });
+      queryClient.invalidateQueries({ queryKey: ['linked-commission-details', id] });
       setSelectedCommissionIds([]);
       toast.success('Comisiones añadidas a la liquidación');
     },

@@ -276,11 +276,11 @@ export const RequestFormModal = ({
 
   const mutation = useMutation({
     mutationFn: async (data: RequestFormData) => {
-      // In create mode, apply default rates if not provided
-      const finalSaleRate = isCreateMode && data.sale_type === 'hourly' && !data.sale_rate
+      // Apply default rates fallback in both create and edit mode if missing
+      const finalSaleRate = data.sale_type === 'hourly' && (!data.sale_rate || data.sale_rate <= 0)
         ? defaultRates?.saleRate ?? 0
         : data.sale_rate;
-      const finalCostRate = isCreateMode && data.cost_type === 'hourly' && !data.cost_rate
+      const finalCostRate = data.cost_type === 'hourly' && (!data.cost_rate || data.cost_rate <= 0)
         ? defaultRates?.costRate ?? 0
         : data.cost_rate;
 
@@ -293,6 +293,12 @@ export const RequestFormModal = ({
       const cost_to_agency = data.cost_type === 'hourly'
         ? (data.hours || 0) * (finalCostRate || 0)
         : (data.fixed_cost || 0);
+
+      // GUARD: block save if hourly request would result in cost_to_agency = 0 with hours > 0
+      if (data.cost_type === 'hourly' && (data.hours || 0) > 0 && cost_to_agency <= 0) {
+        throw new Error('La tarifa de coste por hora es obligatoria y debe ser mayor que 0 para requests por horas.');
+      }
+
 
       const requestData = {
         client_id: data.client_id,

@@ -65,6 +65,14 @@ export function AddRequestsToLiquidationModal({
 
       const selectedRequests = requests?.filter((r) => selectedIds.includes(r.id)) || [];
 
+      // GUARD: block adding requests with cost_to_agency <= 0
+      const zeroCost = selectedRequests.filter((r: any) => (Number(r.cost_to_agency) || 0) <= 0);
+      if (zeroCost.length > 0) {
+        throw new Error(
+          `No se pueden añadir requests con coste 0 €: ${zeroCost.map((r: any) => r.code).join(', ')}. Edita la request y asigna una tarifa de coste válida antes de liquidar.`
+        );
+      }
+
       // Create liquidation_items
       const items = selectedRequests.map((req) => ({
         liquidation_id: liquidationId,

@@ -177,6 +177,14 @@ export const AddToLiquidationModal = ({
         liquidationCode = existing?.code || '';
       }
 
+      // GUARD: block adding requests with cost_to_agency <= 0
+      const zeroCost = validRequests.filter((r: any) => (Number(r.cost_to_agency) || 0) <= 0);
+      if (zeroCost.length > 0) {
+        throw new Error(
+          `No se pueden añadir requests con coste 0 €: ${zeroCost.map((r: any) => r.code).join(', ')}. Edita la request y asigna una tarifa de coste válida antes de liquidar.`
+        );
+      }
+
       // Create liquidation items
       const items = validRequests.map(r => ({
         liquidation_id: liquidationId,

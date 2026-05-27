@@ -498,7 +498,7 @@ export default function LiquidacionDetalle() {
       }
 
       const details: Record<string, { type: string; percentage: number; baseAmount: number; invoiceCodes: string[]; clientId?: string; clientName?: string; budgetId?: string; budgetCode?: string; budgetTitle?: string; contractId?: string; contractCode?: string; contractTitle?: string }> = {};
-      for (const comm of data) {
+      for (const comm of commissionRows) {
         const invoiceData = (comm.invoice_ids as string[] || []).map(iid => invoicesMap.get(iid)).filter(Boolean);
         const invoiceCodes = invoiceData.map(i => i!.code);
         // Use first invoice's client/budget/contract as source
@@ -517,6 +517,27 @@ export default function LiquidacionDetalle() {
           contractId: firstInv?.contract_id || comm.contract_id || undefined,
           contractCode: firstInv?.contract_code || fallbackContract?.code || undefined,
           contractTitle: firstInv?.contract_title || fallbackContract?.title || undefined,
+        };
+      }
+
+      for (const item of parsedItems) {
+        const invoiceData = item.invoiceCodes.map((code) => invoicesByCode.get(code)).filter(Boolean);
+        const firstInv = invoiceData[0];
+        if (!firstInv) continue;
+
+        details[`item-${item.itemId}`] = {
+          type: item.type,
+          percentage: item.percentage,
+          baseAmount: item.baseAmount,
+          invoiceCodes: item.invoiceCodes,
+          clientId: firstInv.client_id || undefined,
+          clientName: firstInv.client_name || undefined,
+          budgetId: firstInv.budget_id || undefined,
+          budgetCode: firstInv.budget_code || undefined,
+          budgetTitle: firstInv.budget_title || undefined,
+          contractId: firstInv.contract_id || undefined,
+          contractCode: firstInv.contract_code || undefined,
+          contractTitle: firstInv.contract_title || undefined,
         };
       }
       return details;

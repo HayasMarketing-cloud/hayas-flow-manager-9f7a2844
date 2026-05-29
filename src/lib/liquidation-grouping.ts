@@ -164,9 +164,6 @@ export const groupItemsByClientAndProject = (
   return result;
 };
 
-/**
- * Calculate the total for a list of items
- */
-export const calculateItemsTotal = (items: any[]): number => {
-  return items.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
-};
+// NOTE: total computation lives in `liquidation-totals.ts` to keep a
+// single source of truth shared by the UI and the PDF generator.
+

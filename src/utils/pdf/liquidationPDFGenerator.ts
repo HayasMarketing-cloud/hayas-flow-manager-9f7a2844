@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getMonthName } from '@/lib/liquidation-utils';
 import { CommissionSourceInfo } from '@/lib/liquidation-grouping';
-import { buildLiquidationView, sumItemTotals } from '@/lib/liquidation-totals';
+import { buildLiquidationView, type LiquidationView } from '@/lib/liquidation-totals';
 
 type CommissionDetail = CommissionSourceInfo;
 
@@ -108,8 +108,9 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     doc.setTextColor(0, 0, 0);
     currentY += 8;
 
-    // Leader's items table
-    const leaderTableData = buildHierarchicalTableData(data.items, data.commissionDetails);
+    // Leader's items table — one immutable view powers rows + subtotal.
+    const leaderView = ensureConsistentView(buildLiquidationView(data.items, data.commissionDetails));
+    const leaderTableData = buildHierarchicalTableData(leaderView, data.commissionDetails);
 
     autoTable(doc, {
       startY: currentY,
@@ -136,7 +137,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     });
 
     // Leader subtotal
-    const leaderTotal = calculateItemsTotal(data.items);
+    const leaderTotal = leaderView.grandTotal;
     currentY = (doc as any).lastAutoTable.finalY + 5;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
@@ -158,7 +159,8 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
       doc.setTextColor(0, 0, 0);
       currentY += 8;
 
-      const memberTableData = buildHierarchicalTableData(member.liquidation_items, data.commissionDetails);
+      const memberView = ensureConsistentView(buildLiquidationView(member.liquidation_items, data.commissionDetails));
+      const memberTableData = buildHierarchicalTableData(memberView, data.commissionDetails);
 
       autoTable(doc, {
         startY: currentY,
@@ -203,7 +205,8 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     currentY += 20;
   } else {
     // === SINGLE LIQUIDATION MODE (original behavior) ===
-    const tableData = buildHierarchicalTableData(data.items, data.commissionDetails);
+    const liquidationView = ensureConsistentView(buildLiquidationView(data.items, data.commissionDetails));
+    const tableData = buildHierarchicalTableData(liquidationView, data.commissionDetails);
 
     autoTable(doc, {
       startY: currentY,
@@ -230,7 +233,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     });
 
     // Calculate total
-    const calculatedTotal = calculateItemsTotal(data.items);
+    const calculatedTotal = liquidationView.grandTotal;
 
     // Total
     const finalY = (doc as any).lastAutoTable.finalY + 10;
@@ -346,7 +349,8 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
     doc.setTextColor(0, 0, 0);
     currentY += 8;
 
-    const leaderTableData = buildHierarchicalTableData(data.items, data.commissionDetails);
+    const leaderView = ensureConsistentView(buildLiquidationView(data.items, data.commissionDetails));
+    const leaderTableData = buildHierarchicalTableData(leaderView, data.commissionDetails);
 
     autoTable(doc, {
       startY: currentY,
@@ -372,7 +376,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
       },
     });
 
-    const leaderTotal = calculateItemsTotal(data.items);
+    const leaderTotal = leaderView.grandTotal;
     currentY = (doc as any).lastAutoTable.finalY + 5;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
@@ -392,7 +396,8 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
       doc.setTextColor(0, 0, 0);
       currentY += 8;
 
-      const memberTableData = buildHierarchicalTableData(member.liquidation_items, data.commissionDetails);
+      const memberView = ensureConsistentView(buildLiquidationView(member.liquidation_items, data.commissionDetails));
+      const memberTableData = buildHierarchicalTableData(memberView, data.commissionDetails);
 
       autoTable(doc, {
         startY: currentY,
@@ -435,7 +440,8 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
     currentY += 20;
   } else {
     // === SINGLE LIQUIDATION MODE ===
-    const tableData = buildHierarchicalTableData(data.items, data.commissionDetails);
+    const liquidationView = ensureConsistentView(buildLiquidationView(data.items, data.commissionDetails));
+    const tableData = buildHierarchicalTableData(liquidationView, data.commissionDetails);
 
     autoTable(doc, {
       startY: currentY,
@@ -461,7 +467,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
       },
     });
 
-    const calculatedTotal = calculateItemsTotal(data.items);
+    const calculatedTotal = liquidationView.grandTotal;
     const finalY = (doc as any).lastAutoTable.finalY + 10;
     const totalsX = pageWidth - 75;
     
@@ -504,8 +510,8 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
 // Build table data with hierarchical grouping: Client → Project/Budget → Items.
 // Uses the SHARED `buildLiquidationView` so screen and PDF render identical
 // subtotals and totals (single source of truth).
-const buildHierarchicalTableData = (items: any[], commissionDetails?: Record<string, CommissionDetail>): any[][] => {
-  const { groups } = buildLiquidationView(items, commissionDetails);
+const buildHierarchicalTableData = (view: LiquidationView, commissionDetails?: Record<string, CommissionDetail>): any[][] => {
+  const { groups } = view;
   const tableData: any[][] = [];
 
   // Pre-index commission details by invoice code
@@ -598,9 +604,19 @@ const buildHierarchicalTableData = (items: any[], commissionDetails?: Record<str
   return tableData;
 };
 
-// Grand total = sum of stored item.total values. Same function powers the
-// on-screen `calculated_total`, guaranteeing parity between UI and PDF.
-const calculateItemsTotal = (items: any[]): number => sumItemTotals(items);
+const ensureConsistentView = (view: LiquidationView): LiquidationView => {
+  const groupedTotal = view.groups.reduce((clientSum, client) => (
+    clientSum + client.projectBudgets.reduce((projectSum, project) => projectSum + project.subtotal, 0)
+  ), 0);
+
+  if (Math.abs(groupedTotal - view.grandTotal) > 0.005) {
+    throw new Error(
+      `El PDF no puede generarse porque el total agrupado (${formatCurrency(groupedTotal)}) no coincide con el total de items (${formatCurrency(view.grandTotal)}).`
+    );
+  }
+
+  return view;
+};
 
 
 const formatCurrency = (amount: number): string => {

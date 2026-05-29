@@ -32,7 +32,7 @@ interface LiquidationData {
   };
 }
 
-export const generateLiquidationPDF = async (data: LiquidationData) => {
+const createLiquidationPDFDocument = async (data: LiquidationData) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -109,7 +109,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     currentY += 8;
 
     // Leader's items table — one immutable view powers rows + subtotal.
-    const leaderView = ensureConsistentView(buildLiquidationView(data.items, data.commissionDetails));
+    const leaderView = ensureConsistentView(buildLiquidationView(data.items, data.commissionDetails), data.liquidation?.subtotal);
     const leaderTableData = buildHierarchicalTableData(leaderView, data.commissionDetails);
 
     autoTable(doc, {
@@ -205,7 +205,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     currentY += 20;
   } else {
     // === SINGLE LIQUIDATION MODE (original behavior) ===
-    const liquidationView = ensureConsistentView(buildLiquidationView(data.items, data.commissionDetails));
+    const liquidationView = ensureConsistentView(buildLiquidationView(data.items, data.commissionDetails), data.liquidation?.subtotal);
     const tableData = buildHierarchicalTableData(liquidationView, data.commissionDetails);
 
     autoTable(doc, {
@@ -272,7 +272,11 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     { align: 'center' }
   );
 
-  // Descargar
+  return doc;
+};
+
+export const generateLiquidationPDF = async (data: LiquidationData) => {
+  const doc = await createLiquidationPDFDocument(data);
   const fileMonthName = getMonthName(data.liquidation.period_month, 'short').toLowerCase();
   doc.save(`liquidacion_${fileMonthName}_${data.liquidation.period_year}_${data.liquidation.code}.pdf`);
 };

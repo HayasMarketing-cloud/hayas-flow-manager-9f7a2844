@@ -324,10 +324,8 @@ export default function LiquidacionDetalle() {
 
       if (error) throw error;
 
-      // Calcular el total correcto
-      const calculatedTotal = data.liquidation_items?.reduce((sum: number, item: any) => {
-        return sum + (Number(item.total) || 0);
-      }, 0) || 0;
+      // Total derivado de la ÚNICA fuente compartida con el PDF.
+      const calculatedTotal = sumItemTotals(data.liquidation_items || []);
 
       // Ordenar firmas por fecha descendente para obtener siempre la más reciente primero
       const sortedSignatures = data.liquidation_signatures

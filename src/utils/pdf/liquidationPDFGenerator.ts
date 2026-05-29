@@ -510,8 +510,8 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
 // Build table data with hierarchical grouping: Client → Project/Budget → Items.
 // Uses the SHARED `buildLiquidationView` so screen and PDF render identical
 // subtotals and totals (single source of truth).
-const buildHierarchicalTableData = (items: any[], commissionDetails?: Record<string, CommissionDetail>): any[][] => {
-  const { groups } = buildLiquidationView(items, commissionDetails);
+const buildHierarchicalTableData = (view: LiquidationView, commissionDetails?: Record<string, CommissionDetail>): any[][] => {
+  const { groups } = view;
   const tableData: any[][] = [];
 
   // Pre-index commission details by invoice code
@@ -604,9 +604,19 @@ const buildHierarchicalTableData = (items: any[], commissionDetails?: Record<str
   return tableData;
 };
 
-// Grand total = sum of stored item.total values. Same function powers the
-// on-screen `calculated_total`, guaranteeing parity between UI and PDF.
-const calculateItemsTotal = (items: any[]): number => sumItemTotals(items);
+const ensureConsistentView = (view: LiquidationView): LiquidationView => {
+  const groupedTotal = view.groups.reduce((clientSum, client) => (
+    clientSum + client.projectBudgets.reduce((projectSum, project) => projectSum + project.subtotal, 0)
+  ), 0);
+
+  if (Math.abs(groupedTotal - view.grandTotal) > 0.005) {
+    throw new Error(
+      `El PDF no puede generarse porque el total agrupado (${formatCurrency(groupedTotal)}) no coincide con el total de items (${formatCurrency(view.grandTotal)}).`
+    );
+  }
+
+  return view;
+};
 
 
 const formatCurrency = (amount: number): string => {

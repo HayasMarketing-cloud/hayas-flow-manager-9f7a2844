@@ -462,7 +462,7 @@ export const AddToLiquidationModal = ({
               validRequests.length === 0 ||
               addToLiquidationMutation.isPending ||
               (mode === 'existing' && !selectedLiquidationId) ||
-              (mode === 'new' && existingLiquidationForPeriod && existingLiquidationForPeriod.status !== 'draft')
+              (mode === 'new' && existingLiquidationForPeriod && !['draft', 'validated', 'sent', 'disputed'].includes(existingLiquidationForPeriod.status))
             }
           >
             {addToLiquidationMutation.isPending ? 'Añadiendo...' : 'Añadir a Liquidación'}

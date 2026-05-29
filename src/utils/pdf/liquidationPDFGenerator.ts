@@ -1,7 +1,8 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getMonthName } from '@/lib/liquidation-utils';
-import { groupItemsByClientAndProject, CommissionSourceInfo } from '@/lib/liquidation-grouping';
+import { CommissionSourceInfo } from '@/lib/liquidation-grouping';
+import { buildLiquidationView, sumItemTotals } from '@/lib/liquidation-totals';
 
 type CommissionDetail = CommissionSourceInfo;
 

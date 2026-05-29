@@ -592,11 +592,16 @@ const buildHierarchicalTableData = (items: any[], commissionDetails?: Record<str
 };
 
 const calculateItemsTotal = (items: any[]): number => {
+  // Use stored item.total (matches on-screen subtotal and DB-stored liquidation subtotal).
+  // Fallbacks only kick in when total is missing.
   return items.reduce((sum, item) => {
-    const costToAgency = item.financial_request_id 
-      ? (Number(item.financial_request?.cost_to_agency) || Number(item.unit_price) || 0)
-      : Number(item.unit_price) || 0;
-    return sum + costToAgency;
+    const total =
+      Number(item.total) ||
+      Number(item.financial_request?.cost_to_agency) ||
+      (Number(item.quantity) || 0) * (Number(item.unit_price) || 0) ||
+      Number(item.unit_price) ||
+      0;
+    return sum + total;
   }, 0);
 };
 

@@ -1,7 +1,8 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getMonthName } from '@/lib/liquidation-utils';
-import { groupItemsByClientAndProject, CommissionSourceInfo } from '@/lib/liquidation-grouping';
+import { CommissionSourceInfo } from '@/lib/liquidation-grouping';
+import { buildLiquidationView, sumItemTotals } from '@/lib/liquidation-totals';
 
 type CommissionDetail = CommissionSourceInfo;
 
@@ -500,9 +501,11 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
   return doc.output('datauristring').split(',')[1];
 };
 
-// Build table data with hierarchical grouping: Client → Project/Budget → Items
+// Build table data with hierarchical grouping: Client → Project/Budget → Items.
+// Uses the SHARED `buildLiquidationView` so screen and PDF render identical
+// subtotals and totals (single source of truth).
 const buildHierarchicalTableData = (items: any[], commissionDetails?: Record<string, CommissionDetail>): any[][] => {
-  const groupedItems = groupItemsByClientAndProject(items, commissionDetails);
+  const { groups } = buildLiquidationView(items, commissionDetails);
   const tableData: any[][] = [];
 
   // Pre-index commission details by invoice code
@@ -515,7 +518,7 @@ const buildHierarchicalTableData = (items: any[], commissionDetails?: Record<str
     }
   }
 
-  groupedItems.forEach((clientGroup) => {
+  groups.forEach((clientGroup) => {
     // Client header row
     tableData.push([
       { content: clientGroup.clientName, styles: { fontStyle: 'bold', fillColor: [230, 230, 230], textColor: [50, 50, 50] } },
@@ -532,7 +535,7 @@ const buildHierarchicalTableData = (items: any[], commissionDetails?: Record<str
       } else if (projectGroup.type === 'budget') {
         displayName = `[Presup.] ${projectGroup.name}`;
       }
-      
+
       tableData.push([
         { content: `    ${displayName}`, styles: { fontStyle: projectGroup.type !== 'none' ? 'italic' : 'normal', fillColor: [245, 245, 245], textColor: [80, 80, 80], fontSize: 8 } },
         { content: '', styles: { fillColor: [245, 245, 245] } },
@@ -543,28 +546,32 @@ const buildHierarchicalTableData = (items: any[], commissionDetails?: Record<str
 
       projectGroup.items.forEach((item) => {
         const fr = item.financial_request;
-        const costToAgency = Number(fr?.cost_to_agency) || Number(item.total) || Number(item.unit_price) || 0;
+        // Single source of truth: line total === stored item.total (matches UI).
+        const rawTotal = Number(item.total);
+        const lineTotal = Number.isFinite(rawTotal) ? rawTotal : 0;
+
         const requestCode = fr?.code || '-';
         const requestTitle = fr?.title;
-        const description = requestTitle 
-          ? `      ${requestCode} - ${requestTitle.substring(0, 30)}${requestTitle.length > 30 ? '...' : ''}` 
+        const description = requestTitle
+          ? `      ${requestCode} - ${requestTitle.substring(0, 30)}${requestTitle.length > 30 ? '...' : ''}`
           : `      ${item.description}`;
         const isHourly = fr?.cost_type === 'hourly';
         const displayQuantity = isHourly
           ? (fr?.hours || item.quantity || 1)
           : (fr?.quantity || item.quantity || 1);
         const qtyNum = Number(displayQuantity) || 0;
+        // Derive unit price for display only — never used for totals.
         const displayUnitPrice = fr
           ? (isHourly
-              ? (Number(fr.cost_rate) || (qtyNum > 0 ? costToAgency / qtyNum : costToAgency))
-              : (Number(fr.fixed_cost) || costToAgency))
-          : (qtyNum > 0 ? costToAgency / qtyNum : costToAgency);
-        
+              ? (Number(fr.cost_rate) || (qtyNum > 0 ? lineTotal / qtyNum : lineTotal))
+              : (Number(fr.fixed_cost) || lineTotal))
+          : (qtyNum > 0 ? lineTotal / qtyNum : Number(item.unit_price) || lineTotal);
+
         tableData.push([
           description,
           displayQuantity.toString(),
           formatCurrency(displayUnitPrice),
-          formatCurrency(costToAgency),
+          formatCurrency(lineTotal),
           '',
         ]);
 
@@ -591,19 +598,10 @@ const buildHierarchicalTableData = (items: any[], commissionDetails?: Record<str
   return tableData;
 };
 
-const calculateItemsTotal = (items: any[]): number => {
-  // Use stored item.total (matches on-screen subtotal and DB-stored liquidation subtotal).
-  // Fallbacks only kick in when total is missing.
-  return items.reduce((sum, item) => {
-    const total =
-      Number(item.total) ||
-      Number(item.financial_request?.cost_to_agency) ||
-      (Number(item.quantity) || 0) * (Number(item.unit_price) || 0) ||
-      Number(item.unit_price) ||
-      0;
-    return sum + total;
-  }, 0);
-};
+// Grand total = sum of stored item.total values. Same function powers the
+// on-screen `calculated_total`, guaranteeing parity between UI and PDF.
+const calculateItemsTotal = (items: any[]): number => sumItemTotals(items);
+
 
 const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('es-ES', {

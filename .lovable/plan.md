@@ -1,74 +1,69 @@
-## Objetivo
+# Sincronizar PDF y pantalla de liquidación
 
-Añadir en `ClienteDetalle.tsx` un bloque con **Contratos, Presupuestos y Proyectos** del cliente, reutilizando componentes existentes. Edición inline con modal.
+## Problema
 
-## Viabilidad
+Pantalla y PDF calculan totales por su cuenta. Cualquier cambio en una lógica (ej. fallback de `unit_price` vs `item.total`) genera divergencias como la de LIQ-2026-042 (pantalla 1.660,02 € · PDF 1.380,02 €).
 
-Todo lo necesario ya existe:
-- `ContractTableView`, `BudgetTableView` reutilizables con props.
-- `ContractFormModal`, `BudgetFormModal`, `OperationalProjectFormModal` soportan `initialData` y crear con cliente preasignado.
-- Las queries ya filtran por `client_id`. RLS ya filtra por cliente asignado.
-- 0 cambios en BBDD.
+## Principio
 
-## Diseño
+**Una sola fuente de verdad** para: lista de items, agrupación jerárquica, subtotales por grupo y total final. Pantalla y PDF la consumen sin recalcular nada.
 
-Debajo del bloque actual de **Contactos**, una `Card` con `Tabs` de 3 pestañas (Contratos / Presupuestos / Proyectos). Cada pestaña:
-- Header: buscador + filtro de estado + botón "Nuevo …" (preasigna `client_id`).
-- Tabla reutilizada.
-- Acciones por fila: **Editar inline con modal** + un enlace pequeño "Ver detalle →" para profundizar.
+## Cambios
 
-## Implementación
+### 1. Módulo compartido `src/lib/liquidation-totals.ts` (nuevo)
 
-1. **Extraer** la tabla actual de proyectos de `OperationalProjects.tsx` a `src/components/operations/OperationalProjectsTableView.tsx` (props: `projects`, `onEdit`, `onView`, `onDelete`).
+Función pura `buildLiquidationView(items, commissionDetails)` que devuelve:
 
-2. **Crear** 3 contenedores en `src/components/clients/`:
-   - `ClientContractsTab.tsx` — query `contracts` por `client_id`, search + status local, render `ContractTableView`, gestiona modal `ContractFormModal` para crear/editar inline.
-   - `ClientBudgetsTab.tsx` — análogo con `BudgetTableView` + `BudgetFormModal`.
-   - `ClientProjectsTab.tsx` — análogo con `OperationalProjectsTableView` + `OperationalProjectFormModal`.
-
-   Cada uno acepta `clientId: string` y `canEdit: boolean`. Las acciones de editar abren el modal con `initialData` de la fila. "Nuevo" abre el modal con `initialData={{ client_id: clientId }}` para preasignar cliente.
-
-3. **Integrar** en `ClienteDetalle.tsx`:
-
-```tsx
-<Card>
-  <CardHeader>
-    <CardTitle className="text-lg">Actividad del cliente</CardTitle>
-  </CardHeader>
-  <CardContent>
-    <Tabs defaultValue="contracts">
-      <TabsList>
-        <TabsTrigger value="contracts">Contratos</TabsTrigger>
-        <TabsTrigger value="budgets">Presupuestos</TabsTrigger>
-        <TabsTrigger value="projects">Proyectos</TabsTrigger>
-      </TabsList>
-      <TabsContent value="contracts"><ClientContractsTab clientId={id!} canEdit={canEdit} /></TabsContent>
-      <TabsContent value="budgets"><ClientBudgetsTab clientId={id!} canEdit={canEdit} /></TabsContent>
-      <TabsContent value="projects"><ClientProjectsTab clientId={id!} canEdit={canEdit} /></TabsContent>
-    </Tabs>
-  </CardContent>
-</Card>
+```ts
+{
+  groups: GroupedClient[],        // ya existente, reutilizado de liquidation-grouping
+  grandTotal: number,             // = suma de groups[].subtotal
+  itemCount: number,
+}
 ```
 
-4. **Modales**: verificar que aceptan `initialData={{ client_id }}` para crear con cliente preasignado. Si alguno no lo soporta, añadir esa rama mínima.
+Regla única de importe por item: **`Number(item.total) ?? 0`** (sin fallbacks a `unit_price` ni `cost_to_agency`). El item en BD ya tiene `total` correcto — si falta, es un bug aguas arriba, no se enmascara.
 
-## Eficiencia
+### 2. `liquidation-grouping.ts`
 
-- Lazy: cada tab solo monta su query al activarse (TanStack Query cachea por `[entidad, clientId]`).
-- Reutilización máxima: ~80 líneas por contenedor + un refactor menor para la tabla de proyectos.
-- Sin duplicar lógica de filtros (search/status local por tab).
-- Sin cambios en backend.
+- Cambiar `Number(item.total) || 0` por `Number(item.total) ?? 0` para no perder negativos legítimos (ajustes manuales).
+- Eliminar `calculateItemsTotal` duplicado: que pase a vivir solo en `liquidation-totals.ts`.
 
-## QA
+### 3. `LiquidacionDetalle.tsx`
 
-- Cliente Asendia Spain: 3 pestañas con los contratos/presupuestos/proyectos correctos.
-- Buscar y filtrar por estado funciona en cada tab.
-- "Editar" abre modal con datos cargados, guarda y refresca la tabla.
-- "Nuevo" abre modal con cliente preasignado y bloqueado.
-- AM/PM solo ve clientes asignados (RLS).
+- Sustituir el `reduce` ad-hoc (`calculated_total`) por `buildLiquidationView(...)`.
+- La pantalla muestra `view.grandTotal` y los subtotales por cliente/proyecto vienen directos de `view.groups`.
+
+### 4. `utils/pdf/liquidationPDFGenerator.ts`
+
+- Borrar la función local `calculateItemsTotal` (la que causó el bug).
+- Borrar el cálculo local de `costToAgency` en `buildHierarchicalTableData`; usar `view.groups[].items[].total` directamente.
+- `TOTAL A PAGAR` = `view.grandTotal`.
+- Mismo cambio en `generateLiquidationPDFBase64` y en el modo equipo (suma de `view.grandTotal` de líder + miembros).
+
+### 5. Test de regresión
+
+`src/lib/__tests__/liquidation-totals.test.ts` con fixtures (items horarios, fijos, comisiones, ajustes negativos) verificando que `grandTotal === sum(items.total)` y que coincide con `subtotal` de BD.
+
+## Diagrama
+
+```text
+                 liquidation_items (BD)
+                          │
+                          ▼
+              buildLiquidationView()        ← única fuente
+                          │
+            ┌─────────────┴─────────────┐
+            ▼                           ▼
+   LiquidacionDetalle.tsx     liquidationPDFGenerator.ts
+   (pantalla)                  (PDF descarga + email)
+```
 
 ## Fuera de alcance
 
-- Páginas `/contratos`, `/presupuestos`, `/proyectos` no se tocan.
-- No se añaden filtros nuevos más allá de search + estado.
-- No se añade exportación desde estas pestañas (lo tienen las páginas principales).
+- No se tocan cálculos de IVA / `total_amount`: la pantalla ya muestra subtotal sin IVA y el PDF también; ese ya está alineado.
+- No se modifica `get-liquidation-items` edge function (vista del especialista) — se podrá adaptar en una iteración posterior si se quiere reutilizar el mismo módulo en el portal del especialista.
+
+## Resultado
+
+A partir de este cambio, **es imposible** que el total del PDF difiera del de pantalla: ambos leen el mismo número de la misma función.

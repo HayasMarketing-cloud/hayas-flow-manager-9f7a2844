@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getMonthName } from '@/lib/liquidation-utils';
 import { CommissionSourceInfo } from '@/lib/liquidation-grouping';
-import { buildLiquidationView, sumItemTotals } from '@/lib/liquidation-totals';
+import { buildLiquidationView, type LiquidationView } from '@/lib/liquidation-totals';
 
 type CommissionDetail = CommissionSourceInfo;
 
@@ -108,8 +108,9 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     doc.setTextColor(0, 0, 0);
     currentY += 8;
 
-    // Leader's items table
-    const leaderTableData = buildHierarchicalTableData(data.items, data.commissionDetails);
+    // Leader's items table — one immutable view powers rows + subtotal.
+    const leaderView = ensureConsistentView(buildLiquidationView(data.items, data.commissionDetails));
+    const leaderTableData = buildHierarchicalTableData(leaderView, data.commissionDetails);
 
     autoTable(doc, {
       startY: currentY,
@@ -136,7 +137,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     });
 
     // Leader subtotal
-    const leaderTotal = calculateItemsTotal(data.items);
+    const leaderTotal = leaderView.grandTotal;
     currentY = (doc as any).lastAutoTable.finalY + 5;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
@@ -158,7 +159,8 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
       doc.setTextColor(0, 0, 0);
       currentY += 8;
 
-      const memberTableData = buildHierarchicalTableData(member.liquidation_items, data.commissionDetails);
+      const memberView = ensureConsistentView(buildLiquidationView(member.liquidation_items, data.commissionDetails));
+      const memberTableData = buildHierarchicalTableData(memberView, data.commissionDetails);
 
       autoTable(doc, {
         startY: currentY,
@@ -203,7 +205,8 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     currentY += 20;
   } else {
     // === SINGLE LIQUIDATION MODE (original behavior) ===
-    const tableData = buildHierarchicalTableData(data.items, data.commissionDetails);
+    const liquidationView = ensureConsistentView(buildLiquidationView(data.items, data.commissionDetails));
+    const tableData = buildHierarchicalTableData(liquidationView, data.commissionDetails);
 
     autoTable(doc, {
       startY: currentY,
@@ -230,7 +233,7 @@ export const generateLiquidationPDF = async (data: LiquidationData) => {
     });
 
     // Calculate total
-    const calculatedTotal = calculateItemsTotal(data.items);
+    const calculatedTotal = liquidationView.grandTotal;
 
     // Total
     const finalY = (doc as any).lastAutoTable.finalY + 10;

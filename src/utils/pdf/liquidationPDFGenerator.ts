@@ -349,7 +349,8 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
     doc.setTextColor(0, 0, 0);
     currentY += 8;
 
-    const leaderTableData = buildHierarchicalTableData(data.items, data.commissionDetails);
+    const leaderView = ensureConsistentView(buildLiquidationView(data.items, data.commissionDetails));
+    const leaderTableData = buildHierarchicalTableData(leaderView, data.commissionDetails);
 
     autoTable(doc, {
       startY: currentY,
@@ -375,7 +376,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
       },
     });
 
-    const leaderTotal = calculateItemsTotal(data.items);
+    const leaderTotal = leaderView.grandTotal;
     currentY = (doc as any).lastAutoTable.finalY + 5;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
@@ -395,7 +396,8 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
       doc.setTextColor(0, 0, 0);
       currentY += 8;
 
-      const memberTableData = buildHierarchicalTableData(member.liquidation_items, data.commissionDetails);
+      const memberView = ensureConsistentView(buildLiquidationView(member.liquidation_items, data.commissionDetails));
+      const memberTableData = buildHierarchicalTableData(memberView, data.commissionDetails);
 
       autoTable(doc, {
         startY: currentY,
@@ -438,7 +440,8 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
     currentY += 20;
   } else {
     // === SINGLE LIQUIDATION MODE ===
-    const tableData = buildHierarchicalTableData(data.items, data.commissionDetails);
+    const liquidationView = ensureConsistentView(buildLiquidationView(data.items, data.commissionDetails));
+    const tableData = buildHierarchicalTableData(liquidationView, data.commissionDetails);
 
     autoTable(doc, {
       startY: currentY,
@@ -464,7 +467,7 @@ export const generateLiquidationPDFBase64 = async (data: LiquidationData): Promi
       },
     });
 
-    const calculatedTotal = calculateItemsTotal(data.items);
+    const calculatedTotal = liquidationView.grandTotal;
     const finalY = (doc as any).lastAutoTable.finalY + 10;
     const totalsX = pageWidth - 75;
     

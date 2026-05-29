@@ -1,69 +1,37 @@
-# Sincronizar PDF y pantalla de liquidación
+## Análisis confirmado
 
-## Problema
+- El PDF adjunto de `LIQ-2026-042` sigue siendo incoherente internamente:
+  - Las líneas y subtotales visibles del propio PDF suman `1.660,02 €`.
+  - El pie `TOTAL A PAGAR` muestra `1.380,02 €`.
+  - La diferencia sigue siendo `280,00 €`.
+- La base de datos está correcta para esa liquidación:
+  - `28` items.
+  - `sum(liquidation_items.total) = 1.660,02 €`.
+  - `liquidations.subtotal = 1.660,02 €`.
+- Por tanto, no parece un problema de datos ni de que falten comisiones en la tabla: el PDF incluye las líneas correctas, pero el total final se calcula con código antiguo.
+- La causa más probable y sólida: la app tiene `vite-plugin-pwa` con service worker y caché de assets JS. Aunque hayas publicado, tu navegador puede seguir ejecutando un bundle antiguo de la generación PDF. Eso explica que el PDF descargado después de publicar siga saliendo igual que antes.
 
-Pantalla y PDF calculan totales por su cuenta. Cualquier cambio en una lógica (ej. fallback de `unit_price` vs `item.total`) genera divergencias como la de LIQ-2026-042 (pantalla 1.660,02 € · PDF 1.380,02 €).
+## Plan de solución
 
-## Principio
+1. **Eliminar la fuente del caché antiguo**
+   - Desactivar el service worker/PWA en `vite.config.ts` para que no vuelva a cachear bundles JS de la aplicación.
+   - Quitar el registro `registerSW` en `src/main.tsx`.
+   - Añadir una limpieza automática al arrancar la app para desregistrar service workers ya instalados y borrar caches existentes en navegadores que ya lo tenían.
 
-**Una sola fuente de verdad** para: lista de items, agrupación jerárquica, subtotales por grupo y total final. Pantalla y PDF la consumen sin recalcular nada.
+2. **Hacer la generación PDF imposible de desincronizar**
+   - Refactorizar `src/utils/pdf/liquidationPDFGenerator.ts` para que descarga directa y PDF adjunto de email compartan una única función interna de renderizado.
+   - Evitar los dos caminos duplicados actuales (`generateLiquidationPDF` y `generateLiquidationPDFBase64`) para que no puedan volver a divergir.
 
-## Cambios
+3. **Añadir validación dura antes de entregar el PDF**
+   - Mantener y reforzar el guard de consistencia: suma de grupos, suma de líneas y total final deben coincidir.
+   - Comparar también contra el subtotal/calculado de la liquidación cuando venga informado.
+   - Si hay discrepancia, bloquear la generación y mostrar error en vez de descargar un PDF incorrecto.
 
-### 1. Módulo compartido `src/lib/liquidation-totals.ts` (nuevo)
+4. **Aplicar el mismo criterio al enlace del email**
+   - La página pública `/liquidacion/firmar/:token` seguirá descargando el PDF regenerado con los items actuales, pero ya sin posibilidad de usar JS antiguo cacheado tras la próxima publicación.
+   - El adjunto generado al enviar email también usará la misma función interna.
 
-Función pura `buildLiquidationView(items, commissionDetails)` que devuelve:
-
-```ts
-{
-  groups: GroupedClient[],        // ya existente, reutilizado de liquidation-grouping
-  grandTotal: number,             // = suma de groups[].subtotal
-  itemCount: number,
-}
-```
-
-Regla única de importe por item: **`Number(item.total) ?? 0`** (sin fallbacks a `unit_price` ni `cost_to_agency`). El item en BD ya tiene `total` correcto — si falta, es un bug aguas arriba, no se enmascara.
-
-### 2. `liquidation-grouping.ts`
-
-- Cambiar `Number(item.total) || 0` por `Number(item.total) ?? 0` para no perder negativos legítimos (ajustes manuales).
-- Eliminar `calculateItemsTotal` duplicado: que pase a vivir solo en `liquidation-totals.ts`.
-
-### 3. `LiquidacionDetalle.tsx`
-
-- Sustituir el `reduce` ad-hoc (`calculated_total`) por `buildLiquidationView(...)`.
-- La pantalla muestra `view.grandTotal` y los subtotales por cliente/proyecto vienen directos de `view.groups`.
-
-### 4. `utils/pdf/liquidationPDFGenerator.ts`
-
-- Borrar la función local `calculateItemsTotal` (la que causó el bug).
-- Borrar el cálculo local de `costToAgency` en `buildHierarchicalTableData`; usar `view.groups[].items[].total` directamente.
-- `TOTAL A PAGAR` = `view.grandTotal`.
-- Mismo cambio en `generateLiquidationPDFBase64` y en el modo equipo (suma de `view.grandTotal` de líder + miembros).
-
-### 5. Test de regresión
-
-`src/lib/__tests__/liquidation-totals.test.ts` con fixtures (items horarios, fijos, comisiones, ajustes negativos) verificando que `grandTotal === sum(items.total)` y que coincide con `subtotal` de BD.
-
-## Diagrama
-
-```text
-                 liquidation_items (BD)
-                          │
-                          ▼
-              buildLiquidationView()        ← única fuente
-                          │
-            ┌─────────────┴─────────────┐
-            ▼                           ▼
-   LiquidacionDetalle.tsx     liquidationPDFGenerator.ts
-   (pantalla)                  (PDF descarga + email)
-```
-
-## Fuera de alcance
-
-- No se tocan cálculos de IVA / `total_amount`: la pantalla ya muestra subtotal sin IVA y el PDF también; ese ya está alineado.
-- No se modifica `get-liquidation-items` edge function (vista del especialista) — se podrá adaptar en una iteración posterior si se quiere reutilizar el mismo módulo en el portal del especialista.
-
-## Resultado
-
-A partir de este cambio, **es imposible** que el total del PDF difiera del de pantalla: ambos leen el mismo número de la misma función.
+5. **Verificación esperada**
+   - Tras publicar esta corrección, al abrir la app una vez, se limpiarán service workers/caches antiguos.
+   - Una nueva descarga de `LIQ-2026-042` debe mostrar `TOTAL A PAGAR: 1.660,02 €`.
+   - Si alguna futura liquidación tuviera descuadre entre pantalla, tabla y total, el sistema no descargará el PDF y avisará del descuadre.

@@ -25,6 +25,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { notificationFeedback } from '@/lib/notification-feedback';
 import { generateLiquidationPDF, generateLiquidationPDFBase64 } from '@/utils/pdf/liquidationPDFGenerator';
+import { sumItemTotals } from '@/lib/liquidation-totals';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useState } from 'react';
 import { notifyLiquidationSent } from '@/lib/notification-utils';

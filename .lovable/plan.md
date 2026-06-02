@@ -1,55 +1,35 @@
-# Plan: Periodo de facturación robusto en facturas
+# Añadir columna "Origen" a exportaciones CSV
 
 ## Objetivo
-Garantizar que toda factura tenga `billing_period_month/year` correcto para que aparezca en el mes adecuado del Dashboard Mensual y del P&L, con tres capas: cálculo automático en BD, edición manual en el modal, y fix del agrupador del P&L.
+Incluir en los CSV de **Solicitudes** y **Presupuestos** una nueva columna **Origen** que indique el Contrato o Presupuesto asociado.
 
----
+## Cambios
 
-## 1. Migración BD: trigger + backfill
+### 1. `src/utils/excel/requestsExporter.ts`
+- Añadir columna **"Origen"** (entre "Cliente" y "Servicio", para visibilidad).
+- Lógica (misma jerarquía que `OriginCell.tsx`):
+  - Si `request.budget` → `"Presupuesto: {code} – {title}"`
+  - Si no, si `request.contract` → `"Contrato: {title}"`
+  - Si no → `"Sin origen"`
+- Los datos ya vienen en el query de `Solicitudes.tsx` (`budget:budgets(...)`, `contract:contracts(...)`), no requiere cambios en queries.
 
-**Trigger `BEFORE INSERT OR UPDATE` en `invoices`** — sólo actúa si `billing_period_month/year` vienen NULL (respeta valor manual):
+### 2. `src/utils/excel/budgetsExporter.ts`
+- Añadir columna **"Origen"** (después de "Cliente").
+- Lógica:
+  - Si `budget.contract` → `"Contrato: {title}"`
+  - Si no → `"Directo"` (presupuesto independiente sin contrato padre).
 
-Jerarquía de cálculo:
-1. **Si la factura tiene allocations a presupuestos** (`invoice_budget_allocations`) y todos los presupuestos vinculados tienen `estimated_invoice_date` en el mismo mes → usar `estimated_invoice_date - 1 mes` (regla maestra trabajo N → factura N+1, pero anclada a la fecha real planificada del presupuesto).
-2. **Si la factura tiene `budget_id` directo** con `estimated_invoice_date` → mismo cálculo: `estimated_invoice_date - 1 mes`.
-3. **Fallback general** → `invoice_date - 1 mes`.
+### 3. `src/pages/Presupuestos.tsx`
+- Ampliar los dos `.select(...)` sobre `budgets` para incluir el contrato asociado:
+  ```
+  contract:contracts(id, title, code)
+  ```
+  (en las dos ramas: filtered por assigned y query default).
 
-**Backfill histórico:** ejecutar la misma lógica una vez sobre todas las facturas existentes con `billing_period_year IS NULL` (incluye las 4 facturas Asendia de mayo).
+### 4. `src/components/clients/ClientBudgetsTab.tsx`
+- Si se quiere consistencia visual al exportar desde ficha cliente (no aplica aquí porque no exporta), **no se toca**.
 
-## 2. Edición manual en `InvoiceFormModal.tsx`
-
-Añadir bloque "Período de Facturación" debajo de "Fecha de Factura" (~línea 602):
-- Dos `Select`: Mes (1-12) + Año (año actual ±2).
-- Auto-sugerido aplicando la misma jerarquía que el trigger cuando el usuario cambia `invoice_date`, `budget_id` o las allocations — siempre que el usuario no lo haya tocado manualmente (flag `dirty`).
-- Persiste `billing_period_month` y `billing_period_year` tanto en crear como en editar.
-- Visible en cualquier estado de factura (también `paid`), para corregir histórico.
-
-## 3. Fix P&L en `useDashboardMensualData.tsx`
-
-Hoy (línea 233): cuando la factura no tiene `contract_id` ni `budget_id`, busca en `allocations` pero la lógica de agrupación por cliente sigue usando `inv.client_id`. Con el trigger + backfill esto ya queda cubierto: las 5 facturas Asendia aparecerán correctamente agrupadas. **No requiere cambios estructurales en el hook**, sólo verificación tras el backfill.
-
-> Si tras el backfill alguna factura quedara aún sin `billing_period`, será visible en el contador `invoicesWithoutPeriod` del bloque de reconciliación.
-
----
-
-## Detalles técnicos
-
-```text
-Trigger invoices_set_billing_period (BEFORE INSERT OR UPDATE)
-├─ Si NEW.billing_period_month IS NOT NULL → return (respeta manual)
-├─ Buscar estimated_invoice_date vía:
-│   a) invoice_budget_allocations → budgets.estimated_invoice_date (si todas mismo mes)
-│   b) NEW.budget_id → budgets.estimated_invoice_date
-├─ Si encontrado → NEW.billing_period = estimated_invoice_date - 1 mes
-└─ Fallback → NEW.billing_period = NEW.invoice_date - 1 mes
-```
-
-**Archivos afectados:**
-- Nueva migración SQL (trigger + función + backfill UPDATE).
-- `src/components/modals/InvoiceFormModal.tsx` (nuevo campo + lógica auto-sugerencia).
-- `src/hooks/useDashboardMensualData.tsx` — sin cambios (validación tras backfill).
-
-## Resultado esperado
-- Las 5 facturas de Asendia HQ del 04/05/2026 aparecen automáticamente en abril 2026.
-- Toda factura futura entra en el mes correcto, priorizando `estimated_invoice_date` del presupuesto cuando exista.
-- Casos excepcionales editables manualmente desde el modal de factura.
+## Resultado
+- CSV de Solicitudes muestra de un vistazo si la solicitud vino de Presupuesto (con código) o Contrato.
+- CSV de Presupuestos muestra si el presupuesto cuelga de un Contrato marco o es directo.
+- Sin cambios en UI ni en lógica de negocio. Solo exportación.

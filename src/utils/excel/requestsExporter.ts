@@ -5,6 +5,7 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
     'Código',
     'Título',
     'Cliente',
+    'Origen',
     'Servicio',
     'Especialista',
     'Horas',

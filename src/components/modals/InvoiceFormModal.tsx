@@ -368,8 +368,9 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
     mutationFn: async (data: InvoiceFormData) => {
       // Prepare association fields
       const contractId = associationType === 'contract' ? selectedContractId : null;
-      const periodMonthValue = associationType === 'contract' ? billingMonth : null;
-      const periodYearValue = associationType === 'contract' ? billingYear : null;
+      // Billing period applies regardless of association type (manual editable field).
+      const periodMonthValue = billingMonth ?? null;
+      const periodYearValue = billingYear ?? null;
 
       // Update invoice
       const updateData: any = {

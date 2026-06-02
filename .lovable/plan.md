@@ -1,37 +1,55 @@
-## Análisis confirmado
+# Plan: Periodo de facturación robusto en facturas
 
-- El PDF adjunto de `LIQ-2026-042` sigue siendo incoherente internamente:
-  - Las líneas y subtotales visibles del propio PDF suman `1.660,02 €`.
-  - El pie `TOTAL A PAGAR` muestra `1.380,02 €`.
-  - La diferencia sigue siendo `280,00 €`.
-- La base de datos está correcta para esa liquidación:
-  - `28` items.
-  - `sum(liquidation_items.total) = 1.660,02 €`.
-  - `liquidations.subtotal = 1.660,02 €`.
-- Por tanto, no parece un problema de datos ni de que falten comisiones en la tabla: el PDF incluye las líneas correctas, pero el total final se calcula con código antiguo.
-- La causa más probable y sólida: la app tiene `vite-plugin-pwa` con service worker y caché de assets JS. Aunque hayas publicado, tu navegador puede seguir ejecutando un bundle antiguo de la generación PDF. Eso explica que el PDF descargado después de publicar siga saliendo igual que antes.
+## Objetivo
+Garantizar que toda factura tenga `billing_period_month/year` correcto para que aparezca en el mes adecuado del Dashboard Mensual y del P&L, con tres capas: cálculo automático en BD, edición manual en el modal, y fix del agrupador del P&L.
 
-## Plan de solución
+---
 
-1. **Eliminar la fuente del caché antiguo**
-   - Desactivar el service worker/PWA en `vite.config.ts` para que no vuelva a cachear bundles JS de la aplicación.
-   - Quitar el registro `registerSW` en `src/main.tsx`.
-   - Añadir una limpieza automática al arrancar la app para desregistrar service workers ya instalados y borrar caches existentes en navegadores que ya lo tenían.
+## 1. Migración BD: trigger + backfill
 
-2. **Hacer la generación PDF imposible de desincronizar**
-   - Refactorizar `src/utils/pdf/liquidationPDFGenerator.ts` para que descarga directa y PDF adjunto de email compartan una única función interna de renderizado.
-   - Evitar los dos caminos duplicados actuales (`generateLiquidationPDF` y `generateLiquidationPDFBase64`) para que no puedan volver a divergir.
+**Trigger `BEFORE INSERT OR UPDATE` en `invoices`** — sólo actúa si `billing_period_month/year` vienen NULL (respeta valor manual):
 
-3. **Añadir validación dura antes de entregar el PDF**
-   - Mantener y reforzar el guard de consistencia: suma de grupos, suma de líneas y total final deben coincidir.
-   - Comparar también contra el subtotal/calculado de la liquidación cuando venga informado.
-   - Si hay discrepancia, bloquear la generación y mostrar error en vez de descargar un PDF incorrecto.
+Jerarquía de cálculo:
+1. **Si la factura tiene allocations a presupuestos** (`invoice_budget_allocations`) y todos los presupuestos vinculados tienen `estimated_invoice_date` en el mismo mes → usar `estimated_invoice_date - 1 mes` (regla maestra trabajo N → factura N+1, pero anclada a la fecha real planificada del presupuesto).
+2. **Si la factura tiene `budget_id` directo** con `estimated_invoice_date` → mismo cálculo: `estimated_invoice_date - 1 mes`.
+3. **Fallback general** → `invoice_date - 1 mes`.
 
-4. **Aplicar el mismo criterio al enlace del email**
-   - La página pública `/liquidacion/firmar/:token` seguirá descargando el PDF regenerado con los items actuales, pero ya sin posibilidad de usar JS antiguo cacheado tras la próxima publicación.
-   - El adjunto generado al enviar email también usará la misma función interna.
+**Backfill histórico:** ejecutar la misma lógica una vez sobre todas las facturas existentes con `billing_period_year IS NULL` (incluye las 4 facturas Asendia de mayo).
 
-5. **Verificación esperada**
-   - Tras publicar esta corrección, al abrir la app una vez, se limpiarán service workers/caches antiguos.
-   - Una nueva descarga de `LIQ-2026-042` debe mostrar `TOTAL A PAGAR: 1.660,02 €`.
-   - Si alguna futura liquidación tuviera descuadre entre pantalla, tabla y total, el sistema no descargará el PDF y avisará del descuadre.
+## 2. Edición manual en `InvoiceFormModal.tsx`
+
+Añadir bloque "Período de Facturación" debajo de "Fecha de Factura" (~línea 602):
+- Dos `Select`: Mes (1-12) + Año (año actual ±2).
+- Auto-sugerido aplicando la misma jerarquía que el trigger cuando el usuario cambia `invoice_date`, `budget_id` o las allocations — siempre que el usuario no lo haya tocado manualmente (flag `dirty`).
+- Persiste `billing_period_month` y `billing_period_year` tanto en crear como en editar.
+- Visible en cualquier estado de factura (también `paid`), para corregir histórico.
+
+## 3. Fix P&L en `useDashboardMensualData.tsx`
+
+Hoy (línea 233): cuando la factura no tiene `contract_id` ni `budget_id`, busca en `allocations` pero la lógica de agrupación por cliente sigue usando `inv.client_id`. Con el trigger + backfill esto ya queda cubierto: las 5 facturas Asendia aparecerán correctamente agrupadas. **No requiere cambios estructurales en el hook**, sólo verificación tras el backfill.
+
+> Si tras el backfill alguna factura quedara aún sin `billing_period`, será visible en el contador `invoicesWithoutPeriod` del bloque de reconciliación.
+
+---
+
+## Detalles técnicos
+
+```text
+Trigger invoices_set_billing_period (BEFORE INSERT OR UPDATE)
+├─ Si NEW.billing_period_month IS NOT NULL → return (respeta manual)
+├─ Buscar estimated_invoice_date vía:
+│   a) invoice_budget_allocations → budgets.estimated_invoice_date (si todas mismo mes)
+│   b) NEW.budget_id → budgets.estimated_invoice_date
+├─ Si encontrado → NEW.billing_period = estimated_invoice_date - 1 mes
+└─ Fallback → NEW.billing_period = NEW.invoice_date - 1 mes
+```
+
+**Archivos afectados:**
+- Nueva migración SQL (trigger + función + backfill UPDATE).
+- `src/components/modals/InvoiceFormModal.tsx` (nuevo campo + lógica auto-sugerencia).
+- `src/hooks/useDashboardMensualData.tsx` — sin cambios (validación tras backfill).
+
+## Resultado esperado
+- Las 5 facturas de Asendia HQ del 04/05/2026 aparecen automáticamente en abril 2026.
+- Toda factura futura entra en el mes correcto, priorizando `estimated_invoice_date` del presupuesto cuando exista.
+- Casos excepcionales editables manualmente desde el modal de factura.

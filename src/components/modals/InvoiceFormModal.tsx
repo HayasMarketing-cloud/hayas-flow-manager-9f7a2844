@@ -207,13 +207,18 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
         hasContractId: !!invoice.contract_id,
       });
 
+      // Always load billing period from invoice (independent of association type)
+      if (invoice.billing_period_month && invoice.billing_period_year) {
+        setBillingMonth(invoice.billing_period_month);
+        setBillingYear(invoice.billing_period_year);
+        setBillingPeriodDirty(true); // existing value — don't auto-overwrite
+      }
+
       // Load association data - check for allocations first, then legacy budget_id
       if (existingAllocations.length > 0) {
         setAssociationType('budgets');
         setBudgetAllocations(existingAllocations);
         setSelectedContractId(null);
-        setBillingMonth(null);
-        setBillingYear(null);
       } else if (invoice.budget_id) {
         // Legacy single budget - convert to allocation format
         const budget = availableBudgets.find(b => b.id === invoice.budget_id);
@@ -230,20 +235,14 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
           }]);
         }
         setSelectedContractId(null);
-        setBillingMonth(null);
-        setBillingYear(null);
       } else if (invoice.contract_id) {
         setAssociationType('contract');
         setSelectedContractId(invoice.contract_id);
-        setBillingMonth(invoice.billing_period_month);
-        setBillingYear(invoice.billing_period_year);
         setBudgetAllocations([]);
       } else {
         setAssociationType('none');
         setBudgetAllocations([]);
         setSelectedContractId(null);
-        setBillingMonth(null);
-        setBillingYear(null);
       }
 
       // Mark as initialized to prevent re-runs from async data changes

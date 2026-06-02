@@ -510,8 +510,8 @@ export default function Presupuestos() {
                   value={filters.invoiceYear?.toString() || 'all'}
                   onValueChange={(value) => updateFilter('invoiceYear', value === 'all' ? null : parseInt(value))}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Año facturación" />
+                  <SelectTrigger title="Filtra por fecha estimada de facturación (no por período de trabajo)">
+                    <SelectValue placeholder="Año a facturar" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos los años</SelectItem>
@@ -526,8 +526,8 @@ export default function Presupuestos() {
                   onValueChange={(value) => updateFilter('invoiceMonth', value === 'all' ? null : parseInt(value))}
                   disabled={!filters.invoiceYear}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Mes facturación" />
+                  <SelectTrigger title="Filtra por fecha estimada de facturación (no por período de trabajo)">
+                    <SelectValue placeholder="Mes a facturar" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos los meses</SelectItem>
@@ -536,6 +536,7 @@ export default function Presupuestos() {
                     ))}
                   </SelectContent>
                 </Select>
+
               </div>
 
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

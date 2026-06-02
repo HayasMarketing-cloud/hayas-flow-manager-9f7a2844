@@ -5,6 +5,7 @@ export const exportBudgetsToCSV = (budgets: any[]) => {
     'Código',
     'Título',
     'Cliente',
+    'Origen',
     'Contacto',
     'PO Number',
     'Monto Total',

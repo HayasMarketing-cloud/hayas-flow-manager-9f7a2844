@@ -23,10 +23,17 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
     'Liquidado',
   ];
 
-  const rows = requests.map((request) => [
+  const rows = requests.map((request) => {
+    const origen = request.budget
+      ? `Presupuesto: ${request.budget.code || ''}${request.budget.title ? ` – ${request.budget.title}` : ''}`.trim()
+      : request.contract
+      ? `Contrato: ${request.contract.title || request.contract.code || ''}`.trim()
+      : 'Sin origen';
+    return [
     request.code || '-',
     request.title || '-',
     request.client?.name || '-',
+    origen,
     request.service?.name || '-',
     request.specialist?.name || '-',
     request.hours ? `${request.hours}h` : '-',

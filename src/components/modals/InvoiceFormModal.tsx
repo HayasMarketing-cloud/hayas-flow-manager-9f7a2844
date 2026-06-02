@@ -624,6 +624,69 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
             </div>
           </div>
 
+          {/* Billing Period — applies to dashboard/P&L grouping (work month) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Período de Facturación</Label>
+              {billingPeriodDirty && !disabled && (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground underline hover:text-foreground"
+                  onClick={() => {
+                    setBillingPeriodDirty(false);
+                    setBillingMonth(null);
+                    setBillingYear(null);
+                  }}
+                >
+                  Restablecer automático
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Mes de trabajo al que corresponde la factura. Por defecto se calcula como el mes anterior a la fecha de factura.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Select
+                value={billingMonth?.toString() || ''}
+                onValueChange={(v) => {
+                  setBillingPeriodDirty(true);
+                  setBillingMonth(parseInt(v));
+                }}
+                disabled={disabled}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Mes" />
+                </SelectTrigger>
+                <SelectContent>
+                  {months.map((m) => (
+                    <SelectItem key={m.value} value={m.value.toString()}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={billingYear?.toString() || ''}
+                onValueChange={(v) => {
+                  setBillingPeriodDirty(true);
+                  setBillingYear(parseInt(v));
+                }}
+                disabled={disabled}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Año" />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => (
+                    <SelectItem key={y} value={y.toString()}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {/* Association Selector */}
           {clientId && (
             <Card className="p-4 space-y-4">

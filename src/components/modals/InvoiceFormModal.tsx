@@ -83,7 +83,9 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   const [billingMonth, setBillingMonth] = useState<number | null>(null);
   const [billingYear, setBillingYear] = useState<number | null>(null);
-  
+  // Tracks if the user manually edited billing period — disables auto-suggestion
+  const [billingPeriodDirty, setBillingPeriodDirty] = useState(false);
+
   // Flag to prevent re-initialization from async data changes (race condition fix)
   const [hasInitializedAssociations, setHasInitializedAssociations] = useState(false);
 

@@ -105,8 +105,20 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
   });
 
   const clientId = watch('client_id');
+  const invoiceDateWatch = watch('invoice_date');
   const periodMonth = watch('period_month');
   const periodYear = watch('period_year');
+
+  // Auto-suggest billing period from invoice_date - 1 month (unless user has edited it)
+  useEffect(() => {
+    if (billingPeriodDirty) return;
+    if (!invoiceDateWatch) return;
+    const d = new Date(invoiceDateWatch);
+    if (isNaN(d.getTime())) return;
+    d.setMonth(d.getMonth() - 1);
+    setBillingMonth(d.getMonth() + 1);
+    setBillingYear(d.getFullYear());
+  }, [invoiceDateWatch, billingPeriodDirty]);
 
   // Fetch clients
   const { data: clients } = useQuery({

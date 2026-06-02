@@ -5,6 +5,7 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
     'Código',
     'Título',
     'Cliente',
+    'Origen',
     'Servicio',
     'Especialista',
     'Horas',
@@ -22,10 +23,17 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
     'Liquidado',
   ];
 
-  const rows = requests.map((request) => [
+  const rows = requests.map((request) => {
+    const origen = request.budget
+      ? `Presupuesto: ${request.budget.code || ''}${request.budget.title ? ` – ${request.budget.title}` : ''}`.trim()
+      : request.contract
+      ? `Contrato: ${request.contract.title || request.contract.code || ''}`.trim()
+      : 'Sin origen';
+    return [
     request.code || '-',
     request.title || '-',
     request.client?.name || '-',
+    origen,
     request.service?.name || '-',
     request.specialist?.name || '-',
     request.hours ? `${request.hours}h` : '-',
@@ -41,7 +49,8 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
     formatDate(request.completed_at),
     request.billed_invoice_id ? 'Sí' : 'No',
     request.liquidation_id ? 'Sí' : 'No',
-  ]);
+  ];
+  });
 
   // Añadir fila de totales
   const totalAmount = requests.reduce((sum, r) => sum + (r.total || 0), 0);
@@ -52,6 +61,7 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
   rows.push([]);
   rows.push([
     'TOTALES',
+    '',
     '',
     '',
     '',

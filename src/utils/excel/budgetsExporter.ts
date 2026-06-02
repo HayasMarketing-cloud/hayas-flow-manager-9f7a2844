@@ -5,6 +5,7 @@ export const exportBudgetsToCSV = (budgets: any[]) => {
     'Código',
     'Título',
     'Cliente',
+    'Origen',
     'Contacto',
     'PO Number',
     'Monto Total',
@@ -25,6 +26,7 @@ export const exportBudgetsToCSV = (budgets: any[]) => {
     b.code || '-',
     b.title || '-',
     b.client?.name || '-',
+    b.contract ? `Contrato: ${b.contract.title || b.contract.code || ''}`.trim() : 'Directo',
     b.client_contact?.name || '-',
     b.client_po_number || 'Pendiente',
     formatCurrency(b.total_amount),
@@ -39,6 +41,7 @@ export const exportBudgetsToCSV = (budgets: any[]) => {
   rows.push([
     'TOTALES',
     `${budgets.length} presupuestos`,
+    '',
     '',
     '',
     '',

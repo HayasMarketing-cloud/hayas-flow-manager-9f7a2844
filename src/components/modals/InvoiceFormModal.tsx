@@ -83,7 +83,9 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   const [billingMonth, setBillingMonth] = useState<number | null>(null);
   const [billingYear, setBillingYear] = useState<number | null>(null);
-  
+  // Tracks if the user manually edited billing period — disables auto-suggestion
+  const [billingPeriodDirty, setBillingPeriodDirty] = useState(false);
+
   // Flag to prevent re-initialization from async data changes (race condition fix)
   const [hasInitializedAssociations, setHasInitializedAssociations] = useState(false);
 
@@ -103,8 +105,20 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
   });
 
   const clientId = watch('client_id');
+  const invoiceDateWatch = watch('invoice_date');
   const periodMonth = watch('period_month');
   const periodYear = watch('period_year');
+
+  // Auto-suggest billing period from invoice_date - 1 month (unless user has edited it)
+  useEffect(() => {
+    if (billingPeriodDirty) return;
+    if (!invoiceDateWatch) return;
+    const d = new Date(invoiceDateWatch);
+    if (isNaN(d.getTime())) return;
+    d.setMonth(d.getMonth() - 1);
+    setBillingMonth(d.getMonth() + 1);
+    setBillingYear(d.getFullYear());
+  }, [invoiceDateWatch, billingPeriodDirty]);
 
   // Fetch clients
   const { data: clients } = useQuery({
@@ -193,13 +207,18 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
         hasContractId: !!invoice.contract_id,
       });
 
+      // Always load billing period from invoice (independent of association type)
+      if (invoice.billing_period_month && invoice.billing_period_year) {
+        setBillingMonth(invoice.billing_period_month);
+        setBillingYear(invoice.billing_period_year);
+        setBillingPeriodDirty(true); // existing value — don't auto-overwrite
+      }
+
       // Load association data - check for allocations first, then legacy budget_id
       if (existingAllocations.length > 0) {
         setAssociationType('budgets');
         setBudgetAllocations(existingAllocations);
         setSelectedContractId(null);
-        setBillingMonth(null);
-        setBillingYear(null);
       } else if (invoice.budget_id) {
         // Legacy single budget - convert to allocation format
         const budget = availableBudgets.find(b => b.id === invoice.budget_id);
@@ -216,20 +235,14 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
           }]);
         }
         setSelectedContractId(null);
-        setBillingMonth(null);
-        setBillingYear(null);
       } else if (invoice.contract_id) {
         setAssociationType('contract');
         setSelectedContractId(invoice.contract_id);
-        setBillingMonth(invoice.billing_period_month);
-        setBillingYear(invoice.billing_period_year);
         setBudgetAllocations([]);
       } else {
         setAssociationType('none');
         setBudgetAllocations([]);
         setSelectedContractId(null);
-        setBillingMonth(null);
-        setBillingYear(null);
       }
 
       // Mark as initialized to prevent re-runs from async data changes
@@ -272,8 +285,10 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
 
       // Prepare association fields - now using allocations table for budgets
       const contractId = associationType === 'contract' ? selectedContractId : null;
-      const periodMonthValue = associationType === 'contract' ? billingMonth : null;
-      const periodYearValue = associationType === 'contract' ? billingYear : null;
+      // Billing period applies regardless of association type (manual override; otherwise
+      // the DB trigger will infer it from estimated_invoice_date or invoice_date - 1 month).
+      const periodMonthValue = billingMonth ?? null;
+      const periodYearValue = billingYear ?? null;
 
       // Create invoice (without budget_id - we'll use allocations table)
       const { data: newInvoice, error: invoiceError } = await supabase
@@ -353,8 +368,9 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
     mutationFn: async (data: InvoiceFormData) => {
       // Prepare association fields
       const contractId = associationType === 'contract' ? selectedContractId : null;
-      const periodMonthValue = associationType === 'contract' ? billingMonth : null;
-      const periodYearValue = associationType === 'contract' ? billingYear : null;
+      // Billing period applies regardless of association type (manual editable field).
+      const periodMonthValue = billingMonth ?? null;
+      const periodYearValue = billingYear ?? null;
 
       // Update invoice
       const updateData: any = {
@@ -608,6 +624,69 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
             </div>
           </div>
 
+          {/* Billing Period — applies to dashboard/P&L grouping (work month) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Período de Facturación</Label>
+              {billingPeriodDirty && !disabled && (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground underline hover:text-foreground"
+                  onClick={() => {
+                    setBillingPeriodDirty(false);
+                    setBillingMonth(null);
+                    setBillingYear(null);
+                  }}
+                >
+                  Restablecer automático
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Mes de trabajo al que corresponde la factura. Por defecto se calcula como el mes anterior a la fecha de factura.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Select
+                value={billingMonth?.toString() || ''}
+                onValueChange={(v) => {
+                  setBillingPeriodDirty(true);
+                  setBillingMonth(parseInt(v));
+                }}
+                disabled={disabled}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Mes" />
+                </SelectTrigger>
+                <SelectContent>
+                  {months.map((m) => (
+                    <SelectItem key={m.value} value={m.value.toString()}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={billingYear?.toString() || ''}
+                onValueChange={(v) => {
+                  setBillingPeriodDirty(true);
+                  setBillingYear(parseInt(v));
+                }}
+                disabled={disabled}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Año" />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => (
+                    <SelectItem key={y} value={y.toString()}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {/* Association Selector */}
           {clientId && (
             <Card className="p-4 space-y-4">
@@ -672,42 +751,7 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
                             )}
                           </SelectContent>
                         </Select>
-                        {selectedContractId && (
-                          <div className="grid grid-cols-2 gap-2">
-                            <Select
-                              value={billingMonth?.toString() || ''}
-                              onValueChange={(v) => setBillingMonth(parseInt(v))}
-                              disabled={disabled}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Mes" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {months.map((m) => (
-                                  <SelectItem key={m.value} value={m.value.toString()}>
-                                    {m.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Select
-                              value={billingYear?.toString() || ''}
-                              onValueChange={(v) => setBillingYear(parseInt(v))}
-                              disabled={disabled}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Año" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {years.map((y) => (
-                                  <SelectItem key={y} value={y.toString()}>
-                                    {y}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
+                        {/* Período de facturación se edita en el campo global arriba */}
                       </div>
                     )}
                   </div>

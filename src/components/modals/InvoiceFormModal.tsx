@@ -751,42 +751,7 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
                             )}
                           </SelectContent>
                         </Select>
-                        {selectedContractId && (
-                          <div className="grid grid-cols-2 gap-2">
-                            <Select
-                              value={billingMonth?.toString() || ''}
-                              onValueChange={(v) => setBillingMonth(parseInt(v))}
-                              disabled={disabled}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Mes" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {months.map((m) => (
-                                  <SelectItem key={m.value} value={m.value.toString()}>
-                                    {m.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Select
-                              value={billingYear?.toString() || ''}
-                              onValueChange={(v) => setBillingYear(parseInt(v))}
-                              disabled={disabled}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Año" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {years.map((y) => (
-                                  <SelectItem key={y} value={y.toString()}>
-                                    {y}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
+                        {/* Período de facturación se edita en el campo global arriba */}
                       </div>
                     )}
                   </div>

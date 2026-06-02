@@ -49,7 +49,8 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
     formatDate(request.completed_at),
     request.billed_invoice_id ? 'Sí' : 'No',
     request.liquidation_id ? 'Sí' : 'No',
-  ]);
+  ];
+  });
 
   // Añadir fila de totales
   const totalAmount = requests.reduce((sum, r) => sum + (r.total || 0), 0);

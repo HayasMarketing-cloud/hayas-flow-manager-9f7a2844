@@ -285,8 +285,10 @@ export function InvoiceFormModal({ isOpen, onClose, invoice, mode }: InvoiceForm
 
       // Prepare association fields - now using allocations table for budgets
       const contractId = associationType === 'contract' ? selectedContractId : null;
-      const periodMonthValue = associationType === 'contract' ? billingMonth : null;
-      const periodYearValue = associationType === 'contract' ? billingYear : null;
+      // Billing period applies regardless of association type (manual override; otherwise
+      // the DB trigger will infer it from estimated_invoice_date or invoice_date - 1 month).
+      const periodMonthValue = billingMonth ?? null;
+      const periodYearValue = billingYear ?? null;
 
       // Create invoice (without budget_id - we'll use allocations table)
       const { data: newInvoice, error: invoiceError } = await supabase

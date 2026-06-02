@@ -65,6 +65,7 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
     '',
     '',
     '',
+    '',
     totalHours ? `${totalHours}h` : '-',
     '',
     '',

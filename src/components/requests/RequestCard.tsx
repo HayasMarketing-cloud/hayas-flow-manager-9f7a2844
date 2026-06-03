@@ -10,7 +10,7 @@ import { OriginCell } from './OriginCell';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Edit, Building2, Calendar as CalendarIcon, Copy, Trash2, Eye, Receipt, User, Clock } from 'lucide-react';
+import { Edit, Building2, Calendar as CalendarIcon, Copy, Trash2, Eye, Receipt, User, Clock, Euro } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';

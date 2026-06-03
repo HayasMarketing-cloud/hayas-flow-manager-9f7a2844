@@ -43,7 +43,7 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
     request.quantity || 0,
     formatCurrency(request.unit_price),
     formatCurrency(request.total),
-    formatCurrency(request.cost),
+    formatCurrency(Number(request.cost_to_agency ?? request.fixed_cost ?? 0)),
     request.margin ? `${request.margin.toFixed(2)}%` : '-',
     formatDate(request.created_at),
     formatDate(request.completed_at),

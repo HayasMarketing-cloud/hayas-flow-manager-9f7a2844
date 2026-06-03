@@ -54,7 +54,7 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
 
   // Añadir fila de totales
   const totalAmount = requests.reduce((sum, r) => sum + (r.total || 0), 0);
-  const totalCost = requests.reduce((sum, r) => sum + (r.cost || 0), 0);
+  const totalCost = requests.reduce((sum, r) => sum + Number(r.cost_to_agency ?? r.fixed_cost ?? 0), 0);
   const totalHours = requests.reduce((sum, r) => sum + (r.hours || 0), 0);
   const totalMargin = totalAmount > 0 ? ((totalAmount - totalCost) / totalAmount) * 100 : 0;
 

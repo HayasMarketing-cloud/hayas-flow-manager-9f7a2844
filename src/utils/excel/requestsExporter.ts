@@ -36,7 +36,7 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
     origen,
     request.service?.name || '-',
     request.specialist?.name || '-',
-    request.hours ? `${request.hours}h` : (request.cost ? formatCurrency(request.cost) : '-'),
+    request.hours ? `${request.hours}h` : ((request.fixed_cost || request.cost_to_agency) ? formatCurrency(Number(request.fixed_cost ?? request.cost_to_agency)) : '-'),
     request.partner_reference || '-',
     request.client_contact?.name || '-',
     request.status || '-',

@@ -139,12 +139,17 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
           </div>
         )}
         
-        {(request.hours || request.sale_amount) ? (
+        {(request.hours || request.cost || request.sale_amount) ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
             {request.hours ? (
-              <span className="inline-flex items-center gap-1">
+              <span className="inline-flex items-center gap-1" title="Horas">
                 <Clock className="h-4 w-4 flex-shrink-0" />
                 {request.hours}h
+              </span>
+            ) : request.cost ? (
+              <span className="inline-flex items-center gap-1" title="Coste fijo a especialista">
+                <Euro className="h-4 w-4 flex-shrink-0" />
+                {formatCurrency(Number(request.cost))}
               </span>
             ) : null}
             {request.sale_amount ? (

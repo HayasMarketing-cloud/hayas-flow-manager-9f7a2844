@@ -8,7 +8,7 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
     'Origen',
     'Servicio',
     'Especialista',
-    'Horas',
+    'Horas / Coste',
     'Ref. Partner',
     'Solicitado por',
     'Estado',

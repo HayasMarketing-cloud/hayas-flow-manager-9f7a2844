@@ -128,10 +128,25 @@ export const RequestTableView = ({
                   </TableCell>
                   <TableCell>
                     {request.hours ? (
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        <span className="text-sm">{request.hours % 1 === 0 ? `${request.hours}h` : `${request.hours}h`}</span>
-                      </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                            <span className="text-sm">{request.hours}h</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>Horas</TooltipContent>
+                      </Tooltip>
+                    ) : request.cost ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-1.5">
+                            <Euro className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                            <span className="text-sm">{formatCurrency(Number(request.cost))}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>Coste fijo a especialista</TooltipContent>
+                      </Tooltip>
                     ) : (
                       <span className="text-muted-foreground text-sm">-</span>
                     )}

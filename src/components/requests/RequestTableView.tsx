@@ -137,12 +137,12 @@ export const RequestTableView = ({
                         </TooltipTrigger>
                         <TooltipContent>Horas</TooltipContent>
                       </Tooltip>
-                    ) : request.cost ? (
+                    ) : (request.fixed_cost || request.cost_to_agency) ? (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <div className="flex items-center gap-1.5">
                             <Euro className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                            <span className="text-sm">{formatCurrency(Number(request.cost))}</span>
+                            <span className="text-sm">{formatCurrency(Number(request.fixed_cost ?? request.cost_to_agency))}</span>
                           </div>
                         </TooltipTrigger>
                         <TooltipContent>Coste fijo a especialista</TooltipContent>

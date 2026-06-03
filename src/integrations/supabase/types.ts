@@ -52,6 +52,39 @@ export type Database = {
           },
         ]
       }
+      b2brouter_config: {
+        Row: {
+          account_id_production: string | null
+          account_id_staging: string | null
+          api_version: string
+          created_at: string
+          enabled: boolean
+          environment: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          account_id_production?: string | null
+          account_id_staging?: string | null
+          api_version?: string
+          created_at?: string
+          enabled?: boolean
+          environment?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          account_id_production?: string | null
+          account_id_staging?: string | null
+          api_version?: string
+          created_at?: string
+          enabled?: boolean
+          environment?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       budget_items: {
         Row: {
           budget_id: string
@@ -1129,6 +1162,11 @@ export type Database = {
       }
       invoices: {
         Row: {
+          b2brouter_environment: string | null
+          b2brouter_invoice_id: string | null
+          b2brouter_last_error: string | null
+          b2brouter_sent_at: string | null
+          b2brouter_status: string | null
           billing_period_month: number | null
           billing_period_year: number | null
           budget_id: string | null
@@ -1152,6 +1190,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          b2brouter_environment?: string | null
+          b2brouter_invoice_id?: string | null
+          b2brouter_last_error?: string | null
+          b2brouter_sent_at?: string | null
+          b2brouter_status?: string | null
           billing_period_month?: number | null
           billing_period_year?: number | null
           budget_id?: string | null
@@ -1175,6 +1218,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          b2brouter_environment?: string | null
+          b2brouter_invoice_id?: string | null
+          b2brouter_last_error?: string | null
+          b2brouter_sent_at?: string | null
+          b2brouter_status?: string | null
           billing_period_month?: number | null
           billing_period_year?: number | null
           budget_id?: string | null

@@ -222,7 +222,7 @@ export const BudgetFormModal = ({
       const totalAmount = calculateBudgetTotal(items);
 
       // Limpiar campos UUID y fecha vacíos para evitar errores de tipo en Postgres
-      const cleanedFormData = {
+      const cleanedFormData: any = {
         ...formData,
         client_contact_id: formData.client_contact_id || null,
         contract_id: formData.contract_id || null,
@@ -230,7 +230,7 @@ export const BudgetFormModal = ({
         pm_user_id: formData.pm_user_id || null,
         estimated_invoice_date: formData.estimated_invoice_date || null,
         valid_until: formData.valid_until || null,
-        payment_plan: paymentPlan.length > 0 ? paymentPlan : null,
+        payment_plan: paymentPlan.length > 0 ? (paymentPlan as any) : null,
       };
 
       if (budget?.id) {

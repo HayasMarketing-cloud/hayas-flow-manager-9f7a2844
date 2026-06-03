@@ -122,8 +122,9 @@ export const GenerateDraftInvoicesModal = ({ open, onOpenChange }: Props) => {
           <Alert>
             <AlertTitle>¿Qué hace?</AlertTitle>
             <AlertDescription className="text-sm">
-              <p>• <b>Contratos activos</b>: 1 factura por contrato con todas las requests <code>completed</code> del mes en una sola línea + enlace al Google Sheet.</p>
-              <p>• <b>Presupuestos aprobados</b>: 1 factura por cada hito del <code>payment_plan</code> con fecha en el mes (o 100% si usa fecha estimada).</p>
+              <p>• El mes seleccionado es el <b>mes de trabajo</b> (N).</p>
+              <p>• <b>Contratos activos</b>: 1 factura por contrato con todas las requests <code>completed</code> del mes (N) en una línea + enlace al Google Sheet.</p>
+              <p>• <b>Presupuestos aprobados</b>: se incluyen aquellos cuya <b>fecha de facturación</b> cae en el mes siguiente (N+1), porque trabajo de N se factura en N+1. Se omiten los ya facturados (asignados a otra factura).</p>
               <p>• Las facturas se crean en estado <b>borrador</b> para revisión por finanzas.</p>
             </AlertDescription>
           </Alert>

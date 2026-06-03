@@ -178,6 +178,7 @@ export type Database = {
           estimated_invoice_date: string | null
           id: string
           notes: string | null
+          payment_plan: Json | null
           pm_user_id: string | null
           proposal_context: Json | null
           status: string
@@ -200,6 +201,7 @@ export type Database = {
           estimated_invoice_date?: string | null
           id?: string
           notes?: string | null
+          payment_plan?: Json | null
           pm_user_id?: string | null
           proposal_context?: Json | null
           status?: string
@@ -222,6 +224,7 @@ export type Database = {
           estimated_invoice_date?: string | null
           id?: string
           notes?: string | null
+          payment_plan?: Json | null
           pm_user_id?: string | null
           proposal_context?: Json | null
           status?: string
@@ -596,6 +599,7 @@ export type Database = {
           created_at: string
           created_by: string
           description: string | null
+          detail_sheet_url: string | null
           enable_auto_requests: boolean | null
           end_date: string | null
           hub_project_url: string | null
@@ -620,6 +624,7 @@ export type Database = {
           created_at?: string
           created_by: string
           description?: string | null
+          detail_sheet_url?: string | null
           enable_auto_requests?: boolean | null
           end_date?: string | null
           hub_project_url?: string | null
@@ -644,6 +649,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           description?: string | null
+          detail_sheet_url?: string | null
           enable_auto_requests?: boolean | null
           end_date?: string | null
           hub_project_url?: string | null
@@ -1137,6 +1143,7 @@ export type Database = {
           paid_at: string | null
           pdf_url: string | null
           sent_at: string | null
+          source_milestone_index: number | null
           status: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
           tax_amount: number
@@ -1159,6 +1166,7 @@ export type Database = {
           paid_at?: string | null
           pdf_url?: string | null
           sent_at?: string | null
+          source_milestone_index?: number | null
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
           tax_amount?: number
@@ -1181,6 +1189,7 @@ export type Database = {
           paid_at?: string | null
           pdf_url?: string | null
           sent_at?: string | null
+          source_milestone_index?: number | null
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
           tax_amount?: number

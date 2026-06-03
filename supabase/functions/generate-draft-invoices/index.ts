@@ -111,14 +111,25 @@ Deno.serve(async (req) => {
 
     for (const contract of activeContracts ?? []) {
       // requests of this contract, completed, in target month, not yet billed
+      // Match requests by (in order of priority):
+      //  1) explicit work_year/work_month
+      //  2) deadline in target month (when work_* are null)
+      //  3) completed_at in target month (when work_* and deadline are null)
+      //  4) created_at in target month (final fallback)
+      const endDateTime = `${endDate}T23:59:59.999Z`;
       const { data: requests, error: reqErr } = await admin
         .from("financial_requests")
-        .select("id, code, title, hours, sale_amount, work_year, work_month, deadline")
+        .select("id, code, title, hours, sale_amount, work_year, work_month, deadline, completed_at, created_at")
         .eq("contract_id", contract.id)
         .eq("status", "completed")
         .is("billed_invoice_id", null)
         .or(
-          `and(work_year.eq.${year},work_month.eq.${month}),and(work_year.is.null,deadline.gte.${startDate},deadline.lte.${endDate})`,
+          [
+            `and(work_year.eq.${year},work_month.eq.${month})`,
+            `and(work_year.is.null,deadline.gte.${startDate},deadline.lte.${endDate})`,
+            `and(work_year.is.null,deadline.is.null,completed_at.gte.${startDate},completed_at.lte.${endDateTime})`,
+            `and(work_year.is.null,deadline.is.null,completed_at.is.null,created_at.gte.${startDate},created_at.lte.${endDateTime})`,
+          ].join(","),
         );
       if (reqErr) throw reqErr;
       if (!requests || requests.length === 0) continue;

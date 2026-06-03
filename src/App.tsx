@@ -43,6 +43,7 @@ import GuiaRapida from "./pages/GuiaRapida";
 import ResetPassword from "./pages/ResetPassword";
 import PublicQuote from "./pages/PublicQuote";
 import Gastos from "./pages/Gastos";
+import B2BRouterSettings from "./pages/B2BRouterSettings";
 
 const queryClient = new QueryClient();
 
@@ -113,6 +114,7 @@ const App = () => {
               <Route path="/notificaciones" element={<ProtectedRoute><Notificaciones /></ProtectedRoute>} />
               <Route path="/guia-rapida" element={<ProtectedRoute><GuiaRapida /></ProtectedRoute>} />
               <Route path="/test-email" element={<ProtectedRoute><TestEmail /></ProtectedRoute>} />
+              <Route path="/ajustes/b2brouter" element={<ProtectedRoute><B2BRouterSettings /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>

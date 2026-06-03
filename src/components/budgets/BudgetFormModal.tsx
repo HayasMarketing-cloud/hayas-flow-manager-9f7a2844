@@ -14,6 +14,7 @@ import { calculateBudgetTotal } from '@/lib/budget-utils';
 import { Loader2, FileText, User, FileSignature } from 'lucide-react';
 import { useApproveBudget } from '@/hooks/useApproveBudget';
 import { ProjectCreationModal } from './ProjectCreationModal';
+import { PaymentPlanEditor, PaymentMilestone } from './PaymentPlanEditor';
 
 interface BudgetFormModalProps {
   isOpen: boolean;
@@ -47,6 +48,7 @@ export const BudgetFormModal = ({
     pm_user_id: '',
   });
   const [items, setItems] = useState<any[]>([]);
+  const [paymentPlan, setPaymentPlan] = useState<PaymentMilestone[]>([]);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [approvedBudgetData, setApprovedBudgetData] = useState<any>(null);
 
@@ -129,6 +131,7 @@ export const BudgetFormModal = ({
         am_user_id: budget.am_user_id || '',
         pm_user_id: budget.pm_user_id || '',
       });
+      setPaymentPlan(Array.isArray(budget.payment_plan) ? budget.payment_plan : []);
     } else {
       setFormData({
         title: '',
@@ -145,6 +148,7 @@ export const BudgetFormModal = ({
         pm_user_id: '',
       });
       setItems([]);
+      setPaymentPlan([]);
     }
   }, [budget, isOpen]);
 
@@ -209,10 +213,16 @@ export const BudgetFormModal = ({
         toast.error('Debes seleccionar un contacto solicitante (este cliente tiene múltiples contactos)');
         throw new Error('client_contact_id required');
       }
+      // Validate payment_plan if any milestones defined
+      const planSum = paymentPlan.reduce((s, m) => s + (Number(m.percentage) || 0), 0);
+      if (paymentPlan.length > 0 && planSum !== 100) {
+        toast.error('El plan de pagos debe sumar 100%');
+        throw new Error('payment_plan must sum to 100');
+      }
       const totalAmount = calculateBudgetTotal(items);
 
       // Limpiar campos UUID y fecha vacíos para evitar errores de tipo en Postgres
-      const cleanedFormData = {
+      const cleanedFormData: any = {
         ...formData,
         client_contact_id: formData.client_contact_id || null,
         contract_id: formData.contract_id || null,
@@ -220,6 +230,7 @@ export const BudgetFormModal = ({
         pm_user_id: formData.pm_user_id || null,
         estimated_invoice_date: formData.estimated_invoice_date || null,
         valid_until: formData.valid_until || null,
+        payment_plan: paymentPlan.length > 0 ? (paymentPlan as any) : null,
       };
 
       if (budget?.id) {
@@ -592,6 +603,8 @@ export const BudgetFormModal = ({
           </div>
 
           <BudgetItemsEditor items={items} onChange={setItems} disabled={!canEdit} />
+
+          <PaymentPlanEditor value={paymentPlan} onChange={setPaymentPlan} disabled={!canEdit} />
         </div>
 
         <DialogFooter className="gap-2">

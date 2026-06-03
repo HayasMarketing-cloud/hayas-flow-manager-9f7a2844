@@ -43,6 +43,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
     am_user_id: '',
     pm_user_id: '',
     attached_contract_url: '',
+    detail_sheet_url: '',
   });
   const [services, setServices] = useState<any[]>([]);
 
@@ -88,6 +89,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         am_user_id: contract.am_user_id || '',
         pm_user_id: contract.pm_user_id || '',
         attached_contract_url: contract.attached_contract_url || '',
+        detail_sheet_url: contract.detail_sheet_url || '',
       });
     } else {
       setFormData({
@@ -103,6 +105,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         am_user_id: '',
         pm_user_id: '',
         attached_contract_url: '',
+        detail_sheet_url: '',
       });
       setServices([]);
     }
@@ -208,6 +211,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         am_user_id: formData.am_user_id || null,
         pm_user_id: formData.pm_user_id || null,
         attached_contract_url: formData.attached_contract_url || null,
+        detail_sheet_url: formData.detail_sheet_url || null,
       };
 
       if (contract?.id) {
@@ -593,6 +597,30 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                   </Button>
                 )}
               </div>
+            </div>
+
+            {/* Enlace Google Sheet de detalle de requests por mes */}
+            <div className="space-y-2 col-span-2">
+              <Label htmlFor="detail_sheet_url">Google Sheet de detalle (1 pestaña/mes)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="detail_sheet_url"
+                  value={formData.detail_sheet_url}
+                  onChange={(e) => setFormData({ ...formData, detail_sheet_url: e.target.value })}
+                  disabled={!canEdit}
+                  placeholder="https://docs.google.com/spreadsheets/..."
+                />
+                {formData.detail_sheet_url && (
+                  <Button variant="outline" size="icon" asChild>
+                    <a href={formData.detail_sheet_url} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Sheet maestro del contrato con una pestaña por mes. Su enlace se adjunta automáticamente en las notas de cada factura generada para este contrato.
+              </p>
             </div>
           </div>
 

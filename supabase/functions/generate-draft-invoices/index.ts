@@ -218,7 +218,13 @@ Deno.serve(async (req) => {
 
     // ───────────────────────────────────────────────
     // B) BUDGETS — payment_plan milestones OR estimated_invoice_date
+    // Business rule: selected month = WORK month (N).
+    // Budgets are billed in N+1, so we match estimated_invoice_date / milestone
+    // invoice_date in the month AFTER the selected one.
     // ───────────────────────────────────────────────
+    const billingMonth = month === 12 ? 1 : month + 1;
+    const billingYear = month === 12 ? year + 1 : year;
+
     const { data: budgets, error: budgetsErr } = await admin
       .from("budgets")
       .select(
@@ -251,27 +257,44 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Filter milestones falling in target month
+      // Filter milestones with invoice_date in the BILLING month (N+1)
       const targetMilestones = milestones.filter((m) => {
         if (!m.invoice_date) return false;
         const d = new Date(m.invoice_date);
-        return d.getUTCFullYear() === year && d.getUTCMonth() + 1 === month;
+        return d.getUTCFullYear() === billingYear && d.getUTCMonth() + 1 === billingMonth;
       });
       if (targetMilestones.length === 0) continue;
 
-      // Check existing invoices for these milestone indices
-      const { data: existing } = await admin
+      // Check existing invoices/allocations to avoid duplicates
+      const { data: existingByMilestone } = await admin
         .from("invoices")
         .select("source_milestone_index")
         .eq("budget_id", budget.id)
         .not("source_milestone_index", "is", null);
-      const existingIdx = new Set((existing ?? []).map((x: any) => x.source_milestone_index));
+      const existingIdx = new Set(
+        (existingByMilestone ?? []).map((x: any) => x.source_milestone_index),
+      );
+
+      const { data: existingAllocs } = await admin
+        .from("invoice_budget_allocations")
+        .select("allocated_amount")
+        .eq("budget_id", budget.id);
+      const alreadyAllocated = (existingAllocs ?? []).reduce(
+        (s: number, a: any) => s + Number(a.allocated_amount || 0),
+        0,
+      );
+      const baseTotal = Number(budget.total_amount) || 0;
+      const remaining = +(baseTotal - alreadyAllocated).toFixed(2);
+
+      // Skip if budget is already fully covered by allocations
+      if (remaining <= 0.01) continue;
 
       for (const m of targetMilestones) {
         if (existingIdx.has(m.index)) continue;
 
-        const baseTotal = Number(budget.total_amount) || 0;
-        const amount = +(baseTotal * (m.percentage / 100)).toFixed(2);
+        const requested = +(baseTotal * (m.percentage / 100)).toFixed(2);
+        // Cap to remaining (if user already linked some invoices manually)
+        const amount = Math.min(requested, remaining);
         if (amount <= 0) {
           warnings.push({
             level: "warn",
@@ -311,12 +334,14 @@ Deno.serve(async (req) => {
               client_id: budget.client_id,
               budget_id: budget.id,
               source_milestone_index: m.index,
-              invoice_date: m.invoice_date,
+              invoice_date: m.invoice_date, // real billing date (N+1)
               status: "draft",
               subtotal,
               tax_rate: taxRate,
               tax_amount: taxAmount,
               total_amount: total,
+              billing_period_month: month, // work month (N)
+              billing_period_year: year,
             })
             .select("id")
             .single();
@@ -330,6 +355,17 @@ Deno.serve(async (req) => {
             total: subtotal,
           });
           if (itemErr) throw itemErr;
+
+          // Create allocation for full traceability so this budget doesn't
+          // reappear in future previews.
+          const { error: allocErr } = await admin
+            .from("invoice_budget_allocations")
+            .insert({
+              invoice_id: invoice.id,
+              budget_id: budget.id,
+              allocated_amount: amount,
+            });
+          if (allocErr) throw allocErr;
 
           createdInvoiceIds.push(invoice.id);
         }

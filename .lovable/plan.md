@@ -1,31 +1,40 @@
-# Columna unificada "Horas / Coste" en Requests
-
 ## Objetivo
-Mostrar siempre el dato del especialista en cada request: horas (cuando es por horas) o coste fijo (cuando no hay horas). Aplica a tabla, cards y export CSV.
+Alinear la generación de borradores con la regla de negocio: en presupuestos, la fecha seleccionada en la previsualización representa el mes de trabajo a facturar, y los presupuestos correspondientes se identifican por `estimated_invoice_date` en el mes siguiente (N+1).
 
-## Lógica de detección
-- **Por horas**: `request.hours > 0` → mostrar `{hours}h` con icono Clock.
-- **Coste fijo**: `(!hours || hours === 0) && request.cost > 0` → mostrar `{cost} €` formateado con icono Euro.
-- **Sin dato**: `-`.
+## Diagnóstico
+- La función actual filtra presupuestos por `estimated_invoice_date` dentro del mes seleccionado.
+- Por eso, al previsualizar Mayo 2026 aparecen presupuestos con fecha de facturación en mayo, que realmente corresponden a trabajo de abril.
+- Los presupuestos que hay que facturar por mayo tienen `estimated_invoice_date` en junio, por ejemplo `PRE-2026-040`, `PRE-2026-039`, `PRE-2026-033`, etc.
 
-El valor del coste fijo es `request.cost` (coste a especialista), no `unit_price`.
+## Plan de implementación
+1. Cambiar solo la sección de presupuestos en `generate-draft-invoices`:
+   - Mantener contratos como están: contratos usan `work_year/work_month` del mes seleccionado.
+   - Para presupuestos, calcular el rango de facturación como el mes siguiente al mes seleccionado.
+   - Ejemplo: si el usuario elige Mayo 2026, buscar presupuestos con `estimated_invoice_date` o hitos de `payment_plan.invoice_date` en Junio 2026.
 
-## Cambios
+2. Evitar duplicados reales de presupuestos:
+   - No incluir presupuestos ya totalmente vinculados a facturas mediante `invoice_budget_allocations` o `budget_id` directo.
+   - Esto evita que presupuestos con estado `invoiced` vuelvan a aparecer si ya están cubiertos.
+   - Si un presupuesto está parcialmente facturado, incluir solo el importe pendiente.
 
-### 1. `src/components/requests/RequestTableView.tsx`
-- Renombrar header `Horas` → `Horas / Coste`.
-- En la celda: si hay horas, render actual; si no y hay cost, render `formatCurrency(cost)` con icono Euro de lucide-react; si no, `-`.
-- Tooltip opcional con el modo ("Coste fijo a especialista" / "Horas").
+3. Ajustar la factura creada para presupuestos:
+   - `invoice_date` será la fecha de facturación del presupuesto/hito, por ejemplo `2026-06-01`.
+   - `billing_period_month/year` será el mes seleccionado de trabajo, por ejemplo Mayo 2026.
+   - Crear también la asociación en `invoice_budget_allocations`, no solo `budget_id`, para que quede trazabilidad y no reaparezca en futuras previsualizaciones.
 
-### 2. `src/components/requests/RequestCard.tsx`
-- Donde hoy se muestran las horas, aplicar misma lógica (horas o coste fijo).
+4. Ajustar textos de la modal de previsualización:
+   - Aclarar que “Presupuestos aprobados” usa fecha de facturación N+1 para el mes de trabajo seleccionado.
+   - Mantener el título como `Previsualización — Mayo 2026`, porque ese es el periodo de trabajo.
 
-### 3. `src/utils/excel/requestsExporter.ts`
-- Renombrar columna `Horas` → `Horas / Coste`.
-- Valor: `{hours}h` si por horas, `formatCurrency(cost)` si fijo, `-` si nada.
-- Mantener el resto de columnas tal cual (Coste total ya existe aparte como "Coste").
+5. Validación
+   - Probar dry-run para Mayo 2026.
+   - Confirmar que desaparecen los presupuestos facturados en abril/mayo que pertenecen a abril.
+   - Confirmar que aparecen los presupuestos con fecha de facturación en Junio 2026 que pertenecen a Mayo.
+
+## Archivos a tocar
+- `supabase/functions/generate-draft-invoices/index.ts`
+- `src/components/invoices/GenerateDraftInvoicesModal.tsx`
 
 ## Fuera de alcance
-- No se modifican formularios, filtros, ni schema.
-- No se toca PDF de Asendia ni otros exports.
-- No se cambia la columna "Coste" (coste total) que ya existe en el export.
+- No cambiaré `work_year/work_month` para presupuestos, porque esa regla aplica a requests/contratos.
+- No cambiaré el filtro visual de la página de Presupuestos salvo que lo pidamos después; ahí el filtro de “Fecha Facturación” sí debe seguir representando la fecha real de factura.

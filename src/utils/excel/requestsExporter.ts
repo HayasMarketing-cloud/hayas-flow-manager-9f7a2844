@@ -36,14 +36,14 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
     origen,
     request.service?.name || '-',
     request.specialist?.name || '-',
-    request.hours ? `${request.hours}h` : (request.cost ? formatCurrency(request.cost) : '-'),
+    request.hours ? `${request.hours}h` : ((request.fixed_cost || request.cost_to_agency) ? formatCurrency(Number(request.fixed_cost ?? request.cost_to_agency)) : '-'),
     request.partner_reference || '-',
     request.client_contact?.name || '-',
     request.status || '-',
     request.quantity || 0,
     formatCurrency(request.unit_price),
     formatCurrency(request.total),
-    formatCurrency(request.cost),
+    formatCurrency(Number(request.cost_to_agency ?? request.fixed_cost ?? 0)),
     request.margin ? `${request.margin.toFixed(2)}%` : '-',
     formatDate(request.created_at),
     formatDate(request.completed_at),
@@ -54,7 +54,7 @@ export const exportRequestsToCSV = (requests: any[], filters?: any) => {
 
   // Añadir fila de totales
   const totalAmount = requests.reduce((sum, r) => sum + (r.total || 0), 0);
-  const totalCost = requests.reduce((sum, r) => sum + (r.cost || 0), 0);
+  const totalCost = requests.reduce((sum, r) => sum + Number(r.cost_to_agency ?? r.fixed_cost ?? 0), 0);
   const totalHours = requests.reduce((sum, r) => sum + (r.hours || 0), 0);
   const totalMargin = totalAmount > 0 ? ((totalAmount - totalCost) / totalAmount) * 100 : 0;
 

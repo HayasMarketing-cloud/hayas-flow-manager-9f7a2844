@@ -645,6 +645,11 @@ export default function Facturas() {
         cancelText="Cancelar"
         onConfirm={confirmBulkRevert}
       />
+
+      <GenerateDraftInvoicesModal
+        open={generateDraftsOpen}
+        onOpenChange={setGenerateDraftsOpen}
+      />
     </AppLayout>
   );
 }

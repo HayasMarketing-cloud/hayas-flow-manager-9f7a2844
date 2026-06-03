@@ -65,7 +65,7 @@ export const RequestTableView = ({
             <TableHead>Título</TableHead>
             <TableHead>Cliente</TableHead>
             <TableHead>Especialista</TableHead>
-            <TableHead>Horas</TableHead>
+            <TableHead>Horas / Coste</TableHead>
             <TableHead>Ref. Partner</TableHead>
             <TableHead>Origen</TableHead>
             <TableHead>Estado</TableHead>

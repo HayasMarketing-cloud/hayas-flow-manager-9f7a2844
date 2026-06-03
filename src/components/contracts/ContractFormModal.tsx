@@ -43,6 +43,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
     am_user_id: '',
     pm_user_id: '',
     attached_contract_url: '',
+    detail_sheet_url: '',
   });
   const [services, setServices] = useState<any[]>([]);
 
@@ -88,6 +89,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         am_user_id: contract.am_user_id || '',
         pm_user_id: contract.pm_user_id || '',
         attached_contract_url: contract.attached_contract_url || '',
+        detail_sheet_url: contract.detail_sheet_url || '',
       });
     } else {
       setFormData({
@@ -103,6 +105,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         am_user_id: '',
         pm_user_id: '',
         attached_contract_url: '',
+        detail_sheet_url: '',
       });
       setServices([]);
     }
@@ -208,6 +211,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         am_user_id: formData.am_user_id || null,
         pm_user_id: formData.pm_user_id || null,
         attached_contract_url: formData.attached_contract_url || null,
+        detail_sheet_url: formData.detail_sheet_url || null,
       };
 
       if (contract?.id) {

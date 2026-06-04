@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
     // ───────────────────────────────────────────────
     const { data: activeContracts, error: contractsErr } = await admin
       .from("contracts")
-      .select("id, code, title, client_id, detail_sheet_url, client:clients(id, name)")
+      .select("id, code, title, client_id, detail_sheet_url, bills_variable_requests, client:clients(id, name)")
       .eq("status", "active");
     if (contractsErr) throw contractsErr;
 

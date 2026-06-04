@@ -87,6 +87,7 @@ const Solicitudes = () => {
         `
         )
         .match(queryFilters)
+        .eq('is_recurring_template', false)
         .order('created_at', { ascending: false });
 
       // Filter by assigned clients for AM/PM (app-level since RLS gives PM full access)

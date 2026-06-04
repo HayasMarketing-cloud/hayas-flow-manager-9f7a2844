@@ -1,0 +1,1 @@
+UPDATE public.financial_requests SET work_month = NULL, work_year = NULL WHERE is_recurring_template = true;

@@ -86,6 +86,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         status: contract.status || 'draft',
         contract_type: contract.contract_type || 'retainer',
         enable_auto_requests: contract.enable_auto_requests || false,
+        bills_variable_requests: contract.bills_variable_requests !== false,
         is_on_demand: contract.is_on_demand || false,
         am_user_id: contract.am_user_id || '',
         pm_user_id: contract.pm_user_id || '',

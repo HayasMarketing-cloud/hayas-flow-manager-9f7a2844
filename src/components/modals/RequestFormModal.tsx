@@ -144,6 +144,10 @@ export const RequestFormModal = ({
       fixed_cost: null,
       // Partner reference
       partner_reference: null,
+      // Recurrence
+      is_recurring_template: false,
+      recurrence_active: true,
+      bill_separately: false,
     },
   });
 

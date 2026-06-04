@@ -597,6 +597,8 @@ export type Database = {
           service_id: string | null
           specialist_id: string | null
           updated_at: string
+          valid_from: string | null
+          valid_to: string | null
         }
         Insert: {
           billing_frequency?:
@@ -616,6 +618,8 @@ export type Database = {
           service_id?: string | null
           specialist_id?: string | null
           updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
         }
         Update: {
           billing_frequency?:
@@ -635,6 +639,8 @@ export type Database = {
           service_id?: string | null
           specialist_id?: string | null
           updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
         }
         Relationships: [
           {

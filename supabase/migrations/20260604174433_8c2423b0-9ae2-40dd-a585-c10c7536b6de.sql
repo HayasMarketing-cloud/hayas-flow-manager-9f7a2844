@@ -1,0 +1,1 @@
+UPDATE financial_requests SET work_month = NULL, work_year = NULL WHERE code IN ('REQ-2026-379','REQ-2026-380','REQ-2026-381','REQ-2026-382','REQ-2026-383');

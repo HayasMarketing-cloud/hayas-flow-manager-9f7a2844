@@ -897,6 +897,7 @@ export type Database = {
       }
       financial_requests: {
         Row: {
+          bill_separately: boolean
           billed_invoice_id: string | null
           budget_id: string | null
           budget_item_id: string | null
@@ -914,10 +915,12 @@ export type Database = {
           fixed_cost: number | null
           hours: number | null
           id: string
+          is_recurring_template: boolean
           liquidation_id: string | null
           notes: string | null
           partner_reference: string | null
           quantity: number
+          recurrence_active: boolean
           sale_amount: number | null
           sale_hours: number | null
           sale_rate: number | null
@@ -926,6 +929,7 @@ export type Database = {
           specialist_acceptance: boolean | null
           specialist_id: string | null
           status: Database["public"]["Enums"]["financial_request_status"]
+          template_source_id: string | null
           title: string
           unit_price: number | null
           updated_at: string
@@ -933,6 +937,7 @@ export type Database = {
           work_year: number | null
         }
         Insert: {
+          bill_separately?: boolean
           billed_invoice_id?: string | null
           budget_id?: string | null
           budget_item_id?: string | null
@@ -950,10 +955,12 @@ export type Database = {
           fixed_cost?: number | null
           hours?: number | null
           id?: string
+          is_recurring_template?: boolean
           liquidation_id?: string | null
           notes?: string | null
           partner_reference?: string | null
           quantity?: number
+          recurrence_active?: boolean
           sale_amount?: number | null
           sale_hours?: number | null
           sale_rate?: number | null
@@ -962,6 +969,7 @@ export type Database = {
           specialist_acceptance?: boolean | null
           specialist_id?: string | null
           status?: Database["public"]["Enums"]["financial_request_status"]
+          template_source_id?: string | null
           title: string
           unit_price?: number | null
           updated_at?: string
@@ -969,6 +977,7 @@ export type Database = {
           work_year?: number | null
         }
         Update: {
+          bill_separately?: boolean
           billed_invoice_id?: string | null
           budget_id?: string | null
           budget_item_id?: string | null
@@ -986,10 +995,12 @@ export type Database = {
           fixed_cost?: number | null
           hours?: number | null
           id?: string
+          is_recurring_template?: boolean
           liquidation_id?: string | null
           notes?: string | null
           partner_reference?: string | null
           quantity?: number
+          recurrence_active?: boolean
           sale_amount?: number | null
           sale_hours?: number | null
           sale_rate?: number | null
@@ -998,6 +1009,7 @@ export type Database = {
           specialist_acceptance?: boolean | null
           specialist_id?: string | null
           status?: Database["public"]["Enums"]["financial_request_status"]
+          template_source_id?: string | null
           title?: string
           unit_price?: number | null
           updated_at?: string
@@ -1024,6 +1036,13 @@ export type Database = {
             columns: ["contract_id"]
             isOneToOne: false
             referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_requests_template_source_id_fkey"
+            columns: ["template_source_id"]
+            isOneToOne: false
+            referencedRelation: "financial_requests"
             referencedColumns: ["id"]
           },
           {

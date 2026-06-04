@@ -670,6 +670,7 @@ export type Database = {
         Row: {
           am_user_id: string | null
           attached_contract_url: string | null
+          bills_variable_requests: boolean
           client_id: string
           client_po_number: string | null
           code: string
@@ -695,6 +696,7 @@ export type Database = {
         Insert: {
           am_user_id?: string | null
           attached_contract_url?: string | null
+          bills_variable_requests?: boolean
           client_id: string
           client_po_number?: string | null
           code?: string
@@ -720,6 +722,7 @@ export type Database = {
         Update: {
           am_user_id?: string | null
           attached_contract_url?: string | null
+          bills_variable_requests?: boolean
           client_id?: string
           client_po_number?: string | null
           code?: string

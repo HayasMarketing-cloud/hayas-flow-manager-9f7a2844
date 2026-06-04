@@ -39,6 +39,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
     status: 'draft',
     contract_type: 'retainer' as 'retainer' | 'project' | 'one_time',
     enable_auto_requests: false,
+    bills_variable_requests: true,
     is_on_demand: false,
     am_user_id: '',
     pm_user_id: '',
@@ -85,6 +86,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         status: contract.status || 'draft',
         contract_type: contract.contract_type || 'retainer',
         enable_auto_requests: contract.enable_auto_requests || false,
+        bills_variable_requests: contract.bills_variable_requests !== false,
         is_on_demand: contract.is_on_demand || false,
         am_user_id: contract.am_user_id || '',
         pm_user_id: contract.pm_user_id || '',
@@ -101,6 +103,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         status: 'draft',
         contract_type: 'retainer',
         enable_auto_requests: false,
+        bills_variable_requests: true,
         is_on_demand: false,
         am_user_id: '',
         pm_user_id: '',
@@ -207,6 +210,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         contract_type: formData.contract_type,
         total_amount: fixedServicesTotal,
         enable_auto_requests: formData.enable_auto_requests,
+        bills_variable_requests: formData.bills_variable_requests,
         is_on_demand: formData.is_on_demand,
         am_user_id: formData.am_user_id || null,
         pm_user_id: formData.pm_user_id || null,
@@ -674,6 +678,25 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                 disabled={!canEdit}
               />
             </div>
+          </div>
+
+
+
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="bills_variable_requests">Facturar requests al cliente</Label>
+              <p className="text-sm text-muted-foreground">
+                Si está desactivado, los requests del mes no se suman al importe facturado (sólo cuentan como coste especialista). Útil para contratos con fee mensual cerrado.
+              </p>
+            </div>
+            <Switch
+              id="bills_variable_requests"
+              checked={formData.bills_variable_requests}
+              onCheckedChange={(checked) =>
+                setFormData({ ...formData, bills_variable_requests: checked })
+              }
+              disabled={!canEdit}
+            />
           </div>
 
           <ContractServicesEditor services={services} onChange={setServices} disabled={!canEdit} />

@@ -58,9 +58,22 @@ export type Database = {
           account_id_staging: string | null
           api_version: string
           created_at: string
+          default_payment_means: string | null
+          default_payment_terms_days: number | null
           enabled: boolean
           environment: string
           id: string
+          invoice_series: string | null
+          issuer_address: string | null
+          issuer_city: string | null
+          issuer_country_code: string | null
+          issuer_email: string | null
+          issuer_iban: string | null
+          issuer_name: string | null
+          issuer_phone: string | null
+          issuer_postal_code: string | null
+          issuer_province: string | null
+          issuer_tax_id: string | null
           updated_at: string
         }
         Insert: {
@@ -68,9 +81,22 @@ export type Database = {
           account_id_staging?: string | null
           api_version?: string
           created_at?: string
+          default_payment_means?: string | null
+          default_payment_terms_days?: number | null
           enabled?: boolean
           environment?: string
           id?: string
+          invoice_series?: string | null
+          issuer_address?: string | null
+          issuer_city?: string | null
+          issuer_country_code?: string | null
+          issuer_email?: string | null
+          issuer_iban?: string | null
+          issuer_name?: string | null
+          issuer_phone?: string | null
+          issuer_postal_code?: string | null
+          issuer_province?: string | null
+          issuer_tax_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -78,9 +104,22 @@ export type Database = {
           account_id_staging?: string | null
           api_version?: string
           created_at?: string
+          default_payment_means?: string | null
+          default_payment_terms_days?: number | null
           enabled?: boolean
           environment?: string
           id?: string
+          invoice_series?: string | null
+          issuer_address?: string | null
+          issuer_city?: string | null
+          issuer_country_code?: string | null
+          issuer_email?: string | null
+          issuer_iban?: string | null
+          issuer_name?: string | null
+          issuer_phone?: string | null
+          issuer_postal_code?: string | null
+          issuer_province?: string | null
+          issuer_tax_id?: string | null
           updated_at?: string
         }
         Relationships: []

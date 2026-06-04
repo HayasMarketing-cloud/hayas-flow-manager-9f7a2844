@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InvoiceStatusBadge } from './InvoiceStatusBadge';
 import { InvoiceStatusActions } from './InvoiceStatusActions';
+import { B2BRouterEmitButton } from './B2BRouterEmitButton';
 import { AllocationStatusBadge } from './AllocationStatusBadge';
 import { InvoiceOriginCell } from './InvoiceOriginCell';
 import { InlineInvoiceAssociation } from './InlineInvoiceAssociation';
@@ -228,6 +229,14 @@ export const InvoiceTableView = ({
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
+                      )}
+                      {canManage && (
+                        <B2BRouterEmitButton
+                          invoiceId={invoice.id}
+                          status={invoice.status}
+                          b2brouterInvoiceId={invoice.b2brouter_invoice_id}
+                          b2brouterStatus={invoice.b2brouter_status}
+                        />
                       )}
                       {canManage && <InvoiceStatusActions invoiceId={invoice.id} currentStatus={invoice.status} compact />}
                     </div>

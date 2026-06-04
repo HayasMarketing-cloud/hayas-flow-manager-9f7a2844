@@ -700,15 +700,13 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                 <Pause className="h-4 w-4 mr-2" />
                 Suspender
               </Button>
-              {contract?.enable_auto_requests && (
-                <Button onClick={handleGenerateRequests} disabled={generateRequestsMutation.isPending}>
-                  {generateRequestsMutation.isPending && (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  )}
-                  <RotateCw className="h-4 w-4 mr-2" />
-                  Generar Requests
-                </Button>
-              )}
+              <Button onClick={handleGenerateRequests} disabled={generateRequestsMutation.isPending}>
+                {generateRequestsMutation.isPending && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
+                <RotateCw className="h-4 w-4 mr-2" />
+                Generar Requests del mes
+              </Button>
               {canCreateProject && (
                 <Button variant="default" onClick={() => setShowProjectModal(true)}>
                   <FolderKanban className="h-4 w-4 mr-2" />

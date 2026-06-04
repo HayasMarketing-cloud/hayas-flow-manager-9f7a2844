@@ -65,6 +65,11 @@ const requestSchema = z.object({
   fixed_cost: z.coerce.number().min(0).optional().nullable(),
   // Partner reference (for partners like Wolfestone)
   partner_reference: z.string().max(100).optional().nullable(),
+  // Recurrence (templates that auto-clone monthly)
+  is_recurring_template: z.boolean().default(false),
+  recurrence_active: z.boolean().default(true),
+  // Escape hatch: bill this request separately even if contract has a fixed monthly fee
+  bill_separately: z.boolean().default(false),
 }).refine(
   (data) => !!(data.contract_id || data.budget_id),
   {

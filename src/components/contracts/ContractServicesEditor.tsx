@@ -174,6 +174,8 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
         {localServices.map((service, index) => {
           const priceType = service.price_rule_type || 'fixed';
           const isHourly = priceType === 'hourly';
+          const frequency = service.billing_frequency || service.billing_mode || 'monthly';
+          const showValidity = !isHourly && frequency === 'monthly';
           
           return (
             <div
@@ -271,7 +273,7 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
 
               <div className="col-span-2">
                 <Select
-                  value={service.billing_frequency || service.billing_mode || 'monthly'}
+                  value={frequency}
                   onValueChange={(value) => handleServiceChange(index, 'billing_frequency', value)}
                   disabled={disabled}
                 >
@@ -308,6 +310,42 @@ export const ContractServicesEditor = ({ services, onChange, disabled }: Contrac
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               </div>
+
+              {showValidity && (
+                <div className="col-span-12 grid grid-cols-12 gap-2 pt-2 border-t mt-1">
+                  <div className="col-span-2 text-xs text-muted-foreground flex items-center">
+                    Vigencia fee mensual:
+                  </div>
+                  <div className="col-span-3">
+                    <Input
+                      type="date"
+                      placeholder="Inicio"
+                      value={service.valid_from ?? ''}
+                      onChange={(e) =>
+                        handleServiceChange(index, 'valid_from', e.target.value || null)
+                      }
+                      disabled={disabled}
+                    />
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      Inicio (vacío = sin restricción)
+                    </div>
+                  </div>
+                  <div className="col-span-3">
+                    <Input
+                      type="date"
+                      placeholder="Fin"
+                      value={service.valid_to ?? ''}
+                      onChange={(e) =>
+                        handleServiceChange(index, 'valid_to', e.target.value || null)
+                      }
+                      disabled={disabled}
+                    />
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      Fin (vacío = indefinido)
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}

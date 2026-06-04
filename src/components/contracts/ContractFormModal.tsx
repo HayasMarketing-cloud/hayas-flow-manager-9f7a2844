@@ -237,6 +237,8 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
             price_rule_type: service.price_rule_type || 'fixed',
             billing_frequency: service.billing_frequency || 'monthly',
             notes: service.notes,
+            valid_from: service.price_rule_type !== 'hourly' && (service.billing_frequency || 'monthly') === 'monthly' ? (service.valid_from || null) : null,
+            valid_to: service.price_rule_type !== 'hourly' && (service.billing_frequency || 'monthly') === 'monthly' ? (service.valid_to || null) : null,
           }));
 
           const { error: servicesError } = await supabase
@@ -269,6 +271,8 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
             price_rule_type: service.price_rule_type || 'fixed',
             billing_frequency: service.billing_frequency || 'monthly',
             notes: service.notes,
+            valid_from: service.price_rule_type !== 'hourly' && (service.billing_frequency || 'monthly') === 'monthly' ? (service.valid_from || null) : null,
+            valid_to: service.price_rule_type !== 'hourly' && (service.billing_frequency || 'monthly') === 'monthly' ? (service.valid_to || null) : null,
           }));
 
           const { error: servicesError } = await supabase

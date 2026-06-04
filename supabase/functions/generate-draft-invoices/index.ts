@@ -101,7 +101,12 @@ Deno.serve(async (req) => {
     const createdInvoiceIds: string[] = [];
 
     // ───────────────────────────────────────────────
-    // A) CONTRACTS — 1 invoice per active contract with completed requests
+    // A) CONTRACTS — 1 invoice per active contract
+    //    Each invoice may include:
+    //      • Fixed monthly lines (price_rule_type='fixed' + billing_frequency='monthly')
+    //        filtered by valid_from / valid_to vigency.
+    //      • A consolidated variable line summing sale_amount of completed
+    //        unbilled financial_requests for the target month.
     // ───────────────────────────────────────────────
     const { data: activeContracts, error: contractsErr } = await admin
       .from("contracts")
@@ -110,12 +115,34 @@ Deno.serve(async (req) => {
     if (contractsErr) throw contractsErr;
 
     for (const contract of activeContracts ?? []) {
-      // requests of this contract, completed, in target month, not yet billed
-      // Match requests by (in order of priority):
-      //  1) explicit work_year/work_month
-      //  2) deadline in target month (when work_* are null)
-      //  3) completed_at in target month (when work_* and deadline are null)
-      //  4) created_at in target month (final fallback)
+      // ─── A.1) Fixed monthly lines vigentes en el mes objetivo ───
+      const { data: fixedServices, error: fixedErr } = await admin
+        .from("contract_services")
+        .select("id, description, price_value, quantity, valid_from, valid_to")
+        .eq("contract_id", contract.id)
+        .eq("price_rule_type", "fixed")
+        .eq("billing_frequency", "monthly");
+      if (fixedErr) throw fixedErr;
+
+      const activeFixed = (fixedServices ?? []).filter((s: any) => {
+        const okFrom = !s.valid_from || s.valid_from <= endDate;
+        const okTo = !s.valid_to || s.valid_to >= startDate;
+        return okFrom && okTo;
+      });
+
+      const fixedLines = activeFixed.map((s: any) => {
+        const qty = Number(s.quantity) || 1;
+        const unit = Number(s.price_value) || 0;
+        const total = +(qty * unit).toFixed(2);
+        return {
+          description: `${s.description} — ${monthLabel}`,
+          quantity: qty,
+          unit_price: unit,
+          total,
+        };
+      }).filter((l) => l.total > 0);
+
+      // ─── A.2) Variable: completed unbilled requests del mes ───
       const endDateTime = `${endDate}T23:59:59.999Z`;
       const { data: requests, error: reqErr } = await admin
         .from("financial_requests")
@@ -132,28 +159,40 @@ Deno.serve(async (req) => {
           ].join(","),
         );
       if (reqErr) throw reqErr;
-      if (!requests || requests.length === 0) continue;
 
-      const totalHours = requests.reduce((s: number, r: any) => s + (Number(r.hours) || 0), 0);
-      const totalAmount = requests.reduce(
+      const reqList = requests ?? [];
+      const totalHours = reqList.reduce((s: number, r: any) => s + (Number(r.hours) || 0), 0);
+      const variableAmount = +reqList.reduce(
         (s: number, r: any) => s + (Number(r.sale_amount) || 0),
         0,
-      );
-      if (totalAmount <= 0) {
+      ).toFixed(2);
+
+      let variableLine: { description: string; quantity: number; unit_price: number; total: number } | null = null;
+      if (variableAmount > 0) {
+        const hoursLabel = totalHours > 0 ? ` (${totalHours}h)` : "";
+        variableLine = {
+          description: `${contract.title} — consumo ${monthLabel}${hoursLabel}`,
+          quantity: 1,
+          unit_price: variableAmount,
+          total: variableAmount,
+        };
+      } else if (reqList.length > 0) {
         warnings.push({
           level: "warn",
-          message: `Contrato ${contract.code} (${(contract as any).client?.name}): ${requests.length} requests sin importe → omitido`,
+          message: `Contrato ${contract.code} (${(contract as any).client?.name}): ${reqList.length} requests sin importe → línea variable omitida`,
         });
-        continue;
       }
 
-      const hoursLabel = totalHours > 0 ? ` (${totalHours}h)` : "";
-      const lineDescription = `${contract.title} - ${monthLabel}${hoursLabel}`;
+      const allLines = [...fixedLines, ...(variableLine ? [variableLine] : [])];
+      if (allLines.length === 0) continue;
+
+      const totalAmount = +allLines.reduce((s, l) => s + l.total, 0).toFixed(2);
+
       const notes = contract.detail_sheet_url
         ? `Detalle de requests: ${contract.detail_sheet_url}`
-        : `(Falta enlace al Google Sheet de detalle del contrato ${contract.code})`;
+        : (variableLine ? `(Falta enlace al Google Sheet de detalle del contrato ${contract.code})` : null);
 
-      if (!contract.detail_sheet_url) {
+      if (variableLine && !contract.detail_sheet_url) {
         warnings.push({
           level: "warn",
           message: `Contrato ${contract.code}: falta detail_sheet_url`,
@@ -166,9 +205,9 @@ Deno.serve(async (req) => {
         source_code: contract.code,
         source_title: contract.title,
         amount: totalAmount,
-        lines: [{ description: lineDescription, quantity: 1, unit_price: totalAmount, total: totalAmount }],
-        notes,
-        request_count: requests.length,
+        lines: allLines,
+        notes: notes ?? undefined,
+        request_count: reqList.length,
       });
 
       if (!dryRun) {
@@ -196,21 +235,28 @@ Deno.serve(async (req) => {
           .single();
         if (invErr) throw invErr;
 
-        const { error: itemErr } = await admin.from("invoice_items").insert({
+        const itemsPayload = allLines.map((l, idx) => ({
           invoice_id: invoice.id,
-          description: lineDescription,
-          quantity: 1,
-          unit_price: subtotal,
-          total: subtotal,
-          aggregated_request_ids: requests.map((r: any) => r.id),
-        });
+          description: l.description,
+          quantity: l.quantity,
+          unit_price: l.unit_price,
+          total: l.total,
+          // Only the variable line (last when present) aggregates requests
+          aggregated_request_ids:
+            variableLine && idx === allLines.length - 1
+              ? reqList.map((r: any) => r.id)
+              : null,
+        }));
+        const { error: itemErr } = await admin.from("invoice_items").insert(itemsPayload);
         if (itemErr) throw itemErr;
 
-        const { error: linkErr } = await admin
-          .from("financial_requests")
-          .update({ billed_invoice_id: invoice.id })
-          .in("id", requests.map((r: any) => r.id));
-        if (linkErr) throw linkErr;
+        if (variableLine && reqList.length > 0) {
+          const { error: linkErr } = await admin
+            .from("financial_requests")
+            .update({ billed_invoice_id: invoice.id })
+            .in("id", reqList.map((r: any) => r.id));
+          if (linkErr) throw linkErr;
+        }
 
         createdInvoiceIds.push(invoice.id);
       }

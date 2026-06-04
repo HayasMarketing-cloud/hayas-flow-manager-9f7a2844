@@ -39,6 +39,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
     status: 'draft',
     contract_type: 'retainer' as 'retainer' | 'project' | 'one_time',
     enable_auto_requests: false,
+    bills_variable_requests: true,
     is_on_demand: false,
     am_user_id: '',
     pm_user_id: '',

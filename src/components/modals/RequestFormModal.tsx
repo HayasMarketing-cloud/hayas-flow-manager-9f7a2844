@@ -168,6 +168,9 @@ export const RequestFormModal = ({
   const selectedBudgetId = useWatch({ control: form.control, name: 'budget_id' });
   const selectedServiceId = useWatch({ control: form.control, name: 'service_id' });
   const selectedSpecialistId = useWatch({ control: form.control, name: 'specialist_id' });
+  const isRecurringTemplate = useWatch({ control: form.control, name: 'is_recurring_template' });
+  const recurrenceActive = useWatch({ control: form.control, name: 'recurrence_active' });
+  const billSeparately = useWatch({ control: form.control, name: 'bill_separately' });
 
   // Get default rates based on hierarchy
   const { data: defaultRates, isLoading: isLoadingRates } = useDefaultRates(

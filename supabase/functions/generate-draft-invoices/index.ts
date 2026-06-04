@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
     // ───────────────────────────────────────────────
     const { data: activeContracts, error: contractsErr } = await admin
       .from("contracts")
-      .select("id, code, title, client_id, detail_sheet_url, bills_variable_requests, client:clients(id, name)")
+      .select("id, code, title, client_id, detail_sheet_url, client:clients(id, name)")
       .eq("status", "active");
     if (contractsErr) throw contractsErr;
 
@@ -142,13 +142,19 @@ Deno.serve(async (req) => {
         };
       }).filter((l) => l.total > 0);
 
-      // ─── A.2) Variable: completed unbilled requests del mes ───
+      // ─── A.2) Variable: completed unbilled NON-TEMPLATE requests del mes ───
+      //   Templates (is_recurring_template=true) are excluded — they're masters,
+      //   never billed. Their clones carry sale_amount=0 when the contract is a
+      //   pure retainer, so they naturally don't inflate the invoice.
+      //   Requests with sale_amount > 0 (hourly-billed contracts like Antonio
+      //   Foruria, or bill_separately=true on a retainer extra) sum up here.
       const endDateTime = `${endDate}T23:59:59.999Z`;
       const { data: requests, error: reqErr } = await admin
         .from("financial_requests")
         .select("id, code, title, hours, sale_amount, work_year, work_month, deadline, completed_at, created_at")
         .eq("contract_id", contract.id)
         .eq("status", "completed")
+        .eq("is_recurring_template", false)
         .is("billed_invoice_id", null)
         .or(
           [
@@ -167,10 +173,12 @@ Deno.serve(async (req) => {
         0,
       ).toFixed(2);
 
-      const billsVariable = (contract as any).bills_variable_requests !== false;
+      // Always link requests of the month to the invoice (for traceability),
+      // even when they don't add a billable line.
+      const requestsToLink = reqList.map((r: any) => r.id);
 
       let variableLine: { description: string; quantity: number; unit_price: number; total: number } | null = null;
-      if (billsVariable && variableAmount > 0) {
+      if (variableAmount > 0) {
         const hoursLabel = totalHours > 0 ? ` (${totalHours}h)` : "";
         variableLine = {
           description: `${contract.title} — consumo ${monthLabel}${hoursLabel}`,
@@ -178,11 +186,6 @@ Deno.serve(async (req) => {
           unit_price: variableAmount,
           total: variableAmount,
         };
-      } else if (billsVariable && reqList.length > 0) {
-        warnings.push({
-          level: "warn",
-          message: `Contrato ${contract.code} (${(contract as any).client?.name}): ${reqList.length} requests sin importe → línea variable omitida`,
-        });
       }
 
       const allLines = [...fixedLines, ...(variableLine ? [variableLine] : [])];
@@ -252,11 +255,13 @@ Deno.serve(async (req) => {
         const { error: itemErr } = await admin.from("invoice_items").insert(itemsPayload);
         if (itemErr) throw itemErr;
 
-        if (variableLine && reqList.length > 0) {
+        // Link ALL completed non-template requests of the month to this invoice
+        // for traceability, regardless of whether they added a billable line.
+        if (requestsToLink.length > 0) {
           const { error: linkErr } = await admin
             .from("financial_requests")
             .update({ billed_invoice_id: invoice.id })
-            .in("id", reqList.map((r: any) => r.id));
+            .in("id", requestsToLink);
           if (linkErr) throw linkErr;
         }
 

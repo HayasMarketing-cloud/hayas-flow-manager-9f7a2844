@@ -89,6 +89,17 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
           <div className="flex-1">
             <p className="text-xs text-muted-foreground font-mono">{request.code}</p>
             <CardTitle className="text-lg mt-1">{request.title}</CardTitle>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {(request as any).is_recurring_template && (
+                <Badge variant="secondary" className="text-xs">Plantilla</Badge>
+              )}
+              {(request as any).is_recurring_template && (request as any).recurrence_active === false && (
+                <Badge variant="outline" className="text-xs">Pausada</Badge>
+              )}
+              {(request as any).template_source_id && !(request as any).is_recurring_template && (
+                <Badge variant="outline" className="text-xs">Generada automáticamente</Badge>
+              )}
+            </div>
           </div>
           {/* Inline status selector */}
           {canManage && !isLiquidated ? (

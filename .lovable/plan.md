@@ -1,103 +1,116 @@
-# Plan: Fee mensual con vigencia editable + refactor borrador de facturas
+## Plantillas recurrentes + Precio al Cliente contextual
 
-## Contexto
+### Modelo
 
-Las facturas borrador (junio 2026) no coinciden con las reales porque `generate-draft-invoices` solo suma `sale_amount` de requests completados, sin contemplar contratos con **fee mensual fijo pactado** (Asendia Spain 1.410€, Formato Educativo HS Management 280€, NOVA PRAXIS 450€, Raúl Parrón 350€, PID 55€).
+- **Contrato** = qué se factura al cliente (fees fijos vigentes + líneas horarias facturables tipo Antonio Foruria / Asendia HQ).
+- **Request** = trabajo real del especialista (horas + coste). Puede marcarse como **plantilla recurrente** para que se clone cada mes.
+- **Precio al Cliente** en la request solo aparece cuando aporta valor (no en retainers fijos).
 
-## Decisiones confirmadas
-
-- Sin nuevo campo `billing_model` en `contracts` — modelo derivado de `contract_services`.
-- **Fee mensual con vigencia editable**: cada línea fija añade `valid_from` y `valid_to` (ambos NULL al alta; el usuario los rellena en cada contrato).
-- Antonio Foruria es **variable puro** (horas × precio/hora coincide para coste y precio, como Asendia HQ HubSpot Requests).
-- **Único contrato mixto**: Formato Educativo (línea fija 280€ + línea horaria heredada → se fusionará).
-- En la factura, **líneas separadas**: una por componente fijo + una consolidada variable.
-- Una factura por contrato.
-
-## Cambios
-
-### 1. Migration: extender `contract_services` con vigencia
+### 1. Migración DB
 
 ```sql
-ALTER TABLE public.contract_services
-  ADD COLUMN valid_from date,
-  ADD COLUMN valid_to date;
+ALTER TABLE financial_requests
+  ADD COLUMN is_recurring_template boolean NOT NULL DEFAULT false,
+  ADD COLUMN recurrence_active boolean NOT NULL DEFAULT true,
+  ADD COLUMN template_source_id uuid REFERENCES financial_requests(id),
+  ADD COLUMN bill_separately boolean NOT NULL DEFAULT false;
+
+CREATE INDEX idx_fr_recurring_templates
+  ON financial_requests(contract_id, is_recurring_template, recurrence_active)
+  WHERE is_recurring_template = true;
 ```
 
-- `valid_from` (NULL = sin restricción de inicio).
-- `valid_to` (NULL = indefinido).
-- Solo relevante para líneas `price_rule_type='fixed' AND billing_frequency='monthly'`.
+- `is_recurring_template`: request maestra (no se factura ni ejecuta).
+- `recurrence_active`: permite pausar sin borrar.
+- `template_source_id`: trazabilidad del clon a la plantilla.
+- `bill_separately`: escape hatch para facturar una request aparte del fee fijo del contrato.
 
-### 2. UI: `ContractServicesEditor`
+### 2. Backend — Edge functions
 
-Cuando la línea es `fixed + monthly`, añadir dos date pickers:
-- "Inicio fee" (`valid_from`)
-- "Fin fee" (`valid_to`, opcional)
+**`generate-monthly-requests`** — refactor: pasa a leer `financial_requests` plantilla en vez de `contract_services`.
 
-Ocultos para líneas horarias u otras frecuencias. Ambos vacíos por defecto — el usuario rellena por contrato.
-
-### 3. Refactor `generate-draft-invoices/index.ts`
-
-Para cada contrato `active` y mes objetivo (Y, M):
-
-**A) Componente fijo** — para cada línea con `price_rule_type='fixed' AND billing_frequency='monthly'`:
-- Vigente si: `(valid_from IS NULL OR valid_from <= último día del mes)` Y `(valid_to IS NULL OR valid_to >= primer día del mes)`.
-- Genera 1 `invoice_item` por línea: `"{servicio o descripción} – {Mes Año}"`, `unit_price = price_value * quantity`.
-
-**B) Componente variable** (lógica actual):
-- Suma `sale_amount` de `financial_requests` completados no facturados del mes.
-- Genera 1 `invoice_item` consolidado: `"{contract.title} – consumo {Mes Año} ({Xh})"`.
-- Marca `billed_invoice_id` en esos requests (las líneas fijas NO marcan requests).
-
-**Reglas:**
-- Si fijo > 0 OR variable > 0 → crear factura.
-- Si no hay líneas fijas vigentes y no hay requests → no se crea factura.
-
-### 4. Data seeding (insert tool)
-
-Crear línea `fixed/monthly` por retainer, con `valid_from`/`valid_to` en NULL (el usuario los rellenará desde UI):
-
-| Cliente | Contrato | Importe |
-|---|---|---|
-| Asendia Spain | CON-2025-004 | 1.410 € |
-| Formato Educativo | CON-2025-002 | 280 € |
-| NOVA PRAXIS | CON-2026-002 | 450 € |
-| Raúl Parrón | CON-2026-004 | 350 € |
-| PID Medioambiental | CON-2025-005 | 55 € |
-
-Verificar `enable_auto_requests` en Asendia Spain: si genera requests con tarifa horaria que se sumarían además al fijo, desactivarlo para evitar duplicado.
-
-### 5. Fusión Formato Educativo (único caso mixto)
-
-```sql
--- Mover línea horaria de CON-2025-003 → CON-2025-002
-UPDATE contract_services SET contract_id='<CON-2025-002>' WHERE contract_id='<CON-2025-003>';
-UPDATE financial_requests SET contract_id='<CON-2025-002>' WHERE contract_id='<CON-2025-003>';
-UPDATE operational_requests SET contract_id='<CON-2025-002>' WHERE contract_id='<CON-2025-003>';
-UPDATE contracts SET title='HS Management + Mantenimiento HubSpot' WHERE id='<CON-2025-002>';
-UPDATE contracts SET status='expired' WHERE id='<CON-2025-003>';
+```
+SELECT * FROM financial_requests
+WHERE is_recurring_template=true
+  AND recurrence_active=true
+  AND contract.status='active'
+  [AND contract_id = :contract_id]   -- modo manual
 ```
 
-CON-2025-002 quedará: 1 línea fija 280€/mes + 1 línea horaria 55€/h. La factura mensual mostrará ambas líneas.
+Por cada plantilla: clona campos (specialist, service, hours, cost_rate, fixed_cost, cost_to_agency, sale_amount, sale_rate, project_type, notes, bill_separately), sobrescribe `status='draft'`, `work_month/year=M/Y`, `title='{plantilla.title} - {mes año}'`, `template_source_id=plantilla.id`, `is_recurring_template=false`, `code=''`. Duplicate guard por `template_source_id + work_month + work_year`. Crea proyecto operacional y milestones agrupando por contrato (lógica existente).
 
-## Orden de implementación
+**`generate-draft-invoices`** — simplificación: elimina la rama del flag `bills_variable_requests`. Factura = líneas fijas vigentes del contrato + `sale_amount` de requests del mes donde `is_recurring_template=false`. Como las plantillas de retainers tendrán `sale_amount=0`, sus clones no inflan la factura.
 
-1. Migration: añadir `valid_from`/`valid_to` a `contract_services`.
-2. UI: extender `ContractServicesEditor` con date pickers condicionales.
-3. Insert tool: crear líneas fijas para los 5 retainers (valid_from/to en NULL) + fusión Formato Educativo.
-4. Refactor edge function `generate-draft-invoices`.
-5. Dry-run junio 2026 y comparar con facturas reales.
+### 3. UI — `RequestFormModal` y vistas
 
-## Validación esperada (junio 2026)
+**A) Bloque "Recurrencia"** (solo si la request tiene `contract_id`):
+- Toggle "Hacer recurrente cada mes" → `is_recurring_template`.
+- Si activa: toggle "Recurrencia activa" → `recurrence_active`.
+- Banner explicativo: "Esta request se clonará automáticamente cada mes el día 1".
 
-- Antonio Foruria 1.540 € (variable puro)
-- ASENDIA HQ HubSpot Requests 770 € (variable, no 561)
-- Formato Educativo 280 € fijo + variable horaria
-- Asendia Spain 1.410 € (fijo, no suma horas)
-- NOVA PRAXIS 450 €, Raúl Parrón 350 €, PID 55 € (fijos)
-- Presupuestos con hitos del mes (lógica actual intacta)
+**B) Bloque "Precio al Cliente" condicional**:
 
-## Fuera de alcance
+Cargar contrato + contract_services al abrir el modal. Reglas:
 
-- `create-b2brouter-invoice` (ya usa `sale_amount` desde `invoice_items`).
-- `generate-monthly-requests` (ortogonal).
-- Lógica de presupuestos / `payment_plan` / `estimated_invoice_date`.
+```
+caso A — Contrato con línea fixed/monthly vigente:
+  Ocultar bloque. Mostrar aviso:
+  "Incluido en el fee mensual del contrato ({fee}€/mes). 
+   sale_amount = 0."
+  Botón discreto "Facturar esta request aparte" → activa bill_separately
+  y revela el bloque editable.
+
+caso B — Contrato con contract_service hourly_to_client del mismo servicio:
+  Mostrar bloque readonly. Auto-derivar:
+    sale_type = 'hourly'
+    sale_rate = contract_service.price_value
+    sale_amount = hours * sale_rate
+  Aviso: "Tarifa heredada del contrato ({rate}€/h)".
+
+caso C — Request vinculada a budget_id:
+  Comportamiento actual (auto-rellena de la línea del budget).
+
+caso D — Sin contrato ni budget:
+  Bloque editable normal (manual).
+```
+
+**C) Badges y listados**:
+- `RequestCard` / `RequestTableView`: badge "Plantilla" si `is_recurring_template`, badge "Pausada" si `recurrence_active=false`.
+- Si la request tiene `template_source_id`, mostrar link "Generada desde plantilla" en el detalle.
+
+**D) `ContractFormModal`**: ocultar campos `enable_auto_requests` y `bills_variable_requests` (deprecated; columnas se quedan por rollback).
+
+### 4. Datos (insert tool, post-migración)
+
+Crear 5 requests plantilla en CON-2025-004 (Asendia Spain) clonando las de mayo 2026:
+
+| Especialista | Servicio | hours | cost_type | cost_rate | fixed_cost | cost_to_agency |
+|---|---|---|---|---|---|---|
+| Agustín Alzamora | Creación de post para Blog | 6 | hourly | 30 | – | 180 |
+| Tomás White | Gestión CRM e Email Marketing | 2 | hourly | 30 | – | 60 |
+| Fátima Barrouz | Gestión de Redes Sociales | – | fixed | – | 200 | 200 |
+| Iolanda Carbone | Gestión y coordinación proyecto | 1 | hourly | 30 | – | 30 |
+| Sandra Vásquez | Creación/Edición de documentos | 1 | hourly | 30 | – | 30 |
+
+Para todas: `is_recurring_template=true`, `recurrence_active=true`, `sale_amount=0`, `sale_rate=0`, `work_month=NULL`, `work_year=NULL`, `status='draft'`, título sin "- mayo de 2026".
+
+### 5. Validación
+
+1. Dry-run `generate-monthly-requests` para junio 2026 con `contract_id=CON-2025-004` → comprobar 5 requests draft + proyecto + milestones.
+2. Dry-run `generate-draft-invoices` junio 2026 → Asendia Spain debe salir **1.410€** (no se suman los 500€ de coste).
+3. Abrir una request clonada y verificar que el bloque "Precio al Cliente" muestra el aviso de fee incluido y no es editable.
+
+### Fuera de alcance
+
+- Plantillas para otros retainers puros (NOVA, Parrón, PID, Formato Educativo HS Management): no se trackea trabajo recurrente de especialista; siguen como están.
+- Antonio Foruria / Asendia HQ HubSpot Requests: requests manuales mes a mes (caso B), tarifa heredada del contrato.
+- Drop de columnas `enable_auto_requests` / `bills_variable_requests`: se dejan en DB.
+
+### Orden de implementación
+
+1. Migración (4 columnas nuevas + índice).
+2. Refactor `generate-monthly-requests`.
+3. Refactor `generate-draft-invoices` (quitar rama del flag).
+4. UI: bloque Recurrencia, Precio al Cliente condicional, badges, limpieza ContractFormModal.
+5. Insert tool: 5 plantillas Asendia Spain.
+6. Validación junio 2026.

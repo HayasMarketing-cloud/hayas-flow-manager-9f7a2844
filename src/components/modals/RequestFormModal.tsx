@@ -31,7 +31,8 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Loader2, Clock, Euro, User, FileText, ShoppingCart, Info } from 'lucide-react';
+import { Loader2, Clock, Euro, User, FileText, ShoppingCart, Info, Repeat, Lock } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
@@ -65,6 +66,11 @@ const requestSchema = z.object({
   fixed_cost: z.coerce.number().min(0).optional().nullable(),
   // Partner reference (for partners like Wolfestone)
   partner_reference: z.string().max(100).optional().nullable(),
+  // Recurrence (templates that auto-clone monthly)
+  is_recurring_template: z.boolean().default(false),
+  recurrence_active: z.boolean().default(true),
+  // Escape hatch: bill this request separately even if contract has a fixed monthly fee
+  bill_separately: z.boolean().default(false),
 }).refine(
   (data) => !!(data.contract_id || data.budget_id),
   {
@@ -138,6 +144,10 @@ export const RequestFormModal = ({
       fixed_cost: null,
       // Partner reference
       partner_reference: null,
+      // Recurrence
+      is_recurring_template: false,
+      recurrence_active: true,
+      bill_separately: false,
     },
   });
 
@@ -158,6 +168,9 @@ export const RequestFormModal = ({
   const selectedBudgetId = useWatch({ control: form.control, name: 'budget_id' });
   const selectedServiceId = useWatch({ control: form.control, name: 'service_id' });
   const selectedSpecialistId = useWatch({ control: form.control, name: 'specialist_id' });
+  const isRecurringTemplate = useWatch({ control: form.control, name: 'is_recurring_template' });
+  const recurrenceActive = useWatch({ control: form.control, name: 'recurrence_active' });
+  const billSeparately = useWatch({ control: form.control, name: 'bill_separately' });
 
   // Get default rates based on hierarchy
   const { data: defaultRates, isLoading: isLoadingRates } = useDefaultRates(
@@ -236,6 +249,57 @@ export const RequestFormModal = ({
     enabled: !!selectedClientId,
   });
 
+  // Load contract services to determine billing context (fixed monthly fee vs hourly-to-client)
+  const { data: contractServices } = useQuery({
+    queryKey: ['contract-services-for-request', selectedContractId],
+    queryFn: async () => {
+      if (!selectedContractId) return [];
+      const { data, error } = await supabase
+        .from('contract_services')
+        .select('id, service_id, price_value, price_rule_type, billing_frequency, valid_from, valid_to')
+        .eq('contract_id', selectedContractId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedContractId,
+  });
+
+  // Derive contract billing context for the current month
+  const today = new Date().toISOString().slice(0, 10);
+  const contractHasFixedMonthlyFee = (contractServices ?? []).some((s: any) => {
+    if (s.price_rule_type !== 'fixed' || s.billing_frequency !== 'monthly') return false;
+    const okFrom = !s.valid_from || s.valid_from <= today;
+    const okTo = !s.valid_to || s.valid_to >= today;
+    return okFrom && okTo;
+  });
+  const contractHourlyLine = (contractServices ?? []).find((s: any) =>
+    s.price_rule_type === 'hourly' && (!s.service_id || s.service_id === selectedServiceId)
+  );
+  const fixedMonthlyTotal = (contractServices ?? []).reduce((sum: number, s: any) => {
+    if (s.price_rule_type !== 'fixed' || s.billing_frequency !== 'monthly') return sum;
+    const okFrom = !s.valid_from || s.valid_from <= today;
+    const okTo = !s.valid_to || s.valid_to >= today;
+    if (!okFrom || !okTo) return sum;
+    return sum + (Number(s.price_value) || 0);
+  }, 0);
+
+  // Should the "Precio al Cliente" block be hidden because contract handles it?
+  const priceCoveredByContract = !!selectedContractId && contractHasFixedMonthlyFee && !billSeparately;
+
+  // Auto-fill sale rate from contract hourly line (case B)
+  useEffect(() => {
+    if (priceCoveredByContract) return;
+    if (!selectedContractId) return;
+    if (!contractHourlyLine) return;
+    const currentSaleType = form.getValues('sale_type');
+    const currentSaleRate = form.getValues('sale_rate');
+    if (currentSaleType !== 'hourly' || (currentSaleRate && currentSaleRate > 0)) return;
+    form.setValue('sale_rate', Number(contractHourlyLine.price_value) || 0);
+    form.setValue('sale_type', 'hourly');
+  }, [selectedContractId, contractHourlyLine, priceCoveredByContract, form]);
+
+  // Force sale_amount to 0 when covered by contract (handled in mutation submit too)
+
   // Load budgets for selected client
   const { data: budgets } = useQuery({
     queryKey: ['budgets-for-client-request', selectedClientId],
@@ -285,9 +349,18 @@ export const RequestFormModal = ({
         : data.cost_rate;
 
       // Calculate sale_amount based on sale_type
-      const sale_amount = data.sale_type === 'hourly'
+      let sale_amount = data.sale_type === 'hourly'
         ? (data.sale_hours || 0) * (finalSaleRate || 0)
         : (data.unit_price || 0) * data.quantity;
+
+      // If contract covers this with a fixed monthly fee and user hasn't enabled
+      // bill_separately, force sale_amount to 0 so it doesn't inflate the invoice.
+      const isCoveredByContractFee = !!data.contract_id
+        && contractHasFixedMonthlyFee
+        && !data.bill_separately;
+      if (isCoveredByContractFee) {
+        sale_amount = 0;
+      }
 
       // Calculate cost_to_agency based on cost_type
       const cost_to_agency = data.cost_type === 'hourly'
@@ -312,11 +385,11 @@ export const RequestFormModal = ({
         quantity: data.quantity,
         deadline: data.deadline || null,
         status: data.status,
-        // Sale fields
+        // Sale fields (zeroed when covered by contract fee)
         sale_type: data.sale_type,
-        unit_price: data.sale_type === 'fixed' ? data.unit_price : null,
-        sale_rate: data.sale_type === 'hourly' ? finalSaleRate : null,
-        sale_hours: data.sale_type === 'hourly' ? data.sale_hours : null,
+        unit_price: isCoveredByContractFee ? 0 : (data.sale_type === 'fixed' ? data.unit_price : null),
+        sale_rate: isCoveredByContractFee ? 0 : (data.sale_type === 'hourly' ? finalSaleRate : null),
+        sale_hours: isCoveredByContractFee ? 0 : (data.sale_type === 'hourly' ? data.sale_hours : null),
         sale_amount,
         // Cost fields
         cost_type: data.cost_type,
@@ -326,6 +399,10 @@ export const RequestFormModal = ({
         cost_to_agency,
         // Partner reference
         partner_reference: data.partner_reference || null,
+        // Recurrence
+        is_recurring_template: data.is_recurring_template,
+        recurrence_active: data.recurrence_active,
+        bill_separately: data.bill_separately,
       };
 
       if (initialData) {
@@ -489,6 +566,10 @@ export const RequestFormModal = ({
           fixed_cost: toNum(initialData.fixed_cost),
           // Partner reference
           partner_reference: initialData.partner_reference ?? null,
+          // Recurrence
+          is_recurring_template: initialData.is_recurring_template ?? false,
+          recurrence_active: initialData.recurrence_active ?? true,
+          bill_separately: initialData.bill_separately ?? false,
         });
       } else {
         form.reset({
@@ -515,6 +596,10 @@ export const RequestFormModal = ({
           fixed_cost: null,
           // Partner reference
           partner_reference: null,
+          // Recurrence
+          is_recurring_template: false,
+          recurrence_active: true,
+          bill_separately: false,
         });
       }
     }
@@ -858,7 +943,55 @@ export const RequestFormModal = ({
               )}
             />
 
-            {/* Sale/Price to Client Section */}
+            {/* Sale/Price to Client Section — hidden when covered by contract fixed fee */}
+            {priceCoveredByContract ? (
+              <>
+                <Separator />
+                <div className="space-y-3 p-4 bg-muted/40 rounded-lg border border-border">
+                  <div className="flex items-start gap-3">
+                    <Lock className="h-5 w-5 text-muted-foreground mt-0.5" />
+                    <div className="flex-1 space-y-1">
+                      <h3 className="text-sm font-medium">
+                        Incluido en el fee mensual del contrato
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Este contrato factura un fee fijo de{' '}
+                        <span className="font-semibold text-foreground">
+                          {fixedMonthlyTotal.toFixed(2)} €/mes
+                        </span>
+                        . El precio de esta request no se sumará a la factura del cliente
+                        (<code className="text-xs">sale_amount = 0</code>).
+                      </p>
+                    </div>
+                  </div>
+                  {!isViewMode && (
+                    <FormField
+                      control={form.control}
+                      name="bill_separately"
+                      render={({ field }) => (
+                        <div className="flex items-center justify-between rounded-md border bg-background p-3">
+                          <div className="space-y-0.5">
+                            <label className="text-sm font-medium">
+                              Facturar esta request aparte del contrato
+                            </label>
+                            <p className="text-xs text-muted-foreground">
+                              Excepción: actívalo solo si este trabajo no está cubierto por el fee y debe sumarse a la factura.
+                            </p>
+                          </div>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </div>
+                      )}
+                    />
+                  )}
+                </div>
+              </>
+            ) : (
+            <>
+            <Separator />
+
             <Separator />
             <div className="space-y-4">
               <h3 className="text-sm font-medium flex items-center gap-2">
@@ -998,6 +1131,10 @@ export const RequestFormModal = ({
                 </div>
               )}
             </div>
+            </>
+            )}
+
+
 
             {/* Quantity and Deadline */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1196,7 +1333,71 @@ export const RequestFormModal = ({
               )}
             </div>
 
+            {/* Recurrence — only for requests linked to a contract */}
+            {selectedContractId && (
+              <>
+                <Separator />
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium flex items-center gap-2">
+                    <Repeat className="h-4 w-4" />
+                    Recurrencia
+                  </h3>
+                  <FormField
+                    control={form.control}
+                    name="is_recurring_template"
+                    render={({ field }) => (
+                      <div className="flex items-center justify-between rounded-md border p-3">
+                        <div className="space-y-0.5">
+                          <label className="text-sm font-medium">
+                            Hacer recurrente cada mes
+                          </label>
+                          <p className="text-xs text-muted-foreground">
+                            Esta request se clonará automáticamente al inicio de cada mes con los mismos datos.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          disabled={isViewMode}
+                        />
+                      </div>
+                    )}
+                  />
+                  {isRecurringTemplate && (
+                    <FormField
+                      control={form.control}
+                      name="recurrence_active"
+                      render={({ field }) => (
+                        <div className="flex items-center justify-between rounded-md border p-3 bg-muted/30">
+                          <div className="space-y-0.5">
+                            <label className="text-sm font-medium">
+                              Recurrencia activa
+                            </label>
+                            <p className="text-xs text-muted-foreground">
+                              Desactívala para pausar la generación mensual sin borrar la plantilla.
+                            </p>
+                          </div>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            disabled={isViewMode}
+                          />
+                        </div>
+                      )}
+                    />
+                  )}
+                  {initialData?.template_source_id && (
+                    <p className="text-xs text-muted-foreground italic">
+                      Esta request fue generada desde una plantilla recurrente.
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+
             <Separator />
+
+
 
             <FormField
               control={form.control}

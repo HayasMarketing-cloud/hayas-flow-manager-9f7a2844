@@ -647,23 +647,6 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
           <div className="grid grid-cols-2 gap-4">
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div className="space-y-0.5">
-                <Label htmlFor="enable_auto_requests">Requests Recurrentes</Label>
-                <p className="text-sm text-muted-foreground">
-                  Generación automática mensual
-                </p>
-              </div>
-              <Switch
-                id="enable_auto_requests"
-                checked={formData.enable_auto_requests}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, enable_auto_requests: checked })
-                }
-                disabled={!canEdit}
-              />
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border p-4">
-              <div className="space-y-0.5">
                 <Label htmlFor="is_on_demand">Según Demanda</Label>
                 <p className="text-sm text-muted-foreground">
                   Servicios sin cantidad prefijada
@@ -680,24 +663,9 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
             </div>
           </div>
 
-
-
-          <div className="flex items-center justify-between rounded-lg border p-4">
-            <div className="space-y-0.5">
-              <Label htmlFor="bills_variable_requests">Facturar requests al cliente</Label>
-              <p className="text-sm text-muted-foreground">
-                Si está desactivado, los requests del mes no se suman al importe facturado (sólo cuentan como coste especialista). Útil para contratos con fee mensual cerrado.
-              </p>
-            </div>
-            <Switch
-              id="bills_variable_requests"
-              checked={formData.bills_variable_requests}
-              onCheckedChange={(checked) =>
-                setFormData({ ...formData, bills_variable_requests: checked })
-              }
-              disabled={!canEdit}
-            />
-          </div>
+          {/* Recurrencia y facturación variable ahora se controlan a nivel de Request
+              mediante el toggle "Hacer recurrente" en cada request plantilla.
+              Los flags `enable_auto_requests` y `bills_variable_requests` están deprecados. */}
 
           <ContractServicesEditor services={services} onChange={setServices} disabled={!canEdit} />
         </div>
@@ -732,15 +700,13 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                 <Pause className="h-4 w-4 mr-2" />
                 Suspender
               </Button>
-              {contract?.enable_auto_requests && (
-                <Button onClick={handleGenerateRequests} disabled={generateRequestsMutation.isPending}>
-                  {generateRequestsMutation.isPending && (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  )}
-                  <RotateCw className="h-4 w-4 mr-2" />
-                  Generar Requests
-                </Button>
-              )}
+              <Button onClick={handleGenerateRequests} disabled={generateRequestsMutation.isPending}>
+                {generateRequestsMutation.isPending && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
+                <RotateCw className="h-4 w-4 mr-2" />
+                Generar Requests del mes
+              </Button>
               {canCreateProject && (
                 <Button variant="default" onClick={() => setShowProjectModal(true)}>
                   <FolderKanban className="h-4 w-4 mr-2" />

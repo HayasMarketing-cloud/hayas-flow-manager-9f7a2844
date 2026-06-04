@@ -1,0 +1,2 @@
+ALTER TABLE public.contracts ADD COLUMN IF NOT EXISTS bills_variable_requests boolean NOT NULL DEFAULT true;
+COMMENT ON COLUMN public.contracts.bills_variable_requests IS 'Si false, los requests del mes NO suman al importe facturado al cliente (típico de contratos con fee mensual cerrado). Los requests siguen existiendo para el coste especialista.';

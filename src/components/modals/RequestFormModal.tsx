@@ -1333,7 +1333,71 @@ export const RequestFormModal = ({
               )}
             </div>
 
+            {/* Recurrence — only for requests linked to a contract */}
+            {selectedContractId && (
+              <>
+                <Separator />
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium flex items-center gap-2">
+                    <Repeat className="h-4 w-4" />
+                    Recurrencia
+                  </h3>
+                  <FormField
+                    control={form.control}
+                    name="is_recurring_template"
+                    render={({ field }) => (
+                      <div className="flex items-center justify-between rounded-md border p-3">
+                        <div className="space-y-0.5">
+                          <label className="text-sm font-medium">
+                            Hacer recurrente cada mes
+                          </label>
+                          <p className="text-xs text-muted-foreground">
+                            Esta request se clonará automáticamente al inicio de cada mes con los mismos datos.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          disabled={isViewMode}
+                        />
+                      </div>
+                    )}
+                  />
+                  {isRecurringTemplate && (
+                    <FormField
+                      control={form.control}
+                      name="recurrence_active"
+                      render={({ field }) => (
+                        <div className="flex items-center justify-between rounded-md border p-3 bg-muted/30">
+                          <div className="space-y-0.5">
+                            <label className="text-sm font-medium">
+                              Recurrencia activa
+                            </label>
+                            <p className="text-xs text-muted-foreground">
+                              Desactívala para pausar la generación mensual sin borrar la plantilla.
+                            </p>
+                          </div>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            disabled={isViewMode}
+                          />
+                        </div>
+                      )}
+                    />
+                  )}
+                  {initialData?.template_source_id && (
+                    <p className="text-xs text-muted-foreground italic">
+                      Esta request fue generada desde una plantilla recurrente.
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+
             <Separator />
+
+
 
             <FormField
               control={form.control}

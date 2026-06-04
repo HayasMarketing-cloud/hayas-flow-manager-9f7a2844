@@ -19,6 +19,8 @@ interface ContractService {
   billing_frequency?: string;
   billing_mode?: string; // Legacy support
   notes?: string;
+  valid_from?: string | null;
+  valid_to?: string | null;
 }
 
 interface ContractServicesEditorProps {

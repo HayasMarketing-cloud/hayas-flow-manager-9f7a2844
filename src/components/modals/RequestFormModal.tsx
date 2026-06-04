@@ -249,6 +249,57 @@ export const RequestFormModal = ({
     enabled: !!selectedClientId,
   });
 
+  // Load contract services to determine billing context (fixed monthly fee vs hourly-to-client)
+  const { data: contractServices } = useQuery({
+    queryKey: ['contract-services-for-request', selectedContractId],
+    queryFn: async () => {
+      if (!selectedContractId) return [];
+      const { data, error } = await supabase
+        .from('contract_services')
+        .select('id, service_id, price_value, price_rule_type, billing_frequency, valid_from, valid_to')
+        .eq('contract_id', selectedContractId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedContractId,
+  });
+
+  // Derive contract billing context for the current month
+  const today = new Date().toISOString().slice(0, 10);
+  const contractHasFixedMonthlyFee = (contractServices ?? []).some((s: any) => {
+    if (s.price_rule_type !== 'fixed' || s.billing_frequency !== 'monthly') return false;
+    const okFrom = !s.valid_from || s.valid_from <= today;
+    const okTo = !s.valid_to || s.valid_to >= today;
+    return okFrom && okTo;
+  });
+  const contractHourlyLine = (contractServices ?? []).find((s: any) =>
+    s.price_rule_type === 'hourly' && (!s.service_id || s.service_id === selectedServiceId)
+  );
+  const fixedMonthlyTotal = (contractServices ?? []).reduce((sum: number, s: any) => {
+    if (s.price_rule_type !== 'fixed' || s.billing_frequency !== 'monthly') return sum;
+    const okFrom = !s.valid_from || s.valid_from <= today;
+    const okTo = !s.valid_to || s.valid_to >= today;
+    if (!okFrom || !okTo) return sum;
+    return sum + (Number(s.price_value) || 0);
+  }, 0);
+
+  // Should the "Precio al Cliente" block be hidden because contract handles it?
+  const priceCoveredByContract = !!selectedContractId && contractHasFixedMonthlyFee && !billSeparately;
+
+  // Auto-fill sale rate from contract hourly line (case B)
+  useEffect(() => {
+    if (priceCoveredByContract) return;
+    if (!selectedContractId) return;
+    if (!contractHourlyLine) return;
+    const currentSaleType = form.getValues('sale_type');
+    const currentSaleRate = form.getValues('sale_rate');
+    if (currentSaleType !== 'hourly' || (currentSaleRate && currentSaleRate > 0)) return;
+    form.setValue('sale_rate', Number(contractHourlyLine.price_value) || 0);
+    form.setValue('sale_type', 'hourly');
+  }, [selectedContractId, contractHourlyLine, priceCoveredByContract, form]);
+
+  // Force sale_amount to 0 when covered by contract (handled in mutation submit too)
+
   // Load budgets for selected client
   const { data: budgets } = useQuery({
     queryKey: ['budgets-for-client-request', selectedClientId],

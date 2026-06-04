@@ -167,8 +167,10 @@ Deno.serve(async (req) => {
         0,
       ).toFixed(2);
 
+      const billsVariable = (contract as any).bills_variable_requests !== false;
+
       let variableLine: { description: string; quantity: number; unit_price: number; total: number } | null = null;
-      if (variableAmount > 0) {
+      if (billsVariable && variableAmount > 0) {
         const hoursLabel = totalHours > 0 ? ` (${totalHours}h)` : "";
         variableLine = {
           description: `${contract.title} — consumo ${monthLabel}${hoursLabel}`,
@@ -176,7 +178,7 @@ Deno.serve(async (req) => {
           unit_price: variableAmount,
           total: variableAmount,
         };
-      } else if (reqList.length > 0) {
+      } else if (billsVariable && reqList.length > 0) {
         warnings.push({
           level: "warn",
           message: `Contrato ${contract.code} (${(contract as any).client?.name}): ${reqList.length} requests sin importe → línea variable omitida`,

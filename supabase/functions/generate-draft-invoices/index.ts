@@ -255,11 +255,13 @@ Deno.serve(async (req) => {
         const { error: itemErr } = await admin.from("invoice_items").insert(itemsPayload);
         if (itemErr) throw itemErr;
 
-        if (variableLine && reqList.length > 0) {
+        // Link ALL completed non-template requests of the month to this invoice
+        // for traceability, regardless of whether they added a billable line.
+        if (requestsToLink.length > 0) {
           const { error: linkErr } = await admin
             .from("financial_requests")
             .update({ billed_invoice_id: invoice.id })
-            .in("id", reqList.map((r: any) => r.id));
+            .in("id", requestsToLink);
           if (linkErr) throw linkErr;
         }
 

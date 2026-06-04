@@ -566,6 +566,10 @@ export const RequestFormModal = ({
           fixed_cost: toNum(initialData.fixed_cost),
           // Partner reference
           partner_reference: initialData.partner_reference ?? null,
+          // Recurrence
+          is_recurring_template: initialData.is_recurring_template ?? false,
+          recurrence_active: initialData.recurrence_active ?? true,
+          bill_separately: initialData.bill_separately ?? false,
         });
       } else {
         form.reset({
@@ -592,6 +596,10 @@ export const RequestFormModal = ({
           fixed_cost: null,
           // Partner reference
           partner_reference: null,
+          // Recurrence
+          is_recurring_template: false,
+          recurrence_active: true,
+          bill_separately: false,
         });
       }
     }

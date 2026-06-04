@@ -943,7 +943,55 @@ export const RequestFormModal = ({
               )}
             />
 
-            {/* Sale/Price to Client Section */}
+            {/* Sale/Price to Client Section — hidden when covered by contract fixed fee */}
+            {priceCoveredByContract ? (
+              <>
+                <Separator />
+                <div className="space-y-3 p-4 bg-muted/40 rounded-lg border border-border">
+                  <div className="flex items-start gap-3">
+                    <Lock className="h-5 w-5 text-muted-foreground mt-0.5" />
+                    <div className="flex-1 space-y-1">
+                      <h3 className="text-sm font-medium">
+                        Incluido en el fee mensual del contrato
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Este contrato factura un fee fijo de{' '}
+                        <span className="font-semibold text-foreground">
+                          {fixedMonthlyTotal.toFixed(2)} €/mes
+                        </span>
+                        . El precio de esta request no se sumará a la factura del cliente
+                        (<code className="text-xs">sale_amount = 0</code>).
+                      </p>
+                    </div>
+                  </div>
+                  {!isViewMode && (
+                    <FormField
+                      control={form.control}
+                      name="bill_separately"
+                      render={({ field }) => (
+                        <div className="flex items-center justify-between rounded-md border bg-background p-3">
+                          <div className="space-y-0.5">
+                            <label className="text-sm font-medium">
+                              Facturar esta request aparte del contrato
+                            </label>
+                            <p className="text-xs text-muted-foreground">
+                              Excepción: actívalo solo si este trabajo no está cubierto por el fee y debe sumarse a la factura.
+                            </p>
+                          </div>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </div>
+                      )}
+                    />
+                  )}
+                </div>
+              </>
+            ) : (
+            <>
+            <Separator />
+
             <Separator />
             <div className="space-y-4">
               <h3 className="text-sm font-medium flex items-center gap-2">

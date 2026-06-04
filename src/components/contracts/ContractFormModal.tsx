@@ -677,7 +677,23 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                 }
                 disabled={!canEdit}
               />
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="bills_variable_requests">Facturar requests al cliente</Label>
+              <p className="text-sm text-muted-foreground">
+                Si está desactivado, los requests del mes no se suman al importe facturado (sólo cuentan como coste especialista). Útil para contratos con fee mensual cerrado.
+              </p>
             </div>
+            <Switch
+              id="bills_variable_requests"
+              checked={formData.bills_variable_requests}
+              onCheckedChange={(checked) =>
+                setFormData({ ...formData, bills_variable_requests: checked })
+              }
+              disabled={!canEdit}
+            />
           </div>
 
           <ContractServicesEditor services={services} onChange={setServices} disabled={!canEdit} />

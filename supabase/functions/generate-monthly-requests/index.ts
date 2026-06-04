@@ -5,33 +5,41 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface ContractService {
+interface Template {
   id: string;
+  client_id: string;
+  contract_id: string;
   service_id: string | null;
   specialist_id: string | null;
-  description: string;
-  quantity: number;
-  price_value: number;
-  price_rule_type: string | null;
-  billing_frequency: string | null;
-  notes: string | null;
-  project_type: string | null;
-  specialist?: { hourly_rate: number | null };
-  service?: { 
+  title: string;
+  description: string | null;
+  quantity: number | null;
+  hours: number | null;
+  sale_hours: number | null;
+  cost_type: string | null;
+  cost_rate: number | null;
+  fixed_cost: number | null;
+  cost_to_agency: number | null;
+  sale_type: string | null;
+  sale_rate: number | null;
+  unit_price: number | null;
+  sale_amount: number | null;
+  bill_separately: boolean;
+  notes?: string | null;
+  service?: {
     id: string;
     name: string;
     template_structure: any;
   } | null;
-}
-
-interface Contract {
-  id: string;
-  client_id: string;
-  title: string;
-  code: string;
-  pm_user_id: string | null;
-  am_user_id: string | null;
-  contract_services: ContractService[];
+  contract?: {
+    id: string;
+    code: string;
+    title: string;
+    status: string;
+    client_id: string;
+    pm_user_id: string | null;
+    am_user_id: string | null;
+  } | null;
 }
 
 interface GenerationResult {
@@ -45,7 +53,6 @@ interface GenerationResult {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -54,262 +61,162 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const { contract_id, auto_mode, work_month: overrideMonth, work_year: overrideYear } = body;
 
-    // Determine work period
     const now = new Date();
-    const workMonth = overrideMonth ?? (now.getMonth() + 1); // 1-12
+    const workMonth = overrideMonth ?? (now.getMonth() + 1);
     const workYear = overrideYear ?? now.getFullYear();
     const monthName = new Date(workYear, workMonth - 1).toLocaleString('es-ES', { month: 'long', year: 'numeric' });
 
-    console.log(`[generate-monthly-requests] Starting generation for ${monthName} (${workMonth}/${workYear})`);
-    console.log(`[generate-monthly-requests] Mode: ${auto_mode ? 'AUTO' : 'MANUAL'}, contract_id: ${contract_id || 'ALL'}`);
+    console.log(`[generate-monthly-requests] ${monthName} | mode=${auto_mode ? 'AUTO' : 'MANUAL'} | contract=${contract_id || 'ALL'}`);
 
-    // Create admin client for all operations
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // If not auto_mode and contract_id provided, validate authorization
+    // Manual mode: validate caller permissions
     if (!auto_mode && contract_id) {
       const authHeader = req.headers.get('authorization');
       if (!authHeader) {
         return new Response(JSON.stringify({ error: 'Authorization required' }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-
       const token = authHeader.replace('Bearer ', '');
       const supabaseClient = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
         Deno.env.get('SUPABASE_ANON_KEY') ?? '',
         { global: { headers: { Authorization: authHeader } } }
       );
-
       const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
-
       if (authError || !user) {
-        return new Response(JSON.stringify({ error: 'Unauthorized: invalid token' }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-
-      // Check user roles
-      const { data: roles, error: rolesError } = await supabaseAdmin
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id);
-
-      if (rolesError) {
-        console.error('Error fetching user roles:', rolesError);
-        return new Response(JSON.stringify({ error: 'Error validating permissions' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      const allowedRoles = ['admin', 'finanzas', 'project_manager'];
-      const hasPermission = roles?.some((r) => allowedRoles.includes(r.role));
-
-      if (!hasPermission) {
-        return new Response(JSON.stringify({ error: 'Forbidden: insufficient permissions' }), {
-          status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      const { data: roles } = await supabaseAdmin
+        .from('user_roles').select('role').eq('user_id', user.id);
+      const allowed = ['admin', 'finanzas', 'project_manager'];
+      if (!roles?.some((r) => allowed.includes(r.role))) {
+        return new Response(JSON.stringify({ error: 'Forbidden' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
     }
 
-    // Fetch contracts to process
-    let contracts: Contract[] = [];
+    // Fetch templates: financial_requests with is_recurring_template=true AND recurrence_active=true
+    let query = supabaseAdmin
+      .from('financial_requests')
+      .select(`
+        id, client_id, contract_id, service_id, specialist_id, title, description,
+        quantity, hours, sale_hours, cost_type, cost_rate, fixed_cost, cost_to_agency,
+        sale_type, sale_rate, unit_price, sale_amount, bill_separately,
+        service:services(id, name, template_structure),
+        contract:contracts!inner(id, code, title, status, client_id, pm_user_id, am_user_id)
+      `)
+      .eq('is_recurring_template', true)
+      .eq('recurrence_active', true)
+      .eq('contract.status', 'active');
 
     if (contract_id) {
-      // Single contract mode (manual trigger)
-      const { data: contract, error: contractError } = await supabaseAdmin
-        .from('contracts')
-        .select(`
-          id, client_id, title, code, pm_user_id, am_user_id, status,
-          contract_services(
-            id, service_id, specialist_id, description, quantity, 
-            price_value, price_rule_type, billing_frequency, notes, project_type,
-            specialist:specialists(hourly_rate),
-            service:services(id, name, template_structure)
-          )
-        `)
-        .eq('id', contract_id)
-        .single();
-
-      if (contractError || !contract) {
-        return new Response(JSON.stringify({ error: 'Contract not found' }), {
-          status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      if ((contract as any).status !== 'active') {
-        return new Response(JSON.stringify({ error: 'Contract must be active to generate requests' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      contracts = [contract as unknown as Contract];
-    } else {
-      // Auto mode: fetch all active contracts with enable_auto_requests
-      const today = now.toISOString().split('T')[0];
-      
-      const { data: activeContracts, error: contractsError } = await supabaseAdmin
-        .from('contracts')
-        .select(`
-          id, client_id, title, code, pm_user_id, am_user_id,
-          contract_services(
-            id, service_id, specialist_id, description, quantity, 
-            price_value, price_rule_type, billing_frequency, notes, project_type,
-            specialist:specialists(hourly_rate),
-            service:services(id, name, template_structure)
-          )
-        `)
-        .eq('status', 'active')
-        .eq('enable_auto_requests', true)
-        .lte('start_date', today)
-        .or(`end_date.is.null,end_date.gte.${today}`);
-
-      if (contractsError) {
-        console.error('Error fetching contracts:', contractsError);
-        return new Response(JSON.stringify({ error: 'Error fetching contracts' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      contracts = (activeContracts || []) as unknown as Contract[];
-      console.log(`[generate-monthly-requests] Found ${contracts.length} active contracts with auto_requests enabled`);
+      query = query.eq('contract_id', contract_id);
     }
 
-    if (contracts.length === 0) {
-      return new Response(JSON.stringify({ 
-        count: 0, 
-        message: 'No contracts to process',
-        results: []
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    const { data: templatesRaw, error: templatesError } = await query;
+    if (templatesError) {
+      console.error('Error fetching templates:', templatesError);
+      return new Response(JSON.stringify({ error: 'Error fetching templates' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    const templates = (templatesRaw || []) as unknown as Template[];
+    // Filter out any with null contract (safety net)
+    const validTemplates = templates.filter((t) => t.contract && t.contract.status === 'active');
+
+    console.log(`[generate-monthly-requests] Found ${validTemplates.length} active templates`);
+
+    if (validTemplates.length === 0) {
+      return new Response(JSON.stringify({
+        count: 0,
+        message: 'No active templates to process',
+        results: [],
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Group by contract for project creation
+    const byContract = new Map<string, Template[]>();
+    for (const t of validTemplates) {
+      if (!byContract.has(t.contract_id)) byContract.set(t.contract_id, []);
+      byContract.get(t.contract_id)!.push(t);
     }
 
     const results: GenerationResult[] = [];
 
-    // Process each contract
-    for (const contract of contracts) {
-      console.log(`[generate-monthly-requests] Processing contract: ${contract.code} - ${contract.title}`);
+    for (const [contractId, contractTemplates] of byContract.entries()) {
+      const contract = contractTemplates[0].contract!;
+      console.log(`[generate-monthly-requests] Processing ${contract.code} with ${contractTemplates.length} templates`);
 
-      // Check for existing requests for this contract + month (duplicate detection)
-      const { count: existingCount, error: checkError } = await supabaseAdmin
+      // Duplicate guard: check templates already cloned this period
+      const templateIds = contractTemplates.map((t) => t.id);
+      const { data: alreadyCloned } = await supabaseAdmin
         .from('financial_requests')
-        .select('id', { count: 'exact', head: true })
-        .eq('contract_id', contract.id)
+        .select('template_source_id')
+        .in('template_source_id', templateIds)
         .eq('work_month', workMonth)
         .eq('work_year', workYear);
 
-      if (checkError) {
-        console.error(`Error checking duplicates for ${contract.code}:`, checkError);
+      const clonedSet = new Set((alreadyCloned || []).map((r: any) => r.template_source_id));
+      const toClone = contractTemplates.filter((t) => !clonedSet.has(t.id));
+
+      if (toClone.length === 0) {
         results.push({
-          contractId: contract.id,
-          contractCode: contract.code,
-          requestsCreated: 0,
-          projectCreated: false,
-          skipped: true,
-          skipReason: 'Error checking duplicates'
+          contractId, contractCode: contract.code, requestsCreated: 0,
+          projectCreated: false, skipped: true,
+          skipReason: `All ${contractTemplates.length} templates already cloned for ${workMonth}/${workYear}`,
         });
         continue;
       }
 
-      if (existingCount && existingCount > 0) {
-        console.log(`[generate-monthly-requests] Skipping ${contract.code}: ${existingCount} requests already exist for ${workMonth}/${workYear}`);
-        results.push({
-          contractId: contract.id,
-          contractCode: contract.code,
-          requestsCreated: 0,
-          projectCreated: false,
-          skipped: true,
-          skipReason: `${existingCount} requests already exist for this period`
-        });
-        continue;
-      }
+      // Clone templates → draft requests for the target month
+      const requestsToInsert = toClone.map((t) => ({
+        client_id: t.client_id,
+        contract_id: t.contract_id,
+        service_id: t.service_id,
+        specialist_id: t.specialist_id,
+        title: `${t.title} - ${monthName}`,
+        description: t.description,
+        quantity: t.quantity ?? 1,
+        hours: t.hours,
+        sale_hours: t.sale_hours,
+        cost_type: t.cost_type,
+        cost_rate: t.cost_rate,
+        fixed_cost: t.fixed_cost,
+        cost_to_agency: t.cost_to_agency,
+        sale_type: t.sale_type,
+        sale_rate: t.sale_rate,
+        unit_price: t.unit_price,
+        sale_amount: t.sale_amount,
+        bill_separately: t.bill_separately,
+        status: 'draft',
+        code: '',
+        work_month: workMonth,
+        work_year: workYear,
+        template_source_id: t.id,
+        is_recurring_template: false,
+        recurrence_active: true,
+      }));
 
-      // Filter monthly services
-      const monthlyServices = contract.contract_services?.filter(
-        (s) => s.billing_frequency === 'monthly'
-      ) || [];
-
-      if (monthlyServices.length === 0) {
-        console.log(`[generate-monthly-requests] Skipping ${contract.code}: No monthly services`);
-        results.push({
-          contractId: contract.id,
-          contractCode: contract.code,
-          requestsCreated: 0,
-          projectCreated: false,
-          skipped: true,
-          skipReason: 'No monthly services'
-        });
-        continue;
-      }
-
-      // Create requests
-      const requestsToInsert: Record<string, unknown>[] = [];
-
-      for (const service of monthlyServices) {
-        const qty = Number(service.quantity ?? 1);
-        const saleValue = Number(service.price_value ?? 0);
-        const specialistHourlyRate = Number(service.specialist?.hourly_rate ?? 0);
-        const isHourly = service.price_rule_type === 'hourly';
-
-        const hours = isHourly ? qty : null;
-        const saleHours = isHourly ? qty : null;
-        const fixedCost = isHourly ? null : qty * specialistHourlyRate;
-        const costToAgency = isHourly ? qty * specialistHourlyRate : fixedCost;
-        const unitPrice = isHourly ? null : saleValue;
-        const saleAmount = isHourly ? qty * saleValue : qty * saleValue;
-
-        requestsToInsert.push({
-          client_id: contract.client_id,
-          service_id: service.service_id,
-          specialist_id: service.specialist_id,
-          contract_id: contract.id,
-          title: `${service.description} - ${monthName}`,
-          description: `Generado automáticamente desde contrato. ${service.notes || ''}`,
-          quantity: qty,
-          hours,
-          sale_hours: saleHours,
-          status: 'draft',
-          code: '', // Will be generated by trigger
-          cost_type: isHourly ? 'hourly' : 'fixed',
-          cost_rate: isHourly ? specialistHourlyRate : null,
-          fixed_cost: fixedCost,
-          cost_to_agency: costToAgency,
-          sale_type: service.price_rule_type,
-          sale_rate: isHourly ? saleValue : null,
-          unit_price: unitPrice,
-          sale_amount: saleAmount,
-          work_month: workMonth,
-          work_year: workYear,
-        });
-      }
-
-      // Insert requests
-      const { data: createdRequests, error: requestsError } = await supabaseAdmin
+      const { data: createdRequests, error: insertError } = await supabaseAdmin
         .from('financial_requests')
         .insert(requestsToInsert)
-        .select('id, code, title');
+        .select('id, code, title, specialist_id, service_id, template_source_id');
 
-      if (requestsError) {
-        console.error(`Error creating requests for ${contract.code}:`, requestsError);
+      if (insertError) {
+        console.error(`Error inserting requests for ${contract.code}:`, insertError);
         results.push({
-          contractId: contract.id,
-          contractCode: contract.code,
-          requestsCreated: 0,
-          projectCreated: false,
-          skipped: true,
-          skipReason: `Error creating requests: ${requestsError.message}`
+          contractId, contractCode: contract.code, requestsCreated: 0,
+          projectCreated: false, skipped: true,
+          skipReason: `Insert error: ${insertError.message}`,
         });
         continue;
       }
@@ -319,13 +226,10 @@ Deno.serve(async (req) => {
       // Create operational project
       let projectCreated = false;
       let projectId: string | undefined;
-
-      // Get the user who should be the owner (PM or AM)
       const ownerUserId = contract.pm_user_id || contract.am_user_id;
 
       if (ownerUserId) {
         const projectName = `${contract.title} - ${monthName}`;
-
         const { data: newProject, error: projectError } = await supabaseAdmin
           .from('operational_projects')
           .insert({
@@ -346,84 +250,72 @@ Deno.serve(async (req) => {
         } else if (newProject) {
           projectCreated = true;
           projectId = newProject.id;
-          console.log(`[generate-monthly-requests] Created project ${projectId} for ${contract.code}`);
-
-          // Clone milestones and tasks from service templates
-          await cloneTemplateStructures(supabaseAdmin, contract, newProject.id, monthlyServices, createdRequests || [], workMonth, workYear);
+          await cloneMilestones(
+            supabaseAdmin, contract, newProject.id,
+            toClone, createdRequests || [],
+            workMonth, workYear, ownerUserId
+          );
         }
       } else {
-        console.log(`[generate-monthly-requests] Skipping project creation for ${contract.code}: No PM or AM assigned`);
+        console.log(`[generate-monthly-requests] No owner for ${contract.code}, skipping project`);
       }
 
       results.push({
-        contractId: contract.id,
-        contractCode: contract.code,
+        contractId, contractCode: contract.code,
         requestsCreated: createdRequests?.length || 0,
-        projectCreated,
-        projectId,
-        skipped: false
+        projectCreated, projectId, skipped: false,
       });
     }
 
-    // Summary
-    const totalRequests = results.reduce((sum, r) => sum + r.requestsCreated, 0);
-    const projectsCreated = results.filter(r => r.projectCreated).length;
-    const skippedCount = results.filter(r => r.skipped).length;
+    const totalRequests = results.reduce((s, r) => s + r.requestsCreated, 0);
+    const projectsCreated = results.filter((r) => r.projectCreated).length;
+    const skippedCount = results.filter((r) => r.skipped).length;
 
-    console.log(`[generate-monthly-requests] Completed. Requests: ${totalRequests}, Projects: ${projectsCreated}, Skipped: ${skippedCount}`);
+    console.log(`[generate-monthly-requests] Done. requests=${totalRequests} projects=${projectsCreated} skipped=${skippedCount}`);
 
-    return new Response(
-      JSON.stringify({
-        count: totalRequests,
-        projectsCreated,
-        contractsProcessed: contracts.length,
-        skipped: skippedCount,
-        workPeriod: { month: workMonth, year: workYear },
-        results,
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({
+      count: totalRequests,
+      projectsCreated,
+      contractsProcessed: byContract.size,
+      skipped: skippedCount,
+      workPeriod: { month: workMonth, year: workYear },
+      results,
+    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (error) {
-    console.error('Error generating monthly requests:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    console.error('Error in generate-monthly-requests:', error);
+    const msg = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(JSON.stringify({ error: msg }), {
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
 
-/**
- * Clone milestone and task structures from service templates to the new project
- */
-async function cloneTemplateStructures(
+async function cloneMilestones(
   supabaseClient: any,
-  contract: Contract,
+  contract: { id: string; client_id: string },
   projectId: string,
-  services: ContractService[],
-  createdRequests: { id: string; code: string; title: string }[],
+  templates: Template[],
+  createdRequests: { id: string; code: string; title: string; template_source_id: string }[],
   workMonth: number,
-  workYear: number
+  workYear: number,
+  createdBy: string
 ): Promise<void> {
   try {
-    const createdBy = contract.pm_user_id || contract.am_user_id;
-
-    // Default milestone deadline = last day of work_month (e.g. June 30)
     const milestoneDeadline = new Date(workYear, workMonth, 0).toISOString().split('T')[0];
 
-    // Iterate over ALL services (1:1 with createdRequests)
-    for (let i = 0; i < services.length; i++) {
-      const service = services[i];
-      const correspondingRequest = createdRequests[i];
+    // Map template_source_id -> created request
+    const reqByTemplate = new Map(createdRequests.map((r) => [r.template_source_id, r]));
+
+    for (const template of templates) {
+      const correspondingRequest = reqByTemplate.get(template.id);
       if (!correspondingRequest) continue;
 
-      const template = service.service?.template_structure;
-      const hasTemplate = template?.milestones?.length > 0;
+      const tmplStructure = template.service?.template_structure;
+      const hasTemplate = tmplStructure?.milestones?.length > 0;
 
       if (hasTemplate) {
-        // CASE A: service has template → clone milestones + tasks
-        for (const milestone of template.milestones) {
-          const { data: newMilestone, error: milestoneError } = await supabaseClient
+        for (const milestone of tmplStructure.milestones) {
+          const { data: newMilestone, error: msErr } = await supabaseClient
             .from('operational_requests')
             .insert({
               name: `${milestone.name} - ${correspondingRequest.code}`,
@@ -432,42 +324,33 @@ async function cloneTemplateStructures(
               created_by: createdBy,
               status: 'pending',
               financial_request_id: correspondingRequest.id,
-              assignee_specialist_id: service.specialist_id,
-              description: milestone.description || `Milestone de ${service.description}`,
+              assignee_specialist_id: template.specialist_id,
+              description: milestone.description || `Milestone de ${template.title}`,
               deadline: milestoneDeadline,
             })
             .select('id')
             .single();
 
-          if (milestoneError) {
-            console.error(`Error creating milestone:`, milestoneError);
+          if (msErr) {
+            console.error('Error creating milestone:', msErr);
             continue;
           }
 
           if (milestone.tasks?.length > 0 && newMilestone) {
-            const milestoneId = (newMilestone as any).id;
-            const tasksToInsert = milestone.tasks.map((task: any, taskIndex: number) => ({
+            const tasksToInsert = milestone.tasks.map((task: any, idx: number) => ({
               name: typeof task === 'string' ? task : task.name,
-              operational_request_id: milestoneId,
-              order_index: taskIndex,
+              operational_request_id: newMilestone.id,
+              order_index: idx,
               status: 'pending',
-              assignee_specialist_id: service.specialist_id,
+              assignee_specialist_id: template.specialist_id,
               deadline: milestoneDeadline,
             }));
-
-            const { error: tasksError } = await supabaseClient
-              .from('tasks')
-              .insert(tasksToInsert);
-
-            if (tasksError) {
-              console.error(`Error creating tasks:`, tasksError);
-            }
+            const { error: tasksErr } = await supabaseClient.from('tasks').insert(tasksToInsert);
+            if (tasksErr) console.error('Error creating tasks:', tasksErr);
           }
         }
       } else {
-        // CASE B: no template → 1 simple milestone per request
-        // Use request.title (already includes the month, e.g. "Plan Marketing - junio 2026") for traceability
-        const { error: milestoneError } = await supabaseClient
+        const { error: msErr } = await supabaseClient
           .from('operational_requests')
           .insert({
             name: correspondingRequest.title,
@@ -476,19 +359,14 @@ async function cloneTemplateStructures(
             created_by: createdBy,
             status: 'pending',
             financial_request_id: correspondingRequest.id,
-            assignee_specialist_id: service.specialist_id,
-            description: service.notes || `Milestone generado desde request ${correspondingRequest.code}`,
+            assignee_specialist_id: template.specialist_id,
+            description: template.notes || `Milestone generado desde plantilla recurrente`,
             deadline: milestoneDeadline,
           });
-
-        if (milestoneError) {
-          console.error(`Error creating simple milestone for ${correspondingRequest.code}:`, milestoneError);
-        }
+        if (msErr) console.error('Error creating simple milestone:', msErr);
       }
     }
-
-    console.log(`[generate-monthly-requests] Milestones created for ${services.length} requests (deadline: ${milestoneDeadline})`);
   } catch (error) {
-    console.error('Error creating milestones:', error);
+    console.error('Error in cloneMilestones:', error);
   }
 }

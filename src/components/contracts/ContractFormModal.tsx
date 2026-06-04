@@ -210,6 +210,7 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         contract_type: formData.contract_type,
         total_amount: fixedServicesTotal,
         enable_auto_requests: formData.enable_auto_requests,
+        bills_variable_requests: formData.bills_variable_requests,
         is_on_demand: formData.is_on_demand,
         am_user_id: formData.am_user_id || null,
         pm_user_id: formData.pm_user_id || null,

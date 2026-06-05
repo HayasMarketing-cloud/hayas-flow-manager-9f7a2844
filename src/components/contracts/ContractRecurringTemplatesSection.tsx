@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ChevronDown, ChevronRight, ExternalLink, Repeat, Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { RequestFormModal } from '@/components/modals/RequestFormModal';
 
 interface Props {
   contractId: string;

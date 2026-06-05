@@ -35,9 +35,10 @@ interface TemplateRow {
   clones_count?: number;
 }
 
-export function ContractRecurringTemplatesSection({ contractId, disabled }: Props) {
+export function ContractRecurringTemplatesSection({ contractId, clientId, disabled }: Props) {
   const [open, setOpen] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, Partial<TemplateRow>>>({});
+  const [newTemplateOpen, setNewTemplateOpen] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
 

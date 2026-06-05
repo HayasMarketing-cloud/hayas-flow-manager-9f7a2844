@@ -17,6 +17,7 @@ import { ContractServicesEditor } from './ContractServicesEditor';
 import { ContractProjectCreationModal } from './ContractProjectCreationModal';
 import { useCreateProjectFromContract } from '@/hooks/useCreateProjectFromContract';
 import { Loader2, FileText, Play, Pause, RotateCw, AlertCircle, FolderKanban, ExternalLink } from 'lucide-react';
+import { ContractRecurringTemplatesSection } from './ContractRecurringTemplatesSection';
 interface ContractFormModalProps {
   isOpen: boolean;
   onClose: () => void;

@@ -2328,6 +2328,10 @@ export type Database = {
         Args: { _liquidation_id: string }
         Returns: boolean
       }
+      is_specialist_on_contract: {
+        Args: { _contract_id: string }
+        Returns: boolean
+      }
       link_my_specialist: { Args: never; Returns: string }
     }
     Enums: {

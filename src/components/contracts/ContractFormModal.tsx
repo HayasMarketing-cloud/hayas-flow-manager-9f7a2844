@@ -669,6 +669,15 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
               Los flags `enable_auto_requests` y `bills_variable_requests` están deprecados. */}
 
           <ContractServicesEditor services={services} onChange={setServices} disabled={!canEdit} />
+
+          {contract?.id && (
+            <ContractRecurringTemplatesSection
+              contractId={contract.id}
+              contractTitle={contract.title}
+              clientId={contract.client_id}
+              disabled={isViewMode}
+            />
+          )}
         </div>
 
         <DialogFooter className="gap-2">

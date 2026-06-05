@@ -263,6 +263,22 @@ export function ContractRecurringTemplatesSection({ contractId, clientId, disabl
           </div>
         </CollapsibleContent>
       </div>
+
+      <RequestFormModal
+        open={newTemplateOpen}
+        onOpenChange={setNewTemplateOpen}
+        mode="create"
+        initialData={{
+          client_id: clientId,
+          contract_id: contractId,
+          is_recurring_template: true,
+          recurrence_active: true,
+        }}
+        onSuccess={() => {
+          setNewTemplateOpen(false);
+          qc.invalidateQueries({ queryKey: ['contract-recurring-templates', contractId] });
+        }}
+      />
     </Collapsible>
   );
 }

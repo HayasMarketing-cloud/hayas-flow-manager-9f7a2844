@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ChevronDown, ChevronRight, ExternalLink, Repeat, Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { RequestFormModal } from '@/components/modals/RequestFormModal';
 
 interface Props {
   contractId: string;
@@ -34,9 +35,10 @@ interface TemplateRow {
   clones_count?: number;
 }
 
-export function ContractRecurringTemplatesSection({ contractId, disabled }: Props) {
+export function ContractRecurringTemplatesSection({ contractId, clientId, disabled }: Props) {
   const [open, setOpen] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, Partial<TemplateRow>>>({});
+  const [newTemplateOpen, setNewTemplateOpen] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
 
@@ -251,7 +253,8 @@ export function ContractRecurringTemplatesSection({ contractId, disabled }: Prop
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => navigate(`/solicitudes?contract_id=${contractId}&new=template`)}
+                onClick={() => setNewTemplateOpen(true)}
+                disabled={disabled}
               >
                 <Plus className="h-4 w-4 mr-1" />
                 Nueva plantilla
@@ -260,6 +263,22 @@ export function ContractRecurringTemplatesSection({ contractId, disabled }: Prop
           </div>
         </CollapsibleContent>
       </div>
+
+      <RequestFormModal
+        open={newTemplateOpen}
+        onOpenChange={setNewTemplateOpen}
+        mode="create"
+        initialData={{
+          client_id: clientId,
+          contract_id: contractId,
+          is_recurring_template: true,
+          recurrence_active: true,
+        }}
+        onSuccess={() => {
+          setNewTemplateOpen(false);
+          qc.invalidateQueries({ queryKey: ['contract-recurring-templates', contractId] });
+        }}
+      />
     </Collapsible>
   );
 }

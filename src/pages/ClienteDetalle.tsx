@@ -32,8 +32,8 @@ import {
   Building2,
   ExternalLink,
 } from 'lucide-react';
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ClientFormModal } from '@/components/modals/ClientFormModal';
@@ -53,6 +53,7 @@ const CONTACTS_PER_PAGE = 10;
 const ClienteDetalle = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { canManageClients, canEditAssignedClients, loading: rolesLoading } = useUserRole();
   const canManage = canManageClients();
@@ -65,6 +66,15 @@ const ClienteDetalle = () => {
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [deleteContactId, setDeleteContactId] = useState<string | null>(null);
+
+  // Auto-open edit modal if ?edit=1 is present
+  useEffect(() => {
+    if (searchParams.get('edit') === '1' && canEdit && !rolesLoading) {
+      setClientModalOpen(true);
+      searchParams.delete('edit');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, canEdit, rolesLoading, setSearchParams]);
 
   // Fetch client data
   const {

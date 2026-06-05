@@ -101,8 +101,7 @@ const Clientes = () => {
 
   const handleEditClient = (e: React.MouseEvent, client: any) => {
     e.stopPropagation();
-    setSelectedClient(client);
-    setModalOpen(true);
+    navigate(`/clientes/${client.id}?edit=1`);
   };
 
   const handleClientClick = (clientId: string) => {

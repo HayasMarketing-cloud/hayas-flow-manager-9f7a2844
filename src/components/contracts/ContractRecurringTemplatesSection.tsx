@@ -253,7 +253,8 @@ export function ContractRecurringTemplatesSection({ contractId, clientId, disabl
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => navigate(`/solicitudes?contract_id=${contractId}&new=template`)}
+                onClick={() => setNewTemplateOpen(true)}
+                disabled={disabled}
               >
                 <Plus className="h-4 w-4 mr-1" />
                 Nueva plantilla

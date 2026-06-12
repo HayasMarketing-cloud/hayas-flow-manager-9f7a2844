@@ -380,7 +380,7 @@ export const RequestFormModal = ({
       }
 
 
-      const requestData = {
+      const baseData: any = {
         client_id: data.client_id,
         service_id: data.service_id,
         specialist_id: data.specialist_id || null,
@@ -392,12 +392,6 @@ export const RequestFormModal = ({
         quantity: quantityToSave,
         deadline: data.deadline || null,
         status: data.status,
-        // Sale fields (zeroed when covered by contract fee)
-        sale_type: data.sale_type,
-        unit_price: isCoveredByContractFee ? 0 : (data.sale_type === 'fixed' ? data.unit_price : null),
-        sale_rate: isCoveredByContractFee ? 0 : (data.sale_type === 'hourly' ? finalSaleRate : null),
-        sale_hours: isCoveredByContractFee ? 0 : (data.sale_type === 'hourly' ? data.sale_hours : null),
-        sale_amount,
         // Cost fields
         cost_type: data.cost_type,
         hours: data.cost_type === 'hourly' ? data.hours : null,
@@ -411,6 +405,22 @@ export const RequestFormModal = ({
         recurrence_active: data.recurrence_active,
         bill_separately: data.bill_separately,
       };
+
+      // Only admin/finanzas can write client-price fields. For other roles,
+      // omit them entirely so existing values are preserved on update and
+      // defaults apply on insert.
+      const saleFields = canEditClientPrice
+        ? {
+            sale_type: data.sale_type,
+            unit_price: isCoveredByContractFee ? 0 : (data.sale_type === 'fixed' ? data.unit_price : null),
+            sale_rate: isCoveredByContractFee ? 0 : (data.sale_type === 'hourly' ? finalSaleRate : null),
+            sale_hours: isCoveredByContractFee ? 0 : (data.sale_type === 'hourly' ? data.sale_hours : null),
+            sale_amount,
+          }
+        : {};
+
+      const requestData = { ...baseData, ...saleFields };
+
 
       if (initialData) {
         const { error } = await supabase

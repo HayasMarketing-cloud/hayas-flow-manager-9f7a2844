@@ -44,6 +44,7 @@ const financeItems: NavItem[] = [
 ];
 
 const adminItems: NavItem[] = [
+  { title: 'Dashboard Admin', url: '/dashboard-admin', icon: LayoutDashboard, requiredRoles: ['admin', 'account_manager'] },
   { title: 'Clientes', url: '/clientes', icon: Users },
   { title: 'Servicios', url: '/servicios', icon: Package },
   { title: 'Especialistas', url: '/especialistas', icon: UserCheck },

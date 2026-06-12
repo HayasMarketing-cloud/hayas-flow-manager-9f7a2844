@@ -189,7 +189,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     const request = tokenData.request;
     const now = new Date().toISOString();
-    const newStatus = action === 'accept' ? 'pending_approval' : 'draft';
+    // Per project rule: accepting from email jumps straight to 'in_progress'
+    const newStatus = action === 'accept' ? 'in_progress' : 'draft';
     const tokenStatus = action === 'accept' ? 'accepted' : 'rejected';
 
     console.log(`Processing action: ${action} for request ${tokenData.request_id}`);

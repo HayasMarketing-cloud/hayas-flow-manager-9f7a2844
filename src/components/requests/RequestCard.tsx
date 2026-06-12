@@ -150,26 +150,33 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
           </div>
         )}
         
-        {(request.hours || request.fixed_cost || request.cost_to_agency || request.sale_amount) ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-            {request.hours ? (
-              <span className="inline-flex items-center gap-1" title="Horas">
-                <Clock className="h-4 w-4 flex-shrink-0" />
-                {request.hours}h
-              </span>
-            ) : (request.fixed_cost || request.cost_to_agency) ? (
-              <span className="inline-flex items-center gap-1" title="Coste fijo a especialista">
-                <Euro className="h-4 w-4 flex-shrink-0" />
-                {formatCurrency(Number(request.fixed_cost ?? request.cost_to_agency))}
-              </span>
-            ) : null}
-            {request.sale_amount ? (
-              <span className="inline-flex items-center font-semibold text-foreground">
-                {formatCurrency(Number(request.sale_amount))}
-              </span>
-            ) : null}
-          </div>
-        ) : null}
+        {(() => {
+          const isHourly = request.cost_type === 'hourly' || (!!request.hours && !request.fixed_cost);
+          const hourlyCost = (Number(request.hours) || 0) * (Number(request.cost_rate) || 0);
+          const specialistCost = isHourly
+            ? (Number(request.cost_to_agency) || hourlyCost)
+            : Number(request.fixed_cost ?? request.cost_to_agency ?? 0);
+          if (!request.hours && !specialistCost) return null;
+          return (
+            <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
+              {isHourly && request.hours ? (
+                <span className="inline-flex items-center gap-1" title="Horas del especialista">
+                  <Clock className="h-4 w-4 flex-shrink-0" />
+                  {request.hours}h
+                  {request.cost_rate ? (
+                    <span className="text-xs"> × {formatCurrency(Number(request.cost_rate))}/h</span>
+                  ) : null}
+                </span>
+              ) : null}
+              {specialistCost ? (
+                <span className="inline-flex items-center gap-1 font-semibold text-foreground" title="Coste especialista">
+                  <Euro className="h-4 w-4 flex-shrink-0" />
+                  {formatCurrency(specialistCost)}
+                </span>
+              ) : null}
+            </div>
+          );
+        })()}
 
         {/* Inline editable deadline */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground">

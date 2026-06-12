@@ -571,6 +571,15 @@ export const RequestFormModal = ({
           recurrence_active: initialData.recurrence_active ?? true,
           bill_separately: initialData.bill_separately ?? false,
         });
+        // Defensive: ensure cost fields persist on edit (some flows lose them on reset)
+        setTimeout(() => {
+          const h = toNum(initialData.hours);
+          const cr = toNum(initialData.cost_rate);
+          const fc = toNum(initialData.fixed_cost);
+          if (h !== null) form.setValue('hours', h, { shouldDirty: false, shouldValidate: false });
+          if (cr !== null) form.setValue('cost_rate', cr, { shouldDirty: false, shouldValidate: false });
+          if (fc !== null) form.setValue('fixed_cost', fc, { shouldDirty: false, shouldValidate: false });
+        }, 0);
       } else {
         form.reset({
           client_id: '',

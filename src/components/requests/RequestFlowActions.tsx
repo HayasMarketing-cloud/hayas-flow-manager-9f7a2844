@@ -167,32 +167,37 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
         request.client_id
       );
 
-      // Show feedback for in-app notification
-      notificationFeedback.requestStatusChange(request.code);
-
       // Send notification if recipient provided
+      let emailSent = false;
       if (notificationType && recipientEmail && recipientName) {
-        const notificationSent = await sendNotification(
+        emailSent = await sendNotification(
           notificationType,
           recipientEmail,
           recipientName,
           additionalMessage
         );
 
-        // Log notification sent
-        if (notificationSent) {
+        if (emailSent) {
           await logActivity({
             entityId: request.id,
             action: 'notification_sent',
             changes: { recipient: recipientName, type: notificationType }
           });
-          
-          // Show email feedback
-          notificationFeedback.emailToSpecialist(recipientName);
-          toast.success('Estado actualizado y notificación enviada');
-        } else {
-          toast.success('Estado actualizado (notificación no enviada)');
         }
+      }
+
+      // Unified feedback (in-app + email if sent)
+      notificationFeedback.requestStatusChange(
+        request.code,
+        emailSent ? recipientName : undefined
+      );
+
+      if (notificationType && recipientEmail && recipientName) {
+        toast.success(
+          emailSent
+            ? 'Estado actualizado y email enviado'
+            : 'Estado actualizado (email no enviado)'
+        );
       } else {
         toast.success('Estado actualizado correctamente');
       }

@@ -11,6 +11,8 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import DashboardMensual from "./pages/DashboardMensual";
+import DashboardAdmin from "./pages/DashboardAdmin";
+import { RoleBasedRoute } from "@/components/RoleBasedRoute";
 
 import DashboardEspecialista from "./pages/DashboardEspecialista";
 import Solicitudes from "./pages/Solicitudes";
@@ -87,6 +89,7 @@ const App = () => {
               <Route path="/solicitud/accion/:token" element={<AccionRequest />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/dashboard-mensual" element={<ProtectedRoute><DashboardMensual /></ProtectedRoute>} />
+              <Route path="/dashboard-admin" element={<ProtectedRoute><RoleBasedRoute allowedRoles={['admin','account_manager']}><DashboardAdmin /></RoleBasedRoute></ProtectedRoute>} />
               
               <Route path="/dashboard-especialista" element={<ProtectedRoute><DashboardEspecialista /></ProtectedRoute>} />
               <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />

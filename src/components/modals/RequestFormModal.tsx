@@ -1140,36 +1140,8 @@ export const RequestFormModal = ({
 
 
 
-            {/* Quantity and Deadline */}
+            {/* Deadline */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="quantity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Cantidad (unidades) *</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0"
-                        value={field.value || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          field.onChange(parseNum(val) ?? 0);
-                        }}
-                        disabled={isViewMode}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Unidades de servicio (ej: 3 posts, 2 sesiones)
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
               <FormField
                 control={form.control}
                 name="deadline"

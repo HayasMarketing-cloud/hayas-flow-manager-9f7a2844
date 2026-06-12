@@ -385,7 +385,7 @@ export const RequestFormModal = ({
         client_contact_id: data.client_contact_id || null,
         title: data.title,
         description: data.description || null,
-        quantity: data.quantity,
+        quantity: quantityToSave,
         deadline: data.deadline || null,
         status: data.status,
         // Sale fields (zeroed when covered by contract fee)

@@ -39,6 +39,7 @@ import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
 import { notifySpecialistAssigned } from '@/lib/notification-utils';
 import { notificationFeedback } from '@/lib/notification-feedback';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserRole } from '@/hooks/useUserRole';
 
 import { useDefaultRates, getRateSourceLabel } from '@/hooks/useDefaultRates';
 

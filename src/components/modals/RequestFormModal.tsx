@@ -152,6 +152,9 @@ export const RequestFormModal = ({
     },
   });
 
+  const { canAccessFinance, isAdmin } = useUserRole();
+  const canEditClientPrice = canAccessFinance() || isAdmin();
+
   // Watch sale_type for conditional rendering
   const saleType = useWatch({ control: form.control, name: 'sale_type' });
   const unitPrice = useWatch({ control: form.control, name: 'unit_price' });

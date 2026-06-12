@@ -1,116 +1,107 @@
-## Plantillas recurrentes + Precio al Cliente contextual
 
-### Modelo
+# Dashboard Admin & Account Manager
 
-- **Contrato** = qué se factura al cliente (fees fijos vigentes + líneas horarias facturables tipo Antonio Foruria / Asendia HQ).
-- **Request** = trabajo real del especialista (horas + coste). Puede marcarse como **plantilla recurrente** para que se clone cada mes.
-- **Precio al Cliente** en la request solo aparece cuando aporta valor (no en retainers fijos).
+Nueva página `/dashboard-admin` accesible desde sección **Administración** del sidebar. Visible para `admin` y `account_manager`. Vista de control operativo del mes en curso. Solo lectura: cada item enlaza a su detalle para editar en origen.
 
-### 1. Migración DB
+## Diferencia por rol
 
-```sql
-ALTER TABLE financial_requests
-  ADD COLUMN is_recurring_template boolean NOT NULL DEFAULT false,
-  ADD COLUMN recurrence_active boolean NOT NULL DEFAULT true,
-  ADD COLUMN template_source_id uuid REFERENCES financial_requests(id),
-  ADD COLUMN bill_separately boolean NOT NULL DEFAULT false;
+- **Admin / Finanzas**: ve todos los clientes.
+- **Account Manager** (sin admin/finanzas): ve solo clientes asignados vía `client_assignments`, `contracts.am_user_id`, `budgets.am_user_id` (reutilizando `useAssignedClients`).
 
-CREATE INDEX idx_fr_recurring_templates
-  ON financial_requests(contract_id, is_recurring_template, recurrence_active)
-  WHERE is_recurring_template = true;
-```
+El filtro se aplica de forma transversal en todas las secciones del dashboard.
 
-- `is_recurring_template`: request maestra (no se factura ni ejecuta).
-- `recurrence_active`: permite pausar sin borrar.
-- `template_source_id`: trazabilidad del clon a la plantilla.
-- `bill_separately`: escape hatch para facturar una request aparte del fee fijo del contrato.
+## Estructura del dashboard
 
-### 2. Backend — Edge functions
+### 🔴 Sección 1 — Alertas críticas (atrasos)
 
-**`generate-monthly-requests`** — refactor: pasa a leer `financial_requests` plantilla en vez de `contract_services`.
+**1a. Requests atrasados de meses anteriores**
+- Criterio: `(work_year, work_month) < (mes_actual, año_actual)` Y `status NOT IN ('completed','cancelled','liquidated')` Y no es plantilla recurrente.
+- Excluye también requests vinculadas a invoice (`billed_invoice_id IS NOT NULL`) si ya están facturadas.
+- Tabla con: código, cliente, título, especialista, mes de trabajo, status, antigüedad (meses de retraso), enlace al detalle.
+- Ordenadas de más antiguas a más recientes.
 
-```
-SELECT * FROM financial_requests
-WHERE is_recurring_template=true
-  AND recurrence_active=true
-  AND contract.status='active'
-  [AND contract_id = :contract_id]   -- modo manual
-```
+**1b. Presupuestos aprobados de meses anteriores sin requests**
+- Criterio: `status = 'approved'`, `created_at < primer_día_mes_actual`, sin filas en `operational_requests` asociadas (`LEFT JOIN ... WHERE oper_req IS NULL`).
+- Tabla con: código, cliente, título, AM/PM, importe, fecha aprobación, enlace al presupuesto.
 
-Por cada plantilla: clona campos (specialist, service, hours, cost_rate, fixed_cost, cost_to_agency, sale_amount, sale_rate, project_type, notes, bill_separately), sobrescribe `status='draft'`, `work_month/year=M/Y`, `title='{plantilla.title} - {mes año}'`, `template_source_id=plantilla.id`, `is_recurring_template=false`, `code=''`. Duplicate guard por `template_source_id + work_month + work_year`. Crea proyecto operacional y milestones agrupando por contrato (lógica existente).
+### 🟡 Sección 2 — Seguimiento comercial
 
-**`generate-draft-invoices`** — simplificación: elimina la rama del flag `bills_variable_requests`. Factura = líneas fijas vigentes del contrato + `sale_amount` de requests del mes donde `is_recurring_template=false`. Como las plantillas de retainers tendrán `sale_amount=0`, sus clones no inflan la factura.
+**Presupuestos pendientes de aprobar (cualquier fecha)**
+- Criterio: `status IN ('pending','sent')`.
+- Ordenados por antigüedad descendente (los más viejos arriba).
+- Columnas: código, cliente, título, AM, importe, días en pendiente, status, enlace al presupuesto.
 
-### 3. UI — `RequestFormModal` y vistas
+### 🟢 Sección 3 — Mes en curso (vista jerárquica agrupada por cliente)
 
-**A) Bloque "Recurrencia"** (solo si la request tiene `contract_id`):
-- Toggle "Hacer recurrente cada mes" → `is_recurring_template`.
-- Si activa: toggle "Recurrencia activa" → `recurrence_active`.
-- Banner explicativo: "Esta request se clonará automáticamente cada mes el día 1".
-
-**B) Bloque "Precio al Cliente" condicional**:
-
-Cargar contrato + contract_services al abrir el modal. Reglas:
+Datos del mes actual agrupados en estructura **Cliente → Contratos/Presupuestos → Requests**:
 
 ```
-caso A — Contrato con línea fixed/monthly vigente:
-  Ocultar bloque. Mostrar aviso:
-  "Incluido en el fee mensual del contrato ({fee}€/mes). 
-   sale_amount = 0."
-  Botón discreto "Facturar esta request aparte" → activa bill_separately
-  y revela el bloque editable.
+▼ Cliente A                              [X presupuestos · Y requests · Z€]
+   ▼ Presupuesto PRE-2026-018 (Aprobado)   [3 requests · 4.500€]
+      • REQ-2026-390  Título...  Especialista  Status
+      • REQ-2026-391  Título...  Especialista  Status
+      • REQ-2026-395  Título...  Especialista  Status
+   ▼ Contrato CON-2026-007 (Activo)        [2 requests · 1.200€]
+      • REQ-2026-398  Título...  Especialista  Status
+      • REQ-2026-401  Título...  Especialista  Status
+   ▼ Sin presupuesto/contrato              [1 request · 300€]
+      • REQ-2026-405  Título...  Especialista  Status
 
-caso B — Contrato con contract_service hourly_to_client del mismo servicio:
-  Mostrar bloque readonly. Auto-derivar:
-    sale_type = 'hourly'
-    sale_rate = contract_service.price_value
-    sale_amount = hours * sale_rate
-  Aviso: "Tarifa heredada del contrato ({rate}€/h)".
-
-caso C — Request vinculada a budget_id:
-  Comportamiento actual (auto-rellena de la línea del budget).
-
-caso D — Sin contrato ni budget:
-  Bloque editable normal (manual).
+▼ Cliente B
+   ...
 ```
 
-**C) Badges y listados**:
-- `RequestCard` / `RequestTableView`: badge "Plantilla" si `is_recurring_template`, badge "Pausada" si `recurrence_active=false`.
-- Si la request tiene `template_source_id`, mostrar link "Generada desde plantilla" en el detalle.
+**Criterios de inclusión del mes en curso:**
+- **Requests**: `work_year = año_actual` AND `work_month = mes_actual`, excluyendo plantillas recurrentes.
+- **Presupuestos**: `created_at` dentro del mes actual, O presupuestos que tengan requests del mes actual (aunque el presupuesto sea de un mes anterior, así no se pierde el contexto).
+- **Contratos**: contratos activos que tengan requests del mes actual.
 
-**D) `ContractFormModal`**: ocultar campos `enable_auto_requests` y `bills_variable_requests` (deprecated; columnas se quedan por rollback).
+**Agrupación:**
+- Nivel 1: Cliente (`clients.name`), colapsable, con badges-resumen.
+- Nivel 2: Origen del request (presupuesto / contrato / "Sin presupuesto"), colapsable, con badge de status y total importe.
+- Nivel 3: Request individual con código, título, especialista, status, importe, link al detalle.
 
-### 4. Datos (insert tool, post-migración)
+Por defecto **todo expandido** para tener visibilidad inmediata; el usuario puede colapsar.
 
-Crear 5 requests plantilla en CON-2025-004 (Asendia Spain) clonando las de mayo 2026:
+## Detalles técnicos
 
-| Especialista | Servicio | hours | cost_type | cost_rate | fixed_cost | cost_to_agency |
-|---|---|---|---|---|---|---|
-| Agustín Alzamora | Creación de post para Blog | 6 | hourly | 30 | – | 180 |
-| Tomás White | Gestión CRM e Email Marketing | 2 | hourly | 30 | – | 60 |
-| Fátima Barrouz | Gestión de Redes Sociales | – | fixed | – | 200 | 200 |
-| Iolanda Carbone | Gestión y coordinación proyecto | 1 | hourly | 30 | – | 30 |
-| Sandra Vásquez | Creación/Edición de documentos | 1 | hourly | 30 | – | 30 |
+**Ruta y permisos**
+- Añadir ruta `/dashboard-admin` en `src/App.tsx` envuelta en `RoleBasedRoute` con `allowedRoles={['admin','account_manager']}`.
+- Añadir entrada en `AppSidebar.tsx` dentro de `adminItems` con icono `LayoutDashboard`, `requiredRoles: ['admin','account_manager']`.
 
-Para todas: `is_recurring_template=true`, `recurrence_active=true`, `sale_amount=0`, `sale_rate=0`, `work_month=NULL`, `work_year=NULL`, `status='draft'`, título sin "- mayo de 2026".
+**Archivos nuevos**
+- `src/pages/DashboardAdmin.tsx` — página contenedora con las 3 secciones.
+- `src/components/dashboard-admin/OverdueRequestsCard.tsx` — sección 1a.
+- `src/components/dashboard-admin/ApprovedBudgetsWithoutRequestsCard.tsx` — sección 1b.
+- `src/components/dashboard-admin/PendingBudgetsCard.tsx` — sección 2.
+- `src/components/dashboard-admin/CurrentMonthByClient.tsx` — sección 3 (acordeón jerárquico usando `Collapsible` de shadcn).
+- `src/hooks/useDashboardAdmin.tsx` — hooks agrupados que devuelven los 4 datasets, cada uno aceptando opcionalmente `assignedClientIds` para filtrar cuando el usuario es AM puro.
 
-### 5. Validación
+**Lógica de filtrado por rol (en cada hook):**
+```ts
+const { isAdmin, canAccessFinance, shouldFilterByAssignment } = useUserRole();
+const { assignedClientIds } = useAssignedClients();
+const needsClientFilter = shouldFilterByAssignment(); // true solo para AM/PM puros
+// Si needsClientFilter → .in('client_id', assignedClientIds)
+// Si admin/finanzas → sin filtro
+```
 
-1. Dry-run `generate-monthly-requests` para junio 2026 con `contract_id=CON-2025-004` → comprobar 5 requests draft + proyecto + milestones.
-2. Dry-run `generate-draft-invoices` junio 2026 → Asendia Spain debe salir **1.410€** (no se suman los 500€ de coste).
-3. Abrir una request clonada y verificar que el bloque "Precio al Cliente" muestra el aviso de fee incluido y no es editable.
+**Consultas Supabase principales** (todas client-side con `useQuery`):
+1. `financial_requests` con join a `clients`, `specialists`, filtros por work_month/year.
+2. `budgets` con `LEFT JOIN operational_requests` para detectar los huérfanos (vía RPC o doble query + filtro en cliente si la cardinalidad es baja).
+3. `budgets` filtrado por `status IN ('pending','sent')`.
+4. Para sección 3: una query de requests del mes + sus presupuestos/contratos relacionados vía `budget_id` y `contract_id` en `financial_requests`, agrupados en cliente con `useMemo`.
 
-### Fuera de alcance
+**UI**
+- Header con título, mes actual visible ("Junio 2026"), botón refrescar.
+- KPIs resumen arriba (4 cards): #requests atrasados, #presupuestos huérfanos, #presupuestos pendientes, #requests del mes.
+- Cada sección usa `Card` + tabla compacta o lista con `Collapsible` (sección 3).
+- Estados vacíos amigables ("Sin alertas — todo al día ✓").
+- Loading skeletons.
 
-- Plantillas para otros retainers puros (NOVA, Parrón, PID, Formato Educativo HS Management): no se trackea trabajo recurrente de especialista; siguen como están.
-- Antonio Foruria / Asendia HQ HubSpot Requests: requests manuales mes a mes (caso B), tarifa heredada del contrato.
-- Drop de columnas `enable_auto_requests` / `bills_variable_requests`: se dejan en DB.
+## Fuera de alcance (futuro si se pide)
 
-### Orden de implementación
-
-1. Migración (4 columnas nuevas + índice).
-2. Refactor `generate-monthly-requests`.
-3. Refactor `generate-draft-invoices` (quitar rama del flag).
-4. UI: bloque Recurrencia, Precio al Cliente condicional, badges, limpieza ContractFormModal.
-5. Insert tool: 5 plantillas Asendia Spain.
-6. Validación junio 2026.
+- Edición inline.
+- Acciones rápidas tipo "Generar requests desde presupuesto" inline.
+- Filtros por especialista / status / AM dentro del dashboard.
+- Export CSV.

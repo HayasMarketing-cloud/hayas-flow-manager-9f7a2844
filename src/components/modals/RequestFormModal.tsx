@@ -1132,11 +1132,6 @@ export const RequestFormModal = ({
                       </FormItem>
                     )}
                   />
-                  {(quantity || 0) > 1 && (
-                    <div className="mt-3 text-sm text-muted-foreground">
-                      Importe total: <span className="font-semibold text-foreground">{calculatedSaleAmount.toFixed(2)} €</span> ({quantity} × {(unitPrice || 0).toFixed(2)} €)
-                    </div>
-                  )}
                 </div>
               )}
             </div>

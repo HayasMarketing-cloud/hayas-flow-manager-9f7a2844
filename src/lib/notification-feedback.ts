@@ -62,10 +62,14 @@ export const notificationFeedback = {
   /**
    * Request status changed
    */
-  requestStatusChange: (requestCode: string) => {
+  requestStatusChange: (requestCode: string, emailRecipient?: string) => {
+    const channels: NotificationChannel[] = ['in-app'];
+    if (emailRecipient) channels.push('email');
     showNotificationFeedback({
-      channels: ['in-app'],
-      recipients: 'Admin, Finanzas, PM, AM',
+      channels,
+      recipients: emailRecipient
+        ? `Admin, Finanzas, PM, AM + ${emailRecipient} (email)`
+        : 'Admin, Finanzas, PM, AM',
       context: requestCode,
     });
   },

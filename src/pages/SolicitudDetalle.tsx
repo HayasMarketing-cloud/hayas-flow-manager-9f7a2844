@@ -462,6 +462,35 @@ const SolicitudDetalle = () => {
                 </CardContent>
               </Card>
 
+              {/* Specialist Cost */}
+              {(request.cost_type === 'hourly' ? (request.hours || request.cost_rate) : request.fixed_cost) ? (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <Briefcase className="h-4 w-4" />
+                      Coste especialista
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-1">
+                    {request.cost_type === 'hourly' ? (
+                      <>
+                        <p className="text-sm text-muted-foreground">
+                          {(request.hours || 0)} h × {formatCurrency(request.cost_rate || 0)}/h
+                        </p>
+                        <p className="font-semibold text-base">
+                          Total: {formatCurrency(costAmount)}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="font-semibold text-base">
+                        Total: {formatCurrency(costAmount)}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : null}
+
+
               {/* Dates */}
               <Card>
                 <CardHeader className="pb-2">

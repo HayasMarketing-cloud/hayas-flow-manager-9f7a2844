@@ -713,29 +713,31 @@ const SolicitudDetalle = () => {
 
           {/* Financial Tab */}
           <TabsContent value="financial" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Sale */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-green-600">Precio de Venta</CardTitle>
-                  <CardDescription>
-                    {request.sale_type === 'hourly' ? 'Por horas' : 'Precio fijo'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold text-green-600">{formatCurrency(saleAmount)}</p>
-                  {request.sale_type === 'hourly' && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {request.sale_hours || 0} h × {formatCurrency(request.sale_rate || 0)}/h
-                    </p>
-                  )}
-                  {request.sale_type === 'fixed' && request.quantity > 1 && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {request.quantity} × {formatCurrency(request.unit_price || 0)}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
+            <div className={`grid grid-cols-1 gap-4 ${canAccessFinance() ? 'md:grid-cols-3' : 'md:grid-cols-1'}`}>
+              {/* Sale — only admin/finanzas */}
+              {canAccessFinance() && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-green-600">Precio de Venta</CardTitle>
+                    <CardDescription>
+                      {request.sale_type === 'hourly' ? 'Por horas' : 'Precio fijo'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold text-green-600">{formatCurrency(saleAmount)}</p>
+                    {request.sale_type === 'hourly' && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {request.sale_hours || 0} h × {formatCurrency(request.sale_rate || 0)}/h
+                      </p>
+                    )}
+                    {request.sale_type === 'fixed' && request.quantity > 1 && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {request.quantity} × {formatCurrency(request.unit_price || 0)}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Cost */}
               <Card>
@@ -755,20 +757,22 @@ const SolicitudDetalle = () => {
                 </CardContent>
               </Card>
 
-              {/* Margin */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Margen</CardTitle>
-                  <CardDescription>
-                    {marginPercent.toFixed(1)}% del precio de venta
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className={`text-2xl font-bold ${margin >= 0 ? 'text-blue-600' : 'text-destructive'}`}>
-                    {formatCurrency(margin)}
-                  </p>
-                </CardContent>
-              </Card>
+              {/* Margin — only admin/finanzas */}
+              {canAccessFinance() && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Margen</CardTitle>
+                    <CardDescription>
+                      {marginPercent.toFixed(1)}% del precio de venta
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className={`text-2xl font-bold ${margin >= 0 ? 'text-blue-600' : 'text-destructive'}`}>
+                      {formatCurrency(margin)}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </TabsContent>
 

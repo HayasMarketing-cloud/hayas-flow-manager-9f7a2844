@@ -348,10 +348,13 @@ export const RequestFormModal = ({
         ? defaultRates?.costRate ?? 0
         : data.cost_rate;
 
+      // Quantity is always 1 (the request itself is the unit). Use fixed total in unit_price.
+      const quantityToSave = 1;
+
       // Calculate sale_amount based on sale_type
       let sale_amount = data.sale_type === 'hourly'
         ? (data.sale_hours || 0) * (finalSaleRate || 0)
-        : (data.unit_price || 0) * data.quantity;
+        : (data.unit_price || 0) * quantityToSave;
 
       // If contract covers this with a fixed monthly fee and user hasn't enabled
       // bill_separately, force sale_amount to 0 so it doesn't inflate the invoice.
@@ -382,7 +385,7 @@ export const RequestFormModal = ({
         client_contact_id: data.client_contact_id || null,
         title: data.title,
         description: data.description || null,
-        quantity: data.quantity,
+        quantity: quantityToSave,
         deadline: data.deadline || null,
         status: data.status,
         // Sale fields (zeroed when covered by contract fee)
@@ -1132,11 +1135,6 @@ export const RequestFormModal = ({
                       </FormItem>
                     )}
                   />
-                  {(quantity || 0) > 1 && (
-                    <div className="mt-3 text-sm text-muted-foreground">
-                      Importe total: <span className="font-semibold text-foreground">{calculatedSaleAmount.toFixed(2)} €</span> ({quantity} × {(unitPrice || 0).toFixed(2)} €)
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -1145,36 +1143,8 @@ export const RequestFormModal = ({
 
 
 
-            {/* Quantity and Deadline */}
+            {/* Deadline */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="quantity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Cantidad (unidades) *</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0"
-                        value={field.value || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          field.onChange(parseNum(val) ?? 0);
-                        }}
-                        disabled={isViewMode}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Unidades de servicio (ej: 3 posts, 2 sesiones)
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
               <FormField
                 control={form.control}
                 name="deadline"

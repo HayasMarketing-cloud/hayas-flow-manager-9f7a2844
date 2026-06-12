@@ -348,10 +348,13 @@ export const RequestFormModal = ({
         ? defaultRates?.costRate ?? 0
         : data.cost_rate;
 
+      // Quantity is always 1 (the request itself is the unit). Use fixed total in unit_price.
+      const quantityToSave = 1;
+
       // Calculate sale_amount based on sale_type
       let sale_amount = data.sale_type === 'hourly'
         ? (data.sale_hours || 0) * (finalSaleRate || 0)
-        : (data.unit_price || 0) * data.quantity;
+        : (data.unit_price || 0) * quantityToSave;
 
       // If contract covers this with a fixed monthly fee and user hasn't enabled
       // bill_separately, force sale_amount to 0 so it doesn't inflate the invoice.

@@ -970,7 +970,8 @@ export const RequestFormModal = ({
             />
 
             {/* Sale/Price to Client Section — hidden when covered by contract fixed fee */}
-            {priceCoveredByContract ? (
+            {/* Sale/Price to Client Section — visible only to admin/finanzas */}
+            {canEditClientPrice && (priceCoveredByContract ? (
               <>
                 <Separator />
                 <div className="space-y-3 p-4 bg-muted/40 rounded-lg border border-border">

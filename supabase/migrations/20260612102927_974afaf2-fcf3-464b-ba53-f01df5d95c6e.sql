@@ -1,0 +1,1 @@
+UPDATE public.financial_requests SET status='in_progress', updated_at=now() WHERE code='REQ-2026-390' AND status='pending_approval';

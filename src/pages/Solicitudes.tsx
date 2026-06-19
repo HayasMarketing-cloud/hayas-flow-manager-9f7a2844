@@ -50,10 +50,11 @@ const Solicitudes = () => {
   const showMyRequestsButton = isSpecialist() && !!specialistId;
 
   const { data: requests, isLoading, error } = useQuery({
-    queryKey: ['financial_requests', filters, needsFiltering, assignedClientIds],
+    queryKey: ['financial_requests', filters, needsFiltering, assignedClientIds, specialistId],
     queryFn: async () => {
-      // AM/PM with no assigned clients → empty
-      if (needsFiltering && assignedClientIds.length === 0) return [];
+      // AM/PM with no assigned clients AND no specialist link → empty
+      if (needsFiltering && assignedClientIds.length === 0 && !specialistId) return [];
+
 
       // Build filters object - exclude virtual statuses from match filters
       const queryFilters: Record<string, string> = {};

@@ -30,6 +30,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useState } from 'react';
 import { notifyLiquidationSent } from '@/lib/notification-utils';
 import { useTeamMembers, useTeamLiquidations } from '@/hooks/useTeamMembers';
+import { LiquidationAmReviewPanel } from '@/components/liquidations/LiquidationAmReviewPanel';
 
 // Component for pending requests section
 function PendingRequestsSection({ 
@@ -1105,6 +1106,9 @@ export default function LiquidacionDetalle() {
           onResendEmail={hasSpecialistEmail && canAccessFinance() ? handleSendEmail : undefined}
           isSending={isSending}
         />
+
+        {/* AM Validation Panel */}
+        {id && <LiquidationAmReviewPanel liquidationId={id} />}
 
         {/* Team Summary - Only shown if specialist is a team leader */}
         {hasTeam && teamData && (

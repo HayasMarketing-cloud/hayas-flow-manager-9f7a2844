@@ -1,107 +1,122 @@
+# Validación de liquidaciones por Account Manager
 
-# Dashboard Admin & Account Manager
+Flujo paralelo a la firma del especialista: Admin/Finanzas envían la liquidación a los AMs implicados, que entran autenticados, ven el detalle y marcan **Validar** o **Incidencia** con notas. Es **informativo** (no bloquea pagar) y requiere validación de **todos** los AMs implicados.
 
-Nueva página `/dashboard-admin` accesible desde sección **Administración** del sidebar. Visible para `admin` y `account_manager`. Vista de control operativo del mes en curso. Solo lectura: cada item enlaza a su detalle para editar en origen.
+## 1. Modelo de datos
 
-## Diferencia por rol
+Nueva tabla `liquidation_am_reviews`:
 
-- **Admin / Finanzas**: ve todos los clientes.
-- **Account Manager** (sin admin/finanzas): ve solo clientes asignados vía `client_assignments`, `contracts.am_user_id`, `budgets.am_user_id` (reutilizando `useAssignedClients`).
+| Campo | Tipo | Notas |
+|---|---|---|
+| `id` | uuid PK | |
+| `liquidation_id` | uuid FK → liquidations (ON DELETE CASCADE) | |
+| `am_user_id` | uuid (auth.users.id) | AM al que se le pide la validación |
+| `status` | text | `pending` \| `validated` \| `issue` |
+| `notes` | text | comentarios del AM |
+| `requested_at` | timestamptz | cuándo se envió |
+| `reviewed_at` | timestamptz | cuándo respondió |
+| `requested_by` | uuid | quien disparó el envío |
+| `created_at` / `updated_at` | timestamptz | |
 
-El filtro se aplica de forma transversal en todas las secciones del dashboard.
+Único: `(liquidation_id, am_user_id)`.
 
-## Estructura del dashboard
+**RLS:**
+- AM: SELECT/UPDATE solo sus propias filas (`am_user_id = auth.uid()`).
+- Admin/Finanzas: ALL.
+- Especialista: sin acceso.
 
-### 🔴 Sección 1 — Alertas críticas (atrasos)
+Grants: `authenticated` + `service_role`.
 
-**1a. Requests atrasados de meses anteriores**
-- Criterio: `(work_year, work_month) < (mes_actual, año_actual)` Y `status NOT IN ('completed','cancelled','liquidated')` Y no es plantilla recurrente.
-- Excluye también requests vinculadas a invoice (`billed_invoice_id IS NOT NULL`) si ya están facturadas.
-- Tabla con: código, cliente, título, especialista, mes de trabajo, status, antigüedad (meses de retraso), enlace al detalle.
-- Ordenadas de más antiguas a más recientes.
+Sin nuevos campos en `liquidations` — el estado agregado se deriva de las reviews.
 
-**1b. Presupuestos aprobados de meses anteriores sin requests**
-- Criterio: `status = 'approved'`, `created_at < primer_día_mes_actual`, sin filas en `operational_requests` asociadas (`LEFT JOIN ... WHERE oper_req IS NULL`).
-- Tabla con: código, cliente, título, AM/PM, importe, fecha aprobación, enlace al presupuesto.
+## 2. Resolución de AMs implicados
 
-### 🟡 Sección 2 — Seguimiento comercial
+Función SECURITY DEFINER `get_liquidation_am_user_ids(_liquidation_id uuid) RETURNS uuid[]` que:
 
-**Presupuestos pendientes de aprobar (cualquier fecha)**
-- Criterio: `status IN ('pending','sent')`.
-- Ordenados por antigüedad descendente (los más viejos arriba).
-- Columnas: código, cliente, título, AM, importe, días en pendiente, status, enlace al presupuesto.
+1. Recorre `liquidation_items` → `financial_requests` de la liquidación.
+2. Para cada request resuelve AM según jerarquía:
+   - `budgets.am_user_id` (si `budget_id`)
+   - `contracts.am_user_id` (si `contract_id`)
+   - `client_assignments(role='account_manager')` del cliente del request (fallback)
+3. Devuelve el set deduplicado de uuids no nulos.
 
-### 🟢 Sección 3 — Mes en curso (vista jerárquica agrupada por cliente)
+Si el resultado es vacío → no se puede enviar (aviso UI).
 
-Datos del mes actual agrupados en estructura **Cliente → Contratos/Presupuestos → Requests**:
+## 3. Edge Functions
 
-```
-▼ Cliente A                              [X presupuestos · Y requests · Z€]
-   ▼ Presupuesto PRE-2026-018 (Aprobado)   [3 requests · 4.500€]
-      • REQ-2026-390  Título...  Especialista  Status
-      • REQ-2026-391  Título...  Especialista  Status
-      • REQ-2026-395  Título...  Especialista  Status
-   ▼ Contrato CON-2026-007 (Activo)        [2 requests · 1.200€]
-      • REQ-2026-398  Título...  Especialista  Status
-      • REQ-2026-401  Título...  Especialista  Status
-   ▼ Sin presupuesto/contrato              [1 request · 300€]
-      • REQ-2026-405  Título...  Especialista  Status
+**`send-liquidation-am-validation`** (nueva)
+- Input: `{ liquidation_id }`
+- Auth: admin/finanzas.
+- Calcula AMs con la función SQL.
+- Hace upsert en `liquidation_am_reviews` (pending) por cada AM.
+- Para cada AM envía email (template `liquidation-am-review-request`) con link directo `/liquidaciones/:id?am_review=1`.
+- Crea notificación in-app por cada AM.
 
-▼ Cliente B
-   ...
-```
+**Sin token público:** el AM ya tiene cuenta, accede autenticado y RLS filtra.
 
-**Criterios de inclusión del mes en curso:**
-- **Requests**: `work_year = año_actual` AND `work_month = mes_actual`, excluyendo plantillas recurrentes.
-- **Presupuestos**: `created_at` dentro del mes actual, O presupuestos que tengan requests del mes actual (aunque el presupuesto sea de un mes anterior, así no se pierde el contexto).
-- **Contratos**: contratos activos que tengan requests del mes actual.
+## 4. Backend de respuesta del AM
 
-**Agrupación:**
-- Nivel 1: Cliente (`clients.name`), colapsable, con badges-resumen.
-- Nivel 2: Origen del request (presupuesto / contrato / "Sin presupuesto"), colapsable, con badge de status y total importe.
-- Nivel 3: Request individual con código, título, especialista, status, importe, link al detalle.
+Sin edge function — el AM hace UPDATE directo sobre su fila de `liquidation_am_reviews` (RLS lo limita). Trigger `set_reviewed_at` para autocompletar `reviewed_at` cuando `status` pasa de `pending` a `validated`/`issue`.
 
-Por defecto **todo expandido** para tener visibilidad inmediata; el usuario puede colapsar.
+Trigger AFTER UPDATE: si `status = 'issue'` → inserta notificación a admin/finanzas y envía email vía función existente.
 
-## Detalles técnicos
+## 5. UI — `LiquidacionDetalle.tsx`
 
-**Ruta y permisos**
-- Añadir ruta `/dashboard-admin` en `src/App.tsx` envuelta en `RoleBasedRoute` con `allowedRoles={['admin','account_manager']}`.
-- Añadir entrada en `AppSidebar.tsx` dentro de `adminItems` con icono `LayoutDashboard`, `requiredRoles: ['admin','account_manager']`.
+**Panel "Validación AM"** visible siempre que existan reviews:
 
-**Archivos nuevos**
-- `src/pages/DashboardAdmin.tsx` — página contenedora con las 3 secciones.
-- `src/components/dashboard-admin/OverdueRequestsCard.tsx` — sección 1a.
-- `src/components/dashboard-admin/ApprovedBudgetsWithoutRequestsCard.tsx` — sección 1b.
-- `src/components/dashboard-admin/PendingBudgetsCard.tsx` — sección 2.
-- `src/components/dashboard-admin/CurrentMonthByClient.tsx` — sección 3 (acordeón jerárquico usando `Collapsible` de shadcn).
-- `src/hooks/useDashboardAdmin.tsx` — hooks agrupados que devuelven los 4 datasets, cada uno aceptando opcionalmente `assignedClientIds` para filtrar cuando el usuario es AM puro.
+- Lista de AMs con badge por estado (pending / validated / issue) y nota.
+- Botón **"Enviar a AM para validación"** (admin/finanzas, estado liquidación ∈ draft/validated/sent/disputed). Si ya hay reviews, botón pasa a **"Reenviar"** (re-emails sin crear duplicados).
+- Si el usuario actual es AM de la liquidación → tarjeta destacada con botones **Validar** / **Marcar incidencia** + textarea de notas, y muestra su review existente editable.
 
-**Lógica de filtrado por rol (en cada hook):**
-```ts
-const { isAdmin, canAccessFinance, shouldFilterByAssignment } = useUserRole();
-const { assignedClientIds } = useAssignedClients();
-const needsClientFilter = shouldFilterByAssignment(); // true solo para AM/PM puros
-// Si needsClientFilter → .in('client_id', assignedClientIds)
-// Si admin/finanzas → sin filtro
-```
+**Card de liquidación (`LiquidationCard`):** nuevo badge agregado:
+- "Pendiente AM (1/3)" si hay alguna pending
+- "Incidencia AM" si alguna en issue
+- "Validado AM ✓" si todas validated
+- Sin badge si no se ha enviado
 
-**Consultas Supabase principales** (todas client-side con `useQuery`):
-1. `financial_requests` con join a `clients`, `specialists`, filtros por work_month/year.
-2. `budgets` con `LEFT JOIN operational_requests` para detectar los huérfanos (vía RPC o doble query + filtro en cliente si la cardinalidad es baja).
-3. `budgets` filtrado por `status IN ('pending','sent')`.
-4. Para sección 3: una query de requests del mes + sus presupuestos/contratos relacionados vía `budget_id` y `contract_id` en `financial_requests`, agrupados en cliente con `useMemo`.
+## 6. Email
 
-**UI**
-- Header con título, mes actual visible ("Junio 2026"), botón refrescar.
-- KPIs resumen arriba (4 cards): #requests atrasados, #presupuestos huérfanos, #presupuestos pendientes, #requests del mes.
-- Cada sección usa `Card` + tabla compacta o lista con `Collapsible` (sección 3).
-- Estados vacíos amigables ("Sin alertas — todo al día ✓").
-- Loading skeletons.
+Nuevo template app email `liquidation-am-review-request`:
+- Asunto: `Validación pendiente: liquidación {code} de {especialista}`
+- CTA al detalle de la liquidación.
+- Resumen: periodo, especialista, total, nº items.
 
-## Fuera de alcance (futuro si se pide)
+Trigger desde la nueva edge function, idempotency key `am-review-{liquidation_id}-{am_user_id}-{requested_at}`.
 
-- Edición inline.
-- Acciones rápidas tipo "Generar requests desde presupuesto" inline.
-- Filtros por especialista / status / AM dentro del dashboard.
-- Export CSV.
+## 7. Hook
+
+`useLiquidationAmReviews(liquidationId)` con React Query:
+- Lista reviews + AM info (profile name/email).
+- Mutaciones: `sendForValidation`, `respondAsAm({ status, notes })`, `resend`.
+- Invalida también la query de la liquidación para refrescar el badge agregado.
+
+## 8. Notificaciones in-app
+
+Reusar `notifications`:
+- AM recibe noti "Liquidación pendiente de tu validación".
+- Admin/Finanzas reciben noti cuando AM marca `issue` (con la nota incluida).
+- Admin/Finanzas reciben noti cuando **todos** los AMs han validado (badge verde).
+
+## 9. Caso límite confirmado
+
+Requests sin budget/contract y sin AM en `client_assignments` → se ignoran en el cálculo. Si la liquidación entera no tiene AMs → toast "Esta liquidación no tiene AM asignado en ningún request" y se deshabilita el envío.
+
+## 10. Memoria de proyecto
+
+Añadir `mem://features/liquidations/am-validation-workflow` describiendo:
+- Resolución AM (budget → contract → client_assignments)
+- Validación múltiple (todos los AMs)
+- Carácter informativo (no bloquea pago)
+- Tabla `liquidation_am_reviews`
+
+---
+
+## Resumen técnico (orden de implementación)
+
+1. Migración: tabla + RLS + grants + función SQL + triggers.
+2. Edge function `send-liquidation-am-validation` + template email.
+3. Hook `useLiquidationAmReviews`.
+4. Panel UI en `LiquidacionDetalle` + badge en `LiquidationCard`.
+5. Memoria.
+
+**Fuera de alcance (futuro):** validación PM, validación bloqueante para pago, historial de cambios de notas (por ahora se sobreescribe la nota al actualizar).

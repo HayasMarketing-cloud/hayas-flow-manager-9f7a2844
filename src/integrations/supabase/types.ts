@@ -1336,6 +1336,53 @@ export type Database = {
           },
         ]
       }
+      liquidation_am_reviews: {
+        Row: {
+          am_user_id: string
+          created_at: string
+          id: string
+          liquidation_id: string
+          notes: string | null
+          requested_at: string
+          requested_by: string | null
+          reviewed_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          am_user_id: string
+          created_at?: string
+          id?: string
+          liquidation_id: string
+          notes?: string | null
+          requested_at?: string
+          requested_by?: string | null
+          reviewed_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          am_user_id?: string
+          created_at?: string
+          id?: string
+          liquidation_id?: string
+          notes?: string | null
+          requested_at?: string
+          requested_by?: string | null
+          reviewed_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liquidation_am_reviews_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "liquidations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       liquidation_invoices: {
         Row: {
           ai_extracted: Json | null
@@ -2317,6 +2364,10 @@ export type Database = {
     Functions: {
       generate_code: { Args: { sequence_name: string }; Returns: string }
       get_current_specialist_id: { Args: never; Returns: string }
+      get_liquidation_am_user_ids: {
+        Args: { _liquidation_id: string }
+        Returns: string[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

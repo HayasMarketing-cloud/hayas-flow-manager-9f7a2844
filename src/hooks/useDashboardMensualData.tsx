@@ -174,13 +174,65 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
       const contractMap = new Map(contracts.map(c => [c.id, { code: c.code, title: c.title, client_id: c.client_id }]));
       const budgetMap = new Map(budgets.map(b => [b.id, { code: b.code, title: b.title, client_id: b.client_id }]));
 
-      // Build costs per client from financial_requests
+      // Also fetch requests linked to the invoices of this billing period, even if their
+      // own work_month/work_year differs. This catches cases where the request was logged
+      // in a different month than the invoice's billing period (the source of truth for the
+      // P&L of the period is the invoice's billing period).
+      const periodInvoiceIds = invoices.map(i => i.id);
+      const periodBudgetIds = Array.from(new Set([
+        ...invoices.map(i => i.budget_id).filter(Boolean) as string[],
+        ...allocations.filter(a => periodInvoiceIds.includes(a.invoice_id)).map(a => a.budget_id),
+      ]));
+      const periodContractIds = Array.from(new Set(invoices.map(i => i.contract_id).filter(Boolean) as string[]));
+
+      const linkedRequestsParts: any[] = [];
+      if (periodInvoiceIds.length) {
+        const { data } = await supabase
+          .from('financial_requests')
+          .select('id, client_id, specialist_id, cost_to_agency, billed_invoice_id, liquidation_id, budget_id, contract_id, status, work_year, work_month')
+          .in('billed_invoice_id', periodInvoiceIds);
+        if (data) linkedRequestsParts.push(...data);
+      }
+      if (periodBudgetIds.length) {
+        const { data } = await supabase
+          .from('financial_requests')
+          .select('id, client_id, specialist_id, cost_to_agency, billed_invoice_id, liquidation_id, budget_id, contract_id, status, work_year, work_month')
+          .in('budget_id', periodBudgetIds);
+        if (data) linkedRequestsParts.push(...data);
+      }
+      if (periodContractIds.length) {
+        const { data } = await supabase
+          .from('financial_requests')
+          .select('id, client_id, specialist_id, cost_to_agency, billed_invoice_id, liquidation_id, budget_id, contract_id, status, work_year, work_month')
+          .in('contract_id', periodContractIds);
+        if (data) linkedRequestsParts.push(...data);
+      }
+
+      // Merge & dedupe requests (by id): work-period requests + invoice-linked requests
+      const requestsById = new Map<string, any>();
+      requests.forEach((r: any) => requestsById.set(r.id, r));
+      linkedRequestsParts.forEach((r: any) => {
+        if (requestsById.has(r.id)) return;
+        // For requests pulled by budget/contract link, only count them if they are
+        // actually billed in an invoice of this period OR have no invoice yet but
+        // their work_month matches (already covered above). This avoids inflating
+        // costs with requests from other months under the same budget.
+        if (r.billed_invoice_id && periodInvoiceIds.includes(r.billed_invoice_id)) {
+          requestsById.set(r.id, r);
+        } else if (!r.billed_invoice_id && r.work_year === year && r.work_month === month) {
+          requestsById.set(r.id, r);
+        }
+      });
+      const mergedRequests = Array.from(requestsById.values());
+
+      // Build costs per client from merged requests
       const costsByClient = new Map<string, number>();
-      requests.forEach((r: any) => {
+      mergedRequests.forEach((r: any) => {
         if (r.cost_to_agency && r.client_id) {
           costsByClient.set(r.client_id, (costsByClient.get(r.client_id) || 0) + Number(r.cost_to_agency));
         }
       });
+
 
       // Filter commissions relevant to these invoices
       const invoiceIds = new Set(invoices.map(i => i.id));

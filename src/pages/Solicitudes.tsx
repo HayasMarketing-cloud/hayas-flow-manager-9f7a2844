@@ -91,10 +91,19 @@ const Solicitudes = () => {
         .not('work_month', 'is', null)
         .order('created_at', { ascending: false });
 
-      // Filter by assigned clients for AM/PM (app-level since RLS gives PM full access)
+      // Filter by assigned clients for AM/PM (app-level since RLS gives PM full access).
+      // If the user is also a specialist, include requests assigned to them as specialist
+      // even if the client isn't in their AM/PM assignment list.
       if (needsFiltering && !filters.clientId) {
-        query = query.in('client_id', assignedClientIds);
+        if (assignedClientIds.length > 0 && specialistId) {
+          query = query.or(`client_id.in.(${assignedClientIds.join(',')}),specialist_id.eq.${specialistId}`);
+        } else if (assignedClientIds.length > 0) {
+          query = query.in('client_id', assignedClientIds);
+        } else if (specialistId) {
+          query = query.eq('specialist_id', specialistId);
+        }
       }
+
 
       // Apply virtual status filters
       if (filters.status === 'liquidated') {

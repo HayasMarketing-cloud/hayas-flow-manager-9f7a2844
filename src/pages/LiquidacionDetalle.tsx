@@ -30,6 +30,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useState } from 'react';
 import { notifyLiquidationSent } from '@/lib/notification-utils';
 import { useTeamMembers, useTeamLiquidations } from '@/hooks/useTeamMembers';
+import { LiquidationAmReviewPanel } from '@/components/liquidations/LiquidationAmReviewPanel';
 
 // Component for pending requests section
 function PendingRequestsSection({ 

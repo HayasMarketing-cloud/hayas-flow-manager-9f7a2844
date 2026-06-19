@@ -167,10 +167,12 @@ const handler = async (req: Request): Promise<Response> => {
     const notiRows = uniqueAmIds.map(am => ({
       user_id: am,
       type: 'liquidation_am_review_request',
+      category: 'liquidation',
       title: `Validación pendiente: liquidación ${liq.code}`,
       message: `Tienes una liquidación pendiente de validación: ${liq.specialist?.name || ''} - ${monthNames[liq.period_month - 1]} ${liq.period_year}`,
-      link: `/liquidaciones/${liquidation_id}`,
-      metadata: { liquidation_id },
+      action_url: `/liquidaciones/${liquidation_id}`,
+      entity_id: liquidation_id,
+      entity_type: 'liquidation',
     }));
     await supabase.from('notifications').insert(notiRows);
 

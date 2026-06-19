@@ -1107,6 +1107,9 @@ export default function LiquidacionDetalle() {
           isSending={isSending}
         />
 
+        {/* AM Validation Panel */}
+        {id && <LiquidationAmReviewPanel liquidationId={id} />}
+
         {/* Team Summary - Only shown if specialist is a team leader */}
         {hasTeam && teamData && (
           <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">

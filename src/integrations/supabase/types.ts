@@ -1046,6 +1046,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "financial_requests_template_source_id_fkey"
+            columns: ["template_source_id"]
+            isOneToOne: false
+            referencedRelation: "specialist_my_requests"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "requests_billed_invoice_id_fkey"
             columns: ["billed_invoice_id"]
             isOneToOne: false
@@ -1184,6 +1191,13 @@ export type Database = {
             columns: ["financial_request_id"]
             isOneToOne: false
             referencedRelation: "financial_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_request_id_fkey"
+            columns: ["financial_request_id"]
+            isOneToOne: false
+            referencedRelation: "specialist_my_requests"
             referencedColumns: ["id"]
           },
         ]
@@ -1495,6 +1509,13 @@ export type Database = {
             columns: ["financial_request_id"]
             isOneToOne: false
             referencedRelation: "financial_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidation_items_request_id_fkey"
+            columns: ["financial_request_id"]
+            isOneToOne: false
+            referencedRelation: "specialist_my_requests"
             referencedColumns: ["id"]
           },
         ]
@@ -1861,6 +1882,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "operational_requests_financial_request_id_fkey"
+            columns: ["financial_request_id"]
+            isOneToOne: false
+            referencedRelation: "specialist_my_requests"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "operational_requests_operational_project_id_fkey"
             columns: ["operational_project_id"]
             isOneToOne: false
@@ -2025,6 +2053,13 @@ export type Database = {
             columns: ["request_id"]
             isOneToOne: false
             referencedRelation: "financial_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "request_action_tokens_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "specialist_my_requests"
             referencedColumns: ["id"]
           },
         ]
@@ -2359,7 +2394,115 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      specialist_my_requests: {
+        Row: {
+          budget_id: string | null
+          client_id: string | null
+          code: string | null
+          completed_at: string | null
+          contract_id: string | null
+          cost_rate: number | null
+          cost_to_agency: number | null
+          cost_type: Database["public"]["Enums"]["cost_type"] | null
+          created_at: string | null
+          deadline: string | null
+          description: string | null
+          hours: number | null
+          id: string | null
+          liquidation_id: string | null
+          specialist_id: string | null
+          status: Database["public"]["Enums"]["financial_request_status"] | null
+          title: string | null
+          updated_at: string | null
+          work_month: number | null
+          work_year: number | null
+        }
+        Insert: {
+          budget_id?: string | null
+          client_id?: string | null
+          code?: string | null
+          completed_at?: string | null
+          contract_id?: string | null
+          cost_rate?: number | null
+          cost_to_agency?: number | null
+          cost_type?: Database["public"]["Enums"]["cost_type"] | null
+          created_at?: string | null
+          deadline?: string | null
+          description?: string | null
+          hours?: number | null
+          id?: string | null
+          liquidation_id?: string | null
+          specialist_id?: string | null
+          status?:
+            | Database["public"]["Enums"]["financial_request_status"]
+            | null
+          title?: string | null
+          updated_at?: string | null
+          work_month?: number | null
+          work_year?: number | null
+        }
+        Update: {
+          budget_id?: string | null
+          client_id?: string | null
+          code?: string | null
+          completed_at?: string | null
+          contract_id?: string | null
+          cost_rate?: number | null
+          cost_to_agency?: number | null
+          cost_type?: Database["public"]["Enums"]["cost_type"] | null
+          created_at?: string | null
+          deadline?: string | null
+          description?: string | null
+          hours?: number | null
+          id?: string | null
+          liquidation_id?: string | null
+          specialist_id?: string | null
+          status?:
+            | Database["public"]["Enums"]["financial_request_status"]
+            | null
+          title?: string | null
+          updated_at?: string | null
+          work_month?: number | null
+          work_year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_requests_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_liquidation_id_fkey"
+            columns: ["liquidation_id"]
+            isOneToOne: false
+            referencedRelation: "liquidations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_specialist_id_fkey"
+            columns: ["specialist_id"]
+            isOneToOne: false
+            referencedRelation: "specialists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       generate_code: { Args: { sequence_name: string }; Returns: string }

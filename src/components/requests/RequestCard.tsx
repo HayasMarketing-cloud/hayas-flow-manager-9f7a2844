@@ -163,12 +163,59 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
           operationalProject={request.operational_request?.[0]?.operational_project}
         />
         
-        {request.specialist && (
+        {canEditSpecialist ? (
+          <Popover open={specialistOpen} onOpenChange={setSpecialistOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded px-1 py-1 w-full text-left transition-colors"
+              >
+                <User className="h-4 w-4 flex-shrink-0" />
+                {request.specialist ? (
+                  <span className="truncate">{request.specialist.name}</span>
+                ) : (
+                  <span className="italic">+ Asignar especialista</span>
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Buscar especialista..." />
+                <CommandList>
+                  <CommandEmpty>Sin resultados</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem
+                      value="__none__"
+                      onSelect={async () => {
+                        setSpecialistOpen(false);
+                        if (request.specialist_id) await handleUpdateField('specialist_id', null);
+                      }}
+                    >
+                      <span className="italic text-muted-foreground">Sin especialista</span>
+                    </CommandItem>
+                    {activeSpecialists.map((s) => (
+                      <CommandItem
+                        key={s.id}
+                        value={s.name}
+                        onSelect={async () => {
+                          setSpecialistOpen(false);
+                          if (s.id !== request.specialist_id) await handleUpdateField('specialist_id', s.id);
+                        }}
+                      >
+                        {s.name}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        ) : request.specialist ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <User className="h-4 w-4 flex-shrink-0" />
             <span className="truncate">{request.specialist.name}</span>
           </div>
-        )}
+        ) : null}
         
         {(() => {
           const isHourly = request.cost_type === 'hourly' || (!!request.hours && !request.fixed_cost);

@@ -51,7 +51,25 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState(request.notes || '');
   const [dateOpen, setDateOpen] = useState(false);
+  const [specialistOpen, setSpecialistOpen] = useState(false);
   const notesRef = useRef<HTMLTextAreaElement>(null);
+
+  const canEditSpecialist = canManage && !isLiquidated;
+
+  const { data: activeSpecialists = [] } = useQuery({
+    queryKey: ['active-specialists-lite'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('specialists')
+        .select('id, name')
+        .eq('active', true)
+        .order('name');
+      if (error) throw error;
+      return data as { id: string; name: string }[];
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: canEditSpecialist,
+  });
 
   useEffect(() => {
     setNotesValue(request.notes || '');

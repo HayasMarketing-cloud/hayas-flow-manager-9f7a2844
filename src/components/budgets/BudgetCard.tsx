@@ -50,10 +50,21 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
   }, [budget.notes]);
 
   useEffect(() => {
+    setPoValue(budget.client_po_number || '');
+  }, [budget.client_po_number]);
+
+  useEffect(() => {
     if (editingNotes && notesRef.current) {
       notesRef.current.focus();
     }
   }, [editingNotes]);
+
+  useEffect(() => {
+    if (editingPo && poRef.current) {
+      poRef.current.focus();
+      poRef.current.select();
+    }
+  }, [editingPo]);
 
   const handleUpdateField = async (field: string, value: any) => {
     const { error } = await supabase

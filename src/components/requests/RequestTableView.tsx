@@ -15,6 +15,7 @@ import { SlackDMButton } from './SlackDMButton';
 import { FlowStatusCell } from './FlowStatusCell';
 import { RequestStatusBadge } from './RequestStatusBadge';
 import { OriginCell } from './OriginCell';
+import { InlineSpecialistPicker } from './InlineSpecialistPicker';
 import { Edit, Eye, Copy, Trash2, User, Clock, Euro } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -107,24 +108,14 @@ export const RequestTableView = ({
                   </TableCell>
                   <TableCell>{request.client?.name || '-'}</TableCell>
                   <TableCell>
-                    {request.specialist ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="flex items-center gap-1.5 max-w-[120px]">
-                            <User className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                            <span className="text-sm truncate">{request.specialist.name}</span>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{request.specialist.name}</p>
-                          {request.specialist.email && (
-                            <p className="text-xs text-muted-foreground">{request.specialist.email}</p>
-                          )}
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">-</span>
-                    )}
+                    <InlineSpecialistPicker
+                      requestId={request.id}
+                      specialistId={request.specialist_id}
+                      specialistName={request.specialist?.name}
+                      disabled={!canManage || isLiquidated}
+                      onRefresh={onRefresh}
+                      compact
+                    />
                   </TableCell>
                   <TableCell>
                     {request.hours ? (

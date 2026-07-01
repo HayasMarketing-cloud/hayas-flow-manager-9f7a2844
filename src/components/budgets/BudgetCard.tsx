@@ -87,6 +87,14 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
     }
   };
 
+  const handleSavePo = async () => {
+    setEditingPo(false);
+    const trimmed = poValue.trim();
+    if (trimmed !== (budget.client_po_number || '')) {
+      await handleUpdateField('client_po_number', trimmed || null);
+    }
+  };
+
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader className="space-y-2">

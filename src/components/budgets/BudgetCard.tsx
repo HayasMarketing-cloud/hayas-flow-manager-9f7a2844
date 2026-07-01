@@ -39,8 +39,11 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
   const navigate = useNavigate();
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState(budget.notes || '');
+  const [editingPo, setEditingPo] = useState(false);
+  const [poValue, setPoValue] = useState(budget.client_po_number || '');
   const [dateOpen, setDateOpen] = useState(false);
   const notesRef = useRef<HTMLTextAreaElement>(null);
+  const poRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setNotesValue(budget.notes || '');

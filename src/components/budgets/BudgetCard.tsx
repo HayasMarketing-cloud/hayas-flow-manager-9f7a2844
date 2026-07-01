@@ -191,6 +191,44 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
           </div>
         </div>
 
+        {/* Inline PO / Referencia Cliente */}
+        <div className="border-t pt-2 mt-2">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">PO / Ref. Cliente</p>
+          {editingPo ? (
+            <Input
+              ref={poRef}
+              value={poValue}
+              onChange={(e) => setPoValue(e.target.value)}
+              onBlur={handleSavePo}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setPoValue(budget.client_po_number || '');
+                  setEditingPo(false);
+                } else if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSavePo();
+                }
+              }}
+              placeholder="Ej: PO-12345"
+              className="h-8 text-xs"
+            />
+          ) : (
+            <div
+              onClick={() => setEditingPo(true)}
+              className="cursor-pointer text-xs hover:bg-muted/50 rounded px-1 py-1 min-h-[28px] flex items-center gap-1.5 transition-colors"
+            >
+              {budget.client_po_number ? (
+                <>
+                  <Hash className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                  <span className="font-mono">{budget.client_po_number}</span>
+                </>
+              ) : (
+                <span className="italic text-muted-foreground">+ Añadir PO / Referencia...</span>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Inline Notes */}
         <div className="border-t pt-2 mt-2">
           {editingNotes ? (

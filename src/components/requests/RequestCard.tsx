@@ -10,6 +10,8 @@ import { OriginCell } from './OriginCell';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { useQuery } from '@tanstack/react-query';
 import { Edit, Building2, Calendar as CalendarIcon, Copy, Trash2, Eye, Receipt, User, Clock, Euro } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';

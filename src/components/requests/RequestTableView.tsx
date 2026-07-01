@@ -15,6 +15,7 @@ import { SlackDMButton } from './SlackDMButton';
 import { FlowStatusCell } from './FlowStatusCell';
 import { RequestStatusBadge } from './RequestStatusBadge';
 import { OriginCell } from './OriginCell';
+import { InlineSpecialistPicker } from './InlineSpecialistPicker';
 import { Edit, Eye, Copy, Trash2, User, Clock, Euro } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';

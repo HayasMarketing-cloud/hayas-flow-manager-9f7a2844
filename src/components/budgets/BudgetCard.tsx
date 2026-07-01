@@ -1,6 +1,7 @@
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Eye, Edit, Copy, FileText, Trash2, Check, X } from 'lucide-react';
+import { Eye, Edit, Copy, FileText, Trash2, Check, X, Hash } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -38,18 +39,32 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
   const navigate = useNavigate();
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState(budget.notes || '');
+  const [editingPo, setEditingPo] = useState(false);
+  const [poValue, setPoValue] = useState(budget.client_po_number || '');
   const [dateOpen, setDateOpen] = useState(false);
   const notesRef = useRef<HTMLTextAreaElement>(null);
+  const poRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setNotesValue(budget.notes || '');
   }, [budget.notes]);
 
   useEffect(() => {
+    setPoValue(budget.client_po_number || '');
+  }, [budget.client_po_number]);
+
+  useEffect(() => {
     if (editingNotes && notesRef.current) {
       notesRef.current.focus();
     }
   }, [editingNotes]);
+
+  useEffect(() => {
+    if (editingPo && poRef.current) {
+      poRef.current.focus();
+      poRef.current.select();
+    }
+  }, [editingPo]);
 
   const handleUpdateField = async (field: string, value: any) => {
     const { error } = await supabase
@@ -69,6 +84,14 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
     setEditingNotes(false);
     if (notesValue !== (budget.notes || '')) {
       await handleUpdateField('notes', notesValue || null);
+    }
+  };
+
+  const handleSavePo = async () => {
+    setEditingPo(false);
+    const trimmed = poValue.trim();
+    if (trimmed !== (budget.client_po_number || '')) {
+      await handleUpdateField('client_po_number', trimmed || null);
     }
   };
 
@@ -166,6 +189,44 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
               </PopoverContent>
             </Popover>
           </div>
+        </div>
+
+        {/* Inline PO / Referencia Cliente */}
+        <div className="border-t pt-2 mt-2">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">PO / Ref. Cliente</p>
+          {editingPo ? (
+            <Input
+              ref={poRef}
+              value={poValue}
+              onChange={(e) => setPoValue(e.target.value)}
+              onBlur={handleSavePo}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setPoValue(budget.client_po_number || '');
+                  setEditingPo(false);
+                } else if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSavePo();
+                }
+              }}
+              placeholder="Ej: PO-12345"
+              className="h-8 text-xs"
+            />
+          ) : (
+            <div
+              onClick={() => setEditingPo(true)}
+              className="cursor-pointer text-xs hover:bg-muted/50 rounded px-1 py-1 min-h-[28px] flex items-center gap-1.5 transition-colors"
+            >
+              {budget.client_po_number ? (
+                <>
+                  <Hash className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                  <span className="font-mono">{budget.client_po_number}</span>
+                </>
+              ) : (
+                <span className="italic text-muted-foreground">+ Añadir PO / Referencia...</span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Inline Notes */}

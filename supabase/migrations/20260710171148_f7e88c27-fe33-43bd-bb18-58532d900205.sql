@@ -1,0 +1,1 @@
+UPDATE public.b2brouter_config SET account_id_production='180546', environment='production', updated_at=now();

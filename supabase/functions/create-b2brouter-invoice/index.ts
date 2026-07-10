@@ -144,8 +144,8 @@ Deno.serve(async (req) => {
     }));
 
     const baseUrl = env === "production"
-      ? "https://api.b2brouter.net/v2"
-      : "https://api-staging.b2brouter.net/v2";
+      ? "https://api.b2brouter.net"
+      : "https://api-staging.b2brouter.net";
 
     // Body shape based on B2BRouter v2 invoice schema (standard commercial invoice)
     const payload = {

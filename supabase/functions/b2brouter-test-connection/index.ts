@@ -60,10 +60,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    const env = config.environment as "staging" | "production";
-    const apiKey = env === "production"
-      ? Deno.env.get("B2BROUTER_API_KEY_PRODUCTION")
-      : Deno.env.get("B2BROUTER_API_KEY_STAGING");
+    const apiKey = (env === "production"
+      ? Deno.env.get("B2BROUTER_API_KEY_PRODUCTION") ?? Deno.env.get("B2BROUTER_API_KEY_STAGING")
+      : Deno.env.get("B2BROUTER_API_KEY_STAGING") ?? Deno.env.get("B2BROUTER_API_KEY_PRODUCTION"));
 
     if (!apiKey) {
       return new Response(

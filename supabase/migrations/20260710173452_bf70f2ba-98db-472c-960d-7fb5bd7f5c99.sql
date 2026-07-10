@@ -1,0 +1,1 @@
+UPDATE public.b2brouter_config SET account_id_staging='180546', environment='staging', updated_at=now();

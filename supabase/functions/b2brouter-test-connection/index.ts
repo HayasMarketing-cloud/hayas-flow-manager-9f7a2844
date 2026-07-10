@@ -62,8 +62,8 @@ Deno.serve(async (req) => {
 
     const env = config.environment as "staging" | "production";
     const apiKey = env === "production"
-      ? Deno.env.get("B2BROUTER_API_KEY_PRODUCTION")
-      : Deno.env.get("B2BROUTER_API_KEY_STAGING");
+      ? Deno.env.get("B2BROUTER_API_KEY_PRODUCTION") ?? Deno.env.get("B2BROUTER_API_KEY_STAGING")
+      : Deno.env.get("B2BROUTER_API_KEY_STAGING") ?? Deno.env.get("B2BROUTER_API_KEY_PRODUCTION");
 
     if (!apiKey) {
       return new Response(
@@ -83,8 +83,8 @@ Deno.serve(async (req) => {
     }
 
     const baseUrl = env === "production"
-      ? "https://api.b2brouter.net/v2"
-      : "https://api-staging.b2brouter.net/v2";
+      ? "https://api.b2brouter.net"
+      : "https://api-staging.b2brouter.net";
 
     const url = `${baseUrl}/accounts/${accountId}`;
     const started = Date.now();

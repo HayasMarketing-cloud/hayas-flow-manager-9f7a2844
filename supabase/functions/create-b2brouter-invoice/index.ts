@@ -70,8 +70,8 @@ Deno.serve(async (req) => {
 
     const env = config.environment as "staging" | "production";
     const apiKey = env === "production"
-      ? Deno.env.get("B2BROUTER_API_KEY_PRODUCTION")
-      : Deno.env.get("B2BROUTER_API_KEY_STAGING");
+      ? Deno.env.get("B2BROUTER_API_KEY_PRODUCTION") ?? Deno.env.get("B2BROUTER_API_KEY_STAGING")
+      : Deno.env.get("B2BROUTER_API_KEY_STAGING") ?? Deno.env.get("B2BROUTER_API_KEY_PRODUCTION");
     const accountId = env === "production"
       ? config.account_id_production : config.account_id_staging;
     if (!apiKey || !accountId) {
@@ -144,8 +144,8 @@ Deno.serve(async (req) => {
     }));
 
     const baseUrl = env === "production"
-      ? "https://api.b2brouter.net/v2"
-      : "https://api-staging.b2brouter.net/v2";
+      ? "https://api.b2brouter.net"
+      : "https://api-staging.b2brouter.net";
 
     // Body shape based on B2BRouter v2 invoice schema (standard commercial invoice)
     const payload = {

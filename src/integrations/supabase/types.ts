@@ -2505,6 +2505,10 @@ export type Database = {
       }
     }
     Functions: {
+      can_view_liquidation_as_assigned_am: {
+        Args: { _liquidation_id: string }
+        Returns: boolean
+      }
       generate_code: { Args: { sequence_name: string }; Returns: string }
       get_current_specialist_id: { Args: never; Returns: string }
       get_liquidation_am_user_ids: {
@@ -2524,6 +2528,10 @@ export type Database = {
       }
       is_specialist_on_contract: {
         Args: { _contract_id: string }
+        Returns: boolean
+      }
+      is_team_leader_liquidation: {
+        Args: { _liquidation_id: string }
         Returns: boolean
       }
       link_my_specialist: { Args: never; Returns: string }

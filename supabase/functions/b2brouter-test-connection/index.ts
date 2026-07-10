@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
     }
 
     const baseUrl = env === "production"
-      ? "https://app.b2brouter.net/api/v2"
+      ? "https://api.b2brouter.net/v2"
       : "https://app-staging.b2brouter.net/api/v2";
 
     const url = `${baseUrl}/accounts/${accountId}`;

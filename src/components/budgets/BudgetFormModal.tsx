@@ -15,6 +15,7 @@ import { Loader2, FileText, User, FileSignature } from 'lucide-react';
 import { useApproveBudget } from '@/hooks/useApproveBudget';
 import { ProjectCreationModal } from './ProjectCreationModal';
 import { PaymentPlanEditor, PaymentMilestone } from './PaymentPlanEditor';
+import { useUserRole } from '@/hooks/useUserRole';
 
 interface BudgetFormModalProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export const BudgetFormModal = ({
   onProjectCreationRequest 
 }: BudgetFormModalProps) => {
   const { user } = useAuth();
+  const { isAccountManager, isProjectManager } = useUserRole();
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     title: '',
@@ -232,6 +234,15 @@ export const BudgetFormModal = ({
         valid_until: formData.valid_until || null,
         payment_plan: paymentPlan.length > 0 ? (paymentPlan as any) : null,
       };
+
+      if (!budget?.id && user?.id) {
+        if (!cleanedFormData.am_user_id && isAccountManager()) {
+          cleanedFormData.am_user_id = user.id;
+        }
+        if (!cleanedFormData.pm_user_id && isProjectManager()) {
+          cleanedFormData.pm_user_id = user.id;
+        }
+      }
 
       if (budget?.id) {
         // Actualizar presupuesto

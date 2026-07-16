@@ -121,17 +121,56 @@ export const useUserBudgetIds = () => {
     queryFn: async () => {
       if (!user?.id) return [];
 
-      const { data, error } = await supabase
+      const { data: directBudgets, error: directBudgetError } = await supabase
         .from('budgets')
         .select('id')
-        .or(`am_user_id.eq.${user.id},pm_user_id.eq.${user.id}`);
+        .or(`am_user_id.eq.${user.id},pm_user_id.eq.${user.id},created_by.eq.${user.id}`);
 
-      if (error) {
-        console.error('Error fetching assigned budgets:', error);
-        return [];
+      if (directBudgetError) {
+        console.error('Error fetching directly assigned budgets:', directBudgetError);
       }
 
-      return data?.map(b => b.id) || [];
+      const { data: assignedClients, error: assignmentError } = await supabase
+        .from('client_assignments')
+        .select('client_id')
+        .eq('user_id', user.id);
+
+      if (assignmentError) {
+        console.error('Error fetching budget client assignments:', assignmentError);
+      }
+
+      const { data: contractClients, error: contractError } = await supabase
+        .from('contracts')
+        .select('client_id')
+        .or(`am_user_id.eq.${user.id},pm_user_id.eq.${user.id}`);
+
+      if (contractError) {
+        console.error('Error fetching budget contract clients:', contractError);
+      }
+
+      const clientIds = [...new Set([
+        ...(assignedClients?.map(a => a.client_id) || []),
+        ...(contractClients?.map(c => c.client_id) || []),
+      ].filter(Boolean))];
+
+      let clientBudgets: { id: string }[] = [];
+      if (clientIds.length > 0) {
+        const { data, error } = await supabase
+          .from('budgets')
+          .select('id')
+          .in('client_id', clientIds);
+
+        if (error) {
+          console.error('Error fetching budgets for assigned clients:', error);
+        } else {
+          clientBudgets = data || [];
+        }
+      }
+
+      return [...new Set([
+        ...(directBudgets?.map(b => b.id) || []),
+        ...clientBudgets.map(b => b.id),
+      ])];
     },
     enabled: !!user?.id && !rolesLoading && needsFiltering,
   });

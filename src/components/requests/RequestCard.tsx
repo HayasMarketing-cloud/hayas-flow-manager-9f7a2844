@@ -37,6 +37,7 @@ const REQUEST_STATUSES: { value: FinancialRequestStatus; label: string }[] = [
 
 interface RequestCardProps {
   request: any;
+  invoiceLink?: import('@/hooks/useRequestInvoiceLinks').ResolvedInvoiceLink;
   onEdit: (request: any) => void;
   onDelete: (request: any) => void;
   onClone: (request: any) => void;
@@ -45,7 +46,7 @@ interface RequestCardProps {
   onRefresh?: () => void;
 }
 
-export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquidation, canManage, onRefresh }: RequestCardProps) => {
+export const RequestCard = ({ request, invoiceLink, onEdit, onDelete, onClone, onAddToLiquidation, canManage, onRefresh }: RequestCardProps) => {
   const navigate = useNavigate();
   const isLiquidated = !!request.liquidation_id;
   const [editingNotes, setEditingNotes] = useState(false);

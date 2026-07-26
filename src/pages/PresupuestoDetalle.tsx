@@ -978,6 +978,13 @@ export default function PresupuestoDetalle() {
               isLoading={loadingPnL}
               title="Controlling Financiero del Presupuesto"
             />
+            {(budget.status === 'approved' || budget.status === 'invoiced') && (
+              <BudgetLinkedInvoicesCard
+                budgetId={budget.id}
+                budgetTotal={budget.total_amount || 0}
+                estimatedInvoiceDate={budget.estimated_invoice_date}
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="resumen" className="space-y-6">

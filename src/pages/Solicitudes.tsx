@@ -144,6 +144,10 @@ const Solicitudes = () => {
     enabled: !assignedLoading,
   });
 
+  const invoiceLinks = useRequestInvoiceLinks(requests);
+
+
+
   const { data: clients } = useQuery({
     queryKey: ['clients-filter', needsFiltering, assignedClientIds],
     queryFn: async () => {

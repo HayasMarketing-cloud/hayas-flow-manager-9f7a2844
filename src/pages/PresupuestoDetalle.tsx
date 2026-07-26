@@ -33,6 +33,7 @@ import { BudgetContextTab } from '@/components/budgets/BudgetContextTab';
 import { useBudgetPnL } from '@/hooks/useEntityPnL';
 import { FinancialControllingCard } from '@/components/shared/FinancialControllingCard';
 import { BudgetLinkedInvoicesCard } from '@/components/budgets/BudgetLinkedInvoicesCard';
+import { BudgetInvoicingSummary } from '@/components/budgets/BudgetInvoicingSummary';
 
 export default function PresupuestoDetalle() {
   const { id } = useParams<{ id: string }>();

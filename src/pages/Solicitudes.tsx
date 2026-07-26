@@ -20,6 +20,7 @@ import { RequestFormModal } from '@/components/modals/RequestFormModal';
 import { RequestCard } from '@/components/requests/RequestCard';
 import { RequestTableView } from '@/components/requests/RequestTableView';
 import { useRequestFilters } from '@/hooks/useRequestFilters';
+import { useRequestInvoiceLinks } from '@/hooks/useRequestInvoiceLinks';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useCurrentSpecialist } from '@/hooks/useCurrentSpecialist';
 import { useAssignedClients } from '@/hooks/useAssignedClients';

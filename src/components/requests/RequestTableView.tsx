@@ -24,6 +24,7 @@ import { formatCurrency } from '@/lib/request-utils';
 
 interface RequestTableViewProps {
   requests: any[];
+  invoiceLinks?: Map<string, import('@/hooks/useRequestInvoiceLinks').ResolvedInvoiceLink>;
   onEdit: (request: any) => void;
   onDelete: (request: any) => void;
   onClone: (request: any) => void;
@@ -36,6 +37,7 @@ interface RequestTableViewProps {
 
 export const RequestTableView = ({
   requests,
+  invoiceLinks,
   onEdit,
   onDelete,
   onClone,

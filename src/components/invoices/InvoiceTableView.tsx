@@ -1,18 +1,20 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { InvoiceStatusBadge } from './InvoiceStatusBadge';
 import { InvoiceStatusActions } from './InvoiceStatusActions';
 import { B2BRouterEmitButton } from './B2BRouterEmitButton';
 import { AllocationStatusBadge } from './AllocationStatusBadge';
 import { InvoiceOriginCell } from './InvoiceOriginCell';
 import { InlineInvoiceAssociation } from './InlineInvoiceAssociation';
-import { Edit, Eye, FileText, AlertCircle, Trash2 } from 'lucide-react';
+import { Edit, Eye, FileText, AlertCircle, Trash2, Milestone } from 'lucide-react';
 import { formatCurrency } from '@/lib/invoice-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useInvoiceAllocationSummaries } from '@/hooks/useInvoiceAllocationSummaries';
+import { useInvoiceListMilestoneResolver } from '@/hooks/useBudgetMilestoneResolver';
 import { useMemo } from 'react';
 
 interface InvoiceTableViewProps {
@@ -34,10 +36,10 @@ const months = [
   'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
 ];
 
-export const InvoiceTableView = ({ 
-  invoices, 
-  onView, 
-  onEdit, 
+export const InvoiceTableView = ({
+  invoices,
+  onView,
+  onEdit,
   onDelete,
   canManage,
   selectedIds,
@@ -47,32 +49,97 @@ export const InvoiceTableView = ({
   // Get allocation summaries for all invoices
   const invoiceIds = useMemo(() => invoices.map(inv => inv.id), [invoices]);
   const { data: allocationSummaries } = useInvoiceAllocationSummaries(invoiceIds);
+  const { data: milestoneMap } = useInvoiceListMilestoneResolver(invoices);
 
   const selectableInvoices = invoices.filter(inv => isSelectableStatus(inv.status));
   const allSelected = selectableInvoices.length > 0 && selectableInvoices.every(inv => selectedIds.includes(inv.id));
   const someSelected = selectableInvoices.some(inv => selectedIds.includes(inv.id)) && !allSelected;
 
+  const renderMilestoneBadges = (invoice: any) => {
+    const matches = milestoneMap?.get(invoice.id);
+    if (!matches || matches.length === 0) return null;
+
+    return (
+      <div className="flex flex-wrap gap-1 mt-1">
+        {matches.map((m) => {
+          const isAdditional = m.matchType === 'additional';
+          const pct = Math.round(
+            isAdditional ? m.allocationPercentage : m.milestonePercentage
+          );
+          const label = isAdditional
+            ? `+ ${m.milestoneLabel}`
+            : `${pct}% · ${m.milestoneLabel}`;
+          return (
+            <TooltipProvider key={`${m.budgetId}-${m.milestoneIndex}`}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge
+                    variant="outline"
+                    className={
+                      isAdditional
+                        ? 'gap-1 border-amber-300 bg-amber-50 text-amber-800 text-[10px] py-0'
+                        : m.matchType === 'fallback'
+                          ? 'gap-1 border-blue-200 bg-blue-50 text-blue-800 text-[10px] py-0'
+                          : 'gap-1 border-primary/30 bg-primary/5 text-primary text-[10px] py-0'
+                    }
+                  >
+                    <Milestone className="h-2.5 w-2.5" />
+                    {label}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="text-xs space-y-0.5">
+                    <p className="font-medium">
+                      {m.budgetCode} · {m.milestoneLabel}
+                    </p>
+                    <p>Hito: {m.milestonePercentage}% del presupuesto</p>
+                    <p>Factura: {m.allocationPercentage.toFixed(1)}% ({formatCurrency(m.allocatedAmount)})</p>
+                    <p className="text-muted-foreground">
+                      {m.matchType === 'index' && 'Vinculación explícita (source_milestone_index).'}
+                      {m.matchType === 'fallback' && 'Vinculación deducida por % y fecha.'}
+                      {m.matchType === 'single-100' && 'Presupuesto sin plan de pagos — hito único 100%.'}
+                      {m.matchType === 'additional' && 'Factura extra: sin hueco de hito disponible.'}
+                    </p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        })}
+      </div>
+    );
+  };
+
   const renderAssociation = (invoice: any) => {
     // First check for budget allocations (N:M relationship - preferred method)
     const allocations = invoice.invoice_budget_allocations || [];
     if (allocations.length > 0) {
-      // Map allocations to budget items for InvoiceOriginCell
       const budgetItems = allocations
-        .filter((a: any) => a.budget) // Only include allocations with valid budget data
+        .filter((a: any) => a.budget)
         .map((a: any) => ({
           id: a.budget.id,
           code: a.budget.code,
           title: a.budget.title,
         }));
-      
+
       if (budgetItems.length > 0) {
-        return <InvoiceOriginCell items={budgetItems} type="budget" />;
+        return (
+          <div className="flex flex-col gap-0.5">
+            <InvoiceOriginCell items={budgetItems} type="budget" />
+            {renderMilestoneBadges(invoice)}
+          </div>
+        );
       }
     }
 
     // Direct budget association (legacy)
     if (invoice.budget_id && invoice.budget) {
-      return <InvoiceOriginCell items={[invoice.budget]} type="budget" />;
+      return (
+        <div className="flex flex-col gap-0.5">
+          <InvoiceOriginCell items={[invoice.budget]} type="budget" />
+          {renderMilestoneBadges(invoice)}
+        </div>
+      );
     }
 
     // Direct contract association
@@ -80,7 +147,7 @@ export const InvoiceTableView = ({
       const periodLabel = invoice.billing_period_month && invoice.billing_period_year
         ? `${months[invoice.billing_period_month - 1]} ${invoice.billing_period_year}`
         : '';
-      
+
       return (
         <div className="flex flex-col gap-1">
           <InvoiceOriginCell items={[invoice.contract]} type="contract" />
@@ -107,7 +174,7 @@ export const InvoiceTableView = ({
         <TableHeader>
           <TableRow>
             <TableHead className="w-10">
-              <Checkbox 
+              <Checkbox
                 checked={allSelected}
                 onCheckedChange={(checked) => onSelectAll(!!checked)}
                 aria-label="Seleccionar todas"
@@ -140,7 +207,7 @@ export const InvoiceTableView = ({
               const canSelect = isSelectableStatus(invoice.status);
               const isSelected = selectedIds.includes(invoice.id);
               const allocationSummary = allocationSummaries?.get(invoice.id);
-              
+
               return (
                 <TableRow key={invoice.id} className={isSelected ? 'bg-muted/50' : ''}>
                   <TableCell>
@@ -221,9 +288,9 @@ export const InvoiceTableView = ({
                         </Button>
                       )}
                       {canManage && onDelete && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => onDelete(invoice)}
                           className="text-destructive hover:text-destructive hover:bg-destructive/10"
                         >

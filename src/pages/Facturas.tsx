@@ -87,7 +87,8 @@ export default function Facturas() {
             budget:budgets(id, code, title)
           )
         `)
-        .order('due_date', { ascending: true, nullsFirst: false });
+        .order('invoice_date', { ascending: false, nullsFirst: false })
+        .order('code', { ascending: false });
 
       // Filtrar por clientes asignados si es AM
       if (needsFiltering && assignedClientIds.length > 0) {

@@ -204,6 +204,9 @@ export const useSaveInvoiceAllocations = () => {
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
       queryClient.invalidateQueries({ queryKey: ['budgets-for-invoice'] });
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      // Milestone resolver depends on allocations + budgets — refresh badges/breakdown
+      queryClient.invalidateQueries({ queryKey: ['budget-milestone-resolver'] });
+      
       
       // Log success for debugging
       console.log(`[SaveAllocations] ✅ Saved ${variables.allocations.length} allocations for invoice ${variables.invoiceId}`);

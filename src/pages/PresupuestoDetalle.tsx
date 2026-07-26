@@ -33,6 +33,7 @@ import { BudgetContextTab } from '@/components/budgets/BudgetContextTab';
 import { useBudgetPnL } from '@/hooks/useEntityPnL';
 import { FinancialControllingCard } from '@/components/shared/FinancialControllingCard';
 import { BudgetLinkedInvoicesCard } from '@/components/budgets/BudgetLinkedInvoicesCard';
+import { BudgetInvoicingSummary } from '@/components/budgets/BudgetInvoicingSummary';
 
 export default function PresupuestoDetalle() {
   const { id } = useParams<{ id: string }>();
@@ -978,6 +979,13 @@ export default function PresupuestoDetalle() {
               isLoading={loadingPnL}
               title="Controlling Financiero del Presupuesto"
             />
+            {(budget.status === 'approved' || budget.status === 'invoiced') && (
+              <BudgetLinkedInvoicesCard
+                budgetId={budget.id}
+                budgetTotal={budget.total_amount || 0}
+                estimatedInvoiceDate={budget.estimated_invoice_date}
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="resumen" className="space-y-6">
@@ -1604,14 +1612,13 @@ export default function PresupuestoDetalle() {
               </CardContent>
             </Card>
 
-            {/* Linked Invoices Card */}
-            {budget.status === 'approved' || budget.status === 'invoiced' ? (
-              <BudgetLinkedInvoicesCard 
-                budgetId={budget.id} 
-                budgetTotal={totalPresupuestado}
-                estimatedInvoiceDate={budget.estimated_invoice_date}
+            {/* Compact invoicing status — full breakdown lives in the Controlling tab */}
+            {(budget.status === 'approved' || budget.status === 'invoiced') && (
+              <BudgetInvoicingSummary
+                budgetId={budget.id}
+                budgetTotal={budget.total_amount || 0}
               />
-            ) : null}
+            )}
           </TabsContent>
         </Tabs>
       </div>

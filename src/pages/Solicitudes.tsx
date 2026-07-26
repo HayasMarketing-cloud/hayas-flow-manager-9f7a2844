@@ -892,34 +892,39 @@ const Solicitudes = () => {
             ))}
           </div>
         ) : requests && requests.length > 0 ? (
-          viewMode === 'cards' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {requests.map((request) => (
-                <RequestCard
-                  key={request.id}
-                  request={request}
-                  onEdit={handleEditRequest}
-                  onDelete={confirmDelete}
-                  onClone={handleCloneRequest}
-                  onAddToLiquidation={handleAddToLiquidation}
-                  canManage={canManage}
-                  onRefresh={handleSuccess}
-                />
-              ))}
-            </div>
-          ) : (
-            <RequestTableView
-              requests={requests}
-              onEdit={handleEditRequest}
-              onDelete={confirmDelete}
-              onClone={handleCloneRequest}
-              canManage={canManage}
-              selectedIds={selectedIds}
-              onSelectAll={handleSelectAll}
-              onSelectOne={handleSelectOne}
-              onRefresh={handleSuccess}
-            />
-          )
+          (() => {
+            const invoiceLinks = useRequestInvoiceLinks(requests);
+            return viewMode === 'cards' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {requests.map((request) => (
+                  <RequestCard
+                    key={request.id}
+                    request={request}
+                    invoiceLink={invoiceLinks.get(request.id)}
+                    onEdit={handleEditRequest}
+                    onDelete={confirmDelete}
+                    onClone={handleCloneRequest}
+                    onAddToLiquidation={handleAddToLiquidation}
+                    canManage={canManage}
+                    onRefresh={handleSuccess}
+                  />
+                ))}
+              </div>
+            ) : (
+              <RequestTableView
+                requests={requests}
+                invoiceLinks={invoiceLinks}
+                onEdit={handleEditRequest}
+                onDelete={confirmDelete}
+                onClone={handleCloneRequest}
+                canManage={canManage}
+                selectedIds={selectedIds}
+                onSelectAll={handleSelectAll}
+                onSelectOne={handleSelectOne}
+                onRefresh={handleSuccess}
+              />
+            );
+          })()
         ) : (
           <Card>
             <CardContent className="flex flex-col items-center justify-center h-64 text-center">

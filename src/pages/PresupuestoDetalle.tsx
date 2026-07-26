@@ -1611,14 +1611,13 @@ export default function PresupuestoDetalle() {
               </CardContent>
             </Card>
 
-            {/* Linked Invoices Card */}
-            {budget.status === 'approved' || budget.status === 'invoiced' ? (
-              <BudgetLinkedInvoicesCard 
-                budgetId={budget.id} 
-                budgetTotal={totalPresupuestado}
-                estimatedInvoiceDate={budget.estimated_invoice_date}
+            {/* Compact invoicing status — full breakdown lives in the Controlling tab */}
+            {(budget.status === 'approved' || budget.status === 'invoiced') && (
+              <BudgetInvoicingSummary
+                budgetId={budget.id}
+                budgetTotal={budget.total_amount || 0}
               />
-            ) : null}
+            )}
           </TabsContent>
         </Tabs>
       </div>

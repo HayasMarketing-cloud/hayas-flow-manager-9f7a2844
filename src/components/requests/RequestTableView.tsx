@@ -24,6 +24,7 @@ import { formatCurrency } from '@/lib/request-utils';
 
 interface RequestTableViewProps {
   requests: any[];
+  invoiceLinks?: Map<string, import('@/hooks/useRequestInvoiceLinks').ResolvedInvoiceLink>;
   onEdit: (request: any) => void;
   onDelete: (request: any) => void;
   onClone: (request: any) => void;
@@ -36,6 +37,7 @@ interface RequestTableViewProps {
 
 export const RequestTableView = ({
   requests,
+  invoiceLinks,
   onEdit,
   onDelete,
   onClone,
@@ -178,12 +180,21 @@ export const RequestTableView = ({
                     )}
                   </TableCell>
                   <TableCell>
-                    <FlowStatusCell
-                      type="invoice"
-                      linkedId={request.billed_invoice_id}
-                      linkedCode={request.invoice?.code}
-                      linkedStatus={request.invoice?.status}
-                    />
+                    {(() => {
+                      const link = invoiceLinks?.get(request.id);
+                      return (
+                        <FlowStatusCell
+                          type="invoice"
+                          linkedId={link?.invoiceId ?? request.billed_invoice_id}
+                          linkedCode={link?.code ?? request.invoice?.code}
+                          linkedStatus={link?.status ?? request.invoice?.status}
+                          linkVia={link?.via}
+                          budgetCode={link?.budgetCode}
+                          contractCode={link?.contractCode}
+                          extraCount={link?.extraCount}
+                        />
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>
                     <FlowStatusCell

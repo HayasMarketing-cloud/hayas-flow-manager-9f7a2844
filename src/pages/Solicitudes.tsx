@@ -20,6 +20,7 @@ import { RequestFormModal } from '@/components/modals/RequestFormModal';
 import { RequestCard } from '@/components/requests/RequestCard';
 import { RequestTableView } from '@/components/requests/RequestTableView';
 import { useRequestFilters } from '@/hooks/useRequestFilters';
+import { useRequestInvoiceLinks } from '@/hooks/useRequestInvoiceLinks';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useCurrentSpecialist } from '@/hooks/useCurrentSpecialist';
 import { useAssignedClients } from '@/hooks/useAssignedClients';
@@ -142,6 +143,10 @@ const Solicitudes = () => {
     },
     enabled: !assignedLoading,
   });
+
+  const invoiceLinks = useRequestInvoiceLinks(requests);
+
+
 
   const { data: clients } = useQuery({
     queryKey: ['clients-filter', needsFiltering, assignedClientIds],
@@ -897,6 +902,7 @@ const Solicitudes = () => {
                 <RequestCard
                   key={request.id}
                   request={request}
+                  invoiceLink={invoiceLinks.get(request.id)}
                   onEdit={handleEditRequest}
                   onDelete={confirmDelete}
                   onClone={handleCloneRequest}
@@ -909,6 +915,7 @@ const Solicitudes = () => {
           ) : (
             <RequestTableView
               requests={requests}
+              invoiceLinks={invoiceLinks}
               onEdit={handleEditRequest}
               onDelete={confirmDelete}
               onClone={handleCloneRequest}

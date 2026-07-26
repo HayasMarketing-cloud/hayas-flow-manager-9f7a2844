@@ -37,6 +37,7 @@ const REQUEST_STATUSES: { value: FinancialRequestStatus; label: string }[] = [
 
 interface RequestCardProps {
   request: any;
+  invoiceLink?: import('@/hooks/useRequestInvoiceLinks').ResolvedInvoiceLink;
   onEdit: (request: any) => void;
   onDelete: (request: any) => void;
   onClone: (request: any) => void;
@@ -45,7 +46,7 @@ interface RequestCardProps {
   onRefresh?: () => void;
 }
 
-export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquidation, canManage, onRefresh }: RequestCardProps) => {
+export const RequestCard = ({ request, invoiceLink, onEdit, onDelete, onClone, onAddToLiquidation, canManage, onRefresh }: RequestCardProps) => {
   const navigate = useNavigate();
   const isLiquidated = !!request.liquidation_id;
   const [editingNotes, setEditingNotes] = useState(false);
@@ -319,9 +320,13 @@ export const RequestCard = ({ request, onEdit, onDelete, onClone, onAddToLiquida
         <div className="flex items-center gap-4 pt-2">
           <FlowStatusCell
             type="invoice"
-            linkedId={request.billed_invoice_id}
-            linkedCode={request.invoice?.code}
-            linkedStatus={request.invoice?.status}
+            linkedId={invoiceLink?.invoiceId ?? request.billed_invoice_id}
+            linkedCode={invoiceLink?.code ?? request.invoice?.code}
+            linkedStatus={invoiceLink?.status ?? request.invoice?.status}
+            linkVia={invoiceLink?.via}
+            budgetCode={invoiceLink?.budgetCode}
+            contractCode={invoiceLink?.contractCode}
+            extraCount={invoiceLink?.extraCount}
           />
           <FlowStatusCell
             type="liquidation"

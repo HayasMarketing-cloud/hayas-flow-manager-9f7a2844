@@ -1,49 +1,63 @@
 ## Diagnóstico
 
-El presupuesto existe correctamente en la base de datos:
+El badge "Sin factura" se pinta cuando `financial_requests.billed_invoice_id` está vacío. En los ejemplos de PRE-2026-045 (y en la mayoría del histórico) los requests no tienen ese campo poblado aunque el presupuesto sí esté facturado:
 
-- `PRE-2026-049`
-- Cliente: `ASENDIA HQ`
-- Creado por: `Iolanda Carbone`
-- Estado: `Pendiente`
-- Importe: `630,00 €`
-- `created_by` = Iolanda
-- `am_user_id` = vacío
-- `pm_user_id` = vacío
+- 16 requests de PRE-2026-045 → todos con `billed_invoice_id = NULL`.
+- La factura 2026/86 (cobrada) está enlazada al presupuesto vía `invoice_budget_allocations` (modelo N:M), no a cada request.
+- `invoice_items.financial_request_id` tampoco apunta a esos requests.
 
-La causa probable no es falta de permisos de Iolanda en el backend: la política de lectura permite ver presupuestos creados por ella. El problema está en el filtro del listado de `Presupuestos`: para usuarios AM/PM, el frontend primero calcula `assignedBudgetIds` usando solo presupuestos donde Iolanda está en `am_user_id` o `pm_user_id`. Como este presupuesto nuevo no guarda AM/PM, no entra en esa lista y luego el listado hace `.in('id', assignedBudgetIds)`, excluyéndolo aunque ella sea la creadora.
+Por eso la columna "Factura" marca "Sin factura" en todos: la columna solo mira el vínculo directo request→factura, sin considerar el vínculo indirecto vía presupuesto/contrato.
 
-Esto explica que sea intermitente: los presupuestos donde el formulario deja AM/PM relleno aparecen; los que se crean sin AM/PM, aunque sean suyos, desaparecen del listado principal.
+## Objetivo
 
-## Plan de corrección
+Que la columna "Factura" del listado de requests muestre la **factura real asociada**, con:
+- **Código de factura** (ej: `2026/86`) como enlace clicable al detalle.
+- **Estado real** con badge de color: `Cobrada` (verde) / `Pendiente de cobro` (ámbar) / `Borrador` / `Vencida`, siguiendo `getInvoiceStatusLabel` de `src/lib/invoice-utils.ts`.
+- **Indicador de origen del vínculo** (directo vs vía presupuesto/contrato) mediante tooltip, sin ensuciar la celda.
+- Badge ámbar "Sin factura" solo cuando genuinamente no hay factura por ningún camino.
 
-1. **Corregir el listado de Presupuestos**
-   - Cambiar la consulta de usuarios AM/PM para incluir presupuestos que cumplan cualquiera de estas condiciones:
-     - `am_user_id = usuario actual`
-     - `pm_user_id = usuario actual`
-     - `created_by = usuario actual`
-     - cliente asignado directamente o heredado por contrato/presupuesto cuando aplique
-   - Evitar depender únicamente de `assignedBudgetIds` cuando el usuario es el creador.
+## Cambios (solo UI/derivación, sin migración)
 
-2. **Corregir el hook de presupuestos asignados**
-   - Actualizar `useUserBudgetIds` para incluir también `created_by = user.id`.
-   - Mantener el filtro por AM/PM para no abrir acceso global.
-   - Esto alinea el frontend con la política real del backend.
+### 1. Nuevo hook `useRequestInvoiceLinks`
+Ubicación: `src/hooks/useRequestInvoiceLinks.tsx`.
 
-3. **Mejorar la creación desde el modal**
-   - Si el usuario actual es account manager o project manager y crea un presupuesto sin seleccionar AM/PM, guardar automáticamente su usuario en el campo correspondiente:
-     - account manager → `am_user_id`
-     - project manager → `pm_user_id`
-   - En el caso concreto de Iolanda, como tiene ambos roles, rellenar ambos si están vacíos para mantener coherencia con los presupuestos anteriores de Asendia.
+Dado el array de requests del listado, resuelve la factura efectiva de cada uno:
 
-4. **Revisar el caso desde ficha de cliente**
-   - `ClientBudgetsTab` crea presupuestos con `client_id` preseleccionado. Aplicar la misma lógica del modal para que también queden asignados correctamente si se crean desde ahí.
+- **P1 – Directo**: si `billed_invoice_id` existe, usa esa factura.
+- **P2 – Vía presupuesto**: si el request tiene `budget_id`, consulta `invoice_budget_allocations` filtrando por esos `budget_id` y trae `invoices(id, code, status, invoice_date)`. Selecciona la factura más reciente por `invoice_date`. Si hay varias, guarda el conteo para el tooltip.
+- **P3 – Vía contrato**: si el request tiene `contract_id` y no hubo match previo, busca `invoices` con ese `contract_id` cuyo `billing_period_month/year` coincida con `work_month/work_year` del request. Si hay match único, se usa.
+- Devuelve `Map<requestId, { invoiceId, code, status, via: 'direct'|'budget'|'contract', extraCount?: number }>`.
 
-5. **Validación**
-   - Verificar que `PRE-2026-049` aparecería en el listado de Iolanda aunque no tenga AM/PM.
-   - Revisar que no se amplía visibilidad a usuarios no asignados.
-   - Confirmar que la solución cubre los próximos presupuestos, no solo este caso puntual.
+Se invalida junto con la query `financial_requests`.
 
-## Cambio de datos opcional
+### 2. Ampliar `FlowStatusCell`
+`src/components/requests/FlowStatusCell.tsx`:
 
-Además del fix de código, conviene actualizar este presupuesto existente para asignar Iolanda como AM/PM, igual que los presupuestos previos de ASENDIA HQ. Esto no sustituye el fix: solo deja el registro actual consistente.
+- Añadir props opcionales `linkVia?: 'direct'|'budget'|'contract'` y `extraCount?: number`.
+- Reemplazar el círculo de icono actual + label interno por el badge de estado de factura homogéneo con `InvoiceStatusBadge` (usar `getInvoiceStatusColor` / `getInvoiceStatusLabel` para respetar la nomenclatura "Cobrada / Pendiente de cobro").
+- Layout de la celda cuando hay factura:
+  - Código `2026/86` en fuente mono, clicable, con hover subrayado y `ExternalLink` icon on hover.
+  - Debajo (o al lado en flex): mini-badge con estado ("Cobrada", "Pendiente de cobro", "Borrador", "Vencida").
+  - Si `linkVia !== 'direct'`, añadir icono discreto (`Link2`) + tooltip: *"Factura vinculada vía presupuesto PRE-2026-045"* (o contrato).
+  - Click navega a `/facturas?highlight={invoiceId}` (comportamiento actual, ya soportado).
+- Sin factura por ningún camino → mantener badge ámbar "Sin factura" actual.
+
+### 3. Cablear en el listado
+`src/components/requests/RequestTableView.tsx` (y equivalente en `RequestCard.tsx`):
+
+- Consumir el hook con los requests visibles.
+- Pasar a `<FlowStatusCell type="invoice" …>` los datos derivados: `linkedId`, `linkedCode`, `linkedStatus`, `linkVia`, `extraCount`.
+- Fallback al valor directo del request si el hook aún no ha resuelto.
+
+### 4. Alcance NO incluido
+
+- **No** se rellena `billed_invoice_id` automáticamente. Dashboards, PnL y exports (`useDashboardMensualData`, `useEntityPnL`, `requestsExporter`) siguen contando solo lo explícitamente facturado a nivel request. Este cambio es puramente visual en el listado.
+- **No** se aplica bloqueo funcional "no liquidar si no facturado" (capa 2, pendiente).
+- **No** se toca la columna "Liquidación" ni las tarjetas de presupuestos/contratos.
+
+## Verificación
+
+- Requests de PRE-2026-045 muestran `2026/86` con badge verde "Cobrada" e icono `Link2` con tooltip "Factura vinculada vía presupuesto PRE-2026-045".
+- Un request con `billed_invoice_id` directo mantiene su código y estado, sin icono de vínculo indirecto.
+- Un request sin factura ni por budget ni por contract sigue mostrando el badge ámbar "Sin factura".
+- Click en el código navega a `/facturas?highlight={id}`.

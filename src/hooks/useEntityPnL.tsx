@@ -120,6 +120,8 @@ const calculatePnL = (
     liquidatedRequests: data.filter((r) => r.liquidation_id).length,
   };
 };
+
+export const useBudgetPnL = (budgetId: string) => {
   return useQuery({
     queryKey: ['budget-pnl', budgetId],
     queryFn: async () => {

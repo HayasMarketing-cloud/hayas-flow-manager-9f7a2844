@@ -2509,6 +2509,10 @@ export type Database = {
         Args: { _liquidation_id: string }
         Returns: boolean
       }
+      can_view_specialist: {
+        Args: { _specialist_id: string }
+        Returns: boolean
+      }
       generate_code: { Args: { sequence_name: string }; Returns: string }
       get_current_specialist_id: { Args: never; Returns: string }
       get_liquidation_am_user_ids: {

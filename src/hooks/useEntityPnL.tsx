@@ -65,13 +65,30 @@ const calculateCommissions = (commissions: CommissionData[]) => {
   };
 };
 
-const calculatePnL = (data: any[], commissions: CommissionData[] = []): EntityPnL => {
-  const estimatedRevenue = data.reduce((sum, r) => sum + (r.sale_amount || 0), 0);
-  const invoicedRevenue = data.reduce((sum, r) => 
-    sum + (r.billed_invoice_id ? (r.sale_amount || 0) : 0), 0);
+interface PnLOverrides {
+  estimatedRevenue?: number;
+  invoicedRevenue?: number;
+  invoicedRequestsCount?: number;
+}
+
+const calculatePnL = (
+  data: any[],
+  commissions: CommissionData[] = [],
+  overrides: PnLOverrides = {}
+): EntityPnL => {
+  const requestsRevenue = data.reduce((sum, r) => sum + (r.sale_amount || 0), 0);
+  const requestsInvoicedRevenue = data.reduce(
+    (sum, r) => sum + (r.billed_invoice_id ? (r.sale_amount || 0) : 0),
+    0
+  );
+  const estimatedRevenue = overrides.estimatedRevenue ?? requestsRevenue;
+  const invoicedRevenue = overrides.invoicedRevenue ?? requestsInvoicedRevenue;
+
   const estimatedCosts = data.reduce((sum, r) => sum + (r.cost_to_agency || 0), 0);
-  const liquidatedCosts = data.reduce((sum, r) => 
-    sum + (r.liquidation_id ? (r.cost_to_agency || 0) : 0), 0);
+  const liquidatedCosts = data.reduce(
+    (sum, r) => sum + (r.liquidation_id ? (r.cost_to_agency || 0) : 0),
+    0
+  );
 
   const commissionData = calculateCommissions(commissions);
   const totalCosts = liquidatedCosts + commissionData.commissionCosts;
@@ -80,13 +97,15 @@ const calculatePnL = (data: any[], commissions: CommissionData[] = []): EntityPn
   const estimatedMargin = estimatedRevenue - estimatedCosts;
   const adjustedMargin = invoicedRevenue - totalCosts;
 
+  const pendingToInvoice = Math.max(0, estimatedRevenue - invoicedRevenue);
+
   return {
     estimatedRevenue,
     invoicedRevenue,
-    pendingToInvoice: estimatedRevenue - invoicedRevenue,
+    pendingToInvoice,
     estimatedCosts,
     liquidatedCosts,
-    pendingToLiquidate: estimatedCosts - liquidatedCosts,
+    pendingToLiquidate: Math.max(0, estimatedCosts - liquidatedCosts),
     ...commissionData,
     totalCosts,
     realMargin,
@@ -96,101 +115,79 @@ const calculatePnL = (data: any[], commissions: CommissionData[] = []): EntityPn
     adjustedMargin,
     adjustedMarginPercent: invoicedRevenue > 0 ? (adjustedMargin / invoicedRevenue) * 100 : 0,
     totalRequests: data.length,
-    invoicedRequests: data.filter(r => r.billed_invoice_id).length,
-    liquidatedRequests: data.filter(r => r.liquidation_id).length,
+    invoicedRequests:
+      overrides.invoicedRequestsCount ?? data.filter((r) => r.billed_invoice_id).length,
+    liquidatedRequests: data.filter((r) => r.liquidation_id).length,
   };
 };
-
-export const useProjectPnL = (projectId: string) => {
-  return useQuery({
-    queryKey: ['project-pnl', projectId],
-    queryFn: async () => {
-      if (!projectId) return null;
-
-      // Get project's budget_id for commissions
-      const { data: project, error: projError } = await supabase
-        .from('operational_projects')
-        .select('budget_id, contract_id')
-        .eq('id', projectId)
-        .single();
-
-      if (projError) throw projError;
-
-      // Get financial_requests via operational_requests for this project
-      const { data: operationalRequests, error: orError } = await supabase
-        .from('operational_requests')
-        .select('financial_request_id')
-        .eq('operational_project_id', projectId)
-        .not('financial_request_id', 'is', null);
-
-      if (orError) throw orError;
-      
-      // Fetch commissions for this project's budget or contract
-      let commissions: CommissionData[] = [];
-      if (project?.budget_id || project?.contract_id) {
-        let query = supabase
-          .from('sales_commissions')
-          .select('commission_type, commission_amount');
-        
-        if (project.budget_id) {
-          query = query.eq('budget_id', project.budget_id);
-        } else if (project.contract_id) {
-          query = query.eq('contract_id', project.contract_id);
-        }
-        
-        const { data: commData, error: commError } = await query;
-        if (commError) throw commError;
-        commissions = commData || [];
-      }
-
-      if (!operationalRequests?.length) {
-        return calculatePnL([], commissions);
-      }
-
-      const financialRequestIds = operationalRequests
-        .map(or => or.financial_request_id)
-        .filter(Boolean) as string[];
-
-      if (!financialRequestIds.length) {
-        return calculatePnL([], commissions);
-      }
-
-      const { data: financialRequests, error: frError } = await supabase
-        .from('financial_requests')
-        .select('id, sale_amount, cost_to_agency, billed_invoice_id, liquidation_id')
-        .in('id', financialRequestIds);
-
-      if (frError) throw frError;
-
-      return calculatePnL(financialRequests || [], commissions);
-    },
-    enabled: !!projectId,
-  });
-};
-
+...
 export const useBudgetPnL = (budgetId: string) => {
   return useQuery({
     queryKey: ['budget-pnl', budgetId],
     queryFn: async () => {
       if (!budgetId) return null;
 
-      // Fetch financial requests
+      // Budget total (source of truth for estimated revenue)
+      const { data: budget, error: budgetError } = await supabase
+        .from('budgets')
+        .select('id, total_amount')
+        .eq('id', budgetId)
+        .single();
+      if (budgetError) throw budgetError;
+
+      // Financial requests linked to this budget
       const { data: financialRequests, error } = await supabase
         .from('financial_requests')
         .select('id, sale_amount, cost_to_agency, billed_invoice_id, liquidation_id')
         .eq('budget_id', budgetId);
-
       if (error) throw error;
 
-      // Fetch commissions for this budget
-      const { data: commissions, error: commError } = await supabase
-        .from('sales_commissions')
-        .select('commission_type, commission_amount')
+      // Invoiced revenue = allocations against this budget
+      const { data: allocations, error: allocError } = await supabase
+        .from('invoice_budget_allocations')
+        .select('invoice_id, allocated_amount')
         .eq('budget_id', budgetId);
+      if (allocError) throw allocError;
 
-      if (commError) throw commError;
+      const invoicedRevenue = (allocations || []).reduce(
+        (sum, a) => sum + Number(a.allocated_amount || 0),
+        0
+      );
+      const invoicedInvoiceIds = Array.from(
+        new Set((allocations || []).map((a) => a.invoice_id).filter(Boolean))
+      );
 
-      return calculatePnL(financialRequests || [], commissions || []);
+      // Commissions: direct budget_id OR overlapping any invoice allocated to this budget
+      const commissionsMap = new Map<string, CommissionData & { id: string }>();
+
+      const { data: directComms, error: dcErr } = await supabase
+        .from('sales_commissions')
+        .select('id, commission_type, commission_amount')
+        .eq('budget_id', budgetId);
+      if (dcErr) throw dcErr;
+      (directComms || []).forEach((c) => commissionsMap.set(c.id, c as any));
+
+      if (invoicedInvoiceIds.length > 0) {
+        const { data: invComms, error: icErr } = await supabase
+          .from('sales_commissions')
+          .select('id, commission_type, commission_amount, invoice_ids')
+          .overlaps('invoice_ids', invoicedInvoiceIds);
+        if (icErr) throw icErr;
+        (invComms || []).forEach((c) => commissionsMap.set(c.id, c as any));
+      }
+
+      const commissions = Array.from(commissionsMap.values()).map(
+        ({ commission_type, commission_amount }) => ({ commission_type, commission_amount })
+      );
+
+      const estimatedRevenue = Number(budget?.total_amount || 0) ||
+        (financialRequests || []).reduce((s, r) => s + (r.sale_amount || 0), 0);
+
+      return calculatePnL(financialRequests || [], commissions, {
+        estimatedRevenue,
+        invoicedRevenue,
+        invoicedRequestsCount: (allocations || []).length,
+      });
     },
     enabled: !!budgetId,
   });

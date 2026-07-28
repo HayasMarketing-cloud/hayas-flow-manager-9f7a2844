@@ -247,7 +247,7 @@ const SignatureDetailsSection = ({ signature }: { signature: any }) => {
 export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: LiquidationFormModalProps) => {
   const queryClient = useQueryClient();
   const isViewMode = mode === 'view';
-  const isEditable = mode === 'create' || (mode === 'edit' && (liquidation?.status === 'draft' || liquidation?.status === 'validated' || liquidation?.status === 'sent' || liquidation?.status === 'disputed'));
+  const isEditable = mode === 'create' || (mode === 'edit' && liquidation?.status !== 'paid');
   const [selectedRequests, setSelectedRequests] = useState<Array<{ id: string; cost: number }>>([]);
   const [manualItems, setManualItems] = useState<ManualItem[]>([]);
   const [newManualDescription, setNewManualDescription] = useState('');

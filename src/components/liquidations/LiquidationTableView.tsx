@@ -102,7 +102,7 @@ export const LiquidationTableView = ({
             </TableHeader>
             <TableBody>
               {liquidations.map((liquidation) => {
-                const isEditable = liquidation.status === 'draft' || liquidation.status === 'validated' || liquidation.status === 'sent' || liquidation.status === 'disputed';
+                const isEditable = liquidation.status !== 'paid';
                 const hasSpecialistEmail = !!liquidation.specialist?.email;
                 const isCurrentlySending = isSending && sendingLiquidationId === liquidation.id;
                 const latestSignature = liquidation.liquidation_signatures?.[0] || null;

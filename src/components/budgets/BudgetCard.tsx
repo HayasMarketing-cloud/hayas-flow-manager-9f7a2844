@@ -36,7 +36,6 @@ const BUDGET_STATUSES = [
   { value: 'sent', label: 'Enviado' },
   { value: 'approved', label: 'Aprobado' },
   { value: 'rejected', label: 'Rechazado' },
-  { value: 'invoiced', label: 'Facturado' },
 ];
 
 export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToContract, onDelete, onRefresh, invoicedSummary }: BudgetCardProps) => {

@@ -517,6 +517,7 @@ export default function Presupuestos() {
                     <SelectItem value="rejected">Rechazado</SelectItem>
                     <SelectItem value="partially_invoiced">Facturado parcial</SelectItem>
                     <SelectItem value="invoiced">Facturado</SelectItem>
+                    <SelectItem value="not_fully_invoiced">Sin facturar</SelectItem>
                   </SelectContent>
                 </Select>
 

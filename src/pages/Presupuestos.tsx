@@ -12,6 +12,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBudgetFilters } from '@/hooks/useBudgetFilters';
 import { BudgetCard } from '@/components/budgets/BudgetCard';
 import { BudgetTableView } from '@/components/budgets/BudgetTableView';
+import { useBudgetsInvoicedSummary } from '@/hooks/useBudgetsInvoicedSummary';
+
 import { BudgetFormModal } from '@/components/budgets/BudgetFormModal';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -170,6 +172,10 @@ export default function Presupuestos() {
       return data;
     },
   });
+
+  const { data: invoicedSummaries } = useBudgetsInvoicedSummary(budgets);
+
+
 
   const duplicateMutation = useMutation({
     mutationFn: async (budget: any) => {
@@ -622,12 +628,16 @@ export default function Presupuestos() {
                 onConvertToContract={handleConvertToContract}
                 onDelete={handleDelete}
                 onRefresh={() => queryClient.invalidateQueries({ queryKey: ['budgets'] })}
+                invoicedSummary={invoicedSummaries?.get(budget.id)}
+
               />
             ))}
           </div>
         ) : (
           <BudgetTableView
             budgets={budgets}
+            invoicedSummaries={invoicedSummaries}
+
             onView={handleView}
             onEdit={handleEdit}
             onDuplicate={handleDuplicate}

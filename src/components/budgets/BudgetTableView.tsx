@@ -8,6 +8,8 @@ import { formatCurrency } from '@/lib/budget-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Checkbox } from '@/components/ui/checkbox';
+import { BudgetInvoicedBadge } from './BudgetInvoicedBadge';
+import type { BudgetInvoicedSummary } from '@/hooks/useBudgetsInvoicedSummary';
 
 interface BudgetTableViewProps {
   budgets: any[];
@@ -18,9 +20,11 @@ interface BudgetTableViewProps {
   selectedIds?: string[];
   onSelectOne?: (id: string) => void;
   onSelectAll?: () => void;
+  invoicedSummaries?: Map<string, BudgetInvoicedSummary>;
 }
 
-export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete, selectedIds = [], onSelectOne, onSelectAll }: BudgetTableViewProps) => {
+export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete, selectedIds = [], onSelectOne, onSelectAll, invoicedSummaries }: BudgetTableViewProps) => {
+
   const navigate = useNavigate();
   const allSelected = budgets.length > 0 && selectedIds.length === budgets.length;
   
@@ -41,7 +45,9 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete
             <TableHead className="min-w-[150px]">Creado por</TableHead>
             <TableHead className="min-w-[120px]">PO Number</TableHead>
             <TableHead className="min-w-[120px]">Monto Total</TableHead>
+            <TableHead className="min-w-[140px]">Facturado</TableHead>
             <TableHead className="min-w-[100px]">Estado</TableHead>
+
             <TableHead className="min-w-[120px]">Fecha Facturación</TableHead>
             <TableHead className="text-right min-w-[150px]">Acciones</TableHead>
           </TableRow>
@@ -49,7 +55,7 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete
         <TableBody>
           {budgets.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={onSelectOne ? 11 : 10} className="text-center text-muted-foreground">
+              <TableCell colSpan={onSelectOne ? 12 : 11} className="text-center text-muted-foreground">
                 No se encontraron presupuestos
               </TableCell>
             </TableRow>
@@ -87,6 +93,10 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete
                 <TableCell>{budget.client_po_number || 'Pendiente'}</TableCell>
                 <TableCell>{formatCurrency(budget.total_amount || 0)}</TableCell>
                 <TableCell>
+                  <BudgetInvoicedBadge summary={invoicedSummaries?.get(budget.id)} />
+                </TableCell>
+                <TableCell>
+
                   <BudgetStatusBadge status={budget.status} />
                 </TableCell>
                 <TableCell>

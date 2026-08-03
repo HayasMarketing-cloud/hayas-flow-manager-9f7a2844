@@ -16,6 +16,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { CalendarIcon } from 'lucide-react';
+import { BudgetInvoicedBadge } from './BudgetInvoicedBadge';
+import type { BudgetInvoicedSummary } from '@/hooks/useBudgetsInvoicedSummary';
 
 interface BudgetCardProps {
   budget: any;
@@ -25,7 +27,9 @@ interface BudgetCardProps {
   onConvertToContract?: (budget: any) => void;
   onDelete?: (budget: any) => void;
   onRefresh?: () => void;
+  invoicedSummary?: BudgetInvoicedSummary;
 }
+
 
 const BUDGET_STATUSES = [
   { value: 'pending', label: 'Pendiente' },
@@ -35,7 +39,7 @@ const BUDGET_STATUSES = [
   { value: 'invoiced', label: 'Facturado' },
 ];
 
-export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToContract, onDelete, onRefresh }: BudgetCardProps) => {
+export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToContract, onDelete, onRefresh, invoicedSummary }: BudgetCardProps) => {
   const navigate = useNavigate();
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState(budget.notes || '');
@@ -190,6 +194,14 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
             </Popover>
           </div>
         </div>
+
+        {/* Estado de facturación */}
+        <div className="border-t pt-2 mt-2">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Facturado</p>
+          <BudgetInvoicedBadge summary={invoicedSummary} showProgress />
+        </div>
+
+
 
         {/* Inline PO / Referencia Cliente */}
         <div className="border-t pt-2 mt-2">

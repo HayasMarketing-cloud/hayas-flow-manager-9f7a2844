@@ -65,7 +65,7 @@ export default function Presupuestos() {
     return query;
   };
 
-  const { data: budgets, isLoading } = useQuery({
+  const { data: allBudgets, isLoading } = useQuery({
     queryKey: ['budgets', filters, isOnlySpecialist, specialistId, needsFiltering, assignedBudgetIds],
     queryFn: async () => {
       const fetchBudgets = async () => {
@@ -173,7 +173,20 @@ export default function Presupuestos() {
     },
   });
 
-  const { data: invoicedSummaries } = useBudgetsInvoicedSummary(budgets);
+  const { data: invoicedSummaries } = useBudgetsInvoicedSummary(allBudgets);
+
+  const budgets = useMemo(() => {
+    if (!allBudgets) return allBudgets;
+    if (!filters.invoicedStatus) return allBudgets;
+    if (!invoicedSummaries) return allBudgets;
+    return allBudgets.filter((b: any) => {
+      const s = invoicedSummaries.get(b.id);
+      const percent = s?.percent ?? 0;
+      if (filters.invoicedStatus === 'not_invoiced') return percent <= 0;
+      if (filters.invoicedStatus === 'partial') return percent > 0 && percent < 100;
+      return percent >= 100;
+    });
+  }, [allBudgets, invoicedSummaries, filters.invoicedStatus]);
 
 
 
@@ -414,7 +427,7 @@ export default function Presupuestos() {
     convertToContractMutation.mutate(budget);
   };
 
-  const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId || filters.invoiceMonth || filters.invoiceYear;
+  const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId || filters.invoiceMonth || filters.invoiceYear || filters.invoicedStatus;
 
   const handleSelectOne = (id: string) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -542,6 +555,22 @@ export default function Presupuestos() {
                     ))}
                   </SelectContent>
                 </Select>
+
+                <Select
+                  value={filters.invoicedStatus || 'all'}
+                  onValueChange={(value) => updateFilter('invoicedStatus', value === 'all' ? null : (value as any))}
+                >
+                  <SelectTrigger title="Filtra por estado de facturación real (facturas emitidas)">
+                    <SelectValue placeholder="Estado facturación" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Facturado: todos</SelectItem>
+                    <SelectItem value="not_invoiced">Sin facturar (0%)</SelectItem>
+                    <SelectItem value="partial">Parcialmente facturado</SelectItem>
+                    <SelectItem value="invoiced">Facturado (100%)</SelectItem>
+                  </SelectContent>
+                </Select>
+
 
               </div>
 

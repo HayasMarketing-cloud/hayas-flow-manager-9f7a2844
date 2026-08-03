@@ -427,7 +427,7 @@ export default function Presupuestos() {
     convertToContractMutation.mutate(budget);
   };
 
-  const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId || filters.invoiceMonth || filters.invoiceYear;
+  const hasActiveFilters = filters.searchTerm || filters.status || filters.clientId || filters.invoiceMonth || filters.invoiceYear || filters.invoicedStatus;
 
   const handleSelectOne = (id: string) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -555,6 +555,22 @@ export default function Presupuestos() {
                     ))}
                   </SelectContent>
                 </Select>
+
+                <Select
+                  value={filters.invoicedStatus || 'all'}
+                  onValueChange={(value) => updateFilter('invoicedStatus', value === 'all' ? null : (value as any))}
+                >
+                  <SelectTrigger title="Filtra por estado de facturación real (facturas emitidas)">
+                    <SelectValue placeholder="Estado facturación" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Facturado: todos</SelectItem>
+                    <SelectItem value="not_invoiced">Sin facturar (0%)</SelectItem>
+                    <SelectItem value="partial">Parcialmente facturado</SelectItem>
+                    <SelectItem value="invoiced">Facturado (100%)</SelectItem>
+                  </SelectContent>
+                </Select>
+
 
               </div>
 

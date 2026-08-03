@@ -1,24 +1,32 @@
-## Objetivo
-Permitir editar liquidaciones en cualquier estado excepto `paid`.
+# Estado de facturación en el listado de presupuestos
 
-## Estado actual
-Frontend restringe edición a `draft | validated | sent | disputed`. La RLS ya permite a admin/finanzas actualizar cualquier estado, así que sólo hay que ampliar la comprobación en cliente.
+Mostrar en la lista de presupuestos (vista tabla y vista tarjetas) qué porcentaje del presupuesto está ya facturado: 0%, 50%, 100%, o el porcentaje real cuando hay plan de pagos con varias facturas.
 
-## Cambios
+## Qué verá el usuario
 
-Reemplazar la condición `isEditable` para incluir también `accepted`, `invoice_received` y `pending_payment` (todo excepto `paid`):
+- Nueva columna **Facturado** en la tabla, y una línea equivalente en cada tarjeta.
+- Badge con el porcentaje y el estado:
+  - `Sin facturar` (0%)
+  - `Parcial 50%` (o el % real) en ámbar
+  - `Facturado 100%` en verde
+  - `Sobrefacturado` si supera el 100%
+- Detalle al pasar el ratón: importe facturado / importe total, número de facturas emitidas y, si el presupuesto tiene plan de pagos, cuántos hitos van emitidos (ej. "1 de 2 hitos · Pago inicial 50%").
+- Barra de progreso fina bajo el badge en la vista tarjetas.
 
-1. `src/components/liquidations/LiquidationCard.tsx` (línea 19)
-2. `src/components/liquidations/LiquidationTableView.tsx` (línea 105)
-3. `src/pages/LiquidacionDetalle.tsx` (línea 990)
-4. `src/components/liquidations/LiquidationFormModal.tsx` (línea 250) — en modo `edit`, editable si `status !== 'paid'`
+## Cómo se calcula
 
-Regla unificada:
-```ts
-const isEditable = liquidation.status !== 'paid';
-```
+Se reutiliza la misma fuente de verdad que ya usa la ficha del presupuesto (pestaña Controlling): las asignaciones `invoice_budget_allocations` sobre el total del presupuesto, y el `payment_plan` para nombrar los hitos. Así los porcentajes del listado y del detalle siempre coinciden.
 
-## Fuera de alcance
-- No se toca RLS (ya lo soporta).
-- No se cambia lógica de envío/marcado como pagada.
-- Sin cambios de datos.
+## Detalles técnicos
+
+1. Nuevo hook `src/hooks/useBudgetsInvoicedSummary.tsx`:
+   - Recibe los `budgetIds` visibles.
+   - Una sola consulta a `invoice_budget_allocations` (con `invoice:invoices(id, code, invoice_date, source_milestone_index, budget_id)`) filtrada con `.in('budget_id', ids)`.
+   - Reutiliza `resolveMilestonesForBudget` de `useBudgetMilestoneResolver.tsx` para saber qué hitos están cubiertos.
+   - Devuelve `Map<budgetId, { invoiced, percent, invoiceCount, milestonesTotal, milestonesCovered, nextMilestoneLabel }>`.
+2. Nuevo componente `src/components/budgets/BudgetInvoicedBadge.tsx` con el badge + tooltip (tokens semánticos, sin colores hardcodeados).
+3. `src/pages/Presupuestos.tsx`: llamar al hook con los presupuestos ya filtrados y pasar el `Map` a `BudgetTableView` y `BudgetCard`.
+4. `BudgetTableView.tsx`: nueva columna "Facturado" antes de "Estado".
+5. `BudgetCard.tsx`: badge + barra de progreso en el cuerpo de la tarjeta.
+
+Sin cambios de base de datos ni de lógica de facturación.

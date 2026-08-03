@@ -16,6 +16,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { CalendarIcon } from 'lucide-react';
+import { BudgetInvoicedBadge } from './BudgetInvoicedBadge';
+import type { BudgetInvoicedSummary } from '@/hooks/useBudgetsInvoicedSummary';
 
 interface BudgetCardProps {
   budget: any;
@@ -25,7 +27,9 @@ interface BudgetCardProps {
   onConvertToContract?: (budget: any) => void;
   onDelete?: (budget: any) => void;
   onRefresh?: () => void;
+  invoicedSummary?: BudgetInvoicedSummary;
 }
+
 
 const BUDGET_STATUSES = [
   { value: 'pending', label: 'Pendiente' },

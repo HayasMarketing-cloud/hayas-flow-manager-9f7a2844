@@ -41,6 +41,7 @@ export const useBudgetFilters = () => {
       clientId: null,
       invoiceMonth: null,
       invoiceYear: null,
+      invoicedStatus: null,
     });
   };
 

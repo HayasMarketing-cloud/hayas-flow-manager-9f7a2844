@@ -1107,7 +1107,7 @@ export default function PresupuestoDetalle() {
                       <div>
                         <p className="text-sm text-muted-foreground mb-1">Estado</p>
                         <div className="flex items-center gap-3">
-                          <Select value={budget.status} onValueChange={handleStatusChange}>
+                          <Select value={toManualBudgetStatus(budget.status)} onValueChange={handleStatusChange}>
                             <SelectTrigger className="w-40">
                               <SelectValue />
                             </SelectTrigger>
@@ -1116,20 +1116,11 @@ export default function PresupuestoDetalle() {
                               <SelectItem value="sent">Enviado</SelectItem>
                               <SelectItem value="approved">Aprobado</SelectItem>
                               <SelectItem value="rejected">Rechazado</SelectItem>
-                              <SelectItem value="invoiced">Facturado</SelectItem>
                             </SelectContent>
                           </Select>
-                          {budget.status === 'approved' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
-                              onClick={() => handleStatusChange('invoiced')}
-                            >
-                              <FileText className="h-4 w-4 mr-2" />
-                              Marcar como Facturado
-                            </Button>
-                          )}
+                          <span className="text-xs text-muted-foreground">
+                            El estado facturado se calcula automáticamente desde las facturas asociadas.
+                          </span>
                         </div>
                       </div>
                       <div>

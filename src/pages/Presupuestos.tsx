@@ -13,6 +13,7 @@ import { useBudgetFilters } from '@/hooks/useBudgetFilters';
 import { BudgetCard } from '@/components/budgets/BudgetCard';
 import { BudgetTableView } from '@/components/budgets/BudgetTableView';
 import { useBudgetsInvoicedSummary } from '@/hooks/useBudgetsInvoicedSummary';
+import { getEffectiveBudgetStatus } from '@/lib/budget-utils';
 
 import { BudgetFormModal } from '@/components/budgets/BudgetFormModal';
 import { toast } from 'sonner';
@@ -88,7 +89,7 @@ export default function Presupuestos() {
             .in('id', budgetIds)
             .order('created_at', { ascending: false });
 
-          if (filters.status) query = query.eq('status', filters.status);
+
           if (filters.clientId) query = query.eq('client_id', filters.clientId);
           if (filters.searchTerm) query = query.or(`title.ilike.%${filters.searchTerm}%`);
           query = applyDateFilter(query);
@@ -108,7 +109,7 @@ export default function Presupuestos() {
             .in('id', assignedBudgetIds)
             .order('created_at', { ascending: false });
 
-          if (filters.status) query = query.eq('status', filters.status);
+
           if (filters.clientId) query = query.eq('client_id', filters.clientId);
           if (filters.searchTerm) query = query.or(`title.ilike.%${filters.searchTerm}%`);
           query = applyDateFilter(query);
@@ -129,7 +130,7 @@ export default function Presupuestos() {
           `)
           .order('created_at', { ascending: false });
 
-        if (filters.status) query = query.eq('status', filters.status);
+
         if (filters.clientId) query = query.eq('client_id', filters.clientId);
         if (filters.searchTerm) query = query.or(`title.ilike.%${filters.searchTerm}%`);
         query = applyDateFilter(query);

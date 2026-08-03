@@ -97,7 +97,7 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete
                 </TableCell>
                 <TableCell>
 
-                  <BudgetStatusBadge status={budget.status} />
+                  <BudgetStatusBadge status={budget.status} invoicedSummary={invoicedSummaries?.get(budget.id)} />
                 </TableCell>
                 <TableCell>
                   {budget.estimated_invoice_date

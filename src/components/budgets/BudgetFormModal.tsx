@@ -433,7 +433,6 @@ export const BudgetFormModal = ({
                   <SelectItem value="sent">Enviado</SelectItem>
                   <SelectItem value="approved">Aprobado</SelectItem>
                   <SelectItem value="rejected">Rechazado</SelectItem>
-                  <SelectItem value="invoiced">Facturado</SelectItem>
                 </SelectContent>
               </Select>
             </div>

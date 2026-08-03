@@ -13,6 +13,7 @@ import { useBudgetFilters } from '@/hooks/useBudgetFilters';
 import { BudgetCard } from '@/components/budgets/BudgetCard';
 import { BudgetTableView } from '@/components/budgets/BudgetTableView';
 import { useBudgetsInvoicedSummary } from '@/hooks/useBudgetsInvoicedSummary';
+import { getEffectiveBudgetStatus } from '@/lib/budget-utils';
 
 import { BudgetFormModal } from '@/components/budgets/BudgetFormModal';
 import { toast } from 'sonner';
@@ -88,7 +89,7 @@ export default function Presupuestos() {
             .in('id', budgetIds)
             .order('created_at', { ascending: false });
 
-          if (filters.status) query = query.eq('status', filters.status);
+
           if (filters.clientId) query = query.eq('client_id', filters.clientId);
           if (filters.searchTerm) query = query.or(`title.ilike.%${filters.searchTerm}%`);
           query = applyDateFilter(query);
@@ -108,7 +109,7 @@ export default function Presupuestos() {
             .in('id', assignedBudgetIds)
             .order('created_at', { ascending: false });
 
-          if (filters.status) query = query.eq('status', filters.status);
+
           if (filters.clientId) query = query.eq('client_id', filters.clientId);
           if (filters.searchTerm) query = query.or(`title.ilike.%${filters.searchTerm}%`);
           query = applyDateFilter(query);
@@ -129,7 +130,7 @@ export default function Presupuestos() {
           `)
           .order('created_at', { ascending: false });
 
-        if (filters.status) query = query.eq('status', filters.status);
+
         if (filters.clientId) query = query.eq('client_id', filters.clientId);
         if (filters.searchTerm) query = query.or(`title.ilike.%${filters.searchTerm}%`);
         query = applyDateFilter(query);
@@ -177,16 +178,22 @@ export default function Presupuestos() {
 
   const budgets = useMemo(() => {
     if (!allBudgets) return allBudgets;
-    if (!filters.invoicedStatus) return allBudgets;
+    if (!filters.invoicedStatus && !filters.status) return allBudgets;
     if (!invoicedSummaries) return allBudgets;
     return allBudgets.filter((b: any) => {
       const s = invoicedSummaries.get(b.id);
       const percent = s?.percent ?? 0;
+
+      if (filters.status) {
+        if (getEffectiveBudgetStatus(b.status, s) !== filters.status) return false;
+      }
+
+      if (!filters.invoicedStatus) return true;
       if (filters.invoicedStatus === 'not_invoiced') return percent <= 0;
       if (filters.invoicedStatus === 'partial') return percent > 0 && percent < 100;
       return percent >= 100;
     });
-  }, [allBudgets, invoicedSummaries, filters.invoicedStatus]);
+  }, [allBudgets, invoicedSummaries, filters.invoicedStatus, filters.status]);
 
 
 
@@ -504,6 +511,7 @@ export default function Presupuestos() {
                     <SelectItem value="sent">Enviado</SelectItem>
                     <SelectItem value="approved">Aprobado</SelectItem>
                     <SelectItem value="rejected">Rechazado</SelectItem>
+                    <SelectItem value="partially_invoiced">Facturado parcial</SelectItem>
                     <SelectItem value="invoiced">Facturado</SelectItem>
                   </SelectContent>
                 </Select>

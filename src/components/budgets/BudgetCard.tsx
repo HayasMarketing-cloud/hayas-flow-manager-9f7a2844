@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { useNavigate } from 'react-router-dom';
 import { BudgetStatusBadge } from './BudgetStatusBadge';
-import { formatCurrency, getBudgetStatusLabel } from '@/lib/budget-utils';
+import { formatCurrency, getBudgetStatusLabel, toManualBudgetStatus } from '@/lib/budget-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useState, useRef, useEffect } from 'react';
@@ -36,7 +36,6 @@ const BUDGET_STATUSES = [
   { value: 'sent', label: 'Enviado' },
   { value: 'approved', label: 'Aprobado' },
   { value: 'rejected', label: 'Rechazado' },
-  { value: 'invoiced', label: 'Facturado' },
 ];
 
 export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToContract, onDelete, onRefresh, invoicedSummary }: BudgetCardProps) => {
@@ -136,11 +135,11 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
           </div>
           {/* Inline status selector */}
           <Select
-            value={budget.status}
+            value={toManualBudgetStatus(budget.status)}
             onValueChange={(value) => handleUpdateField('status', value)}
           >
             <SelectTrigger className="w-auto h-auto border-0 p-0 shadow-none focus:ring-0">
-              <BudgetStatusBadge status={budget.status} />
+              <BudgetStatusBadge status={budget.status} invoicedSummary={invoicedSummary} />
             </SelectTrigger>
             <SelectContent>
               {BUDGET_STATUSES.map((s) => (

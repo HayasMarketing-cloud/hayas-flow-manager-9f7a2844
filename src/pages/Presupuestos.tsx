@@ -177,16 +177,22 @@ export default function Presupuestos() {
 
   const budgets = useMemo(() => {
     if (!allBudgets) return allBudgets;
-    if (!filters.invoicedStatus) return allBudgets;
+    if (!filters.invoicedStatus && !filters.status) return allBudgets;
     if (!invoicedSummaries) return allBudgets;
     return allBudgets.filter((b: any) => {
       const s = invoicedSummaries.get(b.id);
       const percent = s?.percent ?? 0;
+
+      if (filters.status) {
+        if (getEffectiveBudgetStatus(b.status, s) !== filters.status) return false;
+      }
+
+      if (!filters.invoicedStatus) return true;
       if (filters.invoicedStatus === 'not_invoiced') return percent <= 0;
       if (filters.invoicedStatus === 'partial') return percent > 0 && percent < 100;
       return percent >= 100;
     });
-  }, [allBudgets, invoicedSummaries, filters.invoicedStatus]);
+  }, [allBudgets, invoicedSummaries, filters.invoicedStatus, filters.status]);
 
 
 

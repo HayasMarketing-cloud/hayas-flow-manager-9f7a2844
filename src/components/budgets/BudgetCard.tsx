@@ -135,11 +135,11 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
           </div>
           {/* Inline status selector */}
           <Select
-            value={budget.status}
+            value={toManualBudgetStatus(budget.status)}
             onValueChange={(value) => handleUpdateField('status', value)}
           >
             <SelectTrigger className="w-auto h-auto border-0 p-0 shadow-none focus:ring-0">
-              <BudgetStatusBadge status={budget.status} />
+              <BudgetStatusBadge status={budget.status} invoicedSummary={invoicedSummary} />
             </SelectTrigger>
             <SelectContent>
               {BUDGET_STATUSES.map((s) => (

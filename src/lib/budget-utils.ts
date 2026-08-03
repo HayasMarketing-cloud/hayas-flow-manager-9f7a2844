@@ -2,26 +2,49 @@ import { Database } from '@/integrations/supabase/types';
 
 type BudgetStatus = Database['public']['Tables']['budgets']['Row']['status'];
 
-export const getBudgetStatusColor = (status: BudgetStatus): string => {
+export const getBudgetStatusColor = (status: string): string => {
   const colors: Record<string, string> = {
     pending: 'bg-muted text-muted-foreground',
     sent: 'bg-blue-500 text-white',
     approved: 'bg-green-500 text-white',
     rejected: 'bg-destructive text-destructive-foreground',
+    partially_invoiced: 'bg-amber-500 text-white',
     invoiced: 'bg-purple-500 text-white',
   };
   return colors[status] || 'bg-muted text-muted-foreground';
 };
 
-export const getBudgetStatusLabel = (status: BudgetStatus): string => {
+export const getBudgetStatusLabel = (status: string): string => {
   const labels: Record<string, string> = {
     pending: 'Pendiente',
     sent: 'Enviado',
     approved: 'Aprobado',
     rejected: 'Rechazado',
+    partially_invoiced: 'Facturado parcial',
     invoiced: 'Facturado',
   };
   return labels[status] || status;
+};
+
+/** Estados que un usuario puede fijar manualmente (workflow comercial). */
+export const MANUAL_BUDGET_STATUSES = ['pending', 'sent', 'approved', 'rejected'] as const;
+
+/** Normaliza el valor almacenado a un estado manual válido (legado 'invoiced' -> 'approved'). */
+export const toManualBudgetStatus = (status: string): string =>
+  status === 'invoiced' ? 'approved' : status;
+
+/**
+ * Estado efectivo del presupuesto: la facturación real (allocations) manda
+ * sobre la columna `status`, que sólo refleja el workflow comercial.
+ */
+export const getEffectiveBudgetStatus = (
+  status: string,
+  summary?: { percent?: number } | null
+): string => {
+  const percent = summary?.percent ?? 0;
+  if (percent >= 99.5) return 'invoiced';
+  if (percent > 0) return 'partially_invoiced';
+  return toManualBudgetStatus(status);
 };
 
 export const calculateItemTotal = (quantity: number, unitPrice: number): number => {

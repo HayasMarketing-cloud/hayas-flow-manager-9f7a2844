@@ -430,7 +430,7 @@ export default function Presupuestos() {
     const toExport = selectedIds.length > 0
       ? budgets.filter(b => selectedIds.includes(b.id))
       : budgets;
-    exportBudgetsToCSV(toExport);
+    exportBudgetsToCSV(toExport, invoicedSummaries);
   };
 
   const currentYear = new Date().getFullYear();

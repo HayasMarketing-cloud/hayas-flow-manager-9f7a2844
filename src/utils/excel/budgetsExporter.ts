@@ -1,10 +1,10 @@
 import { downloadCSV, formatDate, formatCurrency } from './excelExporter';
 import type { BudgetInvoicedSummary } from '@/hooks/useBudgetsInvoicedSummary';
+import { getEffectiveBudgetStatus, getBudgetStatusLabel } from '@/lib/budget-utils';
 
 const invoicedLabel = (s?: BudgetInvoicedSummary) => {
   if (!s) return 'Sin facturar';
   if (s.percent <= 0) return 'Sin facturar';
-  if (s.percent > 100.5) return 'Sobrefacturado';
   if (s.percent >= 99.5) return 'Facturado';
   return 'Parcial';
 };
@@ -33,14 +33,6 @@ export const exportBudgetsToCSV = (
     'Fecha Creación',
   ];
 
-  const statusMap: Record<string, string> = {
-    pending: 'Pendiente',
-    sent: 'Enviado',
-    approved: 'Aprobado',
-    rejected: 'Rechazado',
-    invoiced: 'Facturado',
-  };
-
   const rows = budgets.map((b) => {
     const s = invoicedSummaries?.get(b.id);
     const total = Number(b.total_amount || 0);
@@ -60,7 +52,7 @@ export const exportBudgetsToCSV = (
       s?.invoiceCount ?? 0,
       s && !s.isSynthetic ? `${s.milestonesCovered} de ${s.milestonesTotal}` : '-',
       s?.nextMilestoneLabel || '-',
-      statusMap[b.status] || b.status || '-',
+      getBudgetStatusLabel(getEffectiveBudgetStatus(b.status, s)) || '-',
       formatDate(b.estimated_invoice_date),
       formatDate(b.created_at),
     ];

@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { useNavigate } from 'react-router-dom';
 import { BudgetStatusBadge } from './BudgetStatusBadge';
-import { formatCurrency, getBudgetStatusLabel } from '@/lib/budget-utils';
+import { formatCurrency, getBudgetStatusLabel, toManualBudgetStatus } from '@/lib/budget-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useState, useRef, useEffect } from 'react';

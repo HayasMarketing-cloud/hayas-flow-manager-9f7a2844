@@ -39,7 +39,7 @@ const BUDGET_STATUSES = [
   { value: 'invoiced', label: 'Facturado' },
 ];
 
-export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToContract, onDelete, onRefresh }: BudgetCardProps) => {
+export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToContract, onDelete, onRefresh, invoicedSummary }: BudgetCardProps) => {
   const navigate = useNavigate();
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState(budget.notes || '');

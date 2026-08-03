@@ -55,7 +55,7 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete
         <TableBody>
           {budgets.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={onSelectOne ? 11 : 10} className="text-center text-muted-foreground">
+              <TableCell colSpan={onSelectOne ? 12 : 11} className="text-center text-muted-foreground">
                 No se encontraron presupuestos
               </TableCell>
             </TableRow>

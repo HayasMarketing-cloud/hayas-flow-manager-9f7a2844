@@ -89,6 +89,10 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete
                 <TableCell>{budget.client_po_number || 'Pendiente'}</TableCell>
                 <TableCell>{formatCurrency(budget.total_amount || 0)}</TableCell>
                 <TableCell>
+                  <BudgetInvoicedBadge summary={invoicedSummaries?.get(budget.id)} />
+                </TableCell>
+                <TableCell>
+
                   <BudgetStatusBadge status={budget.status} />
                 </TableCell>
                 <TableCell>

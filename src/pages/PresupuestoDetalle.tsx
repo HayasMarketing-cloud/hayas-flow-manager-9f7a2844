@@ -15,7 +15,7 @@ import { generateBudgetPDF } from '@/utils/pdf/budgetPDFGenerator';
 import { useBudgetDetail } from '@/hooks/useBudgetDetail';
 import { BudgetStatusBadge } from '@/components/budgets/BudgetStatusBadge';
 import { BudgetItemsEditor } from '@/components/budgets/BudgetItemsEditor';
-import { formatCurrency, getBudgetStatusLabel, calculateBudgetTotal } from '@/lib/budget-utils';
+import { formatCurrency, getBudgetStatusLabel, calculateBudgetTotal, toManualBudgetStatus } from '@/lib/budget-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';

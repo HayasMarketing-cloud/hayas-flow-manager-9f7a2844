@@ -628,6 +628,8 @@ export default function Presupuestos() {
                 onConvertToContract={handleConvertToContract}
                 onDelete={handleDelete}
                 onRefresh={() => queryClient.invalidateQueries({ queryKey: ['budgets'] })}
+                invoicedSummary={invoicedSummaries?.get(budget.id)}
+
               />
             ))}
           </div>

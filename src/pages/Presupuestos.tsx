@@ -171,6 +171,10 @@ export default function Presupuestos() {
     },
   });
 
+  const { data: invoicedSummaries } = useBudgetsInvoicedSummary(budgets);
+
+
+
   const duplicateMutation = useMutation({
     mutationFn: async (budget: any) => {
       const { data: newBudget, error: budgetError } = await supabase

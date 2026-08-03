@@ -636,6 +636,8 @@ export default function Presupuestos() {
         ) : (
           <BudgetTableView
             budgets={budgets}
+            invoicedSummaries={invoicedSummaries}
+
             onView={handleView}
             onEdit={handleEdit}
             onDuplicate={handleDuplicate}

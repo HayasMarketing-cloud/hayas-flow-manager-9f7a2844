@@ -41,7 +41,9 @@ export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete
             <TableHead className="min-w-[150px]">Creado por</TableHead>
             <TableHead className="min-w-[120px]">PO Number</TableHead>
             <TableHead className="min-w-[120px]">Monto Total</TableHead>
+            <TableHead className="min-w-[140px]">Facturado</TableHead>
             <TableHead className="min-w-[100px]">Estado</TableHead>
+
             <TableHead className="min-w-[120px]">Fecha Facturación</TableHead>
             <TableHead className="text-right min-w-[150px]">Acciones</TableHead>
           </TableRow>

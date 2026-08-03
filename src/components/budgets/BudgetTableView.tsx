@@ -8,6 +8,8 @@ import { formatCurrency } from '@/lib/budget-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Checkbox } from '@/components/ui/checkbox';
+import { BudgetInvoicedBadge } from './BudgetInvoicedBadge';
+import type { BudgetInvoicedSummary } from '@/hooks/useBudgetsInvoicedSummary';
 
 interface BudgetTableViewProps {
   budgets: any[];
@@ -18,9 +20,11 @@ interface BudgetTableViewProps {
   selectedIds?: string[];
   onSelectOne?: (id: string) => void;
   onSelectAll?: () => void;
+  invoicedSummaries?: Map<string, BudgetInvoicedSummary>;
 }
 
-export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete, selectedIds = [], onSelectOne, onSelectAll }: BudgetTableViewProps) => {
+export const BudgetTableView = ({ budgets, onView, onEdit, onDuplicate, onDelete, selectedIds = [], onSelectOne, onSelectAll, invoicedSummaries }: BudgetTableViewProps) => {
+
   const navigate = useNavigate();
   const allSelected = budgets.length > 0 && selectedIds.length === budgets.length;
   

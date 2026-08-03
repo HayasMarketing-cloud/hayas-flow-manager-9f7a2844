@@ -65,7 +65,7 @@ export default function Presupuestos() {
     return query;
   };
 
-  const { data: budgets, isLoading } = useQuery({
+  const { data: allBudgets, isLoading } = useQuery({
     queryKey: ['budgets', filters, isOnlySpecialist, specialistId, needsFiltering, assignedBudgetIds],
     queryFn: async () => {
       const fetchBudgets = async () => {

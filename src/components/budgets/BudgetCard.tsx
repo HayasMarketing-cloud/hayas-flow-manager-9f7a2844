@@ -195,6 +195,14 @@ export const BudgetCard = ({ budget, onView, onEdit, onDuplicate, onConvertToCon
           </div>
         </div>
 
+        {/* Estado de facturación */}
+        <div className="border-t pt-2 mt-2">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Facturado</p>
+          <BudgetInvoicedBadge summary={invoicedSummary} showProgress />
+        </div>
+
+
+
         {/* Inline PO / Referencia Cliente */}
         <div className="border-t pt-2 mt-2">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">PO / Ref. Cliente</p>

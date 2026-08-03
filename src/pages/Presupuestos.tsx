@@ -12,6 +12,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBudgetFilters } from '@/hooks/useBudgetFilters';
 import { BudgetCard } from '@/components/budgets/BudgetCard';
 import { BudgetTableView } from '@/components/budgets/BudgetTableView';
+import { useBudgetsInvoicedSummary } from '@/hooks/useBudgetsInvoicedSummary';
+
 import { BudgetFormModal } from '@/components/budgets/BudgetFormModal';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';

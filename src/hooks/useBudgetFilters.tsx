@@ -1,11 +1,14 @@
 import { useState } from 'react';
 
+export type BudgetInvoicedFilter = 'invoiced' | 'partial' | 'not_invoiced' | null;
+
 export interface BudgetFilters {
   searchTerm: string;
   status: string | null;
   clientId: string | null;
   invoiceMonth: number | null;
   invoiceYear: number | null;
+  invoicedStatus: BudgetInvoicedFilter;
 }
 
 export const useBudgetFilters = () => {
@@ -15,6 +18,7 @@ export const useBudgetFilters = () => {
     clientId: null,
     invoiceMonth: null,
     invoiceYear: null,
+    invoicedStatus: null,
   });
 
   const updateFilter = <K extends keyof BudgetFilters>(

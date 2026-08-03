@@ -1042,7 +1042,7 @@ export default function PresupuestoDetalle() {
                       </div>
                       <div className="space-y-2">
                         <Label>Estado</Label>
-                        <Select value={budget.status} onValueChange={handleStatusChange}>
+                        <Select value={toManualBudgetStatus(budget.status)} onValueChange={handleStatusChange}>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
@@ -1051,7 +1051,6 @@ export default function PresupuestoDetalle() {
                             <SelectItem value="sent">Enviado</SelectItem>
                             <SelectItem value="approved">Aprobado</SelectItem>
                             <SelectItem value="rejected">Rechazado</SelectItem>
-                            <SelectItem value="invoiced">Facturado</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

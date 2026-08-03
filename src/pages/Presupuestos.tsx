@@ -185,7 +185,11 @@ export default function Presupuestos() {
       const percent = s?.percent ?? 0;
 
       if (filters.status) {
-        if (getEffectiveBudgetStatus(b.status, s) !== filters.status) return false;
+        if (filters.status === 'not_fully_invoiced') {
+          if (getEffectiveBudgetStatus(b.status, s) === 'invoiced') return false;
+        } else if (getEffectiveBudgetStatus(b.status, s) !== filters.status) {
+          return false;
+        }
       }
 
       if (!filters.invoicedStatus) return true;
@@ -513,6 +517,7 @@ export default function Presupuestos() {
                     <SelectItem value="rejected">Rechazado</SelectItem>
                     <SelectItem value="partially_invoiced">Facturado parcial</SelectItem>
                     <SelectItem value="invoiced">Facturado</SelectItem>
+                    <SelectItem value="not_fully_invoiced">Sin facturar</SelectItem>
                   </SelectContent>
                 </Select>
 

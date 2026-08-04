@@ -2526,6 +2526,8 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_assigned_to_budget: { Args: { _budget_id: string }; Returns: boolean }
+      is_assigned_to_client: { Args: { _client_id: string }; Returns: boolean }
       is_specialist_liquidation: {
         Args: { _liquidation_id: string }
         Returns: boolean

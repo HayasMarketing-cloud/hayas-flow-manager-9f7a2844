@@ -627,7 +627,13 @@ export const BudgetFormModal = ({
 
           <BudgetItemsEditor items={items} onChange={setItems} disabled={!canEdit} />
 
-          <PaymentPlanEditor value={paymentPlan} onChange={setPaymentPlan} disabled={!canEdit} />
+          <PaymentPlanEditor
+            value={paymentPlan}
+            onChange={setPaymentPlan}
+            disabled={!canEdit}
+            budgetTotal={calculateBudgetTotal(items)}
+          />
+
         </div>
 
         <DialogFooter className="gap-2">

@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
     const { data: budget, error: budgetError } = await supabase
       .from('budgets')
       .select(`
-        id, code, title, description, valid_until, created_at, total_amount, client_po_number, status, client_contact_id, estimated_invoice_date,
+        id, code, title, description, valid_until, created_at, total_amount, client_po_number, status, client_contact_id, estimated_invoice_date, payment_plan,
         clients!budgets_client_id_fkey (id, name, code, address, city, tax_id),
         client_contacts!budgets_client_contact_id_fkey (id, name, email, role)
       `)
@@ -80,10 +80,11 @@ Deno.serve(async (req) => {
       .select(`
         id, allocated_amount,
         invoice:invoices!invoice_budget_allocations_invoice_id_fkey (
-          id, code, invoice_date, status, pdf_url
+          id, code, invoice_date, status, pdf_url, source_milestone_index, budget_id
         )
       `)
       .eq('budget_id', shareToken.budget_id);
+
 
     // Get items with service info
     const { data: items, error: itemsError } = await supabase

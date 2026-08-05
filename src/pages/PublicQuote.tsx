@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, FileDown, AlertCircle, Receipt, Calendar, FileText } from 'lucide-react';
+import { Loader2, FileDown, AlertCircle, Receipt, Calendar, FileText, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { generateBudgetPDF } from '@/utils/pdf/budgetPDFGenerator';
+import { resolveMilestonesForBudget, type PaymentMilestone } from '@/hooks/useBudgetMilestoneResolver';
+import { getMilestoneAmount, getMilestoneBase } from '@/lib/budget-utils';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -11,6 +13,17 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', useGrouping: true, minimumFractionDigits: 2 }).format(amount);
 };
+
+const invoiceStatusLabelEn: Record<string, string> = {
+  draft: 'Draft',
+  pending: 'Pending',
+  sent: 'Sent',
+  paid: 'Paid',
+  overdue: 'Overdue',
+  cancelled: 'Cancelled',
+};
+
+
 
 interface GroupedCategory {
   categoryName: string;
@@ -123,12 +136,81 @@ export default function PublicQuote() {
   const formatDate = (d?: string | null) =>
     d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null;
 
+  // ---- Payment plan (milestones) resolved against real invoices ----
+  const plan: PaymentMilestone[] = Array.isArray(budget.payment_plan)
+    ? (budget.payment_plan as PaymentMilestone[])
+    : [];
+  const hasPlan = plan.length > 0;
+
+  const invoiceMeta = new Map<string, any>();
+  allocations.forEach((a: any) => {
+    if (a.invoice) invoiceMeta.set(a.invoice.id, a.invoice);
+  });
+
+  const milestoneMatches = hasPlan
+    ? resolveMilestonesForBudget(
+        total,
+        plan,
+        allocations.map((a: any) => ({
+          invoice_id: a.invoice.id,
+          budget_id: budget.id,
+          allocated_amount: Number(a.allocated_amount),
+          invoice_date: a.invoice.invoice_date ?? null,
+          source_milestone_index: a.invoice.source_milestone_index ?? null,
+          invoice_budget_id: a.invoice.budget_id ?? null,
+        }))
+      )
+    : new Map();
+
+  const matchByMilestone = new Map<number, any>();
+  const additionalInvoices: any[] = [];
+  for (const [key, m] of milestoneMatches.entries()) {
+    const invoiceId = key.split('::')[0];
+    const enriched = { ...m, invoice: invoiceMeta.get(invoiceId) };
+    if (m.milestoneIndex >= 0) matchByMilestone.set(m.milestoneIndex, enriched);
+    else additionalInvoices.push(enriched);
+  }
+
+  const milestoneRows = plan.map((m, index) => {
+    const match = matchByMilestone.get(index) || null;
+    const inv = match?.invoice;
+    return {
+      index,
+      label: m.label,
+      poNumber: m.po_number || null,
+      base: getMilestoneBase(m, total),
+      percentage: Number(m.percentage) || 0,
+      amount: getMilestoneAmount(m, total),
+      plannedDate: m.invoice_date || null,
+      invoiceCode: inv?.code || null,
+      invoiceDate: inv?.invoice_date || null,
+      invoiceStatus: inv?.status || null,
+      invoicePdfUrl: inv?.pdf_url || null,
+      invoicedAmount: match ? Number(match.allocatedAmount) : 0,
+    };
+  });
+
   const handleDownloadPDF = () => {
     generateBudgetPDF({
       budget: { ...budget, client, requested_by: budget.requested_by },
       items,
+      milestones: hasPlan
+        ? milestoneRows.map((r) => ({
+            label: r.label,
+            poNumber: r.poNumber,
+            base: r.base,
+            percentage: r.percentage,
+            amount: r.amount,
+            date: r.invoiceDate || r.plannedDate,
+            invoiceCode: r.invoiceCode,
+            status: r.invoiceCode
+              ? invoiceStatusLabelEn[r.invoiceStatus || ''] || r.invoiceStatus || 'Invoiced'
+              : 'Pending',
+          }))
+        : undefined,
     });
   };
+
 
   const validUntilFormatted = budget.valid_until
     ? new Date(budget.valid_until).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -247,6 +329,99 @@ export default function PublicQuote() {
             </div>
           </div>
         </div>
+
+        {/* Payment plan */}
+        {hasPlan && (
+          <div className="px-8 pb-8">
+            <div className="border rounded-lg bg-white">
+              <div className="px-6 py-4 border-b flex items-center gap-2">
+                <CalendarClock className="h-5 w-5 text-[#00467E]" />
+                <h3 className="font-semibold text-gray-800">Payment plan</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase">
+                      <th className="text-left py-2 px-4">Milestone</th>
+                      <th className="text-left py-2 px-4">PO / Ref.</th>
+                      <th className="text-left py-2 px-4">Date</th>
+                      <th className="text-right py-2 px-4">%</th>
+                      <th className="text-right py-2 px-4">Amount</th>
+                      <th className="text-left py-2 px-4">Invoice</th>
+                      <th className="text-left py-2 px-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {milestoneRows.map((row) => (
+                      <tr key={row.index} className="border-b border-gray-100 align-top">
+                        <td className="py-3 px-4 text-sm font-medium">{row.label}</td>
+                        <td className="py-3 px-4 text-sm">{row.poNumber || '—'}</td>
+                        <td className="py-3 px-4 text-sm">
+                          {formatDate(row.invoiceDate || row.plannedDate) || '—'}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-right">
+                          {Math.round(row.percentage * 100) / 100}%
+                          {row.base !== total && (
+                            <span className="block text-xs text-gray-400">
+                              on {formatCurrency(row.base)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-right font-medium">
+                          {formatCurrency(row.amount)}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          {row.invoiceCode ? (
+                            row.invoicePdfUrl ? (
+                              <a
+                                href={row.invoicePdfUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[#00467E] hover:underline inline-flex items-center gap-1"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                                {row.invoiceCode}
+                              </a>
+                            ) : (
+                              row.invoiceCode
+                            )
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          {row.invoiceCode ? (
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                invoiceStatusClass[row.invoiceStatus || ''] || 'bg-gray-100 text-gray-700'
+                              }`}
+                            >
+                              {invoiceStatusLabelEn[row.invoiceStatus || ''] || row.invoiceStatus}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                              Pending
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex justify-between items-center px-4 py-2 bg-gray-50 border-t text-sm">
+                <span className="text-gray-500">
+                  {milestoneRows.filter((r) => r.invoiceCode).length} of {milestoneRows.length} milestones invoiced
+                </span>
+                <span className="font-medium text-gray-800">
+                  Planned total: {formatCurrency(milestoneRows.reduce((s, r) => s + r.amount, 0))}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+
 
         {/* Estado de Facturación / Billing Status */}
         <div className="px-8 pb-8">

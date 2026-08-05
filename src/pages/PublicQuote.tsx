@@ -126,12 +126,81 @@ export default function PublicQuote() {
   const formatDate = (d?: string | null) =>
     d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null;
 
+  // ---- Payment plan (milestones) resolved against real invoices ----
+  const plan: PaymentMilestone[] = Array.isArray(budget.payment_plan)
+    ? (budget.payment_plan as PaymentMilestone[])
+    : [];
+  const hasPlan = plan.length > 0;
+
+  const invoiceMeta = new Map<string, any>();
+  allocations.forEach((a: any) => {
+    if (a.invoice) invoiceMeta.set(a.invoice.id, a.invoice);
+  });
+
+  const milestoneMatches = hasPlan
+    ? resolveMilestonesForBudget(
+        total,
+        plan,
+        allocations.map((a: any) => ({
+          invoice_id: a.invoice.id,
+          budget_id: budget.id,
+          allocated_amount: Number(a.allocated_amount),
+          invoice_date: a.invoice.invoice_date ?? null,
+          source_milestone_index: a.invoice.source_milestone_index ?? null,
+          invoice_budget_id: a.invoice.budget_id ?? null,
+        }))
+      )
+    : new Map();
+
+  const matchByMilestone = new Map<number, any>();
+  const additionalInvoices: any[] = [];
+  for (const [key, m] of milestoneMatches.entries()) {
+    const invoiceId = key.split('::')[0];
+    const enriched = { ...m, invoice: invoiceMeta.get(invoiceId) };
+    if (m.milestoneIndex >= 0) matchByMilestone.set(m.milestoneIndex, enriched);
+    else additionalInvoices.push(enriched);
+  }
+
+  const milestoneRows = plan.map((m, index) => {
+    const match = matchByMilestone.get(index) || null;
+    const inv = match?.invoice;
+    return {
+      index,
+      label: m.label,
+      poNumber: m.po_number || null,
+      base: getMilestoneBase(m, total),
+      percentage: Number(m.percentage) || 0,
+      amount: getMilestoneAmount(m, total),
+      plannedDate: m.invoice_date || null,
+      invoiceCode: inv?.code || null,
+      invoiceDate: inv?.invoice_date || null,
+      invoiceStatus: inv?.status || null,
+      invoicePdfUrl: inv?.pdf_url || null,
+      invoicedAmount: match ? Number(match.allocatedAmount) : 0,
+    };
+  });
+
   const handleDownloadPDF = () => {
     generateBudgetPDF({
       budget: { ...budget, client, requested_by: budget.requested_by },
       items,
+      milestones: hasPlan
+        ? milestoneRows.map((r) => ({
+            label: r.label,
+            poNumber: r.poNumber,
+            base: r.base,
+            percentage: r.percentage,
+            amount: r.amount,
+            date: r.invoiceDate || r.plannedDate,
+            invoiceCode: r.invoiceCode,
+            status: r.invoiceCode
+              ? invoiceStatusLabelEn[r.invoiceStatus || ''] || r.invoiceStatus || 'Invoiced'
+              : 'Pending',
+          }))
+        : undefined,
     });
   };
+
 
   const validUntilFormatted = budget.valid_until
     ? new Date(budget.valid_until).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })

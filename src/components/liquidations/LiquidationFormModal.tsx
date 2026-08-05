@@ -21,6 +21,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { SpecialistLiquidationTimeline } from './SpecialistLiquidationTimeline';
 import { useUserRole } from '@/hooks/useUserRole';
+import { LiquidationPaymentPlanEditor } from './LiquidationPaymentPlanEditor';
+import { LiquidationPaymentMilestone, normalizeLiquidationPaymentPlan } from '@/lib/liquidation-payment-plan';
 
 type LiquidationStatus = Database['public']['Enums']['liquidation_status'];
 
@@ -253,6 +255,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
   const [manualItems, setManualItems] = useState<ManualItem[]>([]);
   const [newManualDescription, setNewManualDescription] = useState('');
   const [newManualAmount, setNewManualAmount] = useState('');
+  const [paymentPlan, setPaymentPlan] = useState<LiquidationPaymentMilestone[]>([]);
   
   // Check if user is specialist (only specialist role, not admin/manager/finance)
   const { isSpecialist, isAdmin, canAccessFinance, canAccessOperations } = useUserRole();
@@ -265,6 +268,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       period_month: new Date().getMonth() + 1,
       status: 'draft',
       notes: '',
+      label: '',
     },
   });
 
@@ -433,7 +437,9 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
         period_month: liquidation.period_month,
         status: liquidation.status,
         notes: liquidation.notes || '',
+        label: liquidation.label || '',
       });
+      setPaymentPlan(normalizeLiquidationPaymentPlan(liquidation.payment_plan));
     } else if (!liquidation && isOpen) {
       reset({
         specialist_id: '',
@@ -441,7 +447,9 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
         period_month: new Date().getMonth() + 1,
         status: 'draft',
         notes: '',
+        label: '',
       });
+      setPaymentPlan([]);
     }
     setSelectedRequests([]);
     setSelectedCommissionIds([]);
@@ -475,6 +483,8 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
           tax_amount: 0,
           total_amount: subtotal,
           notes: data.notes,
+          label: data.label || null,
+          payment_plan: paymentPlan.length > 0 ? (paymentPlan as any) : null,
         })
         .select()
         .single();
@@ -560,6 +570,8 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
           period_month: data.period_month,
           status: data.status,
           notes: data.notes,
+          label: data.label || null,
+          payment_plan: paymentPlan.length > 0 ? (paymentPlan as any) : null,
         })
         .eq('id', liquidation.id);
       if (error) throw error;
@@ -1206,6 +1218,18 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
             </div>
           </div>
 
+          <div>
+            <Label htmlFor="label">Etiqueta / Proyecto (opcional)</Label>
+            <Input
+              {...register('label')}
+              placeholder="Ej. Proyecto Rebranding"
+              disabled={isViewMode || !isEditable}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Se muestra junto al periodo en listados y PDF. No cambia el mes de devengo.
+            </p>
+          </div>
+
           {existingLiquidation && mode === 'create' && (
             <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm">
               Ya existe una liquidación para este especialista en {formatPeriod(selectedYear, selectedMonth)}
@@ -1617,6 +1641,13 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
           {isViewMode && liquidation?.liquidation_signatures?.[0] && (
             <SignatureDetailsSection signature={liquidation.liquidation_signatures[0]} />
           )}
+
+          <LiquidationPaymentPlanEditor
+            value={paymentPlan}
+            onChange={setPaymentPlan}
+            disabled={isViewMode || !isEditable}
+            total={displaySubtotal}
+          />
 
           <div>
             <Label htmlFor="notes">Notas</Label>

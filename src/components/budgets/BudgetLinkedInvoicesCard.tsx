@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { BudgetAllocationStatus } from '@/components/invoices/AllocationStatusBadge';
 import { InvoiceStatusBadge } from '@/components/invoices/InvoiceStatusBadge';
 import { useBudgetMilestoneBreakdown } from '@/hooks/useBudgetMilestoneResolver';
-import { formatCurrency } from '@/lib/budget-utils';
+import { formatCurrency, getMilestoneAmount, getMilestoneBase } from '@/lib/budget-utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Receipt, Calendar, FileText, ExternalLink, CircleDashed, Milestone, PlusCircle } from 'lucide-react';

@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Mail, FileText, User, Calendar, Euro, Send, Loader2, Shield, Link, Banknote } from 'lucide-react';
 import { getExpectedPaymentDate } from '@/lib/liquidation-utils';
+import { getLiquidationPaymentPlanSummary, getLiquidationMilestoneAmount } from '@/lib/liquidation-payment-plan';
 
 interface EmailPreviewModalProps {
   open: boolean;
@@ -59,6 +60,8 @@ export const EmailPreviewModal = ({
         ...liquidation.team_members.map((m: any) => formatCurrency(m.total || 0))
       ].join(' + ')
     : null;
+
+  const planSummary = getLiquidationPaymentPlanSummary(liquidation.payment_plan, totalAmount);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

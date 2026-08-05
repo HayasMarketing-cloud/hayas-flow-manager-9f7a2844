@@ -215,13 +215,26 @@ export const BudgetFormModal = ({
         toast.error('Debes seleccionar un contacto solicitante (este cliente tiene múltiples contactos)');
         throw new Error('client_contact_id required');
       }
-      // Validate payment_plan if any milestones defined
-      const planSum = paymentPlan.reduce((s, m) => s + (Number(m.percentage) || 0), 0);
-      if (paymentPlan.length > 0 && planSum !== 100) {
-        toast.error('El plan de pagos debe sumar 100%');
-        throw new Error('payment_plan must sum to 100');
-      }
       const totalAmount = calculateBudgetTotal(items);
+
+      // Validate payment_plan if any milestones defined
+      if (paymentPlan.length > 0) {
+        const usesBases = paymentPlan.some((m) => m.base_amount != null || m.amount != null);
+        if (usesBases) {
+          const sumAmount = paymentPlan.reduce((s, m) => s + getMilestoneAmount(m, totalAmount), 0);
+          if (Math.abs(sumAmount - totalAmount) >= 0.01) {
+            toast.error('La suma de importes de los hitos debe coincidir con el total del presupuesto');
+            throw new Error('payment_plan amounts must match total');
+          }
+        } else {
+          const planSum = paymentPlan.reduce((s, m) => s + (Number(m.percentage) || 0), 0);
+          if (planSum !== 100) {
+            toast.error('El plan de pagos debe sumar 100%');
+            throw new Error('payment_plan must sum to 100');
+          }
+        }
+      }
+
 
       // Limpiar campos UUID y fecha vacíos para evitar errores de tipo en Postgres
       const cleanedFormData: any = {

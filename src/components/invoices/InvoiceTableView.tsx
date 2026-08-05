@@ -92,12 +92,16 @@ export const InvoiceTableView = ({
                     <p className="font-medium">
                       {m.budgetCode} · {m.milestoneLabel}
                     </p>
-                    <p>Hito: {m.milestonePercentage}% del presupuesto</p>
+                    <p>
+                      Hito: {m.milestonePercentage}% ({formatCurrency(m.milestoneAmount)})
+                      {m.milestonePoNumber ? ` · PO ${m.milestonePoNumber}` : ''}
+                    </p>
                     <p>Factura: {m.allocationPercentage.toFixed(1)}% ({formatCurrency(m.allocatedAmount)})</p>
                     <p className="text-muted-foreground">
                       {m.matchType === 'index' && 'Vinculación explícita (source_milestone_index).'}
-                      {m.matchType === 'fallback' && 'Vinculación deducida por % y fecha.'}
+                      {m.matchType === 'fallback' && 'Vinculación deducida por importe y fecha.'}
                       {m.matchType === 'single-100' && 'Presupuesto sin plan de pagos — hito único 100%.'}
+
                       {m.matchType === 'additional' && 'Factura extra: sin hueco de hito disponible.'}
                     </p>
                   </div>

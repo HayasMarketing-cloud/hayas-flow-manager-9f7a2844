@@ -224,6 +224,46 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   const total = data.budget.total_amount || data.items.reduce((sum, item) => sum + item.total, 0);
   doc.text(formatCurrency(total), pageWidth - 15, finalY, { align: 'right' });
 
+  // Payment plan / billing milestones
+  let afterPlanY = finalY;
+  if (data.milestones && data.milestones.length > 0) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('PAYMENT PLAN', 15, finalY + 14);
+
+    autoTable(doc, {
+      startY: finalY + 18,
+      head: [['Milestone', 'PO / Ref.', 'Date', 'Base', '%', 'Amount', 'Invoice', 'Status']],
+      body: data.milestones.map((m) => [
+        m.label,
+        m.poNumber || '-',
+        m.date ? new Date(m.date).toLocaleDateString('es-ES') : '-',
+        formatCurrency(m.base),
+        `${(Math.round(m.percentage * 100) / 100).toString()}%`,
+        formatCurrency(m.amount),
+        m.invoiceCode || '-',
+        m.status,
+      ]),
+      theme: 'grid',
+      headStyles: {
+        fillColor: [0, 70, 126],
+        textColor: 255,
+        fontSize: 8,
+        fontStyle: 'bold',
+      },
+      styles: { fontSize: 8, cellPadding: 3 },
+      columnStyles: {
+        3: { halign: 'right' },
+        4: { halign: 'right' },
+        5: { halign: 'right' },
+      },
+    });
+
+    afterPlanY = (doc as any).lastAutoTable.finalY;
+  }
+
+
+
   // Description/Objective
   const pageHeight = doc.internal.pageSize.getHeight();
   const bottomMargin = 30; // space for footer

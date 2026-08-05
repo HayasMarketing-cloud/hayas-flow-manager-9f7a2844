@@ -14,6 +14,16 @@ const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', useGrouping: true, minimumFractionDigits: 2 }).format(amount);
 };
 
+const invoiceStatusLabelEn: Record<string, string> = {
+  draft: 'Draft',
+  pending: 'Pending',
+  sent: 'Sent',
+  paid: 'Paid',
+  overdue: 'Overdue',
+  cancelled: 'Cancelled',
+};
+
+
 
 interface GroupedCategory {
   categoryName: string;

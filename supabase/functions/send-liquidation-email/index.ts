@@ -17,6 +17,15 @@ interface LiquidationEmailRequest {
   pdfBase64: string;
   appUrl: string;
   senderEmail: string; // Email del usuario que envía (debe ser @hayas.es)
+  paymentPlan?: PaymentMilestone[] | null;
+}
+
+interface PaymentMilestone {
+  label?: string;
+  percentage?: number;
+  amount?: number | null;
+  payment_date?: string;
+  paid?: boolean;
 }
 
 const monthNames = [
@@ -246,6 +255,7 @@ const handler = async (req: Request): Promise<Response> => {
       pdfBase64,
       appUrl,
       senderEmail,
+      paymentPlan,
     }: LiquidationEmailRequest = await req.json();
 
     // Validate sender email is from hayas.es domain
@@ -287,6 +297,44 @@ const handler = async (req: Request): Promise<Response> => {
       currency: 'EUR' 
     }).format(totalAmount);
 
+    const fmt = (n: number) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
+    const milestones = Array.isArray(paymentPlan) ? paymentPlan.filter((m) => m && typeof m === 'object') : [];
+    const milestoneAmount = (m: PaymentMilestone) =>
+      m.amount != null && !Number.isNaN(Number(m.amount))
+        ? Number(m.amount)
+        : (totalAmount * (Number(m.percentage) || 0)) / 100;
+
+    const defaultPaymentDate = (() => {
+      const pm = periodMonth === 12 ? 0 : periodMonth;
+      const py = periodMonth === 12 ? periodYear + 1 : periodYear;
+      return new Date(py, pm, 28).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+    })();
+
+    const paymentBlock = milestones.length > 0
+      ? `
+        <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+          <p style="margin: 0 0 10px; font-weight: bold; color: #065f46;">💰 Plan de pagos</p>
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #065f46;">
+            <tr style="text-align: left;">
+              <th style="padding: 4px 0;">Concepto</th>
+              <th style="padding: 4px 0; text-align: right;">Importe</th>
+              <th style="padding: 4px 0; text-align: right;">Fecha</th>
+              <th style="padding: 4px 0; text-align: right;">Estado</th>
+            </tr>
+            ${milestones.map((m) => `
+              <tr>
+                <td style="padding: 4px 0;">${m.label || '-'}</td>
+                <td style="padding: 4px 0; text-align: right; font-weight: bold;">${fmt(milestoneAmount(m))}</td>
+                <td style="padding: 4px 0; text-align: right;">${m.payment_date ? new Date(m.payment_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}</td>
+                <td style="padding: 4px 0; text-align: right;">${m.paid ? 'Pagado' : 'Pendiente'}</td>
+              </tr>`).join('')}
+          </table>
+        </div>`
+      : `
+        <p style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px 16px; font-size: 14px; color: #065f46;">
+          💰 El pago de esta liquidación está previsto para el <strong>${defaultPaymentDate}</strong>.
+        </p>`;
+
     const subject = `Liquidación ${liquidationCode} - ${periodName} - Pendiente de validación`;
     
     const htmlContent = `
@@ -314,9 +362,7 @@ const handler = async (req: Request): Promise<Response> => {
           </table>
         </div>
         
-        <p style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px 16px; font-size: 14px; color: #065f46;">
-          💰 El pago de esta liquidación está previsto para el <strong>${(() => { const pm = periodMonth === 12 ? 0 : periodMonth; const py = periodMonth === 12 ? periodYear + 1 : periodYear; return new Date(py, pm, 28).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }); })()}</strong>.
-        </p>
+        ${paymentBlock}
 
         <p>Por favor, revisa el documento adjunto y <strong>confirma o disputa</strong> la liquidación haciendo clic en el botón de abajo.</p>
         

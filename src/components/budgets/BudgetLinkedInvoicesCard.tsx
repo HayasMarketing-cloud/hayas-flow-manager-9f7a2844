@@ -108,7 +108,7 @@ export function BudgetLinkedInvoicesCard({
             <TableHeader>
               <TableRow>
                 <TableHead>Hito</TableHead>
-                <TableHead className="text-right">% Presupuesto</TableHead>
+                <TableHead className="text-right">%</TableHead>
                 <TableHead className="text-right">Importe hito</TableHead>
                 <TableHead>Factura</TableHead>
                 <TableHead>Estado</TableHead>
@@ -117,7 +117,8 @@ export function BudgetLinkedInvoicesCard({
             </TableHeader>
             <TableBody>
               {milestones.map(({ index, milestone, match }) => {
-                const milestoneAmount = (budgetTotal * (Number(milestone.percentage) || 0)) / 100;
+                const base = getMilestoneBase(milestone as any, budgetTotal);
+                const milestoneAmount = getMilestoneAmount(milestone as any, budgetTotal);
                 return (
                   <TableRow key={`m-${index}`}>
                     <TableCell>
@@ -125,6 +126,11 @@ export function BudgetLinkedInvoicesCard({
                         <Milestone className="h-4 w-4 text-primary" />
                         <div>
                           <div className="text-sm font-medium">{milestone.label}</div>
+                          {(milestone as any).po_number && (
+                            <div className="text-xs text-muted-foreground">
+                              PO: {(milestone as any).po_number}
+                            </div>
+                          )}
                           {milestone.invoice_date && (
                             <div className="text-xs text-muted-foreground">
                               Prev.: {format(new Date(milestone.invoice_date), 'dd/MM/yyyy', { locale: es })}
@@ -135,10 +141,14 @@ export function BudgetLinkedInvoicesCard({
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       {Math.round(Number(milestone.percentage) || 0)}%
+                      <div className="text-[10px] font-normal text-muted-foreground">
+                        s/ {formatCurrency(base)}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">
                       {formatCurrency(milestoneAmount)}
                     </TableCell>
+
                     <TableCell>
                       {match ? (
                         <div className="flex items-center gap-2">

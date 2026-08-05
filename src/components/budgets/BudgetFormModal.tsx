@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { BudgetItemsEditor } from './BudgetItemsEditor';
-import { calculateBudgetTotal } from '@/lib/budget-utils';
+import { calculateBudgetTotal, getMilestoneAmount } from '@/lib/budget-utils';
 import { Loader2, FileText, User, FileSignature } from 'lucide-react';
 import { useApproveBudget } from '@/hooks/useApproveBudget';
 import { ProjectCreationModal } from './ProjectCreationModal';

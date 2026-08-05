@@ -30,6 +30,7 @@ const liquidationSchema = z.object({
   period_month: z.number().min(1).max(12),
   status: z.enum(['draft', 'validated', 'sent', 'accepted', 'invoice_received', 'disputed', 'pending_payment', 'paid']),
   notes: z.string().optional(),
+  label: z.string().optional(),
 });
 
 type LiquidationFormData = z.infer<typeof liquidationSchema>;

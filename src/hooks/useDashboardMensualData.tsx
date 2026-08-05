@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { getLiquidationCashOutflow } from '@/lib/liquidation-payment-plan';
 import { supabase } from '@/integrations/supabase/client';
 
 export type ViewMode = 'cashflow' | 'accrual';
@@ -129,7 +130,7 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
           .eq('billing_period_month', month),
         supabase
           .from('liquidations')
-          .select('id, code, specialist_id, period_month, period_year, status, subtotal, total_amount, paid_at, specialist_invoice_url, specialist:specialists(id, name, team_leader_id)')
+          .select('id, code, specialist_id, period_month, period_year, status, subtotal, total_amount, paid_at, payment_plan, label, specialist_invoice_url, specialist:specialists(id, name, team_leader_id)')
           .eq('period_year', year)
           .eq('period_month', month),
         supabase.from('clients').select('id, name'),
@@ -410,9 +411,7 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
       // KPIs
       const totalRevenue = clientSummaries.reduce((sum, c) => sum + c.revenue, 0);
       const totalLiquidationCosts = viewMode === 'cashflow'
-        ? liquidations
-            .filter((l: any) => l.status === 'paid')
-            .reduce((sum: number, l: any) => sum + Number(l.subtotal ?? l.total_amount ?? 0), 0)
+        ? liquidations.reduce((sum: number, l: any) => sum + getLiquidationCashOutflow(l), 0)
         : liquidations.reduce((sum: number, l: any) => sum + Number(l.subtotal ?? l.total_amount ?? 0), 0);
       const totalCommissions = relevantCommissions.reduce((sum, c) => sum + c.commission_amount, 0);
       const totalCosts = totalLiquidationCosts + totalCommissions;

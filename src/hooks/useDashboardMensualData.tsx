@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getLiquidationCashOutflow } from '@/lib/liquidation-payment-plan';
+import { getLiquidationCashOutflowForMonth } from '@/lib/liquidation-payment-plan';
 import { supabase } from '@/integrations/supabase/client';
 
 export type ViewMode = 'cashflow' | 'accrual';
@@ -160,8 +160,17 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
           .lte('invoice_date', nextMonthEnd),
       ]);
 
+      // Cash-flow: liquidations whose money actually moves in this month,
+      // regardless of their accrual period (payment-plan milestones or paid_at).
+      const cashflowLiquidationsRes = viewMode === 'cashflow'
+        ? await supabase
+            .from('liquidations')
+            .select('id, code, period_month, period_year, status, subtotal, total_amount, paid_at, payment_plan')
+        : { data: [] as any[] };
+
       const invoices = (invoicesRes.data || []) as InvoiceRow[];
       const liquidations = (liquidationsRes.data || []) as any[];
+      const cashflowLiquidations = (cashflowLiquidationsRes.data || []) as any[];
       const clients = clientsRes.data || [];
       const contracts = contractsRes.data || [];
       const budgets = budgetsRes.data || [];
@@ -411,7 +420,10 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
       // KPIs
       const totalRevenue = clientSummaries.reduce((sum, c) => sum + c.revenue, 0);
       const totalLiquidationCosts = viewMode === 'cashflow'
-        ? liquidations.reduce((sum: number, l: any) => sum + getLiquidationCashOutflow(l), 0)
+        ? cashflowLiquidations.reduce(
+            (sum: number, l: any) => sum + getLiquidationCashOutflowForMonth(l, year, month),
+            0,
+          )
         : liquidations.reduce((sum: number, l: any) => sum + Number(l.subtotal ?? l.total_amount ?? 0), 0);
       const totalCommissions = relevantCommissions.reduce((sum, c) => sum + c.commission_amount, 0);
       const totalCosts = totalLiquidationCosts + totalCommissions;

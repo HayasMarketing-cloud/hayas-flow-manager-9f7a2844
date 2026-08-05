@@ -88,3 +88,32 @@ export const getLiquidationCashOutflow = (liquidation: any): number => {
   if (summary.hasPlan) return summary.paidAmount;
   return liquidation?.status === 'paid' ? total : 0;
 };
+
+/**
+ * Importe imputable a tesorería en un mes concreto (imputación por fecha real de pago).
+ * Con plan de pagos: hitos pagados cuya fecha cae en el mes indicado.
+ * Sin plan: el total si la liquidación está pagada y su paid_at cae en ese mes.
+ */
+export const getLiquidationCashOutflowForMonth = (
+  liquidation: any,
+  year: number,
+  month: number
+): number => {
+  const total = Number(liquidation?.subtotal ?? liquidation?.total_amount ?? 0);
+  const milestones = normalizeLiquidationPaymentPlan(liquidation?.payment_plan);
+
+  const inMonth = (dateStr?: string | null) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return false;
+    return d.getFullYear() === year && d.getMonth() + 1 === month;
+  };
+
+  if (milestones.length > 0) {
+    return milestones
+      .filter((m) => m.paid && inMonth(m.paid_at || m.payment_date))
+      .reduce((s, m) => s + getLiquidationMilestoneAmount(m, total), 0);
+  }
+
+  return liquidation?.status === 'paid' && inMonth(liquidation?.paid_at) ? total : 0;
+};

@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { getMonthName } from '@/lib/liquidation-utils';
 import { CommissionSourceInfo } from '@/lib/liquidation-grouping';
 import { buildLiquidationView, type LiquidationView } from '@/lib/liquidation-totals';
+import { getLiquidationPaymentPlanSummary, getLiquidationMilestoneAmount } from '@/lib/liquidation-payment-plan';
 
 type CommissionDetail = CommissionSourceInfo;
 
@@ -248,6 +249,58 @@ const createLiquidationPDFDocument = async (data: LiquidationData) => {
     doc.text(formatCurrency(calculatedTotal), pageWidth - 15, finalY, { align: 'right' });
 
     currentY = finalY;
+  }
+
+  // Plan de pagos (si existe)
+  {
+    const planBase = Number(data.liquidation?.subtotal ?? data.liquidation?.total_amount ?? 0);
+    const planSummary = getLiquidationPaymentPlanSummary((data.liquidation as any)?.payment_plan, planBase);
+    if (planSummary.hasPlan) {
+      if (currentY > 220) {
+        doc.addPage();
+        currentY = 20;
+      }
+      currentY += 14;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(0, 70, 126);
+      doc.text('PLAN DE PAGOS', 15, currentY);
+      doc.setTextColor(0, 0, 0);
+      currentY += 4;
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [['Concepto', '%', 'Importe', 'Fecha prevista', 'Estado']],
+        body: planSummary.milestones.map((m) => [
+          m.label || '-',
+          `${Number(m.percentage || 0).toFixed(0)}%`,
+          formatCurrency(getLiquidationMilestoneAmount(m, planBase)),
+          m.payment_date
+            ? new Date(m.payment_date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            : '-',
+          m.paid ? 'Pagado' : 'Pendiente',
+        ]),
+        theme: 'plain',
+        headStyles: { fillColor: [0, 70, 126], textColor: 255, fontSize: 9, fontStyle: 'bold' },
+        styles: { fontSize: 9, cellPadding: 3 },
+        columnStyles: {
+          1: { halign: 'center' },
+          2: { halign: 'right' },
+          3: { halign: 'center' },
+          4: { halign: 'center' },
+        },
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(
+        `Pagado: ${formatCurrency(planSummary.paidAmount)}  ·  Pendiente: ${formatCurrency(planSummary.pendingAmount)}`,
+        pageWidth - 15,
+        currentY,
+        { align: 'right' }
+      );
+    }
   }
 
   // Notas

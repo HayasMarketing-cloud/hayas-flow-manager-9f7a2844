@@ -98,6 +98,8 @@ export function resolveMilestonesForBudget(
         milestoneIndex: idx,
         milestoneLabel: m.label,
         milestonePercentage: Number(m.percentage) || 0,
+        milestoneAmount: getMilestoneAmount(m, total),
+        milestonePoNumber: m.po_number ?? null,
         allocationPercentage: allocPct,
         allocatedAmount: Number(a.allocated_amount),
         matchType: isSynthetic ? 'single-100' : 'index',
@@ -107,10 +109,11 @@ export function resolveMilestonesForBudget(
     }
   }
 
-  // Pass B — fallback by % + date over unclaimed
+  // Pass B — fallback by importe + date over unclaimed
   for (const a of remaining) {
     const key = `${a.invoice_id}::${a.budget_id}`;
     const allocPct = total > 0 ? (Number(a.allocated_amount) / total) * 100 : 0;
+    const allocAmount = Number(a.allocated_amount) || 0;
     const unclaimedIdx = effectivePlan
       .map((m, i) => ({ m, i }))
       .filter((x) => !claimed.has(x.i));
@@ -120,23 +123,29 @@ export function resolveMilestonesForBudget(
         milestoneIndex: -2,
         milestoneLabel: 'Factura adicional',
         milestonePercentage: 0,
+        milestoneAmount: 0,
+        milestonePoNumber: null,
         allocationPercentage: allocPct,
-        allocatedAmount: Number(a.allocated_amount),
+        allocatedAmount: allocAmount,
         matchType: 'additional',
       });
       continue;
     }
 
-    // Prefer matches within % tolerance, tie-break by closest date
-    const byPct = unclaimedIdx
-      .filter((x) => Math.abs((Number(x.m.percentage) || 0) - allocPct) <= PERCENT_TOLERANCE)
+    // Prefer matches by importe esperado (tolerancia), tie-break by closest date
+    const byAmount = unclaimedIdx
+      .filter((x) => {
+        const expected = getMilestoneAmount(x.m, total);
+        const tol = Math.max(MIN_AMOUNT_TOLERANCE, expected * AMOUNT_TOLERANCE_RATIO);
+        return Math.abs(expected - allocAmount) <= tol;
+      })
       .sort(
         (x, y) => daysBetween(x.m.invoice_date, a.invoice_date) - daysBetween(y.m.invoice_date, a.invoice_date)
       );
 
-    let chosen = byPct[0];
+    let chosen = byAmount[0];
     if (!chosen) {
-      // No % match — pick the earliest unclaimed milestone by date, then by index
+      // Sin coincidencia por importe — el hito no reclamado más cercano por fecha, luego por índice
       chosen = [...unclaimedIdx].sort((x, y) => {
         const dx = daysBetween(x.m.invoice_date, a.invoice_date);
         const dy = daysBetween(y.m.invoice_date, a.invoice_date);
@@ -150,11 +159,14 @@ export function resolveMilestonesForBudget(
       milestoneIndex: chosen.i,
       milestoneLabel: chosen.m.label,
       milestonePercentage: Number(chosen.m.percentage) || 0,
+      milestoneAmount: getMilestoneAmount(chosen.m, total),
+      milestonePoNumber: chosen.m.po_number ?? null,
       allocationPercentage: allocPct,
-      allocatedAmount: Number(a.allocated_amount),
+      allocatedAmount: allocAmount,
       matchType: isSynthetic ? 'single-100' : 'fallback',
     });
   }
+
 
   return result;
 }

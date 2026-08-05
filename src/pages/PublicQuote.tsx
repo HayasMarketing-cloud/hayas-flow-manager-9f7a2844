@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, FileDown, AlertCircle, Receipt, Calendar, FileText } from 'lucide-react';
+import { Loader2, FileDown, AlertCircle, Receipt, Calendar, FileText, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { generateBudgetPDF } from '@/utils/pdf/budgetPDFGenerator';
+import { resolveMilestonesForBudget, type PaymentMilestone } from '@/hooks/useBudgetMilestoneResolver';
+import { getMilestoneAmount, getMilestoneBase } from '@/lib/budget-utils';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -11,6 +13,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', useGrouping: true, minimumFractionDigits: 2 }).format(amount);
 };
+
 
 interface GroupedCategory {
   categoryName: string;

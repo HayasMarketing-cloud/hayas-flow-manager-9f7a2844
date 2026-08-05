@@ -330,6 +330,99 @@ export default function PublicQuote() {
           </div>
         </div>
 
+        {/* Payment plan */}
+        {hasPlan && (
+          <div className="px-8 pb-8">
+            <div className="border rounded-lg bg-white">
+              <div className="px-6 py-4 border-b flex items-center gap-2">
+                <CalendarClock className="h-5 w-5 text-[#00467E]" />
+                <h3 className="font-semibold text-gray-800">Payment plan</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase">
+                      <th className="text-left py-2 px-4">Milestone</th>
+                      <th className="text-left py-2 px-4">PO / Ref.</th>
+                      <th className="text-left py-2 px-4">Date</th>
+                      <th className="text-right py-2 px-4">%</th>
+                      <th className="text-right py-2 px-4">Amount</th>
+                      <th className="text-left py-2 px-4">Invoice</th>
+                      <th className="text-left py-2 px-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {milestoneRows.map((row) => (
+                      <tr key={row.index} className="border-b border-gray-100 align-top">
+                        <td className="py-3 px-4 text-sm font-medium">{row.label}</td>
+                        <td className="py-3 px-4 text-sm">{row.poNumber || '—'}</td>
+                        <td className="py-3 px-4 text-sm">
+                          {formatDate(row.invoiceDate || row.plannedDate) || '—'}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-right">
+                          {Math.round(row.percentage * 100) / 100}%
+                          {row.base !== total && (
+                            <span className="block text-xs text-gray-400">
+                              on {formatCurrency(row.base)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-right font-medium">
+                          {formatCurrency(row.amount)}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          {row.invoiceCode ? (
+                            row.invoicePdfUrl ? (
+                              <a
+                                href={row.invoicePdfUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[#00467E] hover:underline inline-flex items-center gap-1"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                                {row.invoiceCode}
+                              </a>
+                            ) : (
+                              row.invoiceCode
+                            )
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          {row.invoiceCode ? (
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                invoiceStatusClass[row.invoiceStatus || ''] || 'bg-gray-100 text-gray-700'
+                              }`}
+                            >
+                              {invoiceStatusLabelEn[row.invoiceStatus || ''] || row.invoiceStatus}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                              Pending
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex justify-between items-center px-4 py-2 bg-gray-50 border-t text-sm">
+                <span className="text-gray-500">
+                  {milestoneRows.filter((r) => r.invoiceCode).length} of {milestoneRows.length} milestones invoiced
+                </span>
+                <span className="font-medium text-gray-800">
+                  Planned total: {formatCurrency(milestoneRows.reduce((s, r) => s + r.amount, 0))}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+
+
         {/* Estado de Facturación / Billing Status */}
         <div className="px-8 pb-8">
           <div className="border rounded-lg bg-white">

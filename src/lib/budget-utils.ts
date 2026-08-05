@@ -47,9 +47,31 @@ export const getEffectiveBudgetStatus = (
   return toManualBudgetStatus(status);
 };
 
+/** Base de cálculo de un hito: su base propia (p.ej. importe de un PO) o el total del presupuesto. */
+export const getMilestoneBase = (
+  milestone: { base_amount?: number | null } | null | undefined,
+  budgetTotal: number
+): number => {
+  const base = milestone?.base_amount;
+  return base != null && Number(base) > 0 ? Number(base) : Number(budgetTotal || 0);
+};
+
+/** Importe de un hito: importe fijado manualmente o base × %. */
+export const getMilestoneAmount = (
+  milestone: { percentage?: number; base_amount?: number | null; amount?: number | null } | null | undefined,
+  budgetTotal: number
+): number => {
+  if (milestone?.amount != null && !Number.isNaN(Number(milestone.amount))) {
+    return Number(milestone.amount);
+  }
+  const base = getMilestoneBase(milestone, budgetTotal);
+  return (base * (Number(milestone?.percentage) || 0)) / 100;
+};
+
 export const calculateItemTotal = (quantity: number, unitPrice: number): number => {
   return quantity * unitPrice;
 };
+
 
 export const calculateBudgetTotal = (items: Array<{ total: number }>): number => {
   return items.reduce((sum, item) => sum + item.total, 0);

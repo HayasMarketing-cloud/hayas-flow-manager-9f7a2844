@@ -420,7 +420,10 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
       // KPIs
       const totalRevenue = clientSummaries.reduce((sum, c) => sum + c.revenue, 0);
       const totalLiquidationCosts = viewMode === 'cashflow'
-        ? liquidations.reduce((sum: number, l: any) => sum + getLiquidationCashOutflow(l), 0)
+        ? cashflowLiquidations.reduce(
+            (sum: number, l: any) => sum + getLiquidationCashOutflowForMonth(l, year, month),
+            0,
+          )
         : liquidations.reduce((sum: number, l: any) => sum + Number(l.subtotal ?? l.total_amount ?? 0), 0);
       const totalCommissions = relevantCommissions.reduce((sum, c) => sum + c.commission_amount, 0);
       const totalCosts = totalLiquidationCosts + totalCommissions;

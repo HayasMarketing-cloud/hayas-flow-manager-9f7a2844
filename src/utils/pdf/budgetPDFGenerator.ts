@@ -270,7 +270,7 @@ export const generateBudgetPDF = async (data: BudgetPDFData) => {
   const lineHeight = 5;
 
   if (data.budget.description) {
-    let currentY = finalY + 20;
+    let currentY = afterPlanY + 20;
 
     // Check if we need a new page for the objective header
     if (currentY > pageHeight - bottomMargin) {

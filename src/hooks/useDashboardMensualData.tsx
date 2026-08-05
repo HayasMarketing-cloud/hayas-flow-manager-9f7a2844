@@ -160,8 +160,17 @@ export const useDashboardMensualData = (year: number, month: number, viewMode: V
           .lte('invoice_date', nextMonthEnd),
       ]);
 
+      // Cash-flow: liquidations whose money actually moves in this month,
+      // regardless of their accrual period (payment-plan milestones or paid_at).
+      const cashflowLiquidationsRes = viewMode === 'cashflow'
+        ? await supabase
+            .from('liquidations')
+            .select('id, code, period_month, period_year, status, subtotal, total_amount, paid_at, payment_plan')
+        : { data: [] as any[] };
+
       const invoices = (invoicesRes.data || []) as InvoiceRow[];
       const liquidations = (liquidationsRes.data || []) as any[];
+      const cashflowLiquidations = (cashflowLiquidationsRes.data || []) as any[];
       const clients = clientsRes.data || [];
       const contracts = contractsRes.data || [];
       const budgets = budgetsRes.data || [];

@@ -33,6 +33,16 @@ interface BudgetPDFData {
       category?: string | null;
     } | null;
   }>;
+  milestones?: Array<{
+    label: string;
+    poNumber?: string | null;
+    base: number;
+    percentage: number;
+    amount: number;
+    date?: string | null;
+    invoiceCode?: string | null;
+    status: string;
+  }>;
   companyInfo?: {
     name: string;
     tradeName?: string;
@@ -41,6 +51,7 @@ interface BudgetPDFData {
     email: string;
   };
 }
+
 
 export const generateBudgetPDF = async (data: BudgetPDFData) => {
   const doc = new jsPDF();

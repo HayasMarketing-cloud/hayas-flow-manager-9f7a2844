@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getLiquidationCashOutflow } from '@/lib/liquidation-payment-plan';
+import { getLiquidationCashOutflowForMonth } from '@/lib/liquidation-payment-plan';
 import { supabase } from '@/integrations/supabase/client';
 
 export type ViewMode = 'cashflow' | 'accrual';

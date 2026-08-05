@@ -182,15 +182,54 @@ export const EmailPreviewModal = ({
                   </div>
                 </div>
                 
-                <p className="mb-4 flex items-start gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm">
-                  <Banknote className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                  <span>
-                    El pago de esta liquidación está previsto para el{' '}
-                    <strong>
-                      {getExpectedPaymentDate(liquidation.period_year, liquidation.period_month).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
-                    </strong>.
-                  </span>
-                </p>
+                {planSummary.hasPlan ? (
+                  <div className="my-4 rounded-lg border border-green-200 bg-green-50 p-3">
+                    <div className="mb-2 flex items-center gap-2 text-sm font-medium text-green-800">
+                      <Banknote className="h-4 w-4 text-green-600" />
+                      Plan de pagos
+                    </div>
+                    <table className="w-full text-sm text-green-900">
+                      <thead>
+                        <tr className="text-left text-xs text-green-700">
+                          <th className="py-1">Concepto</th>
+                          <th className="py-1 text-right">Importe</th>
+                          <th className="py-1 text-right">Fecha</th>
+                          <th className="py-1 text-right">Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {planSummary.milestones.map((m, i) => (
+                          <tr key={i}>
+                            <td className="py-1">{m.label || '-'}</td>
+                            <td className="py-1 text-right font-medium">
+                              {formatCurrency(getLiquidationMilestoneAmount(m, totalAmount))}
+                            </td>
+                            <td className="py-1 text-right">
+                              {m.payment_date
+                                ? new Date(m.payment_date).toLocaleDateString('es-ES', {
+                                    day: 'numeric',
+                                    month: 'long',
+                                    year: 'numeric',
+                                  })
+                                : '-'}
+                            </td>
+                            <td className="py-1 text-right">{m.paid ? 'Pagado' : 'Pendiente'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="mb-4 flex items-start gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm">
+                    <Banknote className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                    <span>
+                      El pago de esta liquidación está previsto para el{' '}
+                      <strong>
+                        {getExpectedPaymentDate(liquidation.period_year, liquidation.period_month).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </strong>.
+                    </span>
+                  </p>
+                )}
 
                 <p className="mb-4">
                   Por favor, revisa el documento adjunto y <strong>confirma o disputa</strong> la liquidación haciendo clic en el botón de abajo.

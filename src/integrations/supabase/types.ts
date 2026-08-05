@@ -1581,8 +1581,10 @@ export type Database = {
           code: string
           created_at: string
           id: string
+          label: string | null
           notes: string | null
           paid_at: string | null
+          payment_plan: Json | null
           pdf_url: string | null
           period_month: number
           period_year: number
@@ -1600,8 +1602,10 @@ export type Database = {
           code: string
           created_at?: string
           id?: string
+          label?: string | null
           notes?: string | null
           paid_at?: string | null
+          payment_plan?: Json | null
           pdf_url?: string | null
           period_month: number
           period_year: number
@@ -1619,8 +1623,10 @@ export type Database = {
           code?: string
           created_at?: string
           id?: string
+          label?: string | null
           notes?: string | null
           paid_at?: string | null
+          payment_plan?: Json | null
           pdf_url?: string | null
           period_month?: number
           period_year?: number

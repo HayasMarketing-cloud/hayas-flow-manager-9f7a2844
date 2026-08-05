@@ -6,6 +6,7 @@ import { Eye, Pencil, Trash2, Mail, Users, Info } from 'lucide-react';
 import { LiquidationStatusBadge } from './LiquidationStatusBadge';
 import { SignatureStatusBadge } from './SignatureStatusBadge';
 import { formatPeriod, formatCurrency } from '@/lib/liquidation-utils';
+import { LiquidationPaymentPlanBadge } from './LiquidationPaymentPlanBadge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 
@@ -145,6 +146,7 @@ export const LiquidationTableView = ({
                     <TableCell>
                       <Badge variant="outline">
                         {formatPeriod(liquidation.period_year, liquidation.period_month, 'short')}
+                        {liquidation.label ? ` · ${liquidation.label}` : ''}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-semibold">
@@ -173,7 +175,10 @@ export const LiquidationTableView = ({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <LiquidationStatusBadge status={liquidation.status} />
+                      <div className="flex flex-col items-start gap-1">
+                        <LiquidationStatusBadge status={liquidation.status} />
+                        <LiquidationPaymentPlanBadge liquidation={liquidation} total={displayTotal} className="text-[10px]" />
+                      </div>
                     </TableCell>
                     <TableCell>
                       <SignatureStatusBadge signature={latestSignature} />

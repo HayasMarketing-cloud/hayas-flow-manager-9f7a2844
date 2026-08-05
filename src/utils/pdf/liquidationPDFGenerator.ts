@@ -83,7 +83,10 @@ const createLiquidationPDFDocument = async (data: LiquidationData) => {
   const monthName = new Date(data.liquidation.period_year, data.liquidation.period_month - 1)
     .toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
   const capitalizedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
-  doc.text(capitalizedMonth, pageWidth - 15, 33, { align: 'right' });
+  const periodLabel = (data.liquidation as any).label
+    ? `${capitalizedMonth} · ${(data.liquidation as any).label}`
+    : capitalizedMonth;
+  doc.text(periodLabel, pageWidth - 15, 33, { align: 'right' });
 
   doc.setFontSize(10);
   doc.text(data.liquidation.code, pageWidth - 15, 40, { align: 'right' });

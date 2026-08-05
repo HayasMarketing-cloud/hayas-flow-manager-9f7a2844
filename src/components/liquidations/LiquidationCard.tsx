@@ -5,6 +5,7 @@ import { Eye, Pencil, Calendar, Mail, Users } from 'lucide-react';
 import { LiquidationStatusBadge } from './LiquidationStatusBadge';
 import { SignatureStatusBadge } from './SignatureStatusBadge';
 import { formatPeriod, formatCurrency } from '@/lib/liquidation-utils';
+import { LiquidationPaymentPlanBadge } from './LiquidationPaymentPlanBadge';
 
 interface LiquidationCardProps {
   liquidation: any;
@@ -41,9 +42,13 @@ export const LiquidationCard = ({ liquidation, onView, onEdit, onSendEmail, canM
                 </Badge>
               )}
             </div>
-            <Badge variant="outline" className="w-fit text-xs">
-              {formatPeriod(liquidation.period_year, liquidation.period_month, 'short')}
-            </Badge>
+            <div className="flex flex-wrap items-center gap-1">
+              <Badge variant="outline" className="w-fit text-xs">
+                {formatPeriod(liquidation.period_year, liquidation.period_month, 'short')}
+                {liquidation.label ? ` · ${liquidation.label}` : ''}
+              </Badge>
+              <LiquidationPaymentPlanBadge liquidation={liquidation} total={displayTotal} className="text-xs" />
+            </div>
           </div>
           <LiquidationStatusBadge status={liquidation.status} />
         </div>

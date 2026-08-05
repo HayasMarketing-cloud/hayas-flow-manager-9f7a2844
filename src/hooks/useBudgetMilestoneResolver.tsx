@@ -1,23 +1,31 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useMemo } from 'react';
+import { getMilestoneAmount } from '@/lib/budget-utils';
 
 export interface PaymentMilestone {
   label: string;
   percentage: number;
   invoice_date: string | null;
+  po_number?: string | null;
+  base_amount?: number | null;
+  amount?: number | null;
 }
 
 export interface MilestoneMatch {
   milestoneIndex: number; // -1 = synthetic single-100, -2 = additional (no milestone)
   milestoneLabel: string;
-  milestonePercentage: number; // % of budget defined by the milestone
+  milestonePercentage: number; // % de la base del hito
+  milestoneAmount: number; // importe esperado del hito
+  milestonePoNumber: string | null;
   allocationPercentage: number; // % of budget covered by this allocation
   allocatedAmount: number;
   matchType: 'index' | 'fallback' | 'single-100' | 'additional';
 }
 
-const PERCENT_TOLERANCE = 2; // percentage points
+const AMOUNT_TOLERANCE_RATIO = 0.02; // 2% del importe del hito
+const MIN_AMOUNT_TOLERANCE = 1; // €
+
 
 const daysBetween = (a?: string | null, b?: string | null): number => {
   if (!a || !b) return Number.POSITIVE_INFINITY;

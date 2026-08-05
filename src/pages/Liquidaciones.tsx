@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { normalizeLiquidationPaymentPlan } from '@/lib/liquidation-payment-plan';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -414,6 +415,7 @@ export default function Liquidaciones() {
           pdfBase64,
           appUrl: 'https://hayas-flow-manager.lovable.app',
           senderEmail: user?.email,
+          paymentPlan: normalizeLiquidationPaymentPlan((liquidation as any).payment_plan),
         },
       });
 

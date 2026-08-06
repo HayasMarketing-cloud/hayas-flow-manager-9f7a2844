@@ -83,19 +83,29 @@ export function GenerateRequestsConfirmModal({
     });
   };
 
+  const phaseSuggestions = useMemo(() => {
+    const base = plan?.existingPhases || [];
+    const fromLines = lines
+      .map((l) => canonicalizePhase(l.phase, base))
+      .filter((p): p is string => !!p);
+    return Array.from(new Set([...base, ...fromLines])).sort((a, b) => a.localeCompare(b));
+  }, [plan?.existingPhases, lines]);
+
   const applyBulk = () => {
     if (selected.size === 0) return;
+    const normalizedBulkPhase = canonicalizePhase(bulkPhase, phaseSuggestions);
     setLines((prev) =>
       prev.map((l) =>
         selected.has(l.itemId)
           ? {
               ...l,
-              phase: bulkPhase ? bulkPhase : l.phase,
+              phase: normalizedBulkPhase ? normalizedBulkPhase : l.phase,
               deadline: bulkDeadline ? bulkDeadline : l.deadline,
             }
           : l
       )
     );
+    if (normalizedBulkPhase) setBulkPhase(normalizedBulkPhase);
   };
 
   const blocked = (plan?.linesWithoutService.length || 0) > 0;

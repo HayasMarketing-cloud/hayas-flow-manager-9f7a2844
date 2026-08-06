@@ -244,8 +244,9 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
     const specialistEmail = specialist?.email;
     const specialistName = specialist?.name || 'Especialista';
 
-    // Get AM/PM email for notifications back to management
-    const managementEmail = 'info@hayas.es';
+    // F3: los eventos hacia gestión resuelven destinatarios en servidor
+    // (AM/PM de origen + admin/finanzas), sin destinatario fijo.
+    const managementEmail = MANAGEMENT_SCOPE;
     const managementName = 'Gestión';
 
     const buttonSize = compact ? 'sm' : 'default';

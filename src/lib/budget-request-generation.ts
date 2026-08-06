@@ -93,7 +93,9 @@ export async function buildBudgetGenerationPlan(budgetId: string): Promise<Gener
   ).sort((a, b) => a.localeCompare(b));
 
 
-  const generatedIds = new Set((existing || []).map((r: any) => r.budget_item_id));
+  const generatedIds = new Set(
+    (existing || []).filter((r: any) => r.budget_item_id).map((r: any) => r.budget_item_id)
+  );
   const pending = (items || []).filter((i: any) => !generatedIds.has(i.id));
 
   const specialistIds = pending

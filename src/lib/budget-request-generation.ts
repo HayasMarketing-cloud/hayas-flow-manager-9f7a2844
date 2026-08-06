@@ -171,8 +171,8 @@ export async function insertBudgetRequests(
   budget: any,
   lines: GenerationLine[],
   existingPhases: string[] = []
-): Promise<number> {
-  if (lines.length === 0) return 0;
+): Promise<{ count: number; requestIds: string[] }> {
+  if (lines.length === 0) return { count: 0, requestIds: [] };
 
 
   const payload = lines.map((line) => ({
@@ -197,7 +197,34 @@ export async function insertBudgetRequests(
     deadline: line.deadline || null,
   }));
 
-  const { error } = await supabase.from('financial_requests').insert(payload as any);
+  const { data, error } = await supabase
+    .from('financial_requests')
+    .insert(payload as any)
+    .select('id');
   if (error) throw error;
-  return payload.length;
+  return { count: payload.length, requestIds: (data || []).map((r: any) => r.id) };
 }
+
+/**
+ * F3 — Notificación agrupada de asignación (1 email por especialista).
+ * `notifySpecialistIds` permite anular por acto el flag del maestro.
+ */
+export async function sendBatchAssignmentNotification(
+  requestIds: string[],
+  notifySpecialistIds: string[]
+): Promise<{ notified: number; results: any[] } | null> {
+  if (requestIds.length === 0 || notifySpecialistIds.length === 0) return null;
+  const { data, error } = await supabase.functions.invoke(
+    'send-batch-assignment-notification',
+    {
+      body: {
+        requestIds,
+        notifySpecialistIds,
+        appUrl: window.location.origin,
+      },
+    }
+  );
+  if (error) throw error;
+  return data;
+}
+

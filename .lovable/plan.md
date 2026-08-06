@@ -58,20 +58,31 @@ El token se marca usado igualmente. La respuesta devuelve `{ accepted: [...], sk
 - `supabase/functions/generate-monthly-requests/index.ts`: se verifica que no invoca ninguna notificación (regla 4); sin cambios previstos.
 
 
-### Estructura del email agrupado
+### Estructura del email agrupado (asignación → especialista)
 
 1. Cabecera Hayas + asunto `N nuevos trabajos asignados — {Cliente}` (o `{Cliente} · {Presupuesto}`).
 2. Saludo al especialista y una línea de contexto (cliente, presupuesto de origen).
 3. Tabla: **Código · Título · Fase · Horas · Deadline**.
 4. Fila de totales: nº de requests, horas totales, coste total para ese especialista.
-5. CTA principal "Aceptar asignación" (todo el lote) + enlace secundario "Ver en FLOW".
-6. Nota de caducidad (7 días) y aviso de que los requests que ya hayan cambiado de estado no se verán afectados.
-7. Pie estándar.
+5. CTA principal "Aceptar asignación" (acepta el lote completo) + enlace secundario "Ver en FLOW".
+6. Línea de discrepancias: si algún detalle no encaja, contactar antes de aceptar o aceptar y comentar; horas y deadline son ajustables después de la aceptación.
+7. Nota de caducidad (7 días) y aviso de que los requests que ya hayan cambiado de estado no se verán afectados.
+8. Pie estándar.
+
+### Estructura del email agregado de vuelta a gestión
+
+Compuesto y enviado por `process-request-action` (una sola vez por acto de lote):
+
+1. Asunto `{Especialista} aceptó/rechazó N trabajos — {Cliente}`.
+2. Bloque de aceptados: tabla código · título · horas.
+3. Bloque de omitidos (si los hay): código · estado actual · motivo (ya avanzado / reasignado / cancelado).
+4. Totales y comentarios del especialista, si los dejó.
+5. Evidencia digital (IP, fecha) y enlace al presupuesto/listado.
 
 ## Riesgos
 
-- **Envío parcial**: si falla el email de un especialista, los requests ya están creados. Mitigación: la notificación no bloquea la generación; se reporta por toast y el reenvío queda disponible desde el listado.
-- **Reasignación posterior**: un token de lote emitido para el especialista A cubre requests que pueden reasignarse a B. Mitigación: al procesar se verifica que el `specialist_id` actual coincide con el del token; si no, el item se marca `skipped`.
+- **Envío parcial**: si falla el email de un especialista, los requests ya están creados. Mitigación: la notificación no bloquea la generación; se reporta por toast y el reenvío está disponible en el detalle del presupuesto.
+- **Reasignación posterior**: un token de lote emitido para el especialista A cubre requests que pueden reasignarse a B. Mitigación: se compara el `specialist_id` persistido en el token con el actual del request; si difiere, el item se marca `skipped` y el request de B no se toca.
 - **Volumen de emails de gestión**: admin + finanzas + AM puede dar varios destinatarios por evento. Mitigación: deduplicación y filtro `@hayas.es`.
 - **Cuota Gmail API**: un envío por especialista y evento; sigue muy por debajo del límite, pero se registran fallos por destinatario sin abortar el resto.
 - **Tokens huérfanos**: `on delete cascade` en ambas FKs evita filas puente sin request o sin token.
@@ -86,6 +97,8 @@ El token se marca usado igualmente. La respuesta devuelve `{ accepted: [...], sk
 6. Ejecución del cron de recurrentes: 0 emails enviados (log de la función y ausencia de tokens nuevos).
 7. Grep en el repo: cero ocurrencias de `info@hayas.es` como destinatario.
 8. Autocompletado de `phase` en el modal sugiere las fases existentes del presupuesto y `" fase  1 "` se guarda como `Fase 1` reutilizando la grafía existente.
+9. Al aceptar un lote de 5, gestión recibe **exactamente 1** email con los 5 listados (no 5 emails).
+10. Caso negativo de reasignación: token emitido para el especialista A sobre un request reasignado a B → ese item queda `skipped` y el request sigue asignado a B con su estado intacto.
 
 ## Complejidad estimada
 

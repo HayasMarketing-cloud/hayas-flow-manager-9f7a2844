@@ -28,6 +28,31 @@ export interface GenerationPlan {
   alreadyGeneratedCount: number;
   totalItems: number;
   linesWithoutService: string[];
+  /** Fases ya usadas en requests de este presupuesto (para autocompletado) */
+  existingPhases: string[];
+}
+
+/** Trim + colapsado de espacios internos. Devuelve null si queda vacío. */
+export function normalizePhase(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const cleaned = value.replace(/\s+/g, ' ').trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+/**
+ * Normaliza y, si ya existe una fase equivalente ignorando mayúsculas,
+ * reutiliza la grafía existente para evitar duplicados en las agrupaciones.
+ */
+export function canonicalizePhase(
+  value: string | null | undefined,
+  existingPhases: string[] = []
+): string | null {
+  const normalized = normalizePhase(value);
+  if (!normalized) return null;
+  const match = existingPhases.find(
+    (p) => p.toLocaleLowerCase() === normalized.toLocaleLowerCase()
+  );
+  return match || normalized;
 }
 
 export interface SpecialistSummary {
@@ -55,12 +80,22 @@ export async function buildBudgetGenerationPlan(budgetId: string): Promise<Gener
 
   const { data: existing, error: existingError } = await supabase
     .from('financial_requests')
-    .select('id, budget_item_id')
-    .eq('budget_id', budgetId)
-    .not('budget_item_id', 'is', null);
+    .select('id, budget_item_id, phase')
+    .eq('budget_id', budgetId);
   if (existingError) throw existingError;
 
-  const generatedIds = new Set((existing || []).map((r: any) => r.budget_item_id));
+  const existingPhases = Array.from(
+    new Set(
+      (existing || [])
+        .map((r: any) => normalizePhase(r.phase))
+        .filter((p): p is string => !!p)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
+
+  const generatedIds = new Set(
+    (existing || []).filter((r: any) => r.budget_item_id).map((r: any) => r.budget_item_id)
+  );
   const pending = (items || []).filter((i: any) => !generatedIds.has(i.id));
 
   const specialistIds = pending
@@ -104,6 +139,7 @@ export async function buildBudgetGenerationPlan(budgetId: string): Promise<Gener
     alreadyGeneratedCount: generatedIds.size,
     totalItems: (items || []).length,
     linesWithoutService: pending.filter((i: any) => !i.service_id).map((i: any) => i.description),
+    existingPhases,
   };
 }
 
@@ -126,8 +162,13 @@ export function summarizeBySpecialist(lines: GenerationLine[]): SpecialistSummar
   return Array.from(map.values()).sort((a, b) => a.specialistName.localeCompare(b.specialistName));
 }
 
-export async function insertBudgetRequests(budget: any, lines: GenerationLine[]): Promise<number> {
+export async function insertBudgetRequests(
+  budget: any,
+  lines: GenerationLine[],
+  existingPhases: string[] = []
+): Promise<number> {
   if (lines.length === 0) return 0;
+
 
   const payload = lines.map((line) => ({
     title: line.description,
@@ -147,7 +188,7 @@ export async function insertBudgetRequests(budget: any, lines: GenerationLine[])
     hours: line.hours,
     cost_rate: line.costRate,
     cost_to_agency: line.costToAgency,
-    phase: line.phase || null,
+    phase: canonicalizePhase(line.phase, existingPhases),
     deadline: line.deadline || null,
   }));
 

@@ -864,10 +864,18 @@ export default function PresupuestoDetalle() {
     setGenerationModalOpen(true);
   };
 
-  const handleConfirmGeneration = async ({ budget: planBudget, lines }: { budget: any; lines: any[] }) => {
+  const handleConfirmGeneration = async ({
+    budget: planBudget,
+    lines,
+    existingPhases,
+  }: {
+    budget: any;
+    lines: any[];
+    existingPhases?: string[];
+  }) => {
     try {
       if (lines.length > 0) {
-        await generateRequestsMutation.mutateAsync({ budget: planBudget, lines });
+        await generateRequestsMutation.mutateAsync({ budget: planBudget, lines, existingPhases });
       }
       if (generationMode === 'approve') {
         approveMutation.mutate({

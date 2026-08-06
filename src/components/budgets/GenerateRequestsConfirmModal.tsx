@@ -20,6 +20,7 @@ import { AlertTriangle, Loader2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/budget-utils';
 import {
   buildBudgetGenerationPlan,
+  canonicalizePhase,
   GenerationLine,
   summarizeBySpecialist,
 } from '@/lib/budget-request-generation';
@@ -30,7 +31,11 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   /** 'approve' añade el cambio de estado del presupuesto tras generar */
   mode: 'generate' | 'approve';
-  onConfirm: (args: { budget: any; lines: GenerationLine[] }) => Promise<void> | void;
+  onConfirm: (args: {
+    budget: any;
+    lines: GenerationLine[];
+    existingPhases: string[];
+  }) => Promise<void> | void;
   isSubmitting?: boolean;
 }
 
@@ -78,19 +83,29 @@ export function GenerateRequestsConfirmModal({
     });
   };
 
+  const phaseSuggestions = useMemo(() => {
+    const base = plan?.existingPhases || [];
+    const fromLines = lines
+      .map((l) => canonicalizePhase(l.phase, base))
+      .filter((p): p is string => !!p);
+    return Array.from(new Set([...base, ...fromLines])).sort((a, b) => a.localeCompare(b));
+  }, [plan?.existingPhases, lines]);
+
   const applyBulk = () => {
     if (selected.size === 0) return;
+    const normalizedBulkPhase = canonicalizePhase(bulkPhase, phaseSuggestions);
     setLines((prev) =>
       prev.map((l) =>
         selected.has(l.itemId)
           ? {
               ...l,
-              phase: bulkPhase ? bulkPhase : l.phase,
+              phase: normalizedBulkPhase ? normalizedBulkPhase : l.phase,
               deadline: bulkDeadline ? bulkDeadline : l.deadline,
             }
           : l
       )
     );
+    if (normalizedBulkPhase) setBulkPhase(normalizedBulkPhase);
   };
 
   const blocked = (plan?.linesWithoutService.length || 0) > 0;
@@ -196,12 +211,22 @@ export function GenerateRequestsConfirmModal({
                   </Alert>
                 )}
 
+                <datalist id="phase-suggestions">
+                  {phaseSuggestions.map((p) => (
+                    <option key={p} value={p} />
+                  ))}
+                </datalist>
+
                 <div className="flex flex-wrap items-end gap-2 rounded-md border p-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Fase (bloque)</Label>
                     <Input
                       value={bulkPhase}
+                      list="phase-suggestions"
                       onChange={(e) => setBulkPhase(e.target.value)}
+                      onBlur={(e) =>
+                        setBulkPhase(canonicalizePhase(e.target.value, phaseSuggestions) || '')
+                      }
                       placeholder="Ej. Fase 1"
                       className="h-8 w-40"
                     />
@@ -250,8 +275,14 @@ export function GenerateRequestsConfirmModal({
                         <TableCell>
                           <Input
                             className="h-8"
+                            list="phase-suggestions"
                             value={l.phase || ''}
                             onChange={(e) => updateLine(l.itemId, { phase: e.target.value || null })}
+                            onBlur={(e) =>
+                              updateLine(l.itemId, {
+                                phase: canonicalizePhase(e.target.value, phaseSuggestions),
+                              })
+                            }
                           />
                         </TableCell>
                         <TableCell>
@@ -278,7 +309,14 @@ export function GenerateRequestsConfirmModal({
             Cancelar
           </Button>
           <Button
-            onClick={() => plan && onConfirm({ budget: plan.budget, lines })}
+            onClick={() =>
+              plan &&
+              onConfirm({
+                budget: plan.budget,
+                lines,
+                existingPhases: plan.existingPhases || [],
+              })
+            }
             disabled={blocked || isSubmitting || isLoading || (mode === 'generate' && lines.length === 0)}
           >
             {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

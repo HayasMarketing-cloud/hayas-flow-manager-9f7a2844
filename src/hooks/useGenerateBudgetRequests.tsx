@@ -10,8 +10,16 @@ export const useGenerateBudgetRequests = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ budget, lines }: { budget: any; lines: GenerationLine[] }) => {
-      return await insertBudgetRequests(budget, lines);
+    mutationFn: async ({
+      budget,
+      lines,
+      existingPhases,
+    }: {
+      budget: any;
+      lines: GenerationLine[];
+      existingPhases?: string[];
+    }) => {
+      return await insertBudgetRequests(budget, lines, existingPhases || []);
     },
     onSuccess: (count, variables) => {
       queryClient.invalidateQueries({ queryKey: ['budget-detail', variables.budget.id] });

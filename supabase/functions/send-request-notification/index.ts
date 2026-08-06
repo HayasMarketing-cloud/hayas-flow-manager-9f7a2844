@@ -445,29 +445,49 @@ const handler = async (req: Request): Promise<Response> => {
       actionToken
     );
 
+    // Resolve recipients: dynamic management list or a single direct address
+    let recipients: string[] = [];
+    if (recipientScope === 'management') {
+      const { emails } = await resolveManagementRecipients(supabase, {
+        clientId: request.client_id,
+        budgetId: request.budget_id,
+        contractId: request.contract_id,
+      });
+      recipients = emails;
+    } else if (recipientEmail) {
+      recipients = [recipientEmail];
+    }
+
+    if (recipients.length === 0) {
+      throw new Error("No se han podido resolver destinatarios para la notificación");
+    }
+
     // Get access token by impersonating the sender
     const accessToken = await getAccessToken(serviceAccountEmail, serviceAccountPrivateKey, senderEmail);
 
-    // Send via Gmail API
-    const emailResult = await sendViaGmailAPI(
-      accessToken,
-      senderEmail,
-      recipientEmail,
-      subject,
-      html
-    );
-
-    if (!emailResult.success) {
-      throw new Error(emailResult.error || "Failed to send email via Gmail API");
+    let lastMessageId: string | undefined;
+    let anySent = false;
+    for (const to of recipients) {
+      const emailResult = await sendViaGmailAPI(accessToken, senderEmail, to, subject, html);
+      if (emailResult.success) {
+        anySent = true;
+        lastMessageId = emailResult.messageId;
+        console.log(`Notification sent successfully to ${to}`);
+      } else {
+        console.error(`Failed sending to ${to}: ${emailResult.error}`);
+      }
     }
 
-    console.log(`Notification sent successfully to ${recipientEmail}, messageId: ${emailResult.messageId}`);
+    if (!anySent) {
+      throw new Error("Failed to send email via Gmail API");
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: "Notificación enviada correctamente",
-        messageId: emailResult.messageId,
+        messageId: lastMessageId,
+        recipients,
         actionToken: actionToken || null,
       }),
       {

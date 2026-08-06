@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, Trash2, CloudOff, Cloud, FileDown, Users, FileSignature, ExternalLink, FolderKanban, ListChecks, PiggyBank, Link2, Check } from 'lucide-react';
+import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, Trash2, CloudOff, Cloud, FileDown, Users, FileSignature, ExternalLink, FolderKanban, ListChecks, PiggyBank, Link2, Check, Mail } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { generateBudgetPDF } from '@/utils/pdf/budgetPDFGenerator';
 import { useBudgetDetail } from '@/hooks/useBudgetDetail';

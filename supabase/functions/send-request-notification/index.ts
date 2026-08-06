@@ -375,6 +375,7 @@ const handler = async (req: Request): Promise<Response> => {
       senderEmail,
       appUrl,
       additionalMessage,
+      recipientScope,
     }: NotificationRequest = await req.json();
 
     // Validate sender email is from hayas.es domain

@@ -162,8 +162,13 @@ export function summarizeBySpecialist(lines: GenerationLine[]): SpecialistSummar
   return Array.from(map.values()).sort((a, b) => a.specialistName.localeCompare(b.specialistName));
 }
 
-export async function insertBudgetRequests(budget: any, lines: GenerationLine[]): Promise<number> {
+export async function insertBudgetRequests(
+  budget: any,
+  lines: GenerationLine[],
+  existingPhases: string[] = []
+): Promise<number> {
   if (lines.length === 0) return 0;
+
 
   const payload = lines.map((line) => ({
     title: line.description,

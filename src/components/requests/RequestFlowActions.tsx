@@ -31,6 +31,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 
+/** Sentinela: los destinatarios de gestión se resuelven en el servidor (F3). */
+const MANAGEMENT_SCOPE = '__management__';
+
 type NotificationType = 
   | 'specialist_assigned'
   | 'specialist_accepted'

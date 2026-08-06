@@ -46,15 +46,17 @@ El token se marca usado igualmente. La respuesta devuelve `{ accepted: [...], sk
 
 ## Funciones y ficheros afectados
 
-- **Nueva** `supabase/functions/send-batch-assignment-notification/index.ts`: agrupa por especialista, crea tokens + items, compone y envía el email agrupado vía Gmail (mismo mecanismo de impersonación @hayas.es ya usado en `send-request-notification`).
+- **Nueva** `supabase/functions/send-batch-assignment-notification/index.ts`: agrupa por especialista, crea tokens + items (con `specialist_id`), compone y envía el email agrupado vía Gmail (mismo mecanismo de impersonación @hayas.es ya usado en `send-request-notification`). Acepta `resend: true` para reemitir el lote de un especialista concreto.
 - **Nuevo** `supabase/functions/_shared/management-recipients.ts`: resuelve destinatarios de gestión — AM/PM del presupuesto o contrato de origen (o `client_assignments` como fallback) + usuarios con rol `admin` y `finanzas` vía `user_roles → profiles.email`, filtrado `@hayas.es` y deduplicado por email en minúsculas. Mismo patrón que `send-liquidation-email`.
-- `supabase/functions/process-request-action/index.ts`: rama de lote (recorrido de items, parciales, rollback por item) y sustitución del bloque de destinatarios actual (líneas 364-372) por el helper compartido.
+- `supabase/functions/process-request-action/index.ts`: rama de lote (recorrido de items, parciales, verificación anti-reasignación) y sustitución del bloque de destinatarios actual (líneas 364-372) por el helper compartido. **Esta misma función compone y envía la notificación agregada de vuelta a gestión**: un único email por acto de lote, con tabla de aceptados y de omitidos (código, título, motivo) y totales, en lugar de un email por request. Los eventos individuales (creación manual, terminado, correcciones, aprobado) siguen generando emails unitarios.
 - `supabase/functions/validate-request-action-token/index.ts`: soporte de tokens de lote.
-- `src/pages/AccionRequest.tsx`: render de lote (tabla de requests, resultado con aceptados/omitidos).
+- `src/pages/AccionRequest.tsx`: render de lote (tabla de requests, aviso de discrepancias, resultado con aceptados/omitidos).
 - `src/components/requests/RequestFlowActions.tsx`: elimina `managementEmail = 'info@hayas.es'` (línea 248); los eventos de flujo dejan de pasar un destinatario fijo y el envío resuelve destinatarios en el servidor.
 - `src/pages/SolicitudDetalle.tsx` y `src/hooks/useOperationalProjects.tsx`: ajustan la invocación al nuevo contrato (sin `recipientEmail` para eventos hacia gestión).
 - `src/lib/budget-request-generation.ts` + `src/hooks/useGenerateBudgetRequests.tsx`: tras insertar, invocan la notificación agrupada con los ids creados.
+- `src/pages/PresupuestoDetalle.tsx`: **punto de reenvío**. En el bloque de requests del presupuesto, agrupados por especialista, una acción "Reenviar asignación a {especialista}" (visible para gestión) que invoca la función con `resend: true`; invalida el token pendiente anterior y emite uno nuevo con 7 días. Se muestra el estado del último envío (fecha, o "no enviado") por especialista.
 - `supabase/functions/generate-monthly-requests/index.ts`: se verifica que no invoca ninguna notificación (regla 4); sin cambios previstos.
+
 
 ### Estructura del email agrupado
 

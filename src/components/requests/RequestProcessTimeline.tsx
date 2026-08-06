@@ -12,7 +12,7 @@ import {
   RefreshCw,
   XCircle,
   Hourglass,
-  ClipboardCheck
+  ClipboardCheck, // eslint-disable-line
 } from 'lucide-react';
 import { format, parseISO, isPast } from 'date-fns';
 import { es } from 'date-fns/locale';

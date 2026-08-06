@@ -28,6 +28,31 @@ export interface GenerationPlan {
   alreadyGeneratedCount: number;
   totalItems: number;
   linesWithoutService: string[];
+  /** Fases ya usadas en requests de este presupuesto (para autocompletado) */
+  existingPhases: string[];
+}
+
+/** Trim + colapsado de espacios internos. Devuelve null si queda vacío. */
+export function normalizePhase(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const cleaned = value.replace(/\s+/g, ' ').trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+/**
+ * Normaliza y, si ya existe una fase equivalente ignorando mayúsculas,
+ * reutiliza la grafía existente para evitar duplicados en las agrupaciones.
+ */
+export function canonicalizePhase(
+  value: string | null | undefined,
+  existingPhases: string[] = []
+): string | null {
+  const normalized = normalizePhase(value);
+  if (!normalized) return null;
+  const match = existingPhases.find(
+    (p) => p.toLocaleLowerCase() === normalized.toLocaleLowerCase()
+  );
+  return match || normalized;
 }
 
 export interface SpecialistSummary {

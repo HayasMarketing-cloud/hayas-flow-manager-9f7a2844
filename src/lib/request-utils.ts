@@ -6,7 +6,7 @@ export const getFinancialRequestStatusColor = (status: FinancialRequestStatus): 
   const colors: Record<FinancialRequestStatus, string> = {
     draft: 'bg-muted text-muted-foreground',
     pending_specialist: 'bg-yellow-500 text-white',
-    pending_approval: 'bg-orange-500 text-white',
+    pending_approval: 'bg-muted text-muted-foreground', // obsoleto (F1): no se usa
     in_progress: 'bg-blue-500 text-white',
     pending_review: 'bg-purple-500 text-white',
     completed: 'bg-green-500 text-white',

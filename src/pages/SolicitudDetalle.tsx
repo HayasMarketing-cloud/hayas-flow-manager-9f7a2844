@@ -224,8 +224,15 @@ const SolicitudDetalle = () => {
         code: newCode,
         billed_invoice_id: null,
         liquidation_id: null,
-        completed_at: null
+        completed_at: null,
+        // Un clon no hereda el origen económico: se re-vincula manualmente
+        budget_item_id: null,
+        budget_id: null,
+        approved_by: null,
+        deliverable_url: null,
+        deliverable_filename: null,
       })
+
       .select('id')
       .single();
 

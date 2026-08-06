@@ -16,14 +16,14 @@ Paso 0: `CREATE TABLE public._backup_request_action_tokens_<fecha> AS SELECT * F
 
 Cambios:
 
-- `request_action_tokens`: `request_id` pasa a **nullable** (los tokens de lote no apuntan a un request único) y se añade `action_type = 'specialist_batch_response'` como valor admitido. Los tokens existentes conservan su `request_id` y siguen funcionando sin cambios.
+- `request_action_tokens`: `request_id` pasa a **nullable** (los tokens de lote no apuntan a un request único), se añade `action_type = 'specialist_batch_response'` como valor admitido y una columna **`specialist_id uuid references specialists(id)`** que persiste el especialista al que se emitió el token (base de la verificación anti-reasignación; no se infiere del request). Los tokens existentes conservan su `request_id` y siguen funcionando sin cambios.
 - Nueva tabla `request_action_token_items`:
-  - `id uuid pk`, `token_id uuid not null references request_action_tokens(id) on delete cascade`, `request_id uuid not null references financial_requests(id) on delete cascade`, `status text not null default 'pending'` (`pending` | `accepted` | `skipped`), `processed_at timestamptz`, `created_at timestamptz`.
+  - `id uuid pk`, `token_id uuid not null references request_action_tokens(id) on delete cascade`, `request_id uuid not null references financial_requests(id) on delete cascade`, `status text not null default 'pending'` (`pending` | `accepted` | `skipped`), `skip_reason text`, `processed_at timestamptz`, `created_at timestamptz`.
   - `unique (token_id, request_id)`.
   - Índices por `token_id` y por `request_id`.
   - GRANTs: solo `service_role` (todo el ciclo pasa por Edge Functions). Sin GRANT a `anon`/`authenticated`.
   - RLS activada; política de lectura únicamente para admin/finanzas (igual que `request_action_tokens`). Ninguna política para `anon`.
-- Check de integridad por trigger: un token con `action_type = 'specialist_batch_response'` debe tener `request_id IS NULL` y al menos una fila en la tabla puente; un token individual debe tener `request_id NOT NULL`.
+- Check de integridad por trigger: un token con `action_type = 'specialist_batch_response'` debe tener `request_id IS NULL`, `specialist_id NOT NULL` y al menos una fila en la tabla puente; un token individual debe tener `request_id NOT NULL`.
 
 ### Ciclo de vida del token de lote
 

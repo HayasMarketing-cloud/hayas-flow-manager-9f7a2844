@@ -54,6 +54,10 @@ const requestSchema = z.object({
   description: z.string().optional().nullable(),
   quantity: z.coerce.number().min(0, 'No puede ser negativo'),
   deadline: z.string().optional().nullable(),
+  phase: z.string().max(100).optional().nullable(),
+  requires_deliverable: z.boolean().default(false),
+  deliverable_url: z.string().optional().nullable(),
+
   status: z.enum(['draft', 'pending_specialist', 'in_progress', 'pending_review', 'completed', 'cancelled']),
   // Sale/Price fields (to client)
   sale_type: z.enum(['hourly', 'fixed']).default('fixed'),

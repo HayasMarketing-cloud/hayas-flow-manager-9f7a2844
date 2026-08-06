@@ -36,6 +36,7 @@ import { BudgetLinkedInvoicesCard } from '@/components/budgets/BudgetLinkedInvoi
 import { BudgetInvoicingSummary } from '@/components/budgets/BudgetInvoicingSummary';
 import { GenerateRequestsConfirmModal } from '@/components/budgets/GenerateRequestsConfirmModal';
 import { useGenerateBudgetRequests } from '@/hooks/useGenerateBudgetRequests';
+import { sendBatchAssignmentNotification } from '@/lib/budget-request-generation';
 
 
 export default function PresupuestoDetalle() {

@@ -275,8 +275,14 @@ export function GenerateRequestsConfirmModal({
                         <TableCell>
                           <Input
                             className="h-8"
+                            list="phase-suggestions"
                             value={l.phase || ''}
                             onChange={(e) => updateLine(l.itemId, { phase: e.target.value || null })}
+                            onBlur={(e) =>
+                              updateLine(l.itemId, {
+                                phase: canonicalizePhase(e.target.value, phaseSuggestions),
+                              })
+                            }
                           />
                         </TableCell>
                         <TableCell>

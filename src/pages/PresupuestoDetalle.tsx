@@ -1244,6 +1244,21 @@ export default function PresupuestoDetalle() {
                             <ExternalLink className="h-4 w-4 ml-2" />
                           </Button>
                         )}
+                        {requests.some((r: any) => r.specialist_id && r.status === 'pending_specialist') && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleResendAssignment}
+                            disabled={resending}
+                          >
+                            {resending ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Mail className="h-4 w-4 mr-2" />
+                            )}
+                            Reenviar asignación
+                          </Button>
+                        )}
                         {budget.status === 'approved' && ungeneratedItems.length > 0 && (
                           <Button
                             variant="outline"

@@ -19,7 +19,7 @@ export const getFinancialRequestStatusLabel = (status: FinancialRequestStatus): 
   const labels: Record<FinancialRequestStatus, string> = {
     draft: 'Borrador',
     pending_specialist: 'Pend. Especialista',
-    pending_approval: 'Pend. Aprobación',
+    pending_approval: 'En Progreso', // obsoleto (F1): remapeado a in_progress
     in_progress: 'En Progreso',
     pending_review: 'Pend. Revisión',
     completed: 'Completado',

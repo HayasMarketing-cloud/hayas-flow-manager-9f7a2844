@@ -372,7 +372,27 @@ export default function Presupuestos() {
     if (!budgetToDelete) return;
 
     try {
+      // 0. Bloquear si hay requests facturados o liquidados
+      const { data: protectedReqs, error: protectedError } = await supabase
+        .from('financial_requests')
+        .select('code, billed_invoice_id, liquidation_id')
+        .eq('budget_id', budgetToDelete.id);
+      if (protectedError) throw protectedError;
+
+      const blocking = (protectedReqs || []).filter(
+        (r: any) => r.billed_invoice_id || r.liquidation_id
+      );
+      if (blocking.length > 0) {
+        toast.error(
+          `No se puede eliminar: ${blocking.length} request(s) están facturados o liquidados (${blocking
+            .map((r: any) => r.code)
+            .join(', ')}).`
+        );
+        return;
+      }
+
       // 1. Obtener proyectos asociados
+
       const { data: projects } = await supabase
         .from('operational_projects')
         .select('id')

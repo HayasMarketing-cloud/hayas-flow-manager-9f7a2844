@@ -51,6 +51,9 @@ export default function PresupuestoDetalle() {
   
   // Estados para flujo de aprobación
   const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [generationModalOpen, setGenerationModalOpen] = useState(false);
+  const [generationMode, setGenerationMode] = useState<'generate' | 'approve'>('generate');
+
   
   // Estados para eliminación
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);

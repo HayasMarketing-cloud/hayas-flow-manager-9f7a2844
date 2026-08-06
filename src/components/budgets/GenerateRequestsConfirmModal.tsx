@@ -20,6 +20,7 @@ import { AlertTriangle, Loader2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/budget-utils';
 import {
   buildBudgetGenerationPlan,
+  canonicalizePhase,
   GenerationLine,
   summarizeBySpecialist,
 } from '@/lib/budget-request-generation';
@@ -30,7 +31,11 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   /** 'approve' añade el cambio de estado del presupuesto tras generar */
   mode: 'generate' | 'approve';
-  onConfirm: (args: { budget: any; lines: GenerationLine[] }) => Promise<void> | void;
+  onConfirm: (args: {
+    budget: any;
+    lines: GenerationLine[];
+    existingPhases: string[];
+  }) => Promise<void> | void;
   isSubmitting?: boolean;
 }
 

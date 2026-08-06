@@ -54,7 +54,7 @@ const requestSchema = z.object({
   description: z.string().optional().nullable(),
   quantity: z.coerce.number().min(0, 'No puede ser negativo'),
   deadline: z.string().optional().nullable(),
-  status: z.enum(['draft', 'pending_specialist', 'pending_approval', 'in_progress', 'pending_review', 'completed', 'cancelled']),
+  status: z.enum(['draft', 'pending_specialist', 'in_progress', 'pending_review', 'completed', 'cancelled']),
   // Sale/Price fields (to client)
   sale_type: z.enum(['hourly', 'fixed']).default('fixed'),
   unit_price: z.coerce.number().min(0).optional().nullable(),
@@ -1412,7 +1412,6 @@ export const RequestFormModal = ({
                     <SelectContent>
                       <SelectItem value="draft">Borrador</SelectItem>
                       <SelectItem value="pending_specialist">Pend. Especialista</SelectItem>
-                      <SelectItem value="pending_approval">Pend. Aprobación</SelectItem>
                       <SelectItem value="in_progress">En Progreso</SelectItem>
                       <SelectItem value="pending_review">Pend. Revisión</SelectItem>
                       <SelectItem value="completed">Completado</SelectItem>

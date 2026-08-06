@@ -42,7 +42,7 @@ export default function DashboardEspecialista() {
         .from('specialist_my_requests' as any)
         .select('id, cost_to_agency')
         .eq('specialist_id', specialist.id)
-        .in('status', ['pending_specialist', 'pending_approval', 'in_progress', 'pending_review']);
+        .in('status', ['pending_specialist', 'in_progress', 'pending_review']);
 
       // Pending liquidations
       const { data: liquidations } = await supabase

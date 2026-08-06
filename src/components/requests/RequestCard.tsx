@@ -28,7 +28,6 @@ type FinancialRequestStatus = Database['public']['Enums']['financial_request_sta
 const REQUEST_STATUSES: { value: FinancialRequestStatus; label: string }[] = [
   { value: 'draft', label: 'Borrador' },
   { value: 'pending_specialist', label: 'Pend. Especialista' },
-  { value: 'pending_approval', label: 'Pend. Aprobación' },
   { value: 'in_progress', label: 'En Progreso' },
   { value: 'pending_review', label: 'Pend. Revisión' },
   { value: 'completed', label: 'Completado' },

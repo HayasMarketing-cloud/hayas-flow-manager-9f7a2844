@@ -181,13 +181,13 @@ export const useDashboardKPIs = (filters: DashboardFilters, previousPeriod: { ye
         supabase
           .from('financial_requests')
           .select('id')
-          .in('status', ['pending_specialist', 'pending_approval', 'in_progress', 'pending_review'])
+          .in('status', ['pending_specialist', 'in_progress', 'pending_review'])
           .gte('created_at', currentRange.start)
           .lte('created_at', currentRange.end),
         supabase
           .from('financial_requests')
           .select('id')
-          .in('status', ['pending_specialist', 'pending_approval', 'in_progress', 'pending_review'])
+          .in('status', ['pending_specialist', 'in_progress', 'pending_review'])
           .gte('created_at', previousRange.start)
           .lte('created_at', previousRange.end),
       ]);

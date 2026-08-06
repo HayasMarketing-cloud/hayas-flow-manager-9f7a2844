@@ -1,7 +1,7 @@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Database } from '@/integrations/supabase/types';
 import { cn } from '@/lib/utils';
-import { FileText, User, CheckCircle, Briefcase, Eye, Flag, XCircle } from 'lucide-react';
+import { FileText, User, Briefcase, Eye, Flag, XCircle } from 'lucide-react';
 
 type FinancialRequestStatus = Database['public']['Enums']['financial_request_status'];
 
@@ -14,7 +14,6 @@ interface RequestFlowIndicatorProps {
 const FLOW_STEPS = [
   { key: 'draft', label: 'Borrador', icon: FileText, short: 'D' },
   { key: 'pending_specialist', label: 'Especialista', icon: User, short: 'S' },
-  { key: 'pending_approval', label: 'Aprobación', icon: CheckCircle, short: 'A' },
   { key: 'in_progress', label: 'En Progreso', icon: Briefcase, short: 'P' },
   { key: 'pending_review', label: 'Revisión', icon: Eye, short: 'R' },
   { key: 'completed', label: 'Completado', icon: Flag, short: 'C' },
@@ -23,10 +22,10 @@ const FLOW_STEPS = [
 const STATUS_ORDER: Record<FinancialRequestStatus, number> = {
   draft: 0,
   pending_specialist: 1,
-  pending_approval: 2,
-  in_progress: 3,
-  pending_review: 4,
-  completed: 5,
+  pending_approval: 2, // obsoleto (F1)
+  in_progress: 2,
+  pending_review: 3,
+  completed: 4,
   cancelled: -1,
 };
 

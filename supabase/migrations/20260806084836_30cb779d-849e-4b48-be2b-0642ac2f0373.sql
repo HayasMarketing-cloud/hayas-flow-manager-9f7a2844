@@ -1,0 +1,1 @@
+DELETE FROM public.specialists WHERE id = '5f93f22b-b6eb-4f02-8171-9d1923445d96';

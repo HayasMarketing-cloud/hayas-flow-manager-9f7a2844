@@ -64,7 +64,6 @@ export default function PresupuestoDetalle() {
   } | null>(null);
   const [isLoadingAssociatedData, setIsLoadingAssociatedData] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isGeneratingRequests, setIsGeneratingRequests] = useState(false);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   

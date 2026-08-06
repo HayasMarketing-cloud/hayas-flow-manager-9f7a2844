@@ -12,7 +12,7 @@ import {
   RefreshCw,
   XCircle,
   Hourglass,
-  ClipboardCheck
+  ClipboardCheck, // eslint-disable-line
 } from 'lucide-react';
 import { format, parseISO, isPast } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -22,7 +22,6 @@ type RequestStatus =
   | 'pending_specialist'
   | 'accepted'
   | 'rejected'
-  | 'pending_approval'
   | 'in_progress'
   | 'pending_review'
   | 'completed'
@@ -70,7 +69,6 @@ const statusOrder: RequestStatus[] = [
   'draft',
   'pending_specialist',
   'accepted',
-  'pending_approval',
   'in_progress',
   'pending_review',
   'completed',
@@ -193,38 +191,6 @@ const buildTimelineSteps = (
     return steps;
   }
 
-  // 4. Pendiente aprobación
-  if (request.status === 'pending_approval') {
-    steps.push({
-      id: 'pending_approval',
-      label: 'Pendiente aprobación',
-      status: 'current',
-      description: 'Esperando aprobación de gestión',
-    });
-  } else if (currentStatusIndex > getStatusIndex('pending_approval') || request.status === 'accepted') {
-    if (request.status === 'accepted') {
-      steps.push({
-        id: 'pending_approval',
-        label: 'Pendiente aprobación',
-        status: 'current',
-        description: 'Esperando aprobación para iniciar',
-      });
-    } else {
-      steps.push({
-        id: 'pending_approval',
-        label: 'Aprobado',
-        status: 'completed',
-        description: 'Trabajo aprobado para comenzar',
-      });
-    }
-  } else if (currentStatusIndex < getStatusIndex('pending_approval')) {
-    steps.push({
-      id: 'pending_approval',
-      label: 'Pendiente aprobación',
-      status: 'pending',
-    });
-  }
-
   // 5. En progreso
   if (request.status === 'in_progress') {
     steps.push({
@@ -320,8 +286,6 @@ const getStepIcon = (stepId: string, status: TimelineStepStatus) => {
       return <Send {...iconProps} />;
     case 'specialist_response':
       return status === 'completed' ? <UserCheck {...iconProps} /> : <Clock {...iconProps} />;
-    case 'pending_approval':
-      return <ClipboardCheck {...iconProps} />;
     case 'in_progress':
       return <PlayCircle {...iconProps} />;
     case 'pending_review':

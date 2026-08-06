@@ -269,27 +269,77 @@ export const BudgetFormModal = ({
 
         if (budgetError) throw budgetError;
 
-        // Eliminar items antiguos y crear nuevos
-        await supabase.from('budget_items').delete().eq('budget_id', budget.id);
+        // Edición idempotente de líneas: nunca borramos+reinsertamos el bloque
+        // completo (eso desvinculaba budget_item_id de los requests existentes).
+        const existingIds = (budgetItems || []).map((bi: any) => bi.id);
+        const keptIds = items.filter((i: any) => i.id).map((i: any) => i.id);
+        const removedIds = existingIds.filter((id: string) => !keptIds.includes(id));
 
-        if (items.length > 0) {
-          const itemsToInsert = items.map((item) => ({
-            budget_id: budget.id,
-            service_id: item.service_id,
-            specialist_id: item.specialist_id || null,
-            description: item.description,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            total: item.total,
-            notes: item.notes,
-          }));
+        // 1) Actualizar las líneas existentes en su sitio
+        for (const item of items.filter((i: any) => i.id)) {
+          const { error } = await supabase
+            .from('budget_items')
+            .update({
+              service_id: item.service_id,
+              specialist_id: item.specialist_id || null,
+              description: item.description,
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+              total: item.total,
+              notes: item.notes,
+            })
+            .eq('id', (item as any).id);
+          if (error) throw error;
+        }
 
+        // 2) Insertar sólo las líneas nuevas
+        const newItems = items.filter((i: any) => !i.id);
+        if (newItems.length > 0) {
           const { error: itemsError } = await supabase
             .from('budget_items')
-            .insert(itemsToInsert);
-
+            .insert(
+              newItems.map((item) => ({
+                budget_id: budget.id,
+                service_id: item.service_id,
+                specialist_id: item.specialist_id || null,
+                description: item.description,
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                total: item.total,
+                notes: item.notes,
+              }))
+            );
           if (itemsError) throw itemsError;
         }
+
+        // 3) Borrar las eliminadas, salvo que tengan requests vinculados
+        if (removedIds.length > 0) {
+          const { data: linked, error: linkedError } = await supabase
+            .from('financial_requests')
+            .select('code, budget_item_id')
+            .in('budget_item_id', removedIds);
+          if (linkedError) throw linkedError;
+
+          const blocked = new Set((linked || []).map((r: any) => r.budget_item_id));
+          const deletable = removedIds.filter((id: string) => !blocked.has(id));
+
+          if (deletable.length > 0) {
+            const { error: delError } = await supabase
+              .from('budget_items')
+              .delete()
+              .in('id', deletable);
+            if (delError) throw delError;
+          }
+
+          if (blocked.size > 0) {
+            toast.warning(
+              `${blocked.size} línea(s) no se han eliminado porque tienen requests asociados (${(linked || [])
+                .map((r: any) => r.code)
+                .join(', ')}).`
+            );
+          }
+        }
+
 
         // Registrar en activity_log
         await supabase.from('activity_log').insert({

@@ -571,7 +571,6 @@ const Solicitudes = () => {
                 <SelectItem value="all">Todos los estados</SelectItem>
                 <SelectItem value="draft">Borrador</SelectItem>
                 <SelectItem value="pending_specialist">Pend. Especialista</SelectItem>
-                <SelectItem value="pending_approval">Pend. Aprobación</SelectItem>
                 <SelectItem value="in_progress">En Progreso</SelectItem>
                 <SelectItem value="pending_review">Pend. Revisión</SelectItem>
                 <SelectItem value="completed">Completado</SelectItem>
@@ -734,7 +733,6 @@ const Solicitudes = () => {
                   const labels: Record<string, string> = {
                     draft: 'Borrador',
                     pending_specialist: 'Pend. Especialista',
-                    pending_approval: 'Pend. Aprobación',
                     in_progress: 'En Progreso',
                     pending_review: 'Pend. Revisión',
                     completed: 'Completado',
@@ -749,7 +747,6 @@ const Solicitudes = () => {
                 <SelectContent>
                   <SelectItem value="draft">Borrador</SelectItem>
                   <SelectItem value="pending_specialist">Pend. Especialista</SelectItem>
-                  <SelectItem value="pending_approval">Pend. Aprobación</SelectItem>
                   <SelectItem value="in_progress">En Progreso</SelectItem>
                   <SelectItem value="pending_review">Pend. Revisión</SelectItem>
                   <SelectItem value="completed">Completado</SelectItem>

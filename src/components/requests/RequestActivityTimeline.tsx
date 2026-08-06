@@ -131,7 +131,6 @@ const getStatusLabel = (status: string) => {
   const labels: Record<string, string> = {
     draft: 'Borrador',
     pending_specialist: 'Pend. Especialista',
-    pending_approval: 'Pend. Aprobación',
     in_progress: 'En Progreso',
     pending_review: 'Pend. Revisión',
     completed: 'Completado',

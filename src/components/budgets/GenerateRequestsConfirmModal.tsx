@@ -166,6 +166,7 @@ export function GenerateRequestsConfirmModal({
                         <TableHead className="text-right">Requests</TableHead>
                         <TableHead className="text-right">Horas</TableHead>
                         <TableHead className="text-right">Coste</TableHead>
+                        <TableHead className="text-center">Notificar</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -182,6 +183,22 @@ export function GenerateRequestsConfirmModal({
                           <TableCell className="text-right">{s.count}</TableCell>
                           <TableCell className="text-right">{s.hours}</TableCell>
                           <TableCell className="text-right">{formatCurrency(s.cost)}</TableCell>
+                          <TableCell className="text-center">
+                            {s.specialistId ? (
+                              <Checkbox
+                                checked={notifyMap[s.specialistId] ?? true}
+                                onCheckedChange={(v) =>
+                                  setNotifyMap((prev) => ({
+                                    ...prev,
+                                    [s.specialistId as string]: !!v,
+                                  }))
+                                }
+                                aria-label={`Notificar a ${s.specialistName}`}
+                              />
+                            ) : (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
                       <TableRow className="font-medium">
@@ -189,6 +206,7 @@ export function GenerateRequestsConfirmModal({
                         <TableCell className="text-right">{lines.length}</TableCell>
                         <TableCell className="text-right">{totalHours}</TableCell>
                         <TableCell className="text-right">{formatCurrency(totalCost)}</TableCell>
+                        <TableCell />
                       </TableRow>
                     </TableBody>
                   </Table>

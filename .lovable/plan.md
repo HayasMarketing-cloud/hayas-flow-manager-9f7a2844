@@ -41,16 +41,18 @@ Patrón de escritura del editor (verificado en código):
 | REQ-2026-496 | DK_Home, ePAQ, Parcel Delivery, SmartDesign, SD Section About US | Iolanda Carbone | ASENDIA HQ |
 | REQ-2026-498 | USA_Home, ePAQ, Parcel Delivery, SmartDesign, SD Section About US | Iolanda Carbone | ASENDIA HQ |
 
-Todos tienen especialista asignado → el remapeo a `pending_specialist` es coherente (ninguno queda huérfano).
+Destino tras tus ajustes: los **13 de Iolanda (REQ-2026-483 … 498)** pasan a `in_progress` (ya habían aceptado; devolverlos a `pending_specialist` desharía la aceptación). **REQ-2026-219** se excluye del remapeo y pasa a `cancelled` con nota.
 
 ## 1. Alcance de F1 (tras tus decisiones)
 
 Incluye:
 
-- Eliminación de `pending_approval` del enum operativo y remapeo de los 14 requests a `pending_specialist`.
+- Respaldo interno de tablas afectadas (paso 0).
+- Retirada operativa de `pending_approval`: 13 requests → `in_progress`, REQ-2026-219 → `cancelled`.
 - Índice único parcial anti-duplicados en `financial_requests`.
-- Trigger de guarda para bloquear generación duplicada desde presupuesto.
+- Trigger de guarda contra regeneración sobre requests desvinculados.
 - Limpieza TS de los 11 ficheros que referencian `pending_approval`.
+- Editor idempotente (`BudgetFormModal`), causa raíz verificada.
 
 Excluye (movido o descartado):
 
@@ -61,35 +63,54 @@ Excluye (movido o descartado):
 - Tabla puente para tokens de lote (Q4): se diseña en su fase, no en F1.
 - B6.1 (dejar de crear `operational_projects` desde el cron) se mantiene en el sprint aunque B6.2 se reduzca a ocultar.
 
+Deuda menor aceptada: el valor `pending_approval` queda **zombi** en el enum (Postgres no permite eliminar valores sin recrear el tipo). Sin uso ni exposición en UI; la recreación del tipo se hará en una ventana futura y F4 añadirá la validación de transiciones que impide reescribirlo.
+
 ## 2. Migraciones SQL de F1
 
-**Paso previo obligatorio: copia de seguridad de la BD antes de ejecutar.**
+**Paso previo: copia de seguridad de la BD por tu parte, además del respaldo interno del paso 0.**
 
 ```sql
--- 1) Remapeo de los 14 requests
+-- 0) Respaldo interno (se elimina cuando F1 esté consolidada)
+CREATE TABLE public._backup_financial_requests_20260806 AS
+  SELECT * FROM public.financial_requests;
+CREATE TABLE public._backup_budget_items_20260806 AS
+  SELECT * FROM public.budget_items;
+
+-- 1a) Los 13 de Iolanda: ya habían aceptado → in_progress
 UPDATE public.financial_requests
-   SET status = 'pending_specialist'
- WHERE status = 'pending_approval';
+   SET status = 'in_progress'
+ WHERE status = 'pending_approval'
+   AND code <> 'REQ-2026-219';
+
+-- 1b) REQ-2026-219: cancelado en limpieza
+UPDATE public.financial_requests
+   SET status = 'cancelled',
+       notes = COALESCE(notes || E'\n', '') ||
+         'Pendiente de Elliott, sin respuesta — cancelado en limpieza 08/2026'
+ WHERE code = 'REQ-2026-219';
 
 -- 2) Índice único parcial: un request por línea de presupuesto
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_request_per_budget_item
   ON public.financial_requests (budget_item_id)
   WHERE budget_item_id IS NOT NULL;
 
--- 3) Guarda anti-duplicados por firma cuando no hay budget_item_id
+-- 3) Guarda: bloquear regeneración cuando ya existe el mismo trabajo desvinculado
 CREATE OR REPLACE FUNCTION public.prevent_duplicate_budget_request()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
-  IF NEW.budget_id IS NOT NULL AND NEW.budget_item_id IS NULL THEN
+  IF NEW.budget_id IS NOT NULL THEN
     IF EXISTS (
       SELECT 1 FROM public.financial_requests fr
       WHERE fr.budget_id = NEW.budget_id
-        AND fr.id <> COALESCE(NEW.id, gen_random_uuid())
+        AND fr.budget_item_id IS NULL          -- request huérfano preexistente
+        AND fr.status <> 'cancelled'
         AND fr.title = NEW.title
         AND fr.quantity = NEW.quantity
-        AND COALESCE(fr.unit_price,0) = COALESCE(NEW.unit_price,0)
+        AND COALESCE(fr.unit_price, 0) = COALESCE(NEW.unit_price, 0)
     ) THEN
-      RAISE EXCEPTION 'Ya existe un request equivalente para este presupuesto (%).', NEW.title;
+      RAISE EXCEPTION
+        'Ya existe un request equivalente (sin vínculo a línea) para este presupuesto: %. Revisa antes de regenerar.',
+        NEW.title;
     END IF;
   END IF;
   RETURN NEW;
@@ -100,28 +121,44 @@ BEFORE INSERT ON public.financial_requests
 FOR EACH ROW EXECUTE FUNCTION public.prevent_duplicate_budget_request();
 ```
 
-El valor `pending_approval` permanece en el tipo enum (Postgres no permite quitar valores sin recrear el tipo) pero queda **sin uso ni exposición en UI**; F4 añadirá la validación de transiciones que impide volver a escribirlo.
+Dirección corregida según el incidente real: se dispara en **todo INSERT con `budget_id`** (tenga o no `budget_item_id`) y compara contra los requests **desvinculados** del mismo presupuesto. Dos líneas idénticas en un presupuesto nuevo no se bloquean, porque sus requests nacen **con** `budget_item_id`.
 
 ## 3. Limpieza TypeScript (11 ficheros)
 
 Eliminar `pending_approval` de etiquetas, filtros, badges y acciones en:
 `src/lib/request-utils.ts`, `src/components/requests/RequestFlowActions.tsx`, `RequestStatusBadge.tsx`, `FlowStatusCell.tsx`, `RequestFlowIndicator.tsx`, `RequestProcessTimeline.tsx`, `RequestTableView.tsx`, `src/hooks/useRequestFilters.tsx`, `src/pages/Solicitudes.tsx`, `src/pages/SolicitudDetalle.tsx`, `src/components/modals/RequestFormModal.tsx`.
 
-Además, en el mismo despliegue se aplica la parte 1 de B1.2 (editor idempotente en `BudgetFormModal.tsx`), por ser la causa raíz verificada.
+Los mapas tipados `Record<FinancialRequestStatus, …>` conservarán la clave zombi mínima necesaria para compilar, sin etiqueta ni opción en filtros.
 
-## 4. Checks de verificación posteriores
+Además, en el mismo despliegue: **editor idempotente** en `BudgetFormModal.tsx` (diff por `id`: update de existentes, insert de nuevos, delete solo de los realmente eliminados) en sustitución del `delete + reinsert` de la línea 273.
+
+## 4. Checks de verificación (4 originales + 2 nuevos)
 
 1. `SELECT count(*) FROM financial_requests WHERE status='pending_approval'` → 0.
-2. Índice `uniq_request_per_budget_item` existente y validado.
-3. Intento de doble generación sobre un presupuesto de prueba ad hoc → segunda ejecución bloqueada.
+2. Índice `uniq_request_per_budget_item` presente y válido.
+3. Doble generación sobre presupuesto de prueba ad hoc → segunda ejecución bloqueada.
 4. `rg pending_approval src/` → sin coincidencias funcionales.
+5. **(nuevo)** Presupuesto de prueba con **dos líneas idénticas** → se generan **ambos** requests sin bloqueo.
+6. **(nuevo)** Escenario legacy simulado (requests con `budget_item_id NULL` + regeneración) → bloqueo con el mensaje del trigger.
 
-## 5. Complejidad por fase
+## 5. Orden de fases y complejidad (según briefing)
 
-| Fase | Complejidad |
-|---|---|
-| F1 migraciones + limpieza | Media |
-| F2 notificaciones unificadas | Media |
-| F3 generación desde presupuesto/contrato | Alta |
-| F4 transiciones + activity_log + auditoría | Alta |
-| F5/F6 vistas y operativa | Baja-Media |
+| Orden | Fase | Complejidad |
+|---|---|---|
+| F1 | Migraciones, triggers, limpieza TS, editor idempotente | Media |
+| F2 | Creación íntegra: generación unificada + modal resumen por especialista | Alta |
+| F3 | Notificaciones (email agrupado enganchado al flujo de generación) | Media |
+| F4 | Transiciones de estado, `activity_log`, auditoría | Alta |
+| F5/F6 | Vistas y operativa | Baja-Media |
+
+## 6. Backup y restauración en Lovable Cloud (documentación, no bloquea F1)
+
+Lo que puedo confirmar desde el producto:
+
+- **Export de datos:** Cloud → Advanced settings → *Export data*. Descarga los datos; **solo exporta, no importa**.
+- **Exportes puntuales:** cualquier tabla o consulta a CSV bajo demanda (lo hemos usado ya).
+- **Respaldo lógico dentro de la propia BD:** tablas `_backup_*` como las del paso 0 — es el mecanismo bajo nuestro control directo y el que usamos como red para F1.
+- **Version history del proyecto:** revierte código, **no** revierte la base de datos.
+
+Lo que **no** puedo afirmar sin verificarlo con soporte: si el plan actual incluye backups automáticos diarios retenidos, si hay *point-in-time restore*, y cuál es el procedimiento y el RTO para solicitar una restauración. No hay panel de restauración self-service expuesto en Cloud. Recomendación: antes de arrancar F2, abrir consulta a soporte de Lovable con esas tres preguntas concretas y, mientras tanto, mantener la política de export + tablas `_backup_*` antes de cada migración destructiva.
+

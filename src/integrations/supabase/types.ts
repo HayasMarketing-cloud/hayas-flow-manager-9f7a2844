@@ -14,6 +14,175 @@ export type Database = {
   }
   public: {
     Tables: {
+      _backup_budget_items_20260806: {
+        Row: {
+          budget_id: string | null
+          created_at: string | null
+          description: string | null
+          id: string | null
+          notes: string | null
+          quantity: number | null
+          service_id: string | null
+          specialist_id: string | null
+          total: number | null
+          unit_price: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          budget_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string | null
+          notes?: string | null
+          quantity?: number | null
+          service_id?: string | null
+          specialist_id?: string | null
+          total?: number | null
+          unit_price?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          budget_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string | null
+          notes?: string | null
+          quantity?: number | null
+          service_id?: string | null
+          specialist_id?: string | null
+          total?: number | null
+          unit_price?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      _backup_financial_requests_20260806: {
+        Row: {
+          bill_separately: boolean | null
+          billed_invoice_id: string | null
+          budget_id: string | null
+          budget_item_id: string | null
+          client_contact_id: string | null
+          client_id: string | null
+          code: string | null
+          completed_at: string | null
+          contract_id: string | null
+          cost_rate: number | null
+          cost_to_agency: number | null
+          cost_type: Database["public"]["Enums"]["cost_type"] | null
+          created_at: string | null
+          deadline: string | null
+          description: string | null
+          fixed_cost: number | null
+          hours: number | null
+          id: string | null
+          is_recurring_template: boolean | null
+          liquidation_id: string | null
+          notes: string | null
+          partner_reference: string | null
+          quantity: number | null
+          recurrence_active: boolean | null
+          sale_amount: number | null
+          sale_hours: number | null
+          sale_rate: number | null
+          sale_type: Database["public"]["Enums"]["price_rule_type"] | null
+          service_id: string | null
+          specialist_acceptance: boolean | null
+          specialist_id: string | null
+          status: Database["public"]["Enums"]["financial_request_status"] | null
+          template_source_id: string | null
+          title: string | null
+          unit_price: number | null
+          updated_at: string | null
+          work_month: number | null
+          work_year: number | null
+        }
+        Insert: {
+          bill_separately?: boolean | null
+          billed_invoice_id?: string | null
+          budget_id?: string | null
+          budget_item_id?: string | null
+          client_contact_id?: string | null
+          client_id?: string | null
+          code?: string | null
+          completed_at?: string | null
+          contract_id?: string | null
+          cost_rate?: number | null
+          cost_to_agency?: number | null
+          cost_type?: Database["public"]["Enums"]["cost_type"] | null
+          created_at?: string | null
+          deadline?: string | null
+          description?: string | null
+          fixed_cost?: number | null
+          hours?: number | null
+          id?: string | null
+          is_recurring_template?: boolean | null
+          liquidation_id?: string | null
+          notes?: string | null
+          partner_reference?: string | null
+          quantity?: number | null
+          recurrence_active?: boolean | null
+          sale_amount?: number | null
+          sale_hours?: number | null
+          sale_rate?: number | null
+          sale_type?: Database["public"]["Enums"]["price_rule_type"] | null
+          service_id?: string | null
+          specialist_acceptance?: boolean | null
+          specialist_id?: string | null
+          status?:
+            | Database["public"]["Enums"]["financial_request_status"]
+            | null
+          template_source_id?: string | null
+          title?: string | null
+          unit_price?: number | null
+          updated_at?: string | null
+          work_month?: number | null
+          work_year?: number | null
+        }
+        Update: {
+          bill_separately?: boolean | null
+          billed_invoice_id?: string | null
+          budget_id?: string | null
+          budget_item_id?: string | null
+          client_contact_id?: string | null
+          client_id?: string | null
+          code?: string | null
+          completed_at?: string | null
+          contract_id?: string | null
+          cost_rate?: number | null
+          cost_to_agency?: number | null
+          cost_type?: Database["public"]["Enums"]["cost_type"] | null
+          created_at?: string | null
+          deadline?: string | null
+          description?: string | null
+          fixed_cost?: number | null
+          hours?: number | null
+          id?: string | null
+          is_recurring_template?: boolean | null
+          liquidation_id?: string | null
+          notes?: string | null
+          partner_reference?: string | null
+          quantity?: number | null
+          recurrence_active?: boolean | null
+          sale_amount?: number | null
+          sale_hours?: number | null
+          sale_rate?: number | null
+          sale_type?: Database["public"]["Enums"]["price_rule_type"] | null
+          service_id?: string | null
+          specialist_acceptance?: boolean | null
+          specialist_id?: string | null
+          status?:
+            | Database["public"]["Enums"]["financial_request_status"]
+            | null
+          template_source_id?: string | null
+          title?: string | null
+          unit_price?: number | null
+          updated_at?: string | null
+          work_month?: number | null
+          work_year?: number | null
+        }
+        Relationships: []
+      }
       activity_log: {
         Row: {
           action: string

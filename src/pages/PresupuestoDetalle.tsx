@@ -896,6 +896,32 @@ export default function PresupuestoDetalle() {
     }
   };
 
+  // F3 — Reenvío manual del email de lote (fallos de envío o cambios de destinatario)
+  const [resending, setResending] = useState(false);
+  const handleResendAssignment = async () => {
+    const pending = (requests || []).filter(
+      (r: any) => r.specialist_id && r.status === 'pending_specialist'
+    );
+    if (pending.length === 0) {
+      toast.error('No hay requests pendientes de aceptación por especialista');
+      return;
+    }
+    setResending(true);
+    try {
+      const result = await sendBatchAssignmentNotification(
+        pending.map((r: any) => r.id),
+        Array.from(new Set(pending.map((r: any) => r.specialist_id))) as string[]
+      );
+      toast.success(`Notificación reenviada a ${result?.notified || 0} especialista(s)`);
+    } catch (e: any) {
+      toast.error('Error al reenviar la notificación: ' + e.message);
+    } finally {
+      setResending(false);
+    }
+  };
+
+
+
 
   return (
     <AppLayout 

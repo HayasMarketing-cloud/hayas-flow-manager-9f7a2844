@@ -18,11 +18,13 @@ type NotificationType =
 interface NotificationRequest {
   requestId: string;
   notificationType: NotificationType;
-  recipientEmail: string;
+  recipientEmail?: string;
   recipientName: string;
   senderEmail: string;
   appUrl: string;
   additionalMessage?: string;
+  /** 'management' resuelve destinatarios en servidor (AM/PM + admin/finanzas) */
+  recipientScope?: 'management' | 'direct';
 }
 
 // Base64URL encode (for JWT)

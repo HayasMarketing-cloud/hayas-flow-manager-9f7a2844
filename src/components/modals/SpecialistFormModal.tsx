@@ -350,6 +350,29 @@ export function SpecialistFormModal({
 
             <FormField
               control={form.control}
+              name="receives_flow_notifications"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel>Recibe notificaciones de FLOW</FormLabel>
+                    <p className="text-xs text-muted-foreground">
+                      Desactívalo para proveedores gestionados por email que no usan FLOW.
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+
+
+            <FormField
+              control={form.control}
               name="team_leader_id"
               render={({ field }) => (
                 <FormItem>

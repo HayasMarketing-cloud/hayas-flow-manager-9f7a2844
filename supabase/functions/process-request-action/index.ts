@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getGmailAccessToken, sendGmail } from "../_shared/gmail.ts";
+import { resolveManagementRecipients } from "../_shared/management-recipients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,108 +14,42 @@ interface ProcessActionRequest {
   comments?: string;
 }
 
-// Helper functions for JWT and Gmail API (same as send-request-notification)
-function base64UrlEncode(data: Uint8Array | string): string {
-  const base64 = typeof data === 'string' 
-    ? btoa(data)
-    : btoa(String.fromCharCode(...data));
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
+const esc = (s: unknown) =>
+  String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-async function createServiceAccountJWT(
-  serviceAccountEmail: string, 
-  privateKeyPem: string, 
-  userToImpersonate: string
-): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  
-  const header = { alg: "RS256", typ: "JWT" };
-  const payload = {
-    iss: serviceAccountEmail,
-    sub: userToImpersonate,
-    scope: "https://www.googleapis.com/auth/gmail.send",
-    aud: "https://oauth2.googleapis.com/token",
-    iat: now,
-    exp: now + 3600
-  };
-  
-  const headerB64 = base64UrlEncode(JSON.stringify(header));
-  const payloadB64 = base64UrlEncode(JSON.stringify(payload));
-  const unsignedToken = `${headerB64}.${payloadB64}`;
-  
-  const pemContent = privateKeyPem
-    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
-    .replace(/-----END PRIVATE KEY-----/g, '')
-    .replace(/\\n/g, '')
-    .replace(/\s/g, '');
-  
-  const binaryKey = Uint8Array.from(atob(pemContent), c => c.charCodeAt(0));
-  const cryptoKey = await crypto.subtle.importKey(
-    "pkcs8",
-    binaryKey,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  
-  const signature = await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5",
-    cryptoKey,
-    new TextEncoder().encode(unsignedToken)
-  );
-  
-  return `${unsignedToken}.${base64UrlEncode(new Uint8Array(signature))}`;
-}
+const fmtCurrency = (n: number) =>
+  new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(n || 0);
 
-async function getAccessToken(serviceAccountEmail: string, privateKey: string, userEmail: string): Promise<string> {
-  const jwt = await createServiceAccountJWT(serviceAccountEmail, privateKey, userEmail);
-  
-  const response = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
-  });
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to get access token: ${errorText}`);
-  }
-  
-  const data = await response.json();
-  return data.access_token;
-}
-
-async function sendNotificationEmail(
-  accessToken: string,
-  fromEmail: string,
-  toEmail: string,
+async function sendToManagement(
+  supabase: any,
+  emails: string[],
   subject: string,
-  htmlContent: string
-): Promise<boolean> {
-  const encodedSubject = `=?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`;
-  const messageParts = [
-    `From: ${fromEmail}`,
-    `To: ${toEmail}`,
-    `Subject: ${encodedSubject}`,
-    `MIME-Version: 1.0`,
-    `Content-Type: text/html; charset="UTF-8"`,
-    `Content-Transfer-Encoding: base64`,
-    ``,
-    btoa(unescape(encodeURIComponent(htmlContent))),
-  ];
-  
-  const encodedMessage = base64UrlEncode(messageParts.join("\r\n"));
-  
-  const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ raw: encodedMessage }),
-  });
-  
-  return response.ok;
+  html: string
+) {
+  if (emails.length === 0) return 0;
+  const serviceAccountEmail = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_EMAIL");
+  const serviceAccountPrivateKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY");
+  const senderEmail = Deno.env.get("GMAIL_USER");
+  if (!serviceAccountEmail || !serviceAccountPrivateKey || !senderEmail) return 0;
+
+  let sent = 0;
+  try {
+    const accessToken = await getGmailAccessToken(
+      serviceAccountEmail,
+      serviceAccountPrivateKey,
+      senderEmail
+    );
+    for (const to of emails) {
+      try {
+        if (await sendGmail(accessToken, senderEmail, to, subject, html)) sent++;
+      } catch (e) {
+        console.error(`Failed to send to ${to}:`, e);
+      }
+    }
+  } catch (e) {
+    console.error("Gmail auth failed:", e);
+  }
+  return sent;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -138,17 +74,17 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
 
-    // Get client IP and user agent
-    const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() 
-      || req.headers.get('cf-connecting-ip') 
+    const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || req.headers.get('cf-connecting-ip')
       || 'unknown';
     const userAgent = req.headers.get('user-agent') || 'unknown';
+    const appUrl = Deno.env.get("APP_PRODUCTION_URL") || "https://hayas-flow-manager.lovable.app";
 
-    // Fetch and validate token
     const { data: tokenData, error: tokenError } = await supabase
       .from('request_action_tokens')
       .select(`
@@ -157,9 +93,13 @@ const handler = async (req: Request): Promise<Response> => {
           id,
           code,
           title,
+          client_id,
+          budget_id,
+          contract_id,
           client:clients(id, name),
           specialist:specialists(id, name, email)
-        )
+        ),
+        specialist:specialists(id, name, email, user_id)
       `)
       .eq('token', token)
       .single();
@@ -171,7 +111,6 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Check if expired
     if (new Date(tokenData.expires_at) < new Date()) {
       return new Response(
         JSON.stringify({ error: "Token expirado" }),
@@ -179,7 +118,6 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Check if already used
     if (tokenData.status !== 'pending') {
       return new Response(
         JSON.stringify({ error: "Este enlace ya ha sido utilizado" }),
@@ -187,24 +125,228 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const request = tokenData.request;
     const now = new Date().toISOString();
-    // Per project rule: accepting from email jumps straight to 'in_progress'
     const newStatus = action === 'accept' ? 'in_progress' : 'draft';
     const tokenStatus = action === 'accept' ? 'accepted' : 'rejected';
 
-    console.log(`Processing action: ${action} for request ${tokenData.request_id}`);
-    console.log(`New status: ${newStatus}, Token status: ${tokenStatus}`);
+    // ==========================================================
+    // RAMA DE LOTE
+    // ==========================================================
+    if (tokenData.action_type === 'specialist_batch_response') {
+      const { data: items } = await supabase
+        .from('request_action_token_items')
+        .select(`
+          id, request_id,
+          request:financial_requests(
+            id, code, title, status, hours, specialist_id, client_id, budget_id, contract_id,
+            cost_to_agency, client:clients(id, name)
+          )
+        `)
+        .eq('token_id', tokenData.id);
 
-    // Update request status
-    const updateData: any = { 
-      status: newStatus,
-      specialist_acceptance: action === 'accept'
-    };
+      const accepted: any[] = [];
+      const skipped: any[] = [];
+
+      for (const item of items || []) {
+        const r: any = item.request;
+        if (!r) {
+          skipped.push({ code: '—', status: 'eliminado', reason: 'El trabajo ya no existe' });
+          await supabase.from('request_action_token_items')
+            .update({ status: 'skipped', skip_reason: 'request eliminado', processed_at: now })
+            .eq('id', item.id);
+          continue;
+        }
+
+        // Verificación anti-reasignación con el specialist_id persistido en el token
+        if (r.specialist_id !== tokenData.specialist_id) {
+          skipped.push({ code: r.code, title: r.title, status: r.status, reason: 'Reasignado a otro especialista' });
+          await supabase.from('request_action_token_items')
+            .update({ status: 'skipped', skip_reason: 'reasignado', processed_at: now })
+            .eq('id', item.id);
+          continue;
+        }
+
+        if (r.status !== 'pending_specialist') {
+          skipped.push({ code: r.code, title: r.title, status: r.status, reason: 'Ya no estaba pendiente de aceptación' });
+          await supabase.from('request_action_token_items')
+            .update({ status: 'skipped', skip_reason: `estado ${r.status}`, processed_at: now })
+            .eq('id', item.id);
+          continue;
+        }
+
+        const { error: updErr } = await supabase
+          .from('financial_requests')
+          .update({ status: newStatus, specialist_acceptance: action === 'accept' })
+          .eq('id', r.id);
+
+        if (updErr) {
+          console.error('Error actualizando request de lote:', updErr);
+          skipped.push({ code: r.code, title: r.title, status: r.status, reason: 'Error al actualizar' });
+          await supabase.from('request_action_token_items')
+            .update({ status: 'skipped', skip_reason: 'error de actualización', processed_at: now })
+            .eq('id', item.id);
+          continue;
+        }
+
+        accepted.push(r);
+        await supabase.from('request_action_token_items')
+          .update({ status: 'accepted', processed_at: now })
+          .eq('id', item.id);
+      }
+
+      // Marcar el token como usado
+      await supabase
+        .from('request_action_tokens')
+        .update({
+          status: tokenStatus,
+          acted_at: now,
+          ip_address: ipAddress,
+          user_agent: userAgent,
+          comments: comments || null,
+        })
+        .eq('id', tokenData.id);
+
+      const specialistName = tokenData.specialist?.name || 'Especialista';
+      const clientName = accepted[0]?.client?.name
+        || (items || []).map((i: any) => i.request?.client?.name).find(Boolean)
+        || 'Cliente';
+      const clientId = accepted[0]?.client_id
+        || (items || []).map((i: any) => i.request?.client_id).find(Boolean)
+        || null;
+      const budgetId = accepted[0]?.budget_id
+        || (items || []).map((i: any) => i.request?.budget_id).find(Boolean)
+        || null;
+
+      // Log de actividad
+      try {
+        if (tokenData.specialist?.user_id) {
+          await supabase.from('activity_log').insert(
+            accepted.map((r) => ({
+              user_id: tokenData.specialist.user_id,
+              entity_type: 'financial_request',
+              entity_id: r.id,
+              action: action === 'accept' ? 'specialist_accepted' : 'specialist_rejected',
+              changes: { ip_address: ipAddress, batch: true, comments: comments || null },
+            }))
+          );
+        }
+      } catch (e) {
+        console.error('Error logging batch activity:', e);
+      }
+
+      // Destinatarios de gestión (dinámicos)
+      const { userIds, emails } = await resolveManagementRecipients(supabase, {
+        clientId,
+        budgetId,
+      });
+
+      // Notificación in-app: una por usuario para todo el lote
+      if (userIds.length > 0) {
+        try {
+          await supabase.from('notifications').insert(
+            userIds.map((uid) => ({
+              user_id: uid,
+              title: action === 'accept'
+                ? `${specialistName} aceptó ${accepted.length} trabajo(s)`
+                : `${specialistName} rechazó ${accepted.length} trabajo(s)`,
+              message: `${clientName} — ${accepted.length} aceptado(s), ${skipped.length} omitido(s)${comments ? `: ${comments}` : ''}`,
+              type: action === 'accept' ? 'success' : 'warning',
+              category: 'request',
+              entity_id: budgetId,
+              entity_type: 'budget',
+              action_url: budgetId ? `/presupuestos/${budgetId}` : '/solicitudes',
+            }))
+          );
+        } catch (e) {
+          console.error('Error creating batch in-app notifications:', e);
+        }
+      }
+
+      // UN solo email agregado a gestión
+      const acceptedRows = accepted.map((r) => `
+        <tr>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-family:monospace;font-size:12px;">${esc(r.code)}</td>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${esc(r.title)}</td>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">${r.hours ?? '—'}</td>
+        </tr>`).join('');
+
+      const skippedRows = skipped.map((s) => `
+        <tr>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-family:monospace;font-size:12px;">${esc(s.code)}</td>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${esc(s.status)}</td>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${esc(s.reason)}</td>
+        </tr>`).join('');
+
+      const totalHours = accepted.reduce((s, r) => s + (Number(r.hours) || 0), 0);
+      const totalCost = accepted.reduce((s, r) => s + (Number(r.cost_to_agency) || 0), 0);
+      const verb = action === 'accept' ? 'aceptó' : 'rechazó';
+
+      const subject = `${specialistName} ${verb} ${accepted.length} trabajo(s) — ${clientName}`;
+
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+      <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;color:#333;max-width:680px;margin:0 auto;padding:20px;">
+        <div style="background:linear-gradient(135deg,#1e3a5f 0%,#2d5a87 100%);padding:26px;border-radius:10px 10px 0 0;text-align:center;">
+          <h1 style="color:#fff;margin:0;font-size:21px;">Respuesta de especialista (lote)</h1>
+        </div>
+        <div style="background:#f8fafc;padding:24px;border:1px solid #e2e8f0;border-top:none;">
+          <div style="background:#fff;padding:22px;border-radius:8px;">
+            <p style="margin-top:0;"><strong>${esc(specialistName)}</strong> ${verb} un lote de trabajos de <strong>${esc(clientName)}</strong>.</p>
+            <h3 style="font-size:15px;margin-bottom:6px;">Procesados (${accepted.length})</h3>
+            ${accepted.length ? `<table style="width:100%;border-collapse:collapse;font-size:14px;">
+              <thead><tr style="background:#f1f5f9;"><th style="padding:8px;text-align:left;">Código</th><th style="padding:8px;text-align:left;">Título</th><th style="padding:8px;text-align:right;">Horas</th></tr></thead>
+              <tbody>${acceptedRows}</tbody>
+              <tfoot><tr style="font-weight:bold;"><td style="padding:8px;" colspan="2">Total (${accepted.length}) · ${fmtCurrency(totalCost)}</td><td style="padding:8px;text-align:right;">${totalHours}</td></tr></tfoot>
+            </table>` : '<p style="color:#64748b;">Ninguno.</p>'}
+            ${skipped.length ? `<h3 style="font-size:15px;margin:18px 0 6px;">Omitidos (${skipped.length})</h3>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;">
+              <thead><tr style="background:#fef3c7;"><th style="padding:8px;text-align:left;">Código</th><th style="padding:8px;text-align:left;">Estado</th><th style="padding:8px;text-align:left;">Motivo</th></tr></thead>
+              <tbody>${skippedRows}</tbody>
+            </table>` : ''}
+            ${comments ? `<div style="margin-top:16px;background:#f0f9ff;padding:12px;border-radius:6px;"><strong>Comentarios:</strong> ${esc(comments)}</div>` : ''}
+            <div style="background:#f0f9ff;padding:12px;border-radius:6px;margin-top:16px;font-size:12px;color:#0369a1;">
+              <strong>Evidencia digital:</strong> IP ${esc(ipAddress)} — ${new Date().toLocaleString('es-ES')}
+            </div>
+            <div style="margin-top:22px;text-align:center;">
+              <a href="${appUrl}${budgetId ? `/presupuestos/${budgetId}` : '/solicitudes'}" style="display:inline-block;padding:12px 28px;background:#1e3a5f;color:#fff;text-decoration:none;border-radius:6px;font-weight:500;">Ver en FLOW</a>
+            </div>
+          </div>
+        </div>
+      </body></html>`;
+
+      const emailsSent = await sendToManagement(supabase, emails, subject, html);
+      console.log(`Batch action processed: ${accepted.length} accepted, ${skipped.length} skipped, ${emailsSent} management emails (1 per recipient)`);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          is_batch: true,
+          message: accepted.length > 0
+            ? `Has ${action === 'accept' ? 'aceptado' : 'rechazado'} ${accepted.length} trabajo(s)`
+            : 'No quedaba ningún trabajo pendiente en este lote',
+          action,
+          accepted: accepted.map((r) => ({ code: r.code, title: r.title, hours: r.hours })),
+          skipped,
+          digitalEvidence: {
+            actionedAt: now,
+            ipAddress,
+            requestCode: `${accepted.length} request(s)`,
+            status: tokenStatus,
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // ==========================================================
+    // RAMA INDIVIDUAL (comportamiento existente)
+    // ==========================================================
+    const request = tokenData.request;
+
+    console.log(`Processing action: ${action} for request ${tokenData.request_id}`);
 
     const { error: updateError } = await supabase
       .from('financial_requests')
-      .update(updateData)
+      .update({ status: newStatus, specialist_acceptance: action === 'accept' })
       .eq('id', tokenData.request_id);
 
     if (updateError) {
@@ -215,28 +357,19 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Verify request update was successful
-    const { data: verifiedRequest, error: verifyError } = await supabase
+    const { data: verifiedRequest } = await supabase
       .from('financial_requests')
       .select('status')
       .eq('id', tokenData.request_id)
       .single();
 
-    if (verifyError || verifiedRequest?.status !== newStatus) {
-      console.error("CRITICAL: Request update verification failed:", { 
-        expected: newStatus, 
-        actual: verifiedRequest?.status,
-        error: verifyError 
-      });
+    if (verifiedRequest?.status !== newStatus) {
       return new Response(
         JSON.stringify({ error: "Error al verificar la actualización de la solicitud" }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    console.log(`Request ${tokenData.request_id} updated successfully to ${newStatus}`);
-
-    // Mark token as used
     const { error: tokenUpdateError } = await supabase
       .from('request_action_tokens')
       .update({
@@ -250,55 +383,24 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (tokenUpdateError) {
       console.error("CRITICAL: Token update failed:", tokenUpdateError);
-      // Rollback the request status update
       await supabase
         .from('financial_requests')
         .update({ status: 'pending_specialist', specialist_acceptance: false })
         .eq('id', tokenData.request_id);
-      
+
       return new Response(
         JSON.stringify({ error: "Error al registrar la acción. Por favor, intente nuevamente." }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    // Verify token update was successful
-    const { data: verifiedToken, error: tokenVerifyError } = await supabase
-      .from('request_action_tokens')
-      .select('status')
-      .eq('id', tokenData.id)
-      .single();
-
-    if (tokenVerifyError || verifiedToken?.status !== tokenStatus) {
-      console.error("CRITICAL: Token update verification failed:", {
-        expected: tokenStatus,
-        actual: verifiedToken?.status,
-        error: tokenVerifyError
-      });
-      // Rollback
-      await supabase
-        .from('financial_requests')
-        .update({ status: 'pending_specialist', specialist_acceptance: false })
-        .eq('id', tokenData.request_id);
-      
-      return new Response(
-        JSON.stringify({ error: "Error al verificar el registro de la acción" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
-    console.log(`Token ${tokenData.id} updated successfully to ${tokenStatus}`);
-
-    // Log activity for the specialist action
+    // Log activity
     try {
-      // We need to find a user_id to log the activity, but the specialist may not have a user account
-      // For now, we'll log without a user_id by using a service account approach
-      // Actually, we can use the specialist's linked user_id if available
       const { data: specialist } = await supabase
         .from('specialists')
         .select('user_id')
         .eq('id', request.specialist?.id)
-        .single();
+        .maybeSingle();
 
       if (specialist?.user_id) {
         await supabase.from('activity_log').insert({
@@ -311,182 +413,84 @@ const handler = async (req: Request): Promise<Response> => {
       }
     } catch (logError) {
       console.error("Error logging activity:", logError);
-      // Don't fail the action if logging fails
     }
 
-    // Create in-app notifications — admin/finanzas get all, AM/PM only if assigned to client
-    const clientId = request.client_id;
     const specialistName = request.specialist?.name || 'Especialista';
     const requestCode = request.code;
 
-    // 1. Get all admin + finanzas users
-    const { data: elevatedUsers } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .in('role', ['admin', 'finanzas']);
+    const { userIds, emails: recipientEmails } = await resolveManagementRecipients(supabase, {
+      clientId: request.client_id,
+      budgetId: request.budget_id,
+      contractId: request.contract_id,
+    });
 
-    // 2. Get AM/PM assigned to this client via contracts or budgets
-    const [{ data: contracts }, { data: budgets }] = await Promise.all([
-      supabase.from('contracts').select('am_user_id, pm_user_id').eq('client_id', clientId),
-      supabase.from('budgets').select('am_user_id, pm_user_id').eq('client_id', clientId),
-    ]);
-
-    const assignedManagerIds = [...new Set([
-      ...(contracts?.flatMap(c => [c.am_user_id, c.pm_user_id]) || []),
-      ...(budgets?.flatMap(b => [b.am_user_id, b.pm_user_id]) || []),
-    ].filter(Boolean))];
-
-    const uniqueUserIds = [...new Set([
-      ...(elevatedUsers?.map(u => u.user_id) || []),
-      ...assignedManagerIds,
-    ])];
-
-    if (uniqueUserIds.length > 0) {
+    if (userIds.length > 0) {
       try {
-        const notifications = uniqueUserIds.map(userId => ({
-          user_id: userId,
-          title: action === 'accept' ? 'Especialista aceptó solicitud' : 'Especialista rechazó solicitud',
-          message: `${specialistName} ${action === 'accept' ? 'aceptó' : 'rechazó'} ${requestCode}${comments ? `: ${comments}` : ''}`,
-          type: action === 'accept' ? 'success' : 'warning',
-          category: 'request',
-          entity_id: tokenData.request_id,
-          entity_type: 'financial_request',
-          action_url: `/solicitudes/${tokenData.request_id}`,
-        }));
-
-        await supabase.from('notifications').insert(notifications);
-        console.log(`Created ${notifications.length} in-app notifications`);
+        await supabase.from('notifications').insert(
+          userIds.map((userId) => ({
+            user_id: userId,
+            title: action === 'accept' ? 'Especialista aceptó solicitud' : 'Especialista rechazó solicitud',
+            message: `${specialistName} ${action === 'accept' ? 'aceptó' : 'rechazó'} ${requestCode}${comments ? `: ${comments}` : ''}`,
+            type: action === 'accept' ? 'success' : 'warning',
+            category: 'request',
+            entity_id: tokenData.request_id,
+            entity_type: 'financial_request',
+            action_url: `/solicitudes/${tokenData.request_id}`,
+          }))
+        );
       } catch (notifError) {
         console.error("Error creating in-app notifications:", notifError);
       }
     }
 
-    // Get emails of users with admin/account_manager roles to send email notifications
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('email')
-      .in('id', uniqueUserIds);
-
-    const recipientEmails = profiles
-      ?.map(p => p.email)
-      .filter((email): email is string => !!email && email.endsWith('@hayas.es')) || [];
-
     console.log('Attempting to send notification emails to:', recipientEmails);
-    // Send notification emails to management
-    if (recipientEmails.length > 0) {
-      try {
-        const serviceAccountEmail = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_EMAIL");
-        const serviceAccountPrivateKey = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY");
-        const senderEmail = Deno.env.get("GMAIL_USER");
-        
-        if (serviceAccountEmail && serviceAccountPrivateKey && senderEmail) {
-          const clientName = request.client?.name || 'Cliente';
-          const requestTitle = request.title;
-          
-          const subject = action === 'accept' 
-            ? `✅ Especialista aceptó: ${requestCode}`
-            : `❌ Especialista rechazó: ${requestCode}`;
-          
-          const statusColor = action === 'accept' ? '#22c55e' : '#ef4444';
-          const statusText = action === 'accept' ? 'ACEPTADO' : 'RECHAZADO';
-          const appUrl = Deno.env.get("APP_PRODUCTION_URL") || "https://hayas-flow-manager.lovable.app";
-          
-          const htmlContent = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            </head>
-            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 24px;">Respuesta de Especialista</h1>
-              </div>
-              
-              <div style="background: #f8fafc; padding: 30px; border: 1px solid #e2e8f0; border-top: none;">
-                <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                  <div style="text-align: center; margin-bottom: 20px;">
-                    <span style="display: inline-block; padding: 8px 20px; background: ${statusColor}; color: white; border-radius: 20px; font-weight: bold; font-size: 14px;">
-                      ${statusText}
-                    </span>
-                  </div>
-                  
-                  <table style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                      <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 140px;">Solicitud:</td>
-                      <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; font-weight: 500;">${requestCode}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b;">Especialista:</td>
-                      <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0;">${specialistName}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b;">Cliente:</td>
-                      <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0;">${clientName}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0; color: #64748b;">Concepto:</td>
-                      <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0;">${requestTitle}</td>
-                    </tr>
-                    ${comments ? `
-                    <tr>
-                      <td style="padding: 10px 0; color: #64748b; vertical-align: top;">Comentarios:</td>
-                      <td style="padding: 10px 0;">${comments}</td>
-                    </tr>
-                    ` : ''}
-                  </table>
-                  
-                  <div style="background: #f0f9ff; padding: 12px; border-radius: 6px; margin-top: 20px;">
-                    <p style="margin: 0; font-size: 12px; color: #0369a1;">
-                      <strong>Evidencia digital:</strong> IP ${ipAddress} - ${new Date().toLocaleString('es-ES')}
-                    </p>
-                  </div>
-                  
-                  <div style="margin-top: 25px; text-align: center;">
-                    <a href="${appUrl}/solicitudes/${tokenData.request_id}" 
-                       style="display: inline-block; padding: 12px 30px; background: #1e3a5f; color: white; text-decoration: none; border-radius: 6px; font-weight: 500;">
-                      Ver Solicitud
-                    </a>
-                  </div>
-                </div>
-              </div>
-              
-              <div style="text-align: center; padding: 20px; color: #64748b; font-size: 12px;">
-                <p>Este es un mensaje automático del sistema de gestión.</p>
-              </div>
-            </body>
-            </html>
-          `;
-          
-          const accessToken = await getAccessToken(serviceAccountEmail, serviceAccountPrivateKey, senderEmail);
-          
-          // Send email to each recipient
-          for (const recipientEmail of recipientEmails) {
-            try {
-              await sendNotificationEmail(accessToken, senderEmail, recipientEmail, subject, htmlContent);
-              console.log(`Email sent successfully to ${recipientEmail}`);
-            } catch (emailError) {
-              console.error(`Failed to send email to ${recipientEmail}:`, emailError);
-            }
-          }
-        }
-      } catch (emailError) {
-        console.error('Failed to send email notifications:', emailError);
-        // Don't fail the whole request if email fails
-      }
-    }
 
-    const actionedAt = new Date().toISOString();
-    
+    const clientName = request.client?.name || 'Cliente';
+    const statusColor = action === 'accept' ? '#22c55e' : '#ef4444';
+    const statusText = action === 'accept' ? 'ACEPTADO' : 'RECHAZADO';
+    const subject = action === 'accept'
+      ? `✅ Especialista aceptó: ${requestCode}`
+      : `❌ Especialista rechazó: ${requestCode}`;
+
+    const htmlContent = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+      <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px;">
+        <div style="background:linear-gradient(135deg,#1e3a5f 0%,#2d5a87 100%);padding:30px;border-radius:10px 10px 0 0;text-align:center;">
+          <h1 style="color:white;margin:0;font-size:24px;">Respuesta de Especialista</h1>
+        </div>
+        <div style="background:#f8fafc;padding:30px;border:1px solid #e2e8f0;border-top:none;">
+          <div style="background:white;padding:25px;border-radius:8px;">
+            <div style="text-align:center;margin-bottom:20px;">
+              <span style="display:inline-block;padding:8px 20px;background:${statusColor};color:white;border-radius:20px;font-weight:bold;font-size:14px;">${statusText}</span>
+            </div>
+            <table style="width:100%;border-collapse:collapse;">
+              <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;width:140px;">Solicitud:</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;font-weight:500;">${esc(requestCode)}</td></tr>
+              <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;">Especialista:</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;">${esc(specialistName)}</td></tr>
+              <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;">Cliente:</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;">${esc(clientName)}</td></tr>
+              <tr><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;color:#64748b;">Concepto:</td><td style="padding:10px 0;border-bottom:1px solid #e2e8f0;">${esc(request.title)}</td></tr>
+              ${comments ? `<tr><td style="padding:10px 0;color:#64748b;vertical-align:top;">Comentarios:</td><td style="padding:10px 0;">${esc(comments)}</td></tr>` : ''}
+            </table>
+            <div style="background:#f0f9ff;padding:12px;border-radius:6px;margin-top:20px;">
+              <p style="margin:0;font-size:12px;color:#0369a1;"><strong>Evidencia digital:</strong> IP ${esc(ipAddress)} - ${new Date().toLocaleString('es-ES')}</p>
+            </div>
+            <div style="margin-top:25px;text-align:center;">
+              <a href="${appUrl}/solicitudes/${tokenData.request_id}" style="display:inline-block;padding:12px 30px;background:#1e3a5f;color:white;text-decoration:none;border-radius:6px;font-weight:500;">Ver Solicitud</a>
+            </div>
+          </div>
+        </div>
+      </body></html>`;
+
+    await sendToManagement(supabase, recipientEmails, subject, htmlContent);
+
     return new Response(
       JSON.stringify({
         success: true,
-        message: action === 'accept' 
-          ? 'Has aceptado el trabajo correctamente' 
+        is_batch: false,
+        message: action === 'accept'
+          ? 'Has aceptado el trabajo correctamente'
           : 'Has rechazado el trabajo correctamente',
         action,
         digitalEvidence: {
-          actionedAt,
+          actionedAt: now,
           ipAddress,
           requestCode: request.code,
           status: tokenStatus

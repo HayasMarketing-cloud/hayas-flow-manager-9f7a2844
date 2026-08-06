@@ -80,10 +80,18 @@ export async function buildBudgetGenerationPlan(budgetId: string): Promise<Gener
 
   const { data: existing, error: existingError } = await supabase
     .from('financial_requests')
-    .select('id, budget_item_id')
-    .eq('budget_id', budgetId)
-    .not('budget_item_id', 'is', null);
+    .select('id, budget_item_id, phase')
+    .eq('budget_id', budgetId);
   if (existingError) throw existingError;
+
+  const existingPhases = Array.from(
+    new Set(
+      (existing || [])
+        .map((r: any) => normalizePhase(r.phase))
+        .filter((p): p is string => !!p)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
 
   const generatedIds = new Set((existing || []).map((r: any) => r.budget_item_id));
   const pending = (items || []).filter((i: any) => !generatedIds.has(i.id));

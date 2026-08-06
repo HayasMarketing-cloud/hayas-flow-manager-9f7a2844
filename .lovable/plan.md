@@ -78,9 +78,12 @@ Migración única, con paso 0 de respaldo (`CREATE TABLE AS SELECT` de `financia
 ALTER TABLE public.financial_requests
   ADD COLUMN phase text,
   ADD COLUMN requires_deliverable boolean NOT NULL DEFAULT false,
-  ADD COLUMN deliverable_url text;
+  ADD COLUMN deliverable_url text,
+  ADD COLUMN deliverable_filename text,
+  ADD COLUMN approved_by uuid REFERENCES public.profiles(id);
 
--- gate de entregable (trigger, no CHECK)
+-- trigger único: gate de entregable + snapshot de aprobación (no CHECK)
+-- RPC set_request_deliverable_url (SECURITY DEFINER, columna única)
 -- FK: DROP CONSTRAINT financial_requests_budget_item_id_fkey
 --     ADD  ... REFERENCES public.budget_items(id) ON DELETE RESTRICT
 ```
@@ -91,7 +94,7 @@ Sin notificaciones (F3) y sin validación de transiciones de estado en BD (F4).
 
 - **Regresión de la ruta "Aprobar"**: al unificar, cualquier diferencia de comportamiento se nota en producción. Mitigación: la función replica exactamente la lógica actual y las notificaciones quedan fuera de ella.
 - **RESTRICT sin el paso 1**: si la FK cambia antes de arreglar el editor económico, el guardado de presupuestos empieza a fallar con error de BD crudo.
-- **`deliverable_url` editable por especialista**: requiere revisar que la política de escritura de `financial_requests` para especialistas permita ese campo y no otros.
+- **`approved_by` en actualizaciones automáticas**: si un proceso de servidor completa un request sin sesión, `auth.uid()` es nulo y el snapshot queda vacío. Es aceptable: la columna queda nula, no bloquea.
 - **Recurrentes con `deadline`**: al rellenar `deadline` cambia lo que ven filtros y avisos por vencimiento de los fees mensuales.
 - **Volumen del modal**: presupuestos con muchas líneas requieren tabla compacta y selección múltiple usable.
 
@@ -104,6 +107,9 @@ Sin notificaciones (F3) y sin validación de transiciones de estado en BD (F4).
 5. RESTRICT: `DELETE` directo en SQL de una línea con request vinculado falla; el editor económico avisa antes de intentarlo.
 6. Clon: clonar un request generado desde presupuesto produce un clon con `budget_item_id` y `budget_id` nulos y sin colisión de índice.
 7. Cron: queda un único job activo y la generación mensual sigue funcionando en ejecución manual.
+8. Snapshot: completar un request con entregable rellena `approved_by`, `completed_at` y `deliverable_filename`; al salir de `completed` se liberan `approved_by` y `completed_at`.
+9. `phase` asignable también en creación manual desde `RequestFormModal`.
+
 
 ## Complejidad por punto
 

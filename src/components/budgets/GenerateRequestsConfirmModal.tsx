@@ -336,6 +336,13 @@ export function GenerateRequestsConfirmModal({
                 budget: plan.budget,
                 lines,
                 existingPhases: plan.existingPhases || [],
+                notifySpecialistIds: Array.from(
+                  new Set(
+                    lines
+                      .map((l) => l.specialistId)
+                      .filter((id): id is string => !!id && (notifyMap[id] ?? true))
+                  )
+                ),
               })
             }
             disabled={blocked || isSubmitting || isLoading || (mode === 'generate' && lines.length === 0)}

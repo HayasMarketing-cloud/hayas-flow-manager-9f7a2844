@@ -1197,7 +1197,8 @@ export default function PresupuestoDetalle() {
                             variant="outline"
                             size="sm"
                             onClick={handleGenerateRequests}
-                            disabled={isGeneratingRequests}
+                            disabled={generateRequestsMutation.isPending}
+
                           >
                             {isGeneratingRequests ? (
                               <Loader2 className="h-4 w-4 mr-2 animate-spin" />

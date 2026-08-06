@@ -39,21 +39,25 @@ Nuevo `src/components/budgets/GenerateRequestsConfirmModal.tsx`. Se abre siempre
 - `RequestFormModal.tsx`: `deadline` ya existe; se añade `phase`.
 - Recurrentes desde contrato (`supabase/functions/generate-monthly-requests`): `deadline` = último día del `work_month` generado, `phase` = null.
 
-### 4. Campos de entregable (complejidad: media)
+### 4. Campos de entregable + snapshot de aprobación (complejidad: media)
 
-- Esquema: `requires_deliverable boolean not null default false`, `deliverable_url text`.
-- Trigger `BEFORE UPDATE`: si `requires_deliverable` y el nuevo estado es `completed`, exigir `deliverable_url` no vacío.
-- UI: ambos campos en `RequestFormModal` y en `SolicitudDetalle`. `requires_deliverable` editable por gestión; `deliverable_url` editable por gestión y por el especialista asignado. Mensaje de error claro cuando el gate salte.
+- Esquema: `requires_deliverable boolean not null default false`, `deliverable_url text`, `deliverable_filename text`, `approved_by uuid REFERENCES public.profiles(id)`.
+- Trigger `BEFORE UPDATE` único que hace gate y snapshot:
+  - Al pasar a `completed`: si `requires_deliverable` y `deliverable_url` vacío → error. Si pasa, fijar `completed_at` (si nulo), `approved_by = auth.uid()` (si nulo) y `deliverable_filename = deliverable_url` (si nulo y hay URL).
+  - Al salir de `completed`: `approved_by = NULL` y `completed_at = NULL`.
+- UI: campos en `RequestFormModal` y en `SolicitudDetalle`, con mensaje de error claro cuando el gate salte.
 - `progress_pct` no se añade en ningún sitio.
+
+**Mecanismo exacto para que el especialista edite solo `deliverable_url`:** RPC `SECURITY DEFINER` `public.set_request_deliverable_url(_request_id uuid, _url text)`, que comprueba que el llamante es el especialista asignado al request (o admin/finanzas/gestión) y hace un `UPDATE` de esa única columna. `GRANT EXECUTE` a `authenticated`. No se toca la política `UPDATE` de `financial_requests` para especialistas: nada de abrir columnas adicionales por RLS.
 
 ### 5. FK a `ON DELETE RESTRICT` (complejidad: media)
 
-Orden obligatorio:
+Orden confirmado: primero el editor económico, después la FK.
 
 1. Cambiar `PresupuestoDetalle.tsx:570-578`: en lugar de anular `budget_item_id`, comprobar si las líneas a borrar tienen requests vinculados y, si los hay, abortar el guardado con un aviso que nombre las líneas y sus requests.
 2. Cambiar `financial_requests_budget_item_id_fkey` a `ON DELETE RESTRICT`.
 
-Borrado de presupuesto completo (`Presupuestos.tsx:370-415`): ya borra `financial_requests` **antes** que `budget_items`, así que es compatible con RESTRICT sin cambios. Propuesta añadida: **bloquear** ese borrado cuando alguno de los requests esté facturado o liquidado (`billed_invoice_id` o `liquidation_id` no nulos), en lugar de borrarlos en cascada como hoy. Hoy ese camino destruye trazabilidad financiera en silencio.
+Borrado de presupuesto completo (`Presupuestos.tsx:370-415`): ya borra `financial_requests` **antes** que `budget_items`, así que es compatible con RESTRICT. Aprobado el endurecimiento: se **bloquea** el borrado del presupuesto cuando alguno de sus requests tenga `billed_invoice_id` o `liquidation_id`, con aviso que enumere los requests implicados.
 
 ### 6. Cron: eliminar el job redundante (complejidad: baja)
 
@@ -61,7 +65,10 @@ Se elimina `generate-monthly-requests-monthly` (jobid 2). Se mantiene `generate-
 
 ### 7. Reset de clonación (complejidad: baja)
 
-En `Solicitudes.tsx` y `SolicitudDetalle.tsx`, añadir `budget_item_id: null` y `budget_id: null` al objeto insertado del clon. Un clon nunca hereda el vínculo a una línea de presupuesto. Sin esto, con el índice único de F1 el clon fallaría por colisión.
+En `Solicitudes.tsx` y `SolicitudDetalle.tsx`, añadir `budget_item_id: null` y `budget_id: null` al objeto insertado del clon.
+
+**Confirmación pedida sobre re-vinculación (punto 2):** verificado en `RequestFormModal.tsx` — el campo `budget_id` es editable (línea 752, selector "Presupuesto") y el formulario exige origen (`contract_id` o `budget_id`, línea 76). Es decir, gestión **sí** puede re-vincular un clon a un presupuesto desde el formulario de edición. Matiz: `budget_item_id` (vínculo a la **línea** concreta) no es editable en el formulario; solo lo establece la generación desde presupuesto. Un clon quedará ligado al presupuesto pero no a una línea, que es exactamente el comportamiento deseado para no colisionar con el índice único de F1.
+
 
 ## Detalles técnicos
 
@@ -71,9 +78,12 @@ Migración única, con paso 0 de respaldo (`CREATE TABLE AS SELECT` de `financia
 ALTER TABLE public.financial_requests
   ADD COLUMN phase text,
   ADD COLUMN requires_deliverable boolean NOT NULL DEFAULT false,
-  ADD COLUMN deliverable_url text;
+  ADD COLUMN deliverable_url text,
+  ADD COLUMN deliverable_filename text,
+  ADD COLUMN approved_by uuid REFERENCES public.profiles(id);
 
--- gate de entregable (trigger, no CHECK)
+-- trigger único: gate de entregable + snapshot de aprobación (no CHECK)
+-- RPC set_request_deliverable_url (SECURITY DEFINER, columna única)
 -- FK: DROP CONSTRAINT financial_requests_budget_item_id_fkey
 --     ADD  ... REFERENCES public.budget_items(id) ON DELETE RESTRICT
 ```
@@ -84,7 +94,7 @@ Sin notificaciones (F3) y sin validación de transiciones de estado en BD (F4).
 
 - **Regresión de la ruta "Aprobar"**: al unificar, cualquier diferencia de comportamiento se nota en producción. Mitigación: la función replica exactamente la lógica actual y las notificaciones quedan fuera de ella.
 - **RESTRICT sin el paso 1**: si la FK cambia antes de arreglar el editor económico, el guardado de presupuestos empieza a fallar con error de BD crudo.
-- **`deliverable_url` editable por especialista**: requiere revisar que la política de escritura de `financial_requests` para especialistas permita ese campo y no otros.
+- **`approved_by` en actualizaciones automáticas**: si un proceso de servidor completa un request sin sesión, `auth.uid()` es nulo y el snapshot queda vacío. Es aceptable: la columna queda nula, no bloquea.
 - **Recurrentes con `deadline`**: al rellenar `deadline` cambia lo que ven filtros y avisos por vencimiento de los fees mensuales.
 - **Volumen del modal**: presupuestos con muchas líneas requieren tabla compacta y selección múltiple usable.
 
@@ -97,6 +107,9 @@ Sin notificaciones (F3) y sin validación de transiciones de estado en BD (F4).
 5. RESTRICT: `DELETE` directo en SQL de una línea con request vinculado falla; el editor económico avisa antes de intentarlo.
 6. Clon: clonar un request generado desde presupuesto produce un clon con `budget_item_id` y `budget_id` nulos y sin colisión de índice.
 7. Cron: queda un único job activo y la generación mensual sigue funcionando en ejecución manual.
+8. Snapshot: completar un request con entregable rellena `approved_by`, `completed_at` y `deliverable_filename`; al salir de `completed` se liberan `approved_by` y `completed_at`.
+9. `phase` asignable también en creación manual desde `RequestFormModal`.
+
 
 ## Complejidad por punto
 
@@ -105,7 +118,7 @@ Sin notificaciones (F3) y sin validación de transiciones de estado en BD (F4).
 | 1. Función única de generación | Media |
 | 2. Modal con resumen por especialista | Alta |
 | 3. `phase` y `deadline` | Media |
-| 4. Campos de entregable + gate | Media |
+| 4. Entregable + snapshot de aprobación + RPC | Media |
 | 5. FK a RESTRICT (+ editor económico) | Media |
 | 6. Limpieza de cron | Baja |
 | 7. Reset de clonación | Baja |

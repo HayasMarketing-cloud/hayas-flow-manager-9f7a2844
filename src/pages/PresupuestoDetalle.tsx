@@ -1703,6 +1703,15 @@ export default function PresupuestoDetalle() {
         onConfirm={confirmDelete}
         variant="destructive"
       />
+      <GenerateRequestsConfirmModal
+        budgetId={budget.id}
+        open={generationModalOpen}
+        onOpenChange={setGenerationModalOpen}
+        mode={generationMode}
+        onConfirm={handleConfirmGeneration}
+        isSubmitting={generateRequestsMutation.isPending || approveMutation.isPending}
+      />
     </AppLayout>
+
   );
 }

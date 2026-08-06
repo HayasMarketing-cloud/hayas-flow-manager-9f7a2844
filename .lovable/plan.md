@@ -1,124 +1,93 @@
-# F2 — Creación íntegra de requests
+# F3 — Notificaciones
 
-Plan de implementación. No se ejecuta nada hasta aprobación.
+Objetivo: un único email por especialista al asignar un lote de requests, aceptación de lote en un clic, y destinatarios de gestión resueltos dinámicamente (fin de `info@hayas.es`).
 
-## Hallazgos previos (verificados contra código y base de datos)
+## Alcance
 
-Tres puntos del briefing no coinciden con el estado real y cambian el alcance:
+1. Email agrupado de asignación (generación desde presupuesto y asignación en lote de requests existentes).
+2. Tokens de lote mediante tabla puente `request_action_token_items`.
+3. Destinatarios de gestión dinámicos (AM de origen + admin/finanzas, deduplicados).
+4. Reglas por origen: presupuesto → agrupado; manual individual → email actual; recurrentes de contrato → sin email.
+5. Normalización y autocompletado de `phase` — **ya implementado** en el turno anterior (`normalizePhase` / `canonicalizePhase` en `src/lib/budget-request-generation.ts` y datalist en el modal). En F3 solo queda verificarlo.
 
-1. **El gate de entregable no existe.** En `financial_requests` solo existe `deadline`. No existen `phase`, `requires_deliverable`, `deliverable_url` (ni `progress_pct`). Los triggers actuales son solo `set_request_code`, `trg_fill_request_work_period`, `trg_prevent_duplicate_budget_request` y `update_requests_updated_at`. F2 debe crear las columnas **y** el trigger de bloqueo; no basta con exponer campos en UI.
-2. **Queda una segunda vía de desvinculación.** F1 arregló `BudgetFormModal`, pero el editor del bloque económico de `PresupuestoDetalle.tsx:570-578` sigue haciendo `update financial_requests set budget_item_id = null` antes de borrar líneas. Con `ON DELETE RESTRICT` esa ruta seguiría dejando huérfanos silenciosos, así que hay que convertirla en bloqueo antes de tocar la FK.
-3. **Los dos cron jobs son idénticos.** Ambos (`generate-monthly-contract-requests`, jobid 1, `5 0 1 * *`; `generate-monthly-requests-monthly`, jobid 2, `0 6 1 * *`) hacen el mismo `http_post` a `generate-monthly-requests` con `{"auto_mode": true}`. Son mensuales el día 1 (no diarios). Ninguno está referenciado en código ni en `config.toml`; la única referencia a la función desde la app es la llamada manual de `ContractFormModal.tsx`.
+## Esquema (migración única, con paso 0 de respaldo)
 
-También confirmado el **bug de clonación** (punto 7): `Solicitudes.tsx:282-325` y `SolicitudDetalle.tsx:189-230` excluyen la relación `budget_item` pero **no** las columnas `budget_item_id` ni `budget_id`, así que el clon hereda el puntero a la línea de presupuesto. Encaja con REQ-2026-295 / 384 / 385.
+Paso 0: `CREATE TABLE public._backup_request_action_tokens_<fecha> AS SELECT * FROM public.request_action_tokens;`
 
-## Qué se construye
+Cambios:
 
-### 1. Función única de generación desde presupuesto (complejidad: media)
+- `request_action_tokens`: `request_id` pasa a **nullable** (los tokens de lote no apuntan a un request único) y se añade `action_type = 'specialist_batch_response'` como valor admitido. Los tokens existentes conservan su `request_id` y siguen funcionando sin cambios.
+- Nueva tabla `request_action_token_items`:
+  - `id uuid pk`, `token_id uuid not null references request_action_tokens(id) on delete cascade`, `request_id uuid not null references financial_requests(id) on delete cascade`, `status text not null default 'pending'` (`pending` | `accepted` | `skipped`), `processed_at timestamptz`, `created_at timestamptz`.
+  - `unique (token_id, request_id)`.
+  - Índices por `token_id` y por `request_id`.
+  - GRANTs: solo `service_role` (todo el ciclo pasa por Edge Functions). Sin GRANT a `anon`/`authenticated`.
+  - RLS activada; política de lectura únicamente para admin/finanzas (igual que `request_action_tokens`). Ninguna política para `anon`.
+- Check de integridad por trigger: un token con `action_type = 'specialist_batch_response'` debe tener `request_id IS NULL` y al menos una fila en la tabla puente; un token individual debe tener `request_id NOT NULL`.
 
-Nuevo hook `src/hooks/useGenerateBudgetRequests.tsx` con toda la lógica hoy duplicada en `useApproveBudget.tsx` y `PresupuestoDetalle.tsx:843-915`: cálculo de líneas pendientes, tarifas de especialista, coste, inserción.
+### Ciclo de vida del token de lote
 
-- "Aprobar y Generar Solicitudes" = `update budgets.status='approved'` + la función.
-- "Generar Requests" = solo la función.
-- Misma guarda de "líneas sin servicio", mismo modal, mismo resultado observable.
-- La notificación de aprobación (`notifyBudgetApproved`, PO Number) se queda donde está: es del acto de aprobar, no de generar.
+- **Generación**: al confirmar el modal de generación (o la asignación en lote), la función `send-batch-assignment-notification` agrupa los requests por especialista y, por cada especialista, crea **un** token (`uuid` v4 aleatorio, columna `token`) con `expires_at = now() + 7 días`, `status = 'pending'`, más N filas en `request_action_token_items`. Antes de crearlo, invalida (`status = 'expired'`) tokens pendientes previos que cubran esos mismos requests.
+- **Validación**: `validate-request-action-token` se amplía; si el token es de lote devuelve la lista de requests del lote con su estado actual en lugar de un único request. Comprueba existencia, `expires_at > now()` y `status = 'pending'`.
+- **Un solo uso**: al procesarse, el token pasa a `accepted`/`rejected` con `acted_at`, IP y user-agent. Cualquier reintento cae en la comprobación `status <> 'pending'` → rechazo.
+- **Anti-falsificación**: el token es un UUID aleatorio de 122 bits generado en servidor, nunca derivado de datos del request; la tabla no es legible por `anon` ni `authenticated`; toda la resolución ocurre en Edge Functions con `service_role`; el alcance del lote lo fija la tabla puente en el momento de emisión, así que manipular la URL no permite añadir requests. El formato UUID se valida antes de consultar.
 
-### 2. Modal de confirmación con resumen por especialista (complejidad: alta)
+### Lote parcial
 
-Nuevo `src/components/budgets/GenerateRequestsConfirmModal.tsx`. Se abre siempre antes de insertar:
+Al aceptar, la función recorre las filas puente y aplica, por request:
 
-- Resumen agrupado por especialista: nº de requests, horas totales, coste total.
-- Secciones de aviso (no bloqueante): líneas sin especialista, líneas sin horas o sin coste.
-- Si el presupuesto ya tiene requests vivos, aviso explícito y listado solo de las líneas pendientes.
-- Botón de confirmación explícito; nada se inserta antes.
+- `status = 'pending_specialist'` → pasa a `in_progress`, `specialist_acceptance = true`, item `accepted`.
+- cualquier otro estado (ya avanzado, cancelado, reasignado a otro especialista) → no se toca, item `skipped` con el estado encontrado.
 
-### 3. `phase` y `deadline` en la generación y en creación manual (complejidad: media)
+El token se marca usado igualmente. La respuesta devuelve `{ accepted: [...], skipped: [{code, status}] }` y la página `/solicitud/accion/:token` muestra ambos bloques. Un lote donde **todos** los items estén skipped no se considera error: se informa de que ya no había nada pendiente. Rechazo (`reject`) aplica la misma lógica devolviendo los pendientes a `draft`.
 
-- Esquema: nueva columna `phase text` en `financial_requests`.
-- En el modal: edición de `phase` y `deadline` por línea, más asignación en bloque sobre líneas seleccionadas. Ambos opcionales.
-- `RequestFormModal.tsx`: `deadline` ya existe; se añade `phase`.
-- Recurrentes desde contrato (`supabase/functions/generate-monthly-requests`): `deadline` = último día del `work_month` generado, `phase` = null.
+## Funciones y ficheros afectados
 
-### 4. Campos de entregable + snapshot de aprobación (complejidad: media)
+- **Nueva** `supabase/functions/send-batch-assignment-notification/index.ts`: agrupa por especialista, crea tokens + items, compone y envía el email agrupado vía Gmail (mismo mecanismo de impersonación @hayas.es ya usado en `send-request-notification`).
+- **Nuevo** `supabase/functions/_shared/management-recipients.ts`: resuelve destinatarios de gestión — AM/PM del presupuesto o contrato de origen (o `client_assignments` como fallback) + usuarios con rol `admin` y `finanzas` vía `user_roles → profiles.email`, filtrado `@hayas.es` y deduplicado por email en minúsculas. Mismo patrón que `send-liquidation-email`.
+- `supabase/functions/process-request-action/index.ts`: rama de lote (recorrido de items, parciales, rollback por item) y sustitución del bloque de destinatarios actual (líneas 364-372) por el helper compartido.
+- `supabase/functions/validate-request-action-token/index.ts`: soporte de tokens de lote.
+- `src/pages/AccionRequest.tsx`: render de lote (tabla de requests, resultado con aceptados/omitidos).
+- `src/components/requests/RequestFlowActions.tsx`: elimina `managementEmail = 'info@hayas.es'` (línea 248); los eventos de flujo dejan de pasar un destinatario fijo y el envío resuelve destinatarios en el servidor.
+- `src/pages/SolicitudDetalle.tsx` y `src/hooks/useOperationalProjects.tsx`: ajustan la invocación al nuevo contrato (sin `recipientEmail` para eventos hacia gestión).
+- `src/lib/budget-request-generation.ts` + `src/hooks/useGenerateBudgetRequests.tsx`: tras insertar, invocan la notificación agrupada con los ids creados.
+- `supabase/functions/generate-monthly-requests/index.ts`: se verifica que no invoca ninguna notificación (regla 4); sin cambios previstos.
 
-- Esquema: `requires_deliverable boolean not null default false`, `deliverable_url text`, `deliverable_filename text`, `approved_by uuid REFERENCES public.profiles(id)`.
-- Trigger `BEFORE UPDATE` único que hace gate y snapshot:
-  - Al pasar a `completed`: si `requires_deliverable` y `deliverable_url` vacío → error. Si pasa, fijar `completed_at` (si nulo), `approved_by = auth.uid()` (si nulo) y `deliverable_filename = deliverable_url` (si nulo y hay URL).
-  - Al salir de `completed`: `approved_by = NULL` y `completed_at = NULL`.
-- UI: campos en `RequestFormModal` y en `SolicitudDetalle`, con mensaje de error claro cuando el gate salte.
-- `progress_pct` no se añade en ningún sitio.
+### Estructura del email agrupado
 
-**Mecanismo exacto para que el especialista edite solo `deliverable_url`:** RPC `SECURITY DEFINER` `public.set_request_deliverable_url(_request_id uuid, _url text)`, que comprueba que el llamante es el especialista asignado al request (o admin/finanzas/gestión) y hace un `UPDATE` de esa única columna. `GRANT EXECUTE` a `authenticated`. No se toca la política `UPDATE` de `financial_requests` para especialistas: nada de abrir columnas adicionales por RLS.
-
-### 5. FK a `ON DELETE RESTRICT` (complejidad: media)
-
-Orden confirmado: primero el editor económico, después la FK.
-
-1. Cambiar `PresupuestoDetalle.tsx:570-578`: en lugar de anular `budget_item_id`, comprobar si las líneas a borrar tienen requests vinculados y, si los hay, abortar el guardado con un aviso que nombre las líneas y sus requests.
-2. Cambiar `financial_requests_budget_item_id_fkey` a `ON DELETE RESTRICT`.
-
-Borrado de presupuesto completo (`Presupuestos.tsx:370-415`): ya borra `financial_requests` **antes** que `budget_items`, así que es compatible con RESTRICT. Aprobado el endurecimiento: se **bloquea** el borrado del presupuesto cuando alguno de sus requests tenga `billed_invoice_id` o `liquidation_id`, con aviso que enumere los requests implicados.
-
-### 6. Cron: eliminar el job redundante (complejidad: baja)
-
-Se elimina `generate-monthly-requests-monthly` (jobid 2). Se mantiene `generate-monthly-contract-requests` (jobid 1, `5 0 1 * *`), por nombre descriptivo del dominio y por ejecutarse primero. La función ya es idempotente por `contract_id` + `work_month`, por eso el duplicado no ha causado daño visible. Queda documentado en el propio plan y en el repositorio.
-
-### 7. Reset de clonación (complejidad: baja)
-
-En `Solicitudes.tsx` y `SolicitudDetalle.tsx`, añadir `budget_item_id: null` y `budget_id: null` al objeto insertado del clon.
-
-**Confirmación pedida sobre re-vinculación (punto 2):** verificado en `RequestFormModal.tsx` — el campo `budget_id` es editable (línea 752, selector "Presupuesto") y el formulario exige origen (`contract_id` o `budget_id`, línea 76). Es decir, gestión **sí** puede re-vincular un clon a un presupuesto desde el formulario de edición. Matiz: `budget_item_id` (vínculo a la **línea** concreta) no es editable en el formulario; solo lo establece la generación desde presupuesto. Un clon quedará ligado al presupuesto pero no a una línea, que es exactamente el comportamiento deseado para no colisionar con el índice único de F1.
-
-
-## Detalles técnicos
-
-Migración única, con paso 0 de respaldo (`CREATE TABLE AS SELECT` de `financial_requests` antes de mutar):
-
-```sql
-ALTER TABLE public.financial_requests
-  ADD COLUMN phase text,
-  ADD COLUMN requires_deliverable boolean NOT NULL DEFAULT false,
-  ADD COLUMN deliverable_url text,
-  ADD COLUMN deliverable_filename text,
-  ADD COLUMN approved_by uuid REFERENCES public.profiles(id);
-
--- trigger único: gate de entregable + snapshot de aprobación (no CHECK)
--- RPC set_request_deliverable_url (SECURITY DEFINER, columna única)
--- FK: DROP CONSTRAINT financial_requests_budget_item_id_fkey
---     ADD  ... REFERENCES public.budget_items(id) ON DELETE RESTRICT
-```
-
-Sin notificaciones (F3) y sin validación de transiciones de estado en BD (F4).
+1. Cabecera Hayas + asunto `N nuevos trabajos asignados — {Cliente}` (o `{Cliente} · {Presupuesto}`).
+2. Saludo al especialista y una línea de contexto (cliente, presupuesto de origen).
+3. Tabla: **Código · Título · Fase · Horas · Deadline**.
+4. Fila de totales: nº de requests, horas totales, coste total para ese especialista.
+5. CTA principal "Aceptar asignación" (todo el lote) + enlace secundario "Ver en FLOW".
+6. Nota de caducidad (7 días) y aviso de que los requests que ya hayan cambiado de estado no se verán afectados.
+7. Pie estándar.
 
 ## Riesgos
 
-- **Regresión de la ruta "Aprobar"**: al unificar, cualquier diferencia de comportamiento se nota en producción. Mitigación: la función replica exactamente la lógica actual y las notificaciones quedan fuera de ella.
-- **RESTRICT sin el paso 1**: si la FK cambia antes de arreglar el editor económico, el guardado de presupuestos empieza a fallar con error de BD crudo.
-- **`approved_by` en actualizaciones automáticas**: si un proceso de servidor completa un request sin sesión, `auth.uid()` es nulo y el snapshot queda vacío. Es aceptable: la columna queda nula, no bloquea.
-- **Recurrentes con `deadline`**: al rellenar `deadline` cambia lo que ven filtros y avisos por vencimiento de los fees mensuales.
-- **Volumen del modal**: presupuestos con muchas líneas requieren tabla compacta y selección múltiple usable.
+- **Envío parcial**: si falla el email de un especialista, los requests ya están creados. Mitigación: la notificación no bloquea la generación; se reporta por toast y el reenvío queda disponible desde el listado.
+- **Reasignación posterior**: un token de lote emitido para el especialista A cubre requests que pueden reasignarse a B. Mitigación: al procesar se verifica que el `specialist_id` actual coincide con el del token; si no, el item se marca `skipped`.
+- **Volumen de emails de gestión**: admin + finanzas + AM puede dar varios destinatarios por evento. Mitigación: deduplicación y filtro `@hayas.es`.
+- **Cuota Gmail API**: un envío por especialista y evento; sigue muy por debajo del límite, pero se registran fallos por destinatario sin abortar el resto.
+- **Tokens huérfanos**: `on delete cascade` en ambas FKs evita filas puente sin request o sin token.
 
 ## Checks de verificación
 
-1. Doble generación: generar dos veces sobre el mismo presupuesto — la segunda muestra el aviso de requests existentes y solo ofrece líneas pendientes; con todas generadas, no inserta nada.
-2. Presupuesto de prueba multi-especialista: los totales por especialista del modal (nº, horas, coste) cuadran con la suma de las líneas.
-3. `phase` y `deadline`: asignación en bloque a 2 líneas seleccionadas y verificación de los valores en los requests creados.
-4. Gate de entregable: request con `requires_deliverable` y sin URL no puede pasar a `completed`; con URL, sí.
-5. RESTRICT: `DELETE` directo en SQL de una línea con request vinculado falla; el editor económico avisa antes de intentarlo.
-6. Clon: clonar un request generado desde presupuesto produce un clon con `budget_item_id` y `budget_id` nulos y sin colisión de índice.
-7. Cron: queda un único job activo y la generación mensual sigue funcionando en ejecución manual.
-8. Snapshot: completar un request con entregable rellena `approved_by`, `completed_at` y `deliverable_filename`; al salir de `completed` se liberan `approved_by` y `completed_at`.
-9. `phase` asignable también en creación manual desde `RequestFormModal`.
+1. Especialista con 5 requests generados en un mismo acto recibe **1** email con 5 filas y totales (nº, horas, coste) correctos.
+2. Aceptar el lote mueve exactamente esos 5 requests a `in_progress` y ninguno más (verificación por consulta antes/después).
+3. Token caducado → rechazo con mensaje claro; token ya usado → rechazo.
+4. Lote parcial: se avanza manualmente 1 de los 5 antes de aceptar; el resultado acepta 4 e informa del omitido, sin error.
+5. Evento de flujo (aceptado / terminado / correcciones / aprobado) llega al AM del presupuesto + admin + finanzas, deduplicado si el AM es también admin, y **no** a `info@hayas.es`.
+6. Ejecución del cron de recurrentes: 0 emails enviados (log de la función y ausencia de tokens nuevos).
+7. Grep en el repo: cero ocurrencias de `info@hayas.es` como destinatario.
+8. Autocompletado de `phase` en el modal sugiere las fases existentes del presupuesto y `" fase  1 "` se guarda como `Fase 1` reutilizando la grafía existente.
 
-
-## Complejidad por punto
+## Complejidad estimada
 
 | Punto | Complejidad |
-|---|---|
-| 1. Función única de generación | Media |
-| 2. Modal con resumen por especialista | Alta |
-| 3. `phase` y `deadline` | Media |
-| 4. Entregable + snapshot de aprobación + RPC | Media |
-| 5. FK a RESTRICT (+ editor económico) | Media |
-| 6. Limpieza de cron | Baja |
-| 7. Reset de clonación | Baja |
+| --- | --- |
+| 1. Email agrupado | Alta |
+| 2. Tabla puente y tokens de lote | Media |
+| 3. Destinatarios dinámicos | Media |
+| 4. Reglas por origen | Baja |
+| 5. Phase (ya hecho, solo verificación) | Baja |

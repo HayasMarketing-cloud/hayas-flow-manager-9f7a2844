@@ -34,6 +34,9 @@ import { useBudgetPnL } from '@/hooks/useEntityPnL';
 import { FinancialControllingCard } from '@/components/shared/FinancialControllingCard';
 import { BudgetLinkedInvoicesCard } from '@/components/budgets/BudgetLinkedInvoicesCard';
 import { BudgetInvoicingSummary } from '@/components/budgets/BudgetInvoicingSummary';
+import { GenerateRequestsConfirmModal } from '@/components/budgets/GenerateRequestsConfirmModal';
+import { useGenerateBudgetRequests } from '@/hooks/useGenerateBudgetRequests';
+
 
 export default function PresupuestoDetalle() {
   const { id } = useParams<{ id: string }>();

@@ -30,6 +30,8 @@ export interface GenerationPlan {
   linesWithoutService: string[];
   /** Fases ya usadas en requests de este presupuesto (para autocompletado) */
   existingPhases: string[];
+  /** Flag `receives_flow_notifications` por especialista (precarga del toggle) */
+  notifyDefaults: Record<string, boolean>;
 }
 
 /** Trim + colapsado de espacios internos. Devuelve null si queda vacío. */

@@ -324,7 +324,7 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
               variant="default"
               onClick={() => handleAction(
                 'Aceptar Trabajo',
-                'pending_approval',
+                'in_progress',
                 'specialist_accepted',
                 managementEmail,
                 managementName
@@ -350,31 +350,6 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
               Rechazar
             </Button>
           </div>
-        );
-
-      case 'pending_approval':
-        // Only the assigned specialist can approve start
-        if (!isAssignedSpecialist()) {
-          if (isManagement()) {
-            return renderWaitingMessage(`${specialistName} para aprobar inicio`);
-          }
-          return renderWaitingMessage('Aprobación del especialista');
-        }
-        return (
-          <Button
-            size={buttonSize}
-            onClick={() => handleAction(
-              'Aprobar Inicio',
-              'in_progress',
-              'work_started',
-              managementEmail,
-              managementName
-            )}
-            disabled={isLoading}
-          >
-            {isLoading ? <Loader2 className={`${iconSize} mr-2 animate-spin`} /> : <PlayCircle className={`${iconSize} mr-2`} />}
-            Aprobar Inicio
-          </Button>
         );
 
       case 'in_progress':

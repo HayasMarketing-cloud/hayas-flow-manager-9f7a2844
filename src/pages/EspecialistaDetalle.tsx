@@ -46,7 +46,7 @@ const formatDate = (d: string | null) =>
 export default function EspecialistaDetalle() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAdmin, canAccessOperations, loading: rolesLoading } = useUserRole();
+  const { isAdmin, canAccessOperations, canAccessFinance, loading: rolesLoading } = useUserRole();
   const { specialist, liquidations, isLoading } = useSpecialistDetail(id);
   const [editOpen, setEditOpen] = useState(false);
 
@@ -139,7 +139,7 @@ export default function EspecialistaDetalle() {
               </a>
             </div>
           )}
-          {specialist.hourly_rate != null && (
+          {specialist.hourly_rate != null && canAccessFinance() && (
             <div className="text-sm">
               <span className="text-muted-foreground">Tarifa por hora: </span>
               <span className="font-medium">{formatCurrency(specialist.hourly_rate)}</span>

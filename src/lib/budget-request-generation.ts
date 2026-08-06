@@ -105,13 +105,15 @@ export async function buildBudgetGenerationPlan(budgetId: string): Promise<Gener
     .map((i: any) => i.specialist_id);
 
   const ratesMap: Record<string, number> = {};
+  const notifyDefaults: Record<string, boolean> = {};
   if (specialistIds.length > 0) {
     const { data: specialists } = await supabase
       .from('specialists')
-      .select('id, hourly_rate')
+      .select('id, hourly_rate, receives_flow_notifications')
       .in('id', specialistIds);
     specialists?.forEach((s: any) => {
       ratesMap[s.id] = Number(s.hourly_rate) || 0;
+      notifyDefaults[s.id] = s.receives_flow_notifications !== false;
     });
   }
 
@@ -142,6 +144,7 @@ export async function buildBudgetGenerationPlan(budgetId: string): Promise<Gener
     totalItems: (items || []).length,
     linesWithoutService: pending.filter((i: any) => !i.service_id).map((i: any) => i.description),
     existingPhases,
+    notifyDefaults,
   };
 }
 

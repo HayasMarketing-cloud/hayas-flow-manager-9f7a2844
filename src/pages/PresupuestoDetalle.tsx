@@ -34,6 +34,9 @@ import { useBudgetPnL } from '@/hooks/useEntityPnL';
 import { FinancialControllingCard } from '@/components/shared/FinancialControllingCard';
 import { BudgetLinkedInvoicesCard } from '@/components/budgets/BudgetLinkedInvoicesCard';
 import { BudgetInvoicingSummary } from '@/components/budgets/BudgetInvoicingSummary';
+import { GenerateRequestsConfirmModal } from '@/components/budgets/GenerateRequestsConfirmModal';
+import { useGenerateBudgetRequests } from '@/hooks/useGenerateBudgetRequests';
+
 
 export default function PresupuestoDetalle() {
   const { id } = useParams<{ id: string }>();
@@ -48,6 +51,9 @@ export default function PresupuestoDetalle() {
   
   // Estados para flujo de aprobación
   const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [generationModalOpen, setGenerationModalOpen] = useState(false);
+  const [generationMode, setGenerationMode] = useState<'generate' | 'approve'>('generate');
+
   
   // Estados para eliminación
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -58,12 +64,13 @@ export default function PresupuestoDetalle() {
   } | null>(null);
   const [isLoadingAssociatedData, setIsLoadingAssociatedData] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isGeneratingRequests, setIsGeneratingRequests] = useState(false);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   
   // Hooks de aprobación y creación de proyecto con actividades
   const approveMutation = useApproveBudget();
+  const generateRequestsMutation = useGenerateBudgetRequests();
+
   const createProjectWithActivities = useCreateProjectWithActivities();
 
   // Query para obtener token de compartición existente
@@ -480,16 +487,13 @@ export default function PresupuestoDetalle() {
     }
   };
 
-  // Función para aprobar presupuesto y generar solicitudes
+  // Aprobar presupuesto: pasa por el mismo modal de confirmación de generación
   const handleApproveBudget = () => {
     if (!data?.budget) return;
-    approveMutation.mutate({
-      budgetId: data.budget.id,
-      onSuccess: () => {
-        setShowApprovalModal(true);
-      }
-    });
+    setGenerationMode('approve');
+    setGenerationModalOpen(true);
   };
+
 
   // Función para guardar cambios de Resumen
   const handleSaveResumen = async () => {
@@ -564,20 +568,31 @@ export default function PresupuestoDetalle() {
       const itemsToInsert = economicItems.filter((item) => !item.id || !existingItemIds.includes(item.id));
       const itemIdsToKeep = itemsToUpdate.map((item) => item.id);
       
-      // Eliminar items que ya no existen
+      // Eliminar items que ya no existen (salvo que tengan requests vinculados)
       const itemsToDelete = existingItemIds.filter((id: string) => !itemIdsToKeep.includes(id));
       if (itemsToDelete.length > 0) {
-        // Desvincular solicitudes de items eliminados
-        await supabase
+        const { data: linked, error: linkedError } = await supabase
           .from('financial_requests')
-          .update({ budget_item_id: null })
+          .select('code, budget_item_id')
           .in('budget_item_id', itemsToDelete);
-          
-        await supabase
-          .from('budget_items')
-          .delete()
-          .in('id', itemsToDelete);
+        if (linkedError) throw linkedError;
+
+        const blockedIds = new Set((linked || []).map((r: any) => r.budget_item_id));
+        const deletable = itemsToDelete.filter((id: string) => !blockedIds.has(id));
+
+        if (deletable.length > 0) {
+          await supabase.from('budget_items').delete().in('id', deletable);
+        }
+
+        if (blockedIds.size > 0) {
+          toast.warning(
+            `${blockedIds.size} línea(s) no se han eliminado porque tienen requests asociados (${(linked || [])
+              .map((r: any) => r.code)
+              .join(', ')}).`
+          );
+        }
       }
+
 
       // Actualizar items existentes
       for (const item of itemsToUpdate) {
@@ -840,81 +855,32 @@ export default function PresupuestoDetalle() {
   );
   const ungeneratedItems = (data?.items || []).filter((i: any) => !generatedItemIds.has(i.id));
 
-  const handleGenerateRequests = async () => {
-    if (!budget || ungeneratedItems.length === 0) {
+  const handleGenerateRequests = () => {
+    if (ungeneratedItems.length === 0) {
       toast.error('No hay líneas pendientes para generar requests');
       return;
     }
+    setGenerationMode('generate');
+    setGenerationModalOpen(true);
+  };
 
-    const itemsWithoutService = ungeneratedItems.filter((item: any) => !item.service_id);
-    if (itemsWithoutService.length > 0) {
-      toast.error('Hay líneas sin servicio asignado. Edita el presupuesto primero.');
-      return;
-    }
-
-    setIsGeneratingRequests(true);
-
+  const handleConfirmGeneration = async ({ budget: planBudget, lines }: { budget: any; lines: any[] }) => {
     try {
-      // Obtener tarifas por hora de los especialistas asignados
-      const specialistIds = ungeneratedItems
-        .filter((item: any) => item.specialist_id)
-        .map((item: any) => item.specialist_id);
-
-      let specialistsMap: Record<string, number> = {};
-      if (specialistIds.length > 0) {
-        const { data: specialists } = await supabase
-          .from('specialists')
-          .select('id, hourly_rate')
-          .in('id', specialistIds);
-        
-        specialists?.forEach((s: any) => {
-          specialistsMap[s.id] = s.hourly_rate || 0;
+      if (lines.length > 0) {
+        await generateRequestsMutation.mutateAsync({ budget: planBudget, lines });
+      }
+      if (generationMode === 'approve') {
+        approveMutation.mutate({
+          budgetId: planBudget.id,
+          onSuccess: () => setShowApprovalModal(true),
         });
       }
-
-      const requestsToInsert = ungeneratedItems.map((item: any) => {
-        const specialistRate = item.specialist_id 
-          ? specialistsMap[item.specialist_id] || 0 
-          : 0;
-        const hours = item.quantity || 0;
-        const costToAgency = specialistRate > 0 ? hours * specialistRate : null;
-
-        return {
-          title: item.description,
-          description: `Generado automáticamente desde presupuesto: ${budget.title}`,
-          client_id: budget.client_id,
-          client_contact_id: budget.client_contact_id || null,
-          service_id: item.service_id,
-          specialist_id: item.specialist_id || null,
-          budget_id: budget.id,
-          budget_item_id: item.id,
-          quantity: item.quantity,
-          unit_price: item.unit_price || 0,
-          sale_amount: item.total || 0,
-          status: 'pending_specialist' as const,
-          code: '',
-          cost_type: specialistRate > 0 ? 'hourly' as const : null,
-          hours: specialistRate > 0 ? hours : null,
-          cost_rate: specialistRate > 0 ? specialistRate : null,
-          cost_to_agency: costToAgency,
-        };
-      });
-
-      const { error: requestsError } = await supabase
-        .from('financial_requests')
-        .insert(requestsToInsert);
-
-      if (requestsError) throw requestsError;
-
-      queryClient.invalidateQueries({ queryKey: ['budget-requests', budget.id] });
-      queryClient.invalidateQueries({ queryKey: ['budget-detail', budget.id] });
-      toast.success(`${requestsToInsert.length} request(s) generada(s) correctamente`);
-    } catch (error: any) {
-      toast.error('Error al generar requests: ' + error.message);
-    } finally {
-      setIsGeneratingRequests(false);
+      setGenerationModalOpen(false);
+    } catch (e) {
+      // errores ya notificados por la mutación
     }
   };
+
 
   return (
     <AppLayout 
@@ -1241,9 +1207,10 @@ export default function PresupuestoDetalle() {
                             variant="outline"
                             size="sm"
                             onClick={handleGenerateRequests}
-                            disabled={isGeneratingRequests}
+                            disabled={generateRequestsMutation.isPending}
+
                           >
-                            {isGeneratingRequests ? (
+                            {generateRequestsMutation.isPending ? (
                               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                             ) : (
                               <ListChecks className="h-4 w-4 mr-2" />
@@ -1746,6 +1713,15 @@ export default function PresupuestoDetalle() {
         onConfirm={confirmDelete}
         variant="destructive"
       />
+      <GenerateRequestsConfirmModal
+        budgetId={budget.id}
+        open={generationModalOpen}
+        onOpenChange={setGenerationModalOpen}
+        mode={generationMode}
+        onConfirm={handleConfirmGeneration}
+        isSubmitting={generateRequestsMutation.isPending || approveMutation.isPending}
+      />
     </AppLayout>
+
   );
 }

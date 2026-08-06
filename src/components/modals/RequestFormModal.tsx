@@ -1,3 +1,4 @@
+import { Checkbox } from '@/components/ui/checkbox';
 import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -54,6 +55,10 @@ const requestSchema = z.object({
   description: z.string().optional().nullable(),
   quantity: z.coerce.number().min(0, 'No puede ser negativo'),
   deadline: z.string().optional().nullable(),
+  phase: z.string().max(100).optional().nullable(),
+  requires_deliverable: z.boolean().default(false),
+  deliverable_url: z.string().optional().nullable(),
+
   status: z.enum(['draft', 'pending_specialist', 'in_progress', 'pending_review', 'completed', 'cancelled']),
   // Sale/Price fields (to client)
   sale_type: z.enum(['hourly', 'fixed']).default('fixed'),
@@ -132,6 +137,9 @@ export const RequestFormModal = ({
       description: null,
       quantity: 1,
       deadline: null,
+      phase: null,
+      requires_deliverable: false,
+      deliverable_url: null,
       status: 'draft',
       // Sale defaults
       sale_type: 'fixed',
@@ -391,6 +399,9 @@ export const RequestFormModal = ({
         description: data.description || null,
         quantity: quantityToSave,
         deadline: data.deadline || null,
+        phase: data.phase || null,
+        requires_deliverable: data.requires_deliverable ?? false,
+        deliverable_url: data.deliverable_url || null,
         status: data.status,
         // Cost fields
         cost_type: data.cost_type,
@@ -570,6 +581,9 @@ export const RequestFormModal = ({
           description: initialData.description ?? null,
           quantity: toNum(initialData.quantity) ?? 1,
           deadline: initialData.deadline ?? null,
+          phase: initialData.phase ?? null,
+          requires_deliverable: initialData.requires_deliverable ?? false,
+          deliverable_url: initialData.deliverable_url ?? null,
           status: initialData.status,
           // Sale fields
           sale_type: initialData.sale_type ?? 'fixed',
@@ -609,6 +623,9 @@ export const RequestFormModal = ({
           description: null,
           quantity: 1,
           deadline: null,
+          phase: null,
+          requires_deliverable: false,
+          deliverable_url: null,
           status: 'draft',
           // Sale defaults
           sale_type: 'fixed',
@@ -1178,7 +1195,68 @@ export const RequestFormModal = ({
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="phase"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Fase</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Ej. Fase 1 / Kick-off"
+                        {...field}
+                        value={field.value || ''}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                        disabled={isViewMode}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
+
+            {/* Entregable */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+              <FormField
+                control={form.control}
+                name="requires_deliverable"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center gap-3 space-y-0 rounded-md border p-3">
+                    <FormControl>
+                      <Checkbox
+                        checked={!!field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={isViewMode}
+                      />
+                    </FormControl>
+                    <FormLabel className="!mt-0">Requiere entregable para completar</FormLabel>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="deliverable_url"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Enlace del entregable</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="https://..."
+                        {...field}
+                        value={field.value || ''}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                        disabled={isViewMode}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
 
             <Separator />
 

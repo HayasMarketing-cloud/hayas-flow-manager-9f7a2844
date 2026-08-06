@@ -840,81 +840,32 @@ export default function PresupuestoDetalle() {
   );
   const ungeneratedItems = (data?.items || []).filter((i: any) => !generatedItemIds.has(i.id));
 
-  const handleGenerateRequests = async () => {
-    if (!budget || ungeneratedItems.length === 0) {
+  const handleGenerateRequests = () => {
+    if (ungeneratedItems.length === 0) {
       toast.error('No hay líneas pendientes para generar requests');
       return;
     }
+    setGenerationMode('generate');
+    setGenerationModalOpen(true);
+  };
 
-    const itemsWithoutService = ungeneratedItems.filter((item: any) => !item.service_id);
-    if (itemsWithoutService.length > 0) {
-      toast.error('Hay líneas sin servicio asignado. Edita el presupuesto primero.');
-      return;
-    }
-
-    setIsGeneratingRequests(true);
-
+  const handleConfirmGeneration = async ({ budget: planBudget, lines }: { budget: any; lines: any[] }) => {
     try {
-      // Obtener tarifas por hora de los especialistas asignados
-      const specialistIds = ungeneratedItems
-        .filter((item: any) => item.specialist_id)
-        .map((item: any) => item.specialist_id);
-
-      let specialistsMap: Record<string, number> = {};
-      if (specialistIds.length > 0) {
-        const { data: specialists } = await supabase
-          .from('specialists')
-          .select('id, hourly_rate')
-          .in('id', specialistIds);
-        
-        specialists?.forEach((s: any) => {
-          specialistsMap[s.id] = s.hourly_rate || 0;
+      if (lines.length > 0) {
+        await generateRequestsMutation.mutateAsync({ budget: planBudget, lines });
+      }
+      if (generationMode === 'approve') {
+        approveMutation.mutate({
+          budgetId: planBudget.id,
+          onSuccess: () => setShowApprovalModal(true),
         });
       }
-
-      const requestsToInsert = ungeneratedItems.map((item: any) => {
-        const specialistRate = item.specialist_id 
-          ? specialistsMap[item.specialist_id] || 0 
-          : 0;
-        const hours = item.quantity || 0;
-        const costToAgency = specialistRate > 0 ? hours * specialistRate : null;
-
-        return {
-          title: item.description,
-          description: `Generado automáticamente desde presupuesto: ${budget.title}`,
-          client_id: budget.client_id,
-          client_contact_id: budget.client_contact_id || null,
-          service_id: item.service_id,
-          specialist_id: item.specialist_id || null,
-          budget_id: budget.id,
-          budget_item_id: item.id,
-          quantity: item.quantity,
-          unit_price: item.unit_price || 0,
-          sale_amount: item.total || 0,
-          status: 'pending_specialist' as const,
-          code: '',
-          cost_type: specialistRate > 0 ? 'hourly' as const : null,
-          hours: specialistRate > 0 ? hours : null,
-          cost_rate: specialistRate > 0 ? specialistRate : null,
-          cost_to_agency: costToAgency,
-        };
-      });
-
-      const { error: requestsError } = await supabase
-        .from('financial_requests')
-        .insert(requestsToInsert);
-
-      if (requestsError) throw requestsError;
-
-      queryClient.invalidateQueries({ queryKey: ['budget-requests', budget.id] });
-      queryClient.invalidateQueries({ queryKey: ['budget-detail', budget.id] });
-      toast.success(`${requestsToInsert.length} request(s) generada(s) correctamente`);
-    } catch (error: any) {
-      toast.error('Error al generar requests: ' + error.message);
-    } finally {
-      setIsGeneratingRequests(false);
+      setGenerationModalOpen(false);
+    } catch (e) {
+      // errores ya notificados por la mutación
     }
   };
+
 
   return (
     <AppLayout 

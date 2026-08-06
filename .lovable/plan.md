@@ -1,164 +1,111 @@
-# Sprint Requests — Fase 1 (revisada y aprobada con cambios)
+# F2 — Creación íntegra de requests
 
-## 0. Evidencia empírica solicitada (ya verificada, sin tocar código)
+Plan de implementación. No se ejecuta nada hasta aprobación.
 
-### 0.1 Veredicto sobre B1.2 — causa real de los duplicados de PRE-2026-045
+## Hallazgos previos (verificados contra código y base de datos)
 
-Los datos confirman que **no fue una edición manual del bloque económico lo que borró el vínculo, sino el patrón de escritura del editor**:
+Tres puntos del briefing no coinciden con el estado real y cambian el alcance:
 
-- Los 16 `budget_items` del PRE-2026-045 tienen **todos** `created_at = updated_at = 2026-07-01 15:54:22.671035+00` (timestamp idéntico al microsegundo → una única inserción en bloque).
-- Los 16 requests originales se crearon el **2026-06-30 16:49:19** — es decir, **antes** que los items que hoy existen. Los items a los que apuntaban ya no existen.
-- Los 16 requests originales tienen hoy `budget_item_id = NULL` (todos).
+1. **El gate de entregable no existe.** En `financial_requests` solo existe `deadline`. No existen `phase`, `requires_deliverable`, `deliverable_url` (ni `progress_pct`). Los triggers actuales son solo `set_request_code`, `trg_fill_request_work_period`, `trg_prevent_duplicate_budget_request` y `update_requests_updated_at`. F2 debe crear las columnas **y** el trigger de bloqueo; no basta con exponer campos en UI.
+2. **Queda una segunda vía de desvinculación.** F1 arregló `BudgetFormModal`, pero el editor del bloque económico de `PresupuestoDetalle.tsx:570-578` sigue haciendo `update financial_requests set budget_item_id = null` antes de borrar líneas. Con `ON DELETE RESTRICT` esa ruta seguiría dejando huérfanos silenciosos, así que hay que convertirla en bloqueo antes de tocar la FK.
+3. **Los dos cron jobs son idénticos.** Ambos (`generate-monthly-contract-requests`, jobid 1, `5 0 1 * *`; `generate-monthly-requests-monthly`, jobid 2, `0 6 1 * *`) hacen el mismo `http_post` a `generate-monthly-requests` con `{"auto_mode": true}`. Son mensuales el día 1 (no diarios). Ninguno está referenciado en código ni en `config.toml`; la única referencia a la función desde la app es la llamada manual de `ContractFormModal.tsx`.
 
-Patrón de escritura del editor (verificado en código):
+También confirmado el **bug de clonación** (punto 7): `Solicitudes.tsx:282-325` y `SolicitudDetalle.tsx:189-230` excluyen la relación `budget_item` pero **no** las columnas `budget_item_id` ni `budget_id`, así que el clon hereda el puntero a la línea de presupuesto. Encaja con REQ-2026-295 / 384 / 385.
 
-- `src/components/budgets/BudgetFormModal.tsx:273` — al editar un presupuesto ejecuta `delete().eq('budget_id', budget.id)` sobre `budget_items` y **reinserta** todas las líneas (`:288-289`). Es **delete + reinsert**, no update in-place. No hay diffing por id.
-- `supabase/migrations/20251212110031_*.sql:2` — la FK es `REFERENCES budget_items(id) ON DELETE SET NULL`. Por tanto **cualquier guardado del presupuesto pone a NULL el `budget_item_id` de todos sus requests**, aunque el usuario solo cambiara el precio de una línea.
-- `src/pages/PresupuestoDetalle.tsx:573-574` — segundo punto que escribe `budget_item_id: null` explícitamente, al detectar items eliminados.
-- `src/pages/Presupuestos.tsx:404-406` — borra items al eliminar presupuesto (aceptable).
+## Qué se construye
 
-**Conclusión de diseño para B1.2:** el problema no se resuelve solo con un índice único sobre `budget_item_id`, porque el vínculo se destruye desde el propio editor. B1.2 pasa a tener dos piezas:
+### 1. Función única de generación desde presupuesto (complejidad: media)
 
-1. **Editor idempotente:** `BudgetFormModal` deja de hacer delete+reinsert y pasa a diff por `id` (update de existentes, insert de nuevos, delete solo de los realmente eliminados).
-2. **Guarda de generación:** dedupe por `budget_item_id` **y**, como red de seguridad, por firma `(budget_id, description, quantity, unit_price)` cuando `budget_item_id` sea NULL.
+Nuevo hook `src/hooks/useGenerateBudgetRequests.tsx` con toda la lógica hoy duplicada en `useApproveBudget.tsx` y `PresupuestoDetalle.tsx:843-915`: cálculo de líneas pendientes, tarifas de especialista, coste, inserción.
 
-### 0.2 Los 14 requests en `pending_approval` (previo al remapeo)
+- "Aprobar y Generar Solicitudes" = `update budgets.status='approved'` + la función.
+- "Generar Requests" = solo la función.
+- Misma guarda de "líneas sin servicio", mismo modal, mismo resultado observable.
+- La notificación de aprobación (`notifyBudgetApproved`, PO Number) se queda donde está: es del acto de aprobar, no de generar.
 
-| Código | Título | Especialista | Cliente |
-|---|---|---|---|
-| REQ-2026-219 | New Page Redesign | Tomás White | ASENDIA HQ |
-| REQ-2026-483 | DE_Home, ePAQ, Parcel Delivery, SmartDesign, SD Section About US | Iolanda Carbone | ASENDIA HQ |
-| REQ-2026-485 | CN_Home, ePAQ, Parcel Delivery, SmartDesign, SD Section About US | Iolanda Carbone | ASENDIA HQ |
-| REQ-2026-486 | CN_Translations | Iolanda Carbone | ASENDIA HQ |
-| REQ-2026-487 | HK_Home, ePAQ, Parcel Delivery, SmartDesign, SD Section About US | Iolanda Carbone | ASENDIA HQ |
-| REQ-2026-488 | IT_Home, ePAQ, Parcel Delivery, SmartDesign, SD Section About US | Iolanda Carbone | ASENDIA HQ |
-| REQ-2026-489 | IT_Translations | Iolanda Carbone | ASENDIA HQ |
-| REQ-2026-490 | ES_Home, ePAQ, Parcel Delivery, SmartDesign, SD Section About US | Iolanda Carbone | ASENDIA HQ |
-| REQ-2026-491 | ES_Translations | Iolanda Carbone | ASENDIA HQ |
-| REQ-2026-492 | OC_Home, ePAQ, Parcel Delivery, SmartDesign, SD Section About US | Iolanda Carbone | ASENDIA HQ |
-| REQ-2026-493 | SG_Home, ePAQ, Parcel Delivery, SmartDesign, SD Section About US | Iolanda Carbone | ASENDIA HQ |
-| REQ-2026-494 | SE_Home, ePAQ, Parcel Delivery, SmartDesign, SD Section About US | Iolanda Carbone | ASENDIA HQ |
-| REQ-2026-496 | DK_Home, ePAQ, Parcel Delivery, SmartDesign, SD Section About US | Iolanda Carbone | ASENDIA HQ |
-| REQ-2026-498 | USA_Home, ePAQ, Parcel Delivery, SmartDesign, SD Section About US | Iolanda Carbone | ASENDIA HQ |
+### 2. Modal de confirmación con resumen por especialista (complejidad: alta)
 
-Destino tras tus ajustes: los **13 de Iolanda (REQ-2026-483 … 498)** pasan a `in_progress` (ya habían aceptado; devolverlos a `pending_specialist` desharía la aceptación). **REQ-2026-219** se excluye del remapeo y pasa a `cancelled` con nota.
+Nuevo `src/components/budgets/GenerateRequestsConfirmModal.tsx`. Se abre siempre antes de insertar:
 
-## 1. Alcance de F1 (tras tus decisiones)
+- Resumen agrupado por especialista: nº de requests, horas totales, coste total.
+- Secciones de aviso (no bloqueante): líneas sin especialista, líneas sin horas o sin coste.
+- Si el presupuesto ya tiene requests vivos, aviso explícito y listado solo de las líneas pendientes.
+- Botón de confirmación explícito; nada se inserta antes.
 
-Incluye:
+### 3. `phase` y `deadline` en la generación y en creación manual (complejidad: media)
 
-- Respaldo interno de tablas afectadas (paso 0).
-- Retirada operativa de `pending_approval`: 13 requests → `in_progress`, REQ-2026-219 → `cancelled`.
-- Índice único parcial anti-duplicados en `financial_requests`.
-- Trigger de guarda contra regeneración sobre requests desvinculados.
-- Limpieza TS de los 11 ficheros que referencian `pending_approval`.
-- Editor idempotente (`BudgetFormModal`), causa raíz verificada.
+- Esquema: nueva columna `phase text` en `financial_requests`.
+- En el modal: edición de `phase` y `deadline` por línea, más asignación en bloque sobre líneas seleccionadas. Ambos opcionales.
+- `RequestFormModal.tsx`: `deadline` ya existe; se añade `phase`.
+- Recurrentes desde contrato (`supabase/functions/generate-monthly-requests`): `deadline` = último día del `work_month` generado, `phase` = null.
 
-Excluye (movido o descartado):
+### 4. Campos de entregable (complejidad: media)
 
-- **`progress_pct`: eliminado de F1 y de todo el sprint.** El avance de fase se calcula como `requests completados / requests totales`; el semáforo de Proyectos será `estado + deadline`.
-- `activity_log`: `finanzas` en SELECT, `user_id` nullable y campo `source` → **F4**, junto con B7.
-- Validación de transiciones de estado en BD → **F4**, con una única fuente compartida con la UI.
-- Re-vinculación de los 167 requests históricos con `budget_id` y sin `budget_item_id`: **no se hace**. El índice y las guardas protegen solo lo nuevo.
-- Tabla puente para tokens de lote (Q4): se diseña en su fase, no en F1.
-- B6.1 (dejar de crear `operational_projects` desde el cron) se mantiene en el sprint aunque B6.2 se reduzca a ocultar.
+- Esquema: `requires_deliverable boolean not null default false`, `deliverable_url text`.
+- Trigger `BEFORE UPDATE`: si `requires_deliverable` y el nuevo estado es `completed`, exigir `deliverable_url` no vacío.
+- UI: ambos campos en `RequestFormModal` y en `SolicitudDetalle`. `requires_deliverable` editable por gestión; `deliverable_url` editable por gestión y por el especialista asignado. Mensaje de error claro cuando el gate salte.
+- `progress_pct` no se añade en ningún sitio.
 
-Deuda menor aceptada: el valor `pending_approval` queda **zombi** en el enum (Postgres no permite eliminar valores sin recrear el tipo). Sin uso ni exposición en UI; la recreación del tipo se hará en una ventana futura y F4 añadirá la validación de transiciones que impide reescribirlo.
+### 5. FK a `ON DELETE RESTRICT` (complejidad: media)
 
-## 2. Migraciones SQL de F1
+Orden obligatorio:
 
-**Paso previo: copia de seguridad de la BD por tu parte, además del respaldo interno del paso 0.**
+1. Cambiar `PresupuestoDetalle.tsx:570-578`: en lugar de anular `budget_item_id`, comprobar si las líneas a borrar tienen requests vinculados y, si los hay, abortar el guardado con un aviso que nombre las líneas y sus requests.
+2. Cambiar `financial_requests_budget_item_id_fkey` a `ON DELETE RESTRICT`.
+
+Borrado de presupuesto completo (`Presupuestos.tsx:370-415`): ya borra `financial_requests` **antes** que `budget_items`, así que es compatible con RESTRICT sin cambios. Propuesta añadida: **bloquear** ese borrado cuando alguno de los requests esté facturado o liquidado (`billed_invoice_id` o `liquidation_id` no nulos), en lugar de borrarlos en cascada como hoy. Hoy ese camino destruye trazabilidad financiera en silencio.
+
+### 6. Cron: eliminar el job redundante (complejidad: baja)
+
+Se elimina `generate-monthly-requests-monthly` (jobid 2). Se mantiene `generate-monthly-contract-requests` (jobid 1, `5 0 1 * *`), por nombre descriptivo del dominio y por ejecutarse primero. La función ya es idempotente por `contract_id` + `work_month`, por eso el duplicado no ha causado daño visible. Queda documentado en el propio plan y en el repositorio.
+
+### 7. Reset de clonación (complejidad: baja)
+
+En `Solicitudes.tsx` y `SolicitudDetalle.tsx`, añadir `budget_item_id: null` y `budget_id: null` al objeto insertado del clon. Un clon nunca hereda el vínculo a una línea de presupuesto. Sin esto, con el índice único de F1 el clon fallaría por colisión.
+
+## Detalles técnicos
+
+Migración única, con paso 0 de respaldo (`CREATE TABLE AS SELECT` de `financial_requests` antes de mutar):
 
 ```sql
--- 0) Respaldo interno (se elimina cuando F1 esté consolidada)
-CREATE TABLE public._backup_financial_requests_20260806 AS
-  SELECT * FROM public.financial_requests;
-CREATE TABLE public._backup_budget_items_20260806 AS
-  SELECT * FROM public.budget_items;
+ALTER TABLE public.financial_requests
+  ADD COLUMN phase text,
+  ADD COLUMN requires_deliverable boolean NOT NULL DEFAULT false,
+  ADD COLUMN deliverable_url text;
 
--- 1a) Los 13 de Iolanda: ya habían aceptado → in_progress
-UPDATE public.financial_requests
-   SET status = 'in_progress'
- WHERE status = 'pending_approval'
-   AND code <> 'REQ-2026-219';
-
--- 1b) REQ-2026-219: cancelado en limpieza
-UPDATE public.financial_requests
-   SET status = 'cancelled',
-       notes = COALESCE(notes || E'\n', '') ||
-         'Pendiente de Elliott, sin respuesta — cancelado en limpieza 08/2026'
- WHERE code = 'REQ-2026-219';
-
--- 2) Índice único parcial: un request por línea de presupuesto
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_request_per_budget_item
-  ON public.financial_requests (budget_item_id)
-  WHERE budget_item_id IS NOT NULL;
-
--- 3) Guarda: bloquear regeneración cuando ya existe el mismo trabajo desvinculado
-CREATE OR REPLACE FUNCTION public.prevent_duplicate_budget_request()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-BEGIN
-  IF NEW.budget_id IS NOT NULL THEN
-    IF EXISTS (
-      SELECT 1 FROM public.financial_requests fr
-      WHERE fr.budget_id = NEW.budget_id
-        AND fr.budget_item_id IS NULL          -- request huérfano preexistente
-        AND fr.status <> 'cancelled'
-        AND fr.title = NEW.title
-        AND fr.quantity = NEW.quantity
-        AND COALESCE(fr.unit_price, 0) = COALESCE(NEW.unit_price, 0)
-    ) THEN
-      RAISE EXCEPTION
-        'Ya existe un request equivalente (sin vínculo a línea) para este presupuesto: %. Revisa antes de regenerar.',
-        NEW.title;
-    END IF;
-  END IF;
-  RETURN NEW;
-END $$;
-
-CREATE TRIGGER trg_prevent_duplicate_budget_request
-BEFORE INSERT ON public.financial_requests
-FOR EACH ROW EXECUTE FUNCTION public.prevent_duplicate_budget_request();
+-- gate de entregable (trigger, no CHECK)
+-- FK: DROP CONSTRAINT financial_requests_budget_item_id_fkey
+--     ADD  ... REFERENCES public.budget_items(id) ON DELETE RESTRICT
 ```
 
-Dirección corregida según el incidente real: se dispara en **todo INSERT con `budget_id`** (tenga o no `budget_item_id`) y compara contra los requests **desvinculados** del mismo presupuesto. Dos líneas idénticas en un presupuesto nuevo no se bloquean, porque sus requests nacen **con** `budget_item_id`.
+Sin notificaciones (F3) y sin validación de transiciones de estado en BD (F4).
 
-## 3. Limpieza TypeScript (11 ficheros)
+## Riesgos
 
-Eliminar `pending_approval` de etiquetas, filtros, badges y acciones en:
-`src/lib/request-utils.ts`, `src/components/requests/RequestFlowActions.tsx`, `RequestStatusBadge.tsx`, `FlowStatusCell.tsx`, `RequestFlowIndicator.tsx`, `RequestProcessTimeline.tsx`, `RequestTableView.tsx`, `src/hooks/useRequestFilters.tsx`, `src/pages/Solicitudes.tsx`, `src/pages/SolicitudDetalle.tsx`, `src/components/modals/RequestFormModal.tsx`.
+- **Regresión de la ruta "Aprobar"**: al unificar, cualquier diferencia de comportamiento se nota en producción. Mitigación: la función replica exactamente la lógica actual y las notificaciones quedan fuera de ella.
+- **RESTRICT sin el paso 1**: si la FK cambia antes de arreglar el editor económico, el guardado de presupuestos empieza a fallar con error de BD crudo.
+- **`deliverable_url` editable por especialista**: requiere revisar que la política de escritura de `financial_requests` para especialistas permita ese campo y no otros.
+- **Recurrentes con `deadline`**: al rellenar `deadline` cambia lo que ven filtros y avisos por vencimiento de los fees mensuales.
+- **Volumen del modal**: presupuestos con muchas líneas requieren tabla compacta y selección múltiple usable.
 
-Los mapas tipados `Record<FinancialRequestStatus, …>` conservarán la clave zombi mínima necesaria para compilar, sin etiqueta ni opción en filtros.
+## Checks de verificación
 
-Además, en el mismo despliegue: **editor idempotente** en `BudgetFormModal.tsx` (diff por `id`: update de existentes, insert de nuevos, delete solo de los realmente eliminados) en sustitución del `delete + reinsert` de la línea 273.
+1. Doble generación: generar dos veces sobre el mismo presupuesto — la segunda muestra el aviso de requests existentes y solo ofrece líneas pendientes; con todas generadas, no inserta nada.
+2. Presupuesto de prueba multi-especialista: los totales por especialista del modal (nº, horas, coste) cuadran con la suma de las líneas.
+3. `phase` y `deadline`: asignación en bloque a 2 líneas seleccionadas y verificación de los valores en los requests creados.
+4. Gate de entregable: request con `requires_deliverable` y sin URL no puede pasar a `completed`; con URL, sí.
+5. RESTRICT: `DELETE` directo en SQL de una línea con request vinculado falla; el editor económico avisa antes de intentarlo.
+6. Clon: clonar un request generado desde presupuesto produce un clon con `budget_item_id` y `budget_id` nulos y sin colisión de índice.
+7. Cron: queda un único job activo y la generación mensual sigue funcionando en ejecución manual.
 
-## 4. Checks de verificación (4 originales + 2 nuevos)
+## Complejidad por punto
 
-1. `SELECT count(*) FROM financial_requests WHERE status='pending_approval'` → 0.
-2. Índice `uniq_request_per_budget_item` presente y válido.
-3. Doble generación sobre presupuesto de prueba ad hoc → segunda ejecución bloqueada.
-4. `rg pending_approval src/` → sin coincidencias funcionales.
-5. **(nuevo)** Presupuesto de prueba con **dos líneas idénticas** → se generan **ambos** requests sin bloqueo.
-6. **(nuevo)** Escenario legacy simulado (requests con `budget_item_id NULL` + regeneración) → bloqueo con el mensaje del trigger.
-
-## 5. Orden de fases y complejidad (según briefing)
-
-| Orden | Fase | Complejidad |
-|---|---|---|
-| F1 | Migraciones, triggers, limpieza TS, editor idempotente | Media |
-| F2 | Creación íntegra: generación unificada + modal resumen por especialista | Alta |
-| F3 | Notificaciones (email agrupado enganchado al flujo de generación) | Media |
-| F4 | Transiciones de estado, `activity_log`, auditoría | Alta |
-| F5/F6 | Vistas y operativa | Baja-Media |
-
-## 6. Backup y restauración en Lovable Cloud (documentación, no bloquea F1)
-
-Lo que puedo confirmar desde el producto:
-
-- **Export de datos:** Cloud → Advanced settings → *Export data*. Descarga los datos; **solo exporta, no importa**.
-- **Exportes puntuales:** cualquier tabla o consulta a CSV bajo demanda (lo hemos usado ya).
-- **Respaldo lógico dentro de la propia BD:** tablas `_backup_*` como las del paso 0 — es el mecanismo bajo nuestro control directo y el que usamos como red para F1.
-- **Version history del proyecto:** revierte código, **no** revierte la base de datos.
-
-Lo que **no** puedo afirmar sin verificarlo con soporte: si el plan actual incluye backups automáticos diarios retenidos, si hay *point-in-time restore*, y cuál es el procedimiento y el RTO para solicitar una restauración. No hay panel de restauración self-service expuesto en Cloud. Recomendación: antes de arrancar F2, abrir consulta a soporte de Lovable con esas tres preguntas concretas y, mientras tanto, mantener la política de export + tablas `_backup_*` antes de cada migración destructiva.
-
+| Punto | Complejidad |
+|---|---|
+| 1. Función única de generación | Media |
+| 2. Modal con resumen por especialista | Alta |
+| 3. `phase` y `deadline` | Media |
+| 4. Campos de entregable + gate | Media |
+| 5. FK a RESTRICT (+ editor económico) | Media |
+| 6. Limpieza de cron | Baja |
+| 7. Reset de clonación | Baja |

@@ -95,11 +95,14 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
         return false;
       }
 
+      const isManagementScope = recipientEmail === MANAGEMENT_SCOPE;
+
       const response = await supabase.functions.invoke('send-request-notification', {
         body: {
           requestId: request.id,
           notificationType,
-          recipientEmail,
+          recipientEmail: isManagementScope ? undefined : recipientEmail,
+          recipientScope: isManagementScope ? 'management' : 'direct',
           recipientName,
           senderEmail,
           appUrl: window.location.origin,

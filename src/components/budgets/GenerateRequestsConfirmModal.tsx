@@ -211,12 +211,22 @@ export function GenerateRequestsConfirmModal({
                   </Alert>
                 )}
 
+                <datalist id="phase-suggestions">
+                  {phaseSuggestions.map((p) => (
+                    <option key={p} value={p} />
+                  ))}
+                </datalist>
+
                 <div className="flex flex-wrap items-end gap-2 rounded-md border p-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Fase (bloque)</Label>
                     <Input
                       value={bulkPhase}
+                      list="phase-suggestions"
                       onChange={(e) => setBulkPhase(e.target.value)}
+                      onBlur={(e) =>
+                        setBulkPhase(canonicalizePhase(e.target.value, phaseSuggestions) || '')
+                      }
                       placeholder="Ej. Fase 1"
                       className="h-8 w-40"
                     />

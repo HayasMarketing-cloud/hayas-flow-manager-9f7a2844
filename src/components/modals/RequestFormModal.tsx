@@ -1194,7 +1194,68 @@ export const RequestFormModal = ({
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="phase"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Fase</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Ej. Fase 1 / Kick-off"
+                        {...field}
+                        value={field.value || ''}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                        disabled={isViewMode}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
+
+            {/* Entregable */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+              <FormField
+                control={form.control}
+                name="requires_deliverable"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center gap-3 space-y-0 rounded-md border p-3">
+                    <FormControl>
+                      <Checkbox
+                        checked={!!field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={isViewMode}
+                      />
+                    </FormControl>
+                    <FormLabel className="!mt-0">Requiere entregable para completar</FormLabel>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="deliverable_url"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Enlace del entregable</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="https://..."
+                        {...field}
+                        value={field.value || ''}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                        disabled={isViewMode}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
 
             <Separator />
 

@@ -45,6 +45,7 @@ const formSchema = z.object({
     required_error: "El tipo es obligatorio",
   }),
   active: z.boolean(),
+  receives_flow_notifications: z.boolean(),
   hourly_rate: z.coerce.number().min(0, "La tarifa no puede ser negativa").optional(),
   website_url: z.string().optional(),
   notes: z.string().optional(),
@@ -59,6 +60,7 @@ interface Specialist {
   email: string | null;
   type: "interno" | "freelance" | "partner" | null;
   active: boolean;
+  receives_flow_notifications?: boolean | null;
   hourly_rate: number | null;
   website_url: string | null;
   notes: string | null;

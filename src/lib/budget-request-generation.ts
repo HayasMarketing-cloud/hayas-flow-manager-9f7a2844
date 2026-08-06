@@ -139,6 +139,7 @@ export async function buildBudgetGenerationPlan(budgetId: string): Promise<Gener
     alreadyGeneratedCount: generatedIds.size,
     totalItems: (items || []).length,
     linesWithoutService: pending.filter((i: any) => !i.service_id).map((i: any) => i.description),
+    existingPhases,
   };
 }
 

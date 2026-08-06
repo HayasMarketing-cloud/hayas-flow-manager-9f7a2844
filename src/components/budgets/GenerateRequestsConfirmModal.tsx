@@ -309,7 +309,14 @@ export function GenerateRequestsConfirmModal({
             Cancelar
           </Button>
           <Button
-            onClick={() => plan && onConfirm({ budget: plan.budget, lines })}
+            onClick={() =>
+              plan &&
+              onConfirm({
+                budget: plan.budget,
+                lines,
+                existingPhases: plan.existingPhases || [],
+              })
+            }
             disabled={blocked || isSubmitting || isLoading || (mode === 'generate' && lines.length === 0)}
           >
             {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

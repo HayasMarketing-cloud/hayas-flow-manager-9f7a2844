@@ -568,20 +568,31 @@ export default function PresupuestoDetalle() {
       const itemsToInsert = economicItems.filter((item) => !item.id || !existingItemIds.includes(item.id));
       const itemIdsToKeep = itemsToUpdate.map((item) => item.id);
       
-      // Eliminar items que ya no existen
+      // Eliminar items que ya no existen (salvo que tengan requests vinculados)
       const itemsToDelete = existingItemIds.filter((id: string) => !itemIdsToKeep.includes(id));
       if (itemsToDelete.length > 0) {
-        // Desvincular solicitudes de items eliminados
-        await supabase
+        const { data: linked, error: linkedError } = await supabase
           .from('financial_requests')
-          .update({ budget_item_id: null })
+          .select('code, budget_item_id')
           .in('budget_item_id', itemsToDelete);
-          
-        await supabase
-          .from('budget_items')
-          .delete()
-          .in('id', itemsToDelete);
+        if (linkedError) throw linkedError;
+
+        const blockedIds = new Set((linked || []).map((r: any) => r.budget_item_id));
+        const deletable = itemsToDelete.filter((id: string) => !blockedIds.has(id));
+
+        if (deletable.length > 0) {
+          await supabase.from('budget_items').delete().in('id', deletable);
+        }
+
+        if (blockedIds.size > 0) {
+          toast.warning(
+            `${blockedIds.size} línea(s) no se han eliminado porque tienen requests asociados (${(linked || [])
+              .map((r: any) => r.code)
+              .join(', ')}).`
+          );
+        }
       }
+
 
       // Actualizar items existentes
       for (const item of itemsToUpdate) {

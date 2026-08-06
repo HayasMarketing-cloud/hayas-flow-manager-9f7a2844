@@ -35,6 +35,7 @@ interface Props {
     budget: any;
     lines: GenerationLine[];
     existingPhases: string[];
+    notifySpecialistIds: string[];
   }) => Promise<void> | void;
   isSubmitting?: boolean;
 }
@@ -51,6 +52,7 @@ export function GenerateRequestsConfirmModal({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkPhase, setBulkPhase] = useState('');
   const [bulkDeadline, setBulkDeadline] = useState('');
+  const [notifyMap, setNotifyMap] = useState<Record<string, boolean>>({});
 
   const { data: plan, isLoading } = useQuery({
     queryKey: ['budget-generation-plan', budgetId, open],
@@ -64,6 +66,7 @@ export function GenerateRequestsConfirmModal({
       setSelected(new Set());
       setBulkPhase('');
       setBulkDeadline('');
+      setNotifyMap({ ...(plan.notifyDefaults || {}) });
     }
   }, [plan]);
 

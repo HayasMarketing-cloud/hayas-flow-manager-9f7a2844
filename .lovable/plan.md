@@ -32,14 +32,17 @@ Cambios:
 - **Un solo uso**: al procesarse, el token pasa a `accepted`/`rejected` con `acted_at`, IP y user-agent. Cualquier reintento cae en la comprobación `status <> 'pending'` → rechazo.
 - **Anti-falsificación**: el token es un UUID aleatorio de 122 bits generado en servidor, nunca derivado de datos del request; la tabla no es legible por `anon` ni `authenticated`; toda la resolución ocurre en Edge Functions con `service_role`; el alcance del lote lo fija la tabla puente en el momento de emisión, así que manipular la URL no permite añadir requests. El formato UUID se valida antes de consultar.
 
-### Lote parcial
+### Decisión completa y lote parcial
+
+La decisión del especialista sobre el lote es **completa**: aceptar todo o rechazar todo, sin selección por ítem. El email y la página del token incluyen una línea explícita para discrepancias puntuales: contactar antes de aceptar, o aceptar y comentar, dejando claro que horas y deadline son ajustables tras la aceptación.
 
 Al aceptar, la función recorre las filas puente y aplica, por request:
 
-- `status = 'pending_specialist'` → pasa a `in_progress`, `specialist_acceptance = true`, item `accepted`.
-- cualquier otro estado (ya avanzado, cancelado, reasignado a otro especialista) → no se toca, item `skipped` con el estado encontrado.
+- `status = 'pending_specialist'` **y** `specialist_id` coincide con el `specialist_id` persistido en el token → pasa a `in_progress`, `specialist_acceptance = true`, item `accepted`.
+- cualquier otro caso (ya avanzado, cancelado, o reasignado a otro especialista) → no se toca, item `skipped` con el estado/motivo encontrado.
 
-El token se marca usado igualmente. La respuesta devuelve `{ accepted: [...], skipped: [{code, status}] }` y la página `/solicitud/accion/:token` muestra ambos bloques. Un lote donde **todos** los items estén skipped no se considera error: se informa de que ya no había nada pendiente. Rechazo (`reject`) aplica la misma lógica devolviendo los pendientes a `draft`.
+El token se marca usado igualmente. La respuesta devuelve `{ accepted: [...], skipped: [{code, status, reason}] }` y la página `/solicitud/accion/:token` muestra ambos bloques. Un lote donde **todos** los items estén skipped no se considera error: se informa de que ya no había nada pendiente. Rechazo (`reject`) aplica la misma lógica devolviendo los pendientes a `draft`.
+
 
 ## Funciones y ficheros afectados
 

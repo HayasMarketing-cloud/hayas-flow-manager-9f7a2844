@@ -868,14 +868,21 @@ export default function PresupuestoDetalle() {
     budget: planBudget,
     lines,
     existingPhases,
+    notifySpecialistIds,
   }: {
     budget: any;
     lines: any[];
     existingPhases?: string[];
+    notifySpecialistIds?: string[];
   }) => {
     try {
       if (lines.length > 0) {
-        await generateRequestsMutation.mutateAsync({ budget: planBudget, lines, existingPhases });
+        await generateRequestsMutation.mutateAsync({
+          budget: planBudget,
+          lines,
+          existingPhases,
+          notifySpecialistIds,
+        });
       }
       if (generationMode === 'approve') {
         approveMutation.mutate({

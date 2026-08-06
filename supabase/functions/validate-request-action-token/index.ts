@@ -51,7 +51,8 @@ const handler = async (req: Request): Promise<Response> => {
           client:clients(id, name),
           service:services(id, name),
           specialist:specialists(id, name, email)
-        )
+        ),
+        specialist:specialists(id, name, email)
       `)
       .eq('token', token)
       .single();
@@ -89,6 +90,44 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Batch token: return the list of requests in the batch
+    if (tokenData.action_type === 'specialist_batch_response') {
+      const { data: items } = await supabase
+        .from('request_action_token_items')
+        .select(`
+          request_id,
+          request:financial_requests(
+            id, code, title, phase, hours, deadline, status, specialist_id,
+            cost_to_agency,
+            client:clients(id, name),
+            budget:budgets(id, title),
+            service:services(id, name)
+          )
+        `)
+        .eq('token_id', tokenData.id);
+
+      const requests = (items || []).map((i: any) => i.request).filter(Boolean);
+
+      return new Response(
+        JSON.stringify({
+          id: tokenData.id,
+          token: tokenData.token,
+          action_type: tokenData.action_type,
+          status: tokenData.status,
+          expires_at: tokenData.expires_at,
+          is_batch: true,
+          specialist: tokenData.specialist,
+          requests,
+          totals: {
+            count: requests.length,
+            hours: requests.reduce((s: number, r: any) => s + (Number(r.hours) || 0), 0),
+            cost: requests.reduce((s: number, r: any) => s + (Number(r.cost_to_agency) || 0), 0),
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     // Return token and request data
     return new Response(
       JSON.stringify({
@@ -97,6 +136,7 @@ const handler = async (req: Request): Promise<Response> => {
         action_type: tokenData.action_type,
         status: tokenData.status,
         expires_at: tokenData.expires_at,
+        is_batch: false,
         request: tokenData.request
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }

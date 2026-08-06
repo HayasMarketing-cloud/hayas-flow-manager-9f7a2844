@@ -45,6 +45,7 @@ const formSchema = z.object({
     required_error: "El tipo es obligatorio",
   }),
   active: z.boolean(),
+  receives_flow_notifications: z.boolean(),
   hourly_rate: z.coerce.number().min(0, "La tarifa no puede ser negativa").optional(),
   website_url: z.string().optional(),
   notes: z.string().optional(),
@@ -59,6 +60,7 @@ interface Specialist {
   email: string | null;
   type: "interno" | "freelance" | "partner" | null;
   active: boolean;
+  receives_flow_notifications?: boolean | null;
   hourly_rate: number | null;
   website_url: string | null;
   notes: string | null;
@@ -112,6 +114,7 @@ export function SpecialistFormModal({
       email: "",
       type: "freelance",
       active: true,
+      receives_flow_notifications: true,
       hourly_rate: 0,
       website_url: "",
       notes: "",
@@ -126,6 +129,8 @@ export function SpecialistFormModal({
         email: specialist.email || "",
         type: specialist.type || "freelance",
         active: specialist.active,
+        receives_flow_notifications:
+          (specialist as any).receives_flow_notifications !== false,
         hourly_rate: specialist.hourly_rate || 0,
         website_url: (specialist as any).website_url || "",
         notes: specialist.notes || "",
@@ -137,6 +142,7 @@ export function SpecialistFormModal({
         email: "",
         type: "freelance",
         active: true,
+        receives_flow_notifications: true,
         hourly_rate: 0,
         website_url: "",
         notes: "",
@@ -152,6 +158,7 @@ export function SpecialistFormModal({
         email: values.email || null,
         type: values.type,
         active: values.active,
+        receives_flow_notifications: values.receives_flow_notifications,
         hourly_rate: values.hourly_rate || 0,
         website_url: values.website_url || null,
         notes: values.notes || null,
@@ -180,6 +187,7 @@ export function SpecialistFormModal({
           email: values.email || null,
           type: values.type,
           active: values.active,
+          receives_flow_notifications: values.receives_flow_notifications,
           hourly_rate: values.hourly_rate || 0,
           website_url: values.website_url || null,
           notes: values.notes || null,
@@ -339,6 +347,29 @@ export function SpecialistFormModal({
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="receives_flow_notifications"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel>Recibe notificaciones de FLOW</FormLabel>
+                    <p className="text-xs text-muted-foreground">
+                      Desactívalo para proveedores gestionados por email que no usan FLOW.
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+
 
             <FormField
               control={form.control}

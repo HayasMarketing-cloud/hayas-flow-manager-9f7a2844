@@ -31,6 +31,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 
+/** Sentinela: los destinatarios de gestión se resuelven en el servidor (F3). */
+const MANAGEMENT_SCOPE = '__management__';
+
 type NotificationType = 
   | 'specialist_assigned'
   | 'specialist_accepted'
@@ -95,11 +98,14 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
         return false;
       }
 
+      const isManagementScope = recipientEmail === MANAGEMENT_SCOPE;
+
       const response = await supabase.functions.invoke('send-request-notification', {
         body: {
           requestId: request.id,
           notificationType,
-          recipientEmail,
+          recipientEmail: isManagementScope ? undefined : recipientEmail,
+          recipientScope: isManagementScope ? 'management' : 'direct',
           recipientName,
           senderEmail,
           appUrl: window.location.origin,
@@ -244,8 +250,9 @@ export const RequestFlowActions = ({ request, onSuccess, compact = false }: Requ
     const specialistEmail = specialist?.email;
     const specialistName = specialist?.name || 'Especialista';
 
-    // Get AM/PM email for notifications back to management
-    const managementEmail = 'info@hayas.es';
+    // F3: los eventos hacia gestión resuelven destinatarios en servidor
+    // (AM/PM de origen + admin/finanzas), sin destinatario fijo.
+    const managementEmail = MANAGEMENT_SCOPE;
     const managementName = 'Gestión';
 
     const buttonSize = compact ? 'sm' : 'default';

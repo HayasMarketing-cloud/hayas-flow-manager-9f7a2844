@@ -310,6 +310,48 @@ export type Database = {
         }
         Relationships: []
       }
+      _backup_request_action_tokens_20260806: {
+        Row: {
+          acted_at: string | null
+          action_type: string | null
+          comments: string | null
+          created_at: string | null
+          expires_at: string | null
+          id: string | null
+          ip_address: string | null
+          request_id: string | null
+          status: string | null
+          token: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          acted_at?: string | null
+          action_type?: string | null
+          comments?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string | null
+          ip_address?: string | null
+          request_id?: string | null
+          status?: string | null
+          token?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          acted_at?: string | null
+          action_type?: string | null
+          comments?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string | null
+          ip_address?: string | null
+          request_id?: string | null
+          status?: string | null
+          token?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       activity_log: {
         Row: {
           action: string
@@ -2331,6 +2373,58 @@ export type Database = {
           },
         ]
       }
+      request_action_token_items: {
+        Row: {
+          created_at: string
+          id: string
+          processed_at: string | null
+          request_id: string
+          skip_reason: string | null
+          status: string
+          token_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          processed_at?: string | null
+          request_id: string
+          skip_reason?: string | null
+          status?: string
+          token_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          processed_at?: string | null
+          request_id?: string
+          skip_reason?: string | null
+          status?: string
+          token_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "request_action_token_items_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "financial_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "request_action_token_items_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "specialist_my_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "request_action_token_items_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "request_action_tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       request_action_tokens: {
         Row: {
           acted_at: string | null
@@ -2340,7 +2434,8 @@ export type Database = {
           expires_at: string
           id: string
           ip_address: string | null
-          request_id: string
+          request_id: string | null
+          specialist_id: string | null
           status: string | null
           token: string
           user_agent: string | null
@@ -2353,7 +2448,8 @@ export type Database = {
           expires_at: string
           id?: string
           ip_address?: string | null
-          request_id: string
+          request_id?: string | null
+          specialist_id?: string | null
           status?: string | null
           token?: string
           user_agent?: string | null
@@ -2366,7 +2462,8 @@ export type Database = {
           expires_at?: string
           id?: string
           ip_address?: string | null
-          request_id?: string
+          request_id?: string | null
+          specialist_id?: string | null
           status?: string | null
           token?: string
           user_agent?: string | null
@@ -2384,6 +2481,13 @@ export type Database = {
             columns: ["request_id"]
             isOneToOne: false
             referencedRelation: "specialist_my_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "request_action_tokens_specialist_id_fkey"
+            columns: ["specialist_id"]
+            isOneToOne: false
+            referencedRelation: "specialists"
             referencedColumns: ["id"]
           },
         ]
@@ -2543,6 +2647,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          receives_flow_notifications: boolean
           team_leader_id: string | null
           type: Database["public"]["Enums"]["specialist_type"] | null
           updated_at: string
@@ -2558,6 +2663,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          receives_flow_notifications?: boolean
           team_leader_id?: string | null
           type?: Database["public"]["Enums"]["specialist_type"] | null
           updated_at?: string
@@ -2573,6 +2679,7 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          receives_flow_notifications?: boolean
           team_leader_id?: string | null
           type?: Database["public"]["Enums"]["specialist_type"] | null
           updated_at?: string

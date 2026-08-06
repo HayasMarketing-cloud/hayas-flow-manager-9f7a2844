@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, Trash2, CloudOff, Cloud, FileDown, Users, FileSignature, ExternalLink, FolderKanban, ListChecks, PiggyBank, Link2, Check } from 'lucide-react';
+import { ArrowLeft, Edit, Copy, FileText, Save, X, Loader2, CheckCircle, Trash2, CloudOff, Cloud, FileDown, Users, FileSignature, ExternalLink, FolderKanban, ListChecks, PiggyBank, Link2, Check, Mail } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { generateBudgetPDF } from '@/utils/pdf/budgetPDFGenerator';
 import { useBudgetDetail } from '@/hooks/useBudgetDetail';
@@ -36,6 +36,7 @@ import { BudgetLinkedInvoicesCard } from '@/components/budgets/BudgetLinkedInvoi
 import { BudgetInvoicingSummary } from '@/components/budgets/BudgetInvoicingSummary';
 import { GenerateRequestsConfirmModal } from '@/components/budgets/GenerateRequestsConfirmModal';
 import { useGenerateBudgetRequests } from '@/hooks/useGenerateBudgetRequests';
+import { sendBatchAssignmentNotification } from '@/lib/budget-request-generation';
 
 
 export default function PresupuestoDetalle() {
@@ -868,14 +869,21 @@ export default function PresupuestoDetalle() {
     budget: planBudget,
     lines,
     existingPhases,
+    notifySpecialistIds,
   }: {
     budget: any;
     lines: any[];
     existingPhases?: string[];
+    notifySpecialistIds?: string[];
   }) => {
     try {
       if (lines.length > 0) {
-        await generateRequestsMutation.mutateAsync({ budget: planBudget, lines, existingPhases });
+        await generateRequestsMutation.mutateAsync({
+          budget: planBudget,
+          lines,
+          existingPhases,
+          notifySpecialistIds,
+        });
       }
       if (generationMode === 'approve') {
         approveMutation.mutate({
@@ -888,6 +896,32 @@ export default function PresupuestoDetalle() {
       // errores ya notificados por la mutación
     }
   };
+
+  // F3 — Reenvío manual del email de lote (fallos de envío o cambios de destinatario)
+  const [resending, setResending] = useState(false);
+  const handleResendAssignment = async () => {
+    const pending = (requests || []).filter(
+      (r: any) => r.specialist_id && r.status === 'pending_specialist'
+    );
+    if (pending.length === 0) {
+      toast.error('No hay requests pendientes de aceptación por especialista');
+      return;
+    }
+    setResending(true);
+    try {
+      const result = await sendBatchAssignmentNotification(
+        pending.map((r: any) => r.id),
+        Array.from(new Set(pending.map((r: any) => r.specialist_id))) as string[]
+      );
+      toast.success(`Notificación reenviada a ${result?.notified || 0} especialista(s)`);
+    } catch (e: any) {
+      toast.error('Error al reenviar la notificación: ' + e.message);
+    } finally {
+      setResending(false);
+    }
+  };
+
+
 
 
   return (
@@ -1208,6 +1242,21 @@ export default function PresupuestoDetalle() {
                           >
                             Ver Requests
                             <ExternalLink className="h-4 w-4 ml-2" />
+                          </Button>
+                        )}
+                        {requests.some((r: any) => r.specialist_id && r.status === 'pending_specialist') && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleResendAssignment}
+                            disabled={resending}
+                          >
+                            {resending ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Mail className="h-4 w-4 mr-2" />
+                            )}
+                            Reenviar asignación
                           </Button>
                         )}
                         {budget.status === 'approved' && ungeneratedItems.length > 0 && (

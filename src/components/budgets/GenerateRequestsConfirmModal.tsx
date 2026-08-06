@@ -35,6 +35,7 @@ interface Props {
     budget: any;
     lines: GenerationLine[];
     existingPhases: string[];
+    notifySpecialistIds: string[];
   }) => Promise<void> | void;
   isSubmitting?: boolean;
 }
@@ -51,6 +52,7 @@ export function GenerateRequestsConfirmModal({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkPhase, setBulkPhase] = useState('');
   const [bulkDeadline, setBulkDeadline] = useState('');
+  const [notifyMap, setNotifyMap] = useState<Record<string, boolean>>({});
 
   const { data: plan, isLoading } = useQuery({
     queryKey: ['budget-generation-plan', budgetId, open],
@@ -64,6 +66,7 @@ export function GenerateRequestsConfirmModal({
       setSelected(new Set());
       setBulkPhase('');
       setBulkDeadline('');
+      setNotifyMap({ ...(plan.notifyDefaults || {}) });
     }
   }, [plan]);
 
@@ -163,6 +166,7 @@ export function GenerateRequestsConfirmModal({
                         <TableHead className="text-right">Requests</TableHead>
                         <TableHead className="text-right">Horas</TableHead>
                         <TableHead className="text-right">Coste</TableHead>
+                        <TableHead className="text-center">Notificar</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -179,6 +183,22 @@ export function GenerateRequestsConfirmModal({
                           <TableCell className="text-right">{s.count}</TableCell>
                           <TableCell className="text-right">{s.hours}</TableCell>
                           <TableCell className="text-right">{formatCurrency(s.cost)}</TableCell>
+                          <TableCell className="text-center">
+                            {s.specialistId ? (
+                              <Checkbox
+                                checked={notifyMap[s.specialistId] ?? true}
+                                onCheckedChange={(v) =>
+                                  setNotifyMap((prev) => ({
+                                    ...prev,
+                                    [s.specialistId as string]: !!v,
+                                  }))
+                                }
+                                aria-label={`Notificar a ${s.specialistName}`}
+                              />
+                            ) : (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
                       <TableRow className="font-medium">
@@ -186,6 +206,7 @@ export function GenerateRequestsConfirmModal({
                         <TableCell className="text-right">{lines.length}</TableCell>
                         <TableCell className="text-right">{totalHours}</TableCell>
                         <TableCell className="text-right">{formatCurrency(totalCost)}</TableCell>
+                        <TableCell />
                       </TableRow>
                     </TableBody>
                   </Table>
@@ -315,6 +336,13 @@ export function GenerateRequestsConfirmModal({
                 budget: plan.budget,
                 lines,
                 existingPhases: plan.existingPhases || [],
+                notifySpecialistIds: Array.from(
+                  new Set(
+                    lines
+                      .map((l) => l.specialistId)
+                      .filter((id): id is string => !!id && (notifyMap[id] ?? true))
+                  )
+                ),
               })
             }
             disabled={blocked || isSubmitting || isLoading || (mode === 'generate' && lines.length === 0)}

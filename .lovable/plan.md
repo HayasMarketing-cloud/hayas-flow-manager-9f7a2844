@@ -118,7 +118,7 @@ Sin notificaciones (F3) y sin validación de transiciones de estado en BD (F4).
 | 1. Función única de generación | Media |
 | 2. Modal con resumen por especialista | Alta |
 | 3. `phase` y `deadline` | Media |
-| 4. Campos de entregable + gate | Media |
+| 4. Entregable + snapshot de aprobación + RPC | Media |
 | 5. FK a RESTRICT (+ editor económico) | Media |
 | 6. Limpieza de cron | Baja |
 | 7. Reset de clonación | Baja |

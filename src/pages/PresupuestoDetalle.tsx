@@ -70,6 +70,8 @@ export default function PresupuestoDetalle() {
   
   // Hooks de aprobación y creación de proyecto con actividades
   const approveMutation = useApproveBudget();
+  const generateRequestsMutation = useGenerateBudgetRequests();
+
   const createProjectWithActivities = useCreateProjectWithActivities();
 
   // Query para obtener token de compartición existente

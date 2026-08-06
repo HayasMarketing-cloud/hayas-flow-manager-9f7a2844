@@ -188,7 +188,7 @@ export async function insertBudgetRequests(
     hours: line.hours,
     cost_rate: line.costRate,
     cost_to_agency: line.costToAgency,
-    phase: line.phase || null,
+    phase: canonicalizePhase(line.phase, existingPhases),
     deadline: line.deadline || null,
   }));
 

@@ -488,16 +488,13 @@ export default function PresupuestoDetalle() {
     }
   };
 
-  // Función para aprobar presupuesto y generar solicitudes
+  // Aprobar presupuesto: pasa por el mismo modal de confirmación de generación
   const handleApproveBudget = () => {
     if (!data?.budget) return;
-    approveMutation.mutate({
-      budgetId: data.budget.id,
-      onSuccess: () => {
-        setShowApprovalModal(true);
-      }
-    });
+    setGenerationMode('approve');
+    setGenerationModalOpen(true);
   };
+
 
   // Función para guardar cambios de Resumen
   const handleSaveResumen = async () => {

@@ -228,6 +228,7 @@ export const RequestFormModal = ({
   const selectedBudgetId = useWatch({ control: form.control, name: 'budget_id' });
   const selectedServiceId = useWatch({ control: form.control, name: 'service_id' });
   const selectedSpecialistId = useWatch({ control: form.control, name: 'specialist_id' });
+  const watchedStatus = useWatch({ control: form.control, name: 'status' });
   const isRecurringTemplate = useWatch({ control: form.control, name: 'is_recurring_template' });
   const recurrenceActive = useWatch({ control: form.control, name: 'recurrence_active' });
   const billSeparately = useWatch({ control: form.control, name: 'bill_separately' });
@@ -257,7 +258,7 @@ export const RequestFormModal = ({
           .order('name'),
         supabase
           .from('specialists')
-          .select('id, name, hourly_rate, user_id, email')
+          .select('id, name, hourly_rate, user_id, email, receives_flow_notifications')
           .eq('active', true)
           .order('name'),
       ]);
@@ -291,6 +292,16 @@ export const RequestFormModal = ({
   // Get names for rate source labels
   const selectedClient = formData?.clients?.find(c => c.id === selectedClientId);
   const selectedSpecialist = formData?.specialists?.find(s => s.id === selectedSpecialistId);
+
+  // F3-style toggle: notificar al especialista al crear directamente en pending_specialist.
+  // Se precarga desde receives_flow_notifications del maestro y es desmarcable por acto.
+  const [notifySpecialist, setNotifySpecialist] = useState(true);
+  useEffect(() => {
+    setNotifySpecialist((selectedSpecialist as any)?.receives_flow_notifications !== false);
+  }, [selectedSpecialistId, selectedSpecialist]);
+  const showNotifyToggle =
+    !initialData && !isViewMode && !!selectedSpecialistId && watchedStatus === 'pending_specialist';
+
 
   // Load contracts for selected client
   const { data: contracts } = useQuery({
@@ -532,6 +543,7 @@ export const RequestFormModal = ({
           code: newRequest?.code,
           specialistData,
           status: data.status,
+          notify: notifySpecialist,
           clientId: data.client_id,
           title: data.title,
           deadline: data.deadline ?? null,
@@ -551,13 +563,16 @@ export const RequestFormModal = ({
       
       // Notify specialist if assigned with pending_specialist status
       if (result?.isNew && result?.specialistData && result?.status === 'pending_specialist') {
+        // Toggle por acto: si el usuario desmarcó "Notificar al especialista",
+        // no se envía email (por tanto no se crea token) ni notificación in-app.
+        const shouldNotify = result.notify !== false;
         const client = formData?.clients?.find(c => c.id === result.clientId);
         const specialistName = result.specialistData.name || 'Especialista';
         let hasInAppNotification = false;
         let hasEmailNotification = false;
         
         // In-app notification (if specialist has user_id)
-        if (result.specialistData.user_id) {
+        if (shouldNotify && result.specialistData.user_id) {
           await notifySpecialistAssigned(
             result.specialistData.user_id,
             result.code || `Solicitud`,
@@ -569,7 +584,7 @@ export const RequestFormModal = ({
         
         // Email notification (if specialist has email and sender has @hayas.es email)
         const senderEmail = user?.email;
-        if (result.specialistData.email && senderEmail?.endsWith('@hayas.es')) {
+        if (shouldNotify && result.specialistData.email && senderEmail?.endsWith('@hayas.es')) {
           try {
             const appUrl = window.location.origin;
             await supabase.functions.invoke('send-request-notification', {
@@ -696,6 +711,7 @@ export const RequestFormModal = ({
           recurrence_active: true,
           bill_separately: false,
         });
+        setNotifySpecialist(true);
       }
     }
   }, [open, initialData, form]);
@@ -976,6 +992,26 @@ export const RequestFormModal = ({
                 )}
               />
             </div>
+
+            {showNotifyToggle && (
+              <div className="flex items-start gap-3 rounded-md border p-3">
+                <Checkbox
+                  id="notify-specialist"
+                  checked={notifySpecialist}
+                  onCheckedChange={(v) => setNotifySpecialist(v === true)}
+                />
+                <div className="space-y-1">
+                  <label htmlFor="notify-specialist" className="text-sm font-medium leading-none cursor-pointer">
+                    Notificar al especialista
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    Desmárcalo para registrar trabajo ya realizado sin enviar el email de asignación.
+                  </p>
+                </div>
+              </div>
+            )}
+
+
 
             {/* Partner Reference - show when a specialist is selected */}
             <FormField

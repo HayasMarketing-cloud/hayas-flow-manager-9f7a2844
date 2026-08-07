@@ -23,6 +23,9 @@ import { SpecialistLiquidationTimeline } from './SpecialistLiquidationTimeline';
 import { useUserRole } from '@/hooks/useUserRole';
 import { LiquidationPaymentPlanEditor } from './LiquidationPaymentPlanEditor';
 import { LiquidationPaymentMilestone, normalizeLiquidationPaymentPlan } from '@/lib/liquidation-payment-plan';
+import { isAdvanceRelated } from '@/lib/liquidation-advances';
+import { PendingAdvancesBanner } from './PendingAdvancesBanner';
+import { LiquidationAdvancesSection } from './LiquidationAdvancesSection';
 
 type LiquidationStatus = Database['public']['Enums']['liquidation_status'];
 
@@ -277,7 +280,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     queryFn: async () => {
       const { data, error } = await supabase
         .from('specialists')
-        .select('id, name, user_id')
+        .select('id, name, user_id, payment_terms')
         .eq('active', true)
         .order('name');
       if (error) throw error;

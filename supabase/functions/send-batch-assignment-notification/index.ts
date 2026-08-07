@@ -282,9 +282,18 @@ const handler = async (req: Request): Promise<Response> => {
       }`;
 
       let sent = false;
+      let messageId: string | null = null;
       if (accessToken && senderEmail) {
         try {
-          sent = await sendGmail(accessToken, senderEmail, specialist.email, subject, html);
+          messageId = await sendGmail(
+            accessToken,
+            senderEmail,
+            specialist.email,
+            subject,
+            html,
+            'batch_assignment'
+          );
+          sent = !!messageId;
         } catch (e) {
           console.error(`Error enviando email a ${specialist.email}:`, e);
         }
@@ -299,6 +308,7 @@ const handler = async (req: Request): Promise<Response> => {
         totalCost,
         token: tokenRow.token,
         sent,
+        messageId,
       });
     }
 

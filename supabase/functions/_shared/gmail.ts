@@ -69,13 +69,18 @@ export async function getGmailAccessToken(
   return data.access_token;
 }
 
+/**
+ * Envía un email y devuelve el Gmail message ID (o null si falla).
+ * Trazabilidad: registra en logs el id, el destinatario y el tipo de notificación.
+ */
 export async function sendGmail(
   accessToken: string,
   fromEmail: string,
   toEmail: string,
   subject: string,
-  htmlContent: string
-): Promise<boolean> {
+  htmlContent: string,
+  notificationType = 'unknown'
+): Promise<string | null> {
   const encodedSubject = `=?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`;
   const messageParts = [
     `From: ${fromEmail}`,
@@ -101,8 +106,17 @@ export async function sendGmail(
   );
 
   if (!response.ok) {
-    console.error('Gmail send failed:', response.status, await response.text());
-    return false;
+    const body = await response.text();
+    console.error(
+      `[gmail] FAILED type=${notificationType} to=${toEmail} status=${response.status} body=${body}`
+    );
+    return null;
   }
-  return true;
+
+  const data = await response.json();
+  console.log(
+    `[gmail] sent type=${notificationType} to=${toEmail} messageId=${data.id} threadId=${data.threadId}`
+  );
+  return data.id as string;
 }
+

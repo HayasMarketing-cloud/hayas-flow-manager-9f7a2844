@@ -1,85 +1,85 @@
-# Fix de pagos parciales de liquidaciones: estado, cash-flow, cotejo y facturas
+# F6 — Desmontaje de Proyectos operativos y nueva vista "Proyectos" de solo lectura
 
-Trabajo independiente del sprint (no es F6).
+Última fase del sprint. Se desmonta la sección operativa antigua (49 proyectos, 138 requests operacionales) sin borrar datos, y se sustituye por una vista agregada derivada de `financial_requests`.
 
-Objetivo: que el pago parcial de una liquidación sea un hecho registrable y coherente en card, detalle, tesorería, PDF y emails. Caso de referencia: LIQ-2026-070 (Leah Pérez, 2.800 €, 1.400 € pagados el 7/8/2026).
+Nota: el fix de pagos parciales aprobado, las dos tareas menores (paso fantasma del timeline y `docs/`) se ejecutan en el despliegue previo; este plan cubre solo F6.
 
-## Alcance funcional
+## Inventario de dependencias `operational_*` y veredicto
 
-### (a) Plan de pagos visible y editable desde el detalle
-Nueva sección "Plan de pagos" en el detalle de la liquidación: lista de hitos (concepto, %, importe, fecha prevista, estado) con edición inline y creación del plan si no existe. Reutiliza el editor ya usado en el modal de liquidación.
+**Retirar (creación y edición operativa)**
+- `src/pages/operations/OperationalProjects.tsx`, `OperationalProjectDetail.tsx` — rutas `/proyectos-operativos` y `/operaciones/proyectos/:id` (App.tsx 114-115) y entrada de sidebar (AppSidebar.tsx 27).
+- `OperationalProjectFormModal.tsx`, `OperationalRequestFormModal.tsx`, `ProjectTrackingRow.tsx`, `HierarchicalTrackingTable.tsx`, `MilestoneTracking*`, `InlineTask*`, `DebugAccessPanel.tsx`.
+- `RequestProjectCreationModal.tsx`, `ProjectCreationModal.tsx`, `ContractProjectCreationModal.tsx` y sus hooks `useCreateProjectFromRequest`, `useCreateProjectFromContract`, `useCreateProjectWithActivities`, más sus disparadores en `SolicitudDetalle.tsx`, `PresupuestoDetalle.tsx`, `ContractFormModal.tsx`.
+- `useTrackingData.tsx`, `useProjectMilestones.tsx`, `useRequestTasks.ts`, `useAllTasks.tsx`, `useOperationalProjects.tsx` (incl. `useUpdateProjectField`, `useDeleteOperationalProject`).
+- `ClientProjectsTab.tsx` (pestaña Proyectos de la ficha de cliente) → sustituida por la lente nueva filtrada por cliente.
 
-### (b) "Registrar pago" sustituye a "Marcar como pagada"
-El botón actual desaparece. En su lugar, "Registrar pago" abre un diálogo con: hito a saldar (o "pago sin hito" si no hay plan), fecha real de pago e importe (precargado del hito, editable). Al confirmar:
-- marca el hito como pagado con su fecha e importe reales;
-- recalcula el estado de la liquidación (ver punto 1);
-- sólo cuando el pago es el último (cobertura total) pasa a `paid`, fija `paid_at` y envía el email de "liquidación pagada" al especialista.
-Un pago parcial no envía email de pagada.
+**Conservar (no son operativos)**
+- `useEntityPnL.tsx`, `useUnliquidatedRequests.tsx`, `useCompletedProjectsPendingInvoice.tsx`, `get-liquidation-items` — usan `operational_requests` solo como puente de join financiero; se revisan uno a uno y se mantienen intactos si no dependen de creación.
+- `useBudgetDetail.tsx`, `InvoiceUploadModal.tsx` — lecturas puntuales; se comprueban y se conservan.
 
-**Persistencia del "pago sin hito"**: si la liquidación no tiene plan, registrar un pago **crea un hito ad-hoc** en `payment_plan` con concepto "Pago DD/MM/AAAA", el importe registrado, la fecha real y `paid: true`. No existe la vía de marcar pago fuera del JSONB: toda la derivación (estado, chip, cash-flow, PDF, email) lee siempre de `payment_plan`, sin excepciones.
+**Decisión pendiente de tu criterio: `MyTasks`**
+`src/pages/operations/MyTasks.tsx` + `useMyTasks.tsx` es la única pantalla viva que el equipo usa a diario sobre `tasks`/`operational_requests`. Propuesta: **conservarla intacta en esta fase** (queda descolgada de Proyectos pero accesible), y decidir su futuro cuando la vista nueva esté en uso. No se rompe en silencio.
 
-### (c) Estado derivado y chip coherente
-El chip de la card y del detalle se calcula del plan: "Pago parcial 50% · pend. 1.400 €". Con cobertura total: "Pagada". El estado `paid` deja de poder fijarse a mano.
+**Backend**
+- `generate-monthly-requests`: se elimina la creación de `operational_projects`, milestones y tareas; el cron pasa a generar solo requests.
+- `send-project-completed-notification`: queda sin invocadores; se deja desplegada pero desconectada (borrado en otro sprint).
+- Tablas `operational_projects`, `operational_requests`, `tasks`: intactas, con sus datos. Sin migración de datos → sin paso 0 de respaldo.
 
-### (d) Cash-flow por hitos
-`getLiquidationCashOutflow` deriva siempre de los hitos pagados del JSONB. El fallback "status paid → total" queda reservado exclusivamente a liquidaciones históricas sin plan y sin pagos registrados. `getLiquidationCashOutflowForMonth` imputa por fecha real de cada hito.
+## Nueva vista "Proyectos" (solo lectura)
 
-### (e) Facturas del especialista sin puntero legacy
-El timeline y el email de recepción leen de `liquidation_invoices` (una entrada por factura, con número, importe y fecha). Se muestran todas las entradas con enlace individual. `specialist_invoice_url` deja de escribirse desde el front y desde la edge function; se conserva la columna sólo como histórico de lectura para registros antiguos.
+Ruta `/proyectos`, sustituye a la antigua en la navegación. Derivada 100% de `financial_requests`.
 
-## Las cuatro exigencias
+Jerarquía:
 
-1. **Semántica de estado cerrada.** `status='paid'` sólo cuando la suma de pagos registrados cubre el total (tolerancia 0,005 €). Con pagos parciales el estado queda en `pending_payment`. El email de pagada se dispara únicamente en el pago que completa la cobertura.
-2. **Cash-flow corregido.** Base única: hitos pagados con su fecha real. Fallback al total sólo sin plan de pagos.
-3. **Asimetría del cotejo resuelta — base imponible como única referencia.** Hoy el candidato se busca por `total_amount` (±5%) y la validación al confirmar compara `subtotal` (±1 €). Se unifica en **base imponible**: `liquidations.subtotal` (neto de impuestos) frente a la base de la factura del especialista, en el matching de candidatos y en la validación al confirmar. Tolerancia ±1% sobre base.
-   - La extracción IA del PDF debe identificar y devolver la **base imponible** de la factura (no el total): el prompt y el esquema de salida se ajustan para exigir `subtotal` como campo primario, con IVA/IGIC e IRPF como campos informativos.
-   - Cotejo (a) factura por el proyecto completo: base de la factura vs. `subtotal` de la liquidación.
-   - Cotejo (b) factura parcial: base de la factura vs. importe de un hito del plan, o vs. pendiente. Los hitos se expresan sobre base.
-   - Desajuste → aviso mostrando ambas cifras (base de la factura y base de referencia), nunca bloqueo.
-   - Comentario de cabecera en el módulo: "todas las comparaciones de facturas de especialista se hacen sobre base imponible; IVA/IGIC/IRPF varían por régimen fiscal y no son base de cotejo".
-4. **Puntero legacy retirado.** Según (e).
+```text
+Origen (presupuesto | contrato | Puntuales)
+  └─ Fase (phase, o "Sin fase")
+       └─ Request → enlace a SolicitudDetalle
+```
 
-## Corrección de datos LIQ-2026-070 (paso final)
+- **Agrupación**: por `budget_id` (proyectos), por `contract_id` cuando no hay presupuesto (fees), y grupo **"Puntuales"** para los requests sin ninguno de los dos (hoy 8 de 464).
+- **Métricas por grupo y fase**: nº de requests, horas, coste, precio, avance = `completed` / (total − `cancelled`), y gate de fase (todos completados → fase cerrada).
+- **Semáforo** por request y agregado a fase: vencido y no completado → rojo; deadline ≤7 días → ámbar; resto → verde; sin deadline → neutro.
+- **Filtros**: cliente, especialista, estado del proyecto (con requests vivos / todo completado).
+- Sin escritura, sin campos nuevos, sin `progress_pct`; el avance se computa en cada render.
 
-- Hito 1 marcado `paid: true`, `paid_at = 2026-08-07`, importe 1.400 €.
-- `status` revertido de `paid` a `pending_payment`, `paid_at` a null.
-- Resultado esperado: chip "Pago parcial 50% · pend. 1.400 €" y cash-flow de agosto 2026 con 1.400 € de salida para Leah Pérez.
+### Consulta de agregación
 
-## Detalle técnico
+Query de cliente, no vista SQL ni RPC: una sola lectura de `financial_requests` con los campos necesarios (`id, code, title, status, phase, deadline, hours, cost_to_agency, sale_amount, budget_id, contract_id, client_id, specialist_id`) y joins ligeros a `budgets`, `contracts`, `clients`, `specialists`; la agrupación y las métricas se calculan en memoria en un módulo `src/lib/projects-view-aggregation.ts`.
 
-Ficheros afectados:
-- `src/lib/liquidation-payment-plan.ts` — helper `registerMilestonePayment`, estado derivado (`deriveLiquidationStatus`), ajuste del fallback de cash-flow.
-- `src/pages/LiquidacionDetalle.tsx` (~682-727) — sustituye `markAsPaidMutation` por `registerPaymentMutation`; añade sección de plan de pagos.
-- Nuevo `src/components/liquidations/RegisterPaymentDialog.tsx`.
-- Nuevo/ampliado `src/components/liquidations/LiquidationPaymentPlanSection.tsx` (detalle).
-- `src/components/liquidations/LiquidationPaymentPlanBadge.tsx` — chip con % y pendiente.
-- `src/pages/Liquidaciones.tsx` — card usa el chip derivado.
-- `src/components/liquidations/LiquidationProcessTimeline.tsx` (225-247) — lista desde `liquidation_invoices`.
-- `src/components/liquidations/SpecialistInvoiceUpload.tsx` (100-105) — deja de escribir `specialist_invoice_url`; aviso si la **suma de bases** de las facturas recibidas excede el `subtotal` de la liquidación (misma regla de base imponible en todo el módulo, nunca sobre totales).
-- `supabase/functions/upload-specialist-invoice/index.ts` (388-392) — ídem.
-- `src/components/liquidations/SpecialistInvoiceImportModal.tsx` (132-138, 272-279) — cotejo unificado sobre base imponible (±1%), aviso con ambas cifras.
-- Función de extracción IA de facturas de especialista — prompt/esquema exigen base imponible como campo primario.
-- `src/hooks/useDashboardMensualData.tsx` (424-427) — sin cambio de firma, hereda la base corregida.
-- `src/utils/pdf/liquidationPDFGenerator.ts` y `EmailPreviewModal.tsx` — reflejan hitos pagados y facturas recibidas.
+Justificación: ~480 filas es un volumen trivial (decenas de KB), respeta la RLS existente sin funciones nuevas, y evita crear objetos de BD que habría que mantener. Si el volumen creciera por encima de unos pocos miles, la agregación se mueve a vista materializada sin cambiar la UI.
 
-Sin migración de esquema: el plan vive en `liquidations.payment_plan` (JSONB) y las facturas en `liquidation_invoices`. La corrección de LIQ-2026-070 es una actualización de datos.
+Nota de datos: `phase` está hoy a NULL en los 464 requests (campo introducido en F2). Al arrancar, todo caerá en "Sin fase" salvo lo que se etiquete; PRE-2026-045 se etiqueta con sus 5 fases para la validación.
+
+## Ficheros
+
+- Nuevo `src/pages/Proyectos.tsx`, `src/components/projects/ProjectGroupCard.tsx`, `PhaseGroupRow.tsx`, `RequestLensRow.tsx`, `ProjectsFiltersBar.tsx`.
+- Nuevo `src/lib/projects-view-aggregation.ts` y `src/hooks/useProjectsLens.tsx`.
+- `src/App.tsx`, `src/components/layout/AppSidebar.tsx` — ruta y navegación.
+- `supabase/functions/generate-monthly-requests/index.ts` — sin creación operativa.
+- Bajas de los ficheros listados en "Retirar".
+
+## Orden de desconexión
+
+1. Cortar la alimentación automática (edge function del cron).
+2. Publicar la vista nueva en `/proyectos`.
+3. Retirar navegación y rutas antiguas.
+4. Retirar puntos de creación y modales.
+5. Borrar hooks y componentes ya sin invocadores; grep final.
 
 ## Riesgos
 
-- Liquidaciones históricas en `paid` sin plan: intactas por el fallback.
-- Liquidaciones de equipo: el registro de pago actúa sobre la liquidación cabecera, igual que hoy.
-- Pasar el cotejo a base imponible puede reclasificar candidatos de importaciones antiguas cuyo total incluía impuestos; sólo afecta a sugerencias, nunca bloquea.
-- Facturas antiguas sin base extraída: el aviso lo señala y permite continuar.
+- Hooks financieros que atraviesan `operational_requests` (regla del proyecto: es el único puente request↔proyecto). Se revisan antes de tocar nada; ninguno se elimina.
+- Accesos guardados a `/proyectos-operativos`: la ruta deja de existir y cae en NotFound.
+- Pérdida temporal de la pestaña Proyectos en la ficha de cliente hasta que la lente nueva acepte filtro por cliente (va en el mismo despliegue).
 
-## Checks (con output literal)
+## Checks
 
-1. Registrar pago parcial en una liquidación de prueba → chip "Pago parcial 50% · pend. X" y estado `pending_payment`; sin email.
-2. Registrar el pago final → estado `paid`, `paid_at` fijado y email de pagada enviado una sola vez.
-3. Subir una segunda factura de especialista → timeline con dos entradas enlazadas; aviso sólo si la suma de bases supera el `subtotal` de la liquidación.
-4. Cotejo con la factura real de Leah: base extraída 2.800 € → casa con el subtotal de LIQ-2026-070 sin aviso. Factura parcial de 1.400 € → casa con el hito 1 (base) sin aviso. Base fuera de ±1% → aviso con ambas cifras, permite continuar.
-5. LIQ-2026-070 corregida: card con chip "50% · pend. 1.400 €", detalle con hito 1 pagado el 7/8/2026, cash-flow de agosto 2026 con 1.400 €.
-6. Consulta de estado en BD de LIQ-2026-070 antes y después de la corrección.
-
-## Nota sobre F6 (vista Proyectos)
-
-No puedo planificar F6 todavía: el briefing del sprint llegó como fichero adjunto (`briefing-sprint-flow-requests.md`) y no está guardado en el repositorio, así que no tengo delante el enunciado de F6 ni las dos peticiones pendientes que mencionas. Vuelve a compartir esa sección (o el fichero completo) y preparo el plan de F6 en cuanto cerremos este fix.
+1. PRE-2026-045 renderizado con sus 5 fases, avance y semáforos correctos contra datos reales.
+2. Un contrato de fee (Asendia Spain) con sus meses agrupados y métricas correctas.
+3. Grupo "Puntuales" con los 8 requests sin presupuesto ni contrato.
+4. `generate-monthly-requests` ejecutado manualmente → 0 `operational_projects` nuevos; count antes/después con output literal.
+5. `/proyectos-operativos` y `/operaciones/proyectos/:id` inaccesibles por URL directa.
+6. Grep sin hooks ni modales muertos invocados (`useCreateProjectFrom*`, `useTrackingData`, `useOperationalProjects`).
+7. Verificación de que P&L, liquidaciones y facturación siguen resolviendo el join por `operational_requests` sin errores.
+8. Smoke test en UI real (navegador): entrar en /proyectos, filtrar por cliente y especialista, expandir un presupuesto y una fase, abrir un request hasta `SolicitudDetalle`, y confirmar que no hay ningún control de escritura en la vista.

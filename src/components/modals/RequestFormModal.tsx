@@ -988,6 +988,26 @@ export const RequestFormModal = ({
               />
             </div>
 
+            {showNotifyToggle && (
+              <div className="flex items-start gap-3 rounded-md border p-3">
+                <Checkbox
+                  id="notify-specialist"
+                  checked={notifySpecialist}
+                  onCheckedChange={(v) => setNotifySpecialist(v === true)}
+                />
+                <div className="space-y-1">
+                  <label htmlFor="notify-specialist" className="text-sm font-medium leading-none cursor-pointer">
+                    Notificar al especialista
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    Desmárcalo para registrar trabajo ya realizado sin enviar el email de asignación.
+                  </p>
+                </div>
+              </div>
+            )}
+
+
+
             {/* Partner Reference - show when a specialist is selected */}
             <FormField
               control={form.control}

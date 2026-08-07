@@ -27,7 +27,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useApproveBudget } from '@/hooks/useApproveBudget';
-import { useCreateProjectWithActivities } from '@/hooks/useCreateProjectWithActivities';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { BudgetContextTab } from '@/components/budgets/BudgetContextTab';
 import { useBudgetPnL } from '@/hooks/useEntityPnL';
@@ -73,7 +72,6 @@ export default function PresupuestoDetalle() {
   const approveMutation = useApproveBudget();
   const generateRequestsMutation = useGenerateBudgetRequests();
 
-  const createProjectWithActivities = useCreateProjectWithActivities();
 
   // Query para obtener token de compartición existente
   const { data: existingShareToken } = useQuery({
@@ -831,23 +829,6 @@ export default function PresupuestoDetalle() {
 
   const selectedClientName = clients?.find((c) => c.id === resumenFormData.client_id)?.name || budget.client?.name;
 
-  // Crear proyecto operativo
-  const handleCreateProject = () => {
-    setShowApprovalModal(false);
-    if (user?.id && budget.id && budget.client_id) {
-      createProjectWithActivities.mutate({
-        projectData: {
-          name: budget.title,
-          client_id: budget.client_id,
-          budget_id: budget.id,
-          description: budget.description || null,
-          status: 'pending',
-          created_by: user.id,
-        }
-      });
-    }
-  };
-
   // Generar requests desde budget items (sin cambiar estado)
   // Derive which budget items still need request generation
   const generatedItemIds = new Set(
@@ -1277,48 +1258,26 @@ export default function PresupuestoDetalle() {
                       </div>
                     </div>
 
-                    {/* Proyecto Operativo */}
+                    {/* Vista de Proyectos (lente de solo lectura) */}
                     <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900/30">
                           <FolderKanban className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                         </div>
                         <div>
-                          <p className="font-medium">Proyecto Operativo</p>
+                          <p className="font-medium">Vista de Proyectos</p>
                           <p className="text-sm text-muted-foreground">
-                            {projects.length > 0 
-                              ? `${projects.length} ${projects.length === 1 ? 'proyecto vinculado' : 'proyectos vinculados'}`
-                              : 'Sin proyecto creado'}
+                            El seguimiento por fases se deriva de los requests de este presupuesto
                           </p>
                         </div>
                       </div>
-                      {projects.length > 0 ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/operaciones/proyectos/${projects[0].id}`)}
-                        >
-                          Ver Proyecto
+                      {requests.length > 0 ? (
+                        <Button variant="outline" size="sm" onClick={() => navigate('/proyectos')}>
+                          Ver en Proyectos
                           <ExternalLink className="h-4 w-4 ml-2" />
                         </Button>
-                      ) : requests.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                          Genera primero las requests
-                        </p>
                       ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleCreateProject}
-                          disabled={createProjectWithActivities.isPending}
-                        >
-                          {createProjectWithActivities.isPending ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <FolderKanban className="h-4 w-4 mr-2" />
-                          )}
-                          Crear Proyecto
-                        </Button>
+                        <p className="text-sm text-muted-foreground">Genera primero las requests</p>
                       )}
                     </div>
                   </div>
@@ -1707,20 +1666,9 @@ export default function PresupuestoDetalle() {
                 <Badge variant="secondary">{items.length}</Badge>
               </div>
             </div>
-
-            <div className="border-t pt-4">
-              <div className="flex items-start gap-3">
-                <FolderKanban className="h-5 w-5 text-primary mt-0.5" />
-                <div className="flex-1 space-y-1">
-                  <h4 className="text-sm font-medium">¿Deseas crear un proyecto operativo?</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Puedes crear un proyecto operativo para organizar los milestones y tareas
-                    asociados a este presupuesto.
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
+
+
 
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button 
@@ -1730,18 +1678,6 @@ export default function PresupuestoDetalle() {
             >
               <ListChecks className="h-4 w-4 mr-2" />
               Ver Solicitudes
-            </Button>
-            <Button 
-              onClick={handleCreateProject}
-              disabled={createProjectWithActivities.isPending}
-              className="flex-1"
-            >
-              {createProjectWithActivities.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <FolderKanban className="h-4 w-4 mr-2" />
-              )}
-              Crear Proyecto
             </Button>
           </DialogFooter>
         </DialogContent>

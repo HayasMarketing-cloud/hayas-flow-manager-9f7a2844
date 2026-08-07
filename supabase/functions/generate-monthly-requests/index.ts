@@ -223,47 +223,10 @@ Deno.serve(async (req) => {
 
       console.log(`[generate-monthly-requests] Created ${createdRequests?.length || 0} requests for ${contract.code}`);
 
-      // Create operational project
-      let projectCreated = false;
-      let projectId: string | undefined;
-      const ownerUserId = contract.pm_user_id || contract.am_user_id;
-
-      if (ownerUserId) {
-        const projectName = `${contract.title} - ${monthName}`;
-        const { data: newProject, error: projectError } = await supabaseAdmin
-          .from('operational_projects')
-          .insert({
-            name: projectName,
-            client_id: contract.client_id,
-            contract_id: contract.id,
-            owner_user_id: ownerUserId,
-            created_by: ownerUserId,
-            status: 'pending',
-            work_month: workMonth,
-            work_year: workYear,
-          })
-          .select('id')
-          .single();
-
-        if (projectError) {
-          console.error(`Error creating project for ${contract.code}:`, projectError);
-        } else if (newProject) {
-          projectCreated = true;
-          projectId = newProject.id;
-          await cloneMilestones(
-            supabaseAdmin, contract, newProject.id,
-            toClone, createdRequests || [],
-            workMonth, workYear, ownerUserId
-          );
-        }
-      } else {
-        console.log(`[generate-monthly-requests] No owner for ${contract.code}, skipping project`);
-      }
-
       results.push({
         contractId, contractCode: contract.code,
         requestsCreated: createdRequests?.length || 0,
-        projectCreated, projectId, skipped: false,
+        projectCreated: false, skipped: false,
       });
     }
 
@@ -289,84 +252,3 @@ Deno.serve(async (req) => {
     });
   }
 });
-
-async function cloneMilestones(
-  supabaseClient: any,
-  contract: { id: string; client_id: string },
-  projectId: string,
-  templates: Template[],
-  createdRequests: { id: string; code: string; title: string; template_source_id: string }[],
-  workMonth: number,
-  workYear: number,
-  createdBy: string
-): Promise<void> {
-  try {
-    const milestoneDeadline = new Date(workYear, workMonth, 0).toISOString().split('T')[0];
-
-    // Map template_source_id -> created request
-    const reqByTemplate = new Map(createdRequests.map((r) => [r.template_source_id, r]));
-
-    for (const template of templates) {
-      const correspondingRequest = reqByTemplate.get(template.id);
-      if (!correspondingRequest) continue;
-
-      const tmplStructure = template.service?.template_structure;
-      const hasTemplate = tmplStructure?.milestones?.length > 0;
-
-      if (hasTemplate) {
-        for (const milestone of tmplStructure.milestones) {
-          const { data: newMilestone, error: msErr } = await supabaseClient
-            .from('operational_requests')
-            .insert({
-              name: `${milestone.name} - ${correspondingRequest.code}`,
-              client_id: contract.client_id,
-              operational_project_id: projectId,
-              created_by: createdBy,
-              status: 'pending',
-              financial_request_id: correspondingRequest.id,
-              assignee_specialist_id: template.specialist_id,
-              description: milestone.description || `Milestone de ${template.title}`,
-              deadline: milestoneDeadline,
-            })
-            .select('id')
-            .single();
-
-          if (msErr) {
-            console.error('Error creating milestone:', msErr);
-            continue;
-          }
-
-          if (milestone.tasks?.length > 0 && newMilestone) {
-            const tasksToInsert = milestone.tasks.map((task: any, idx: number) => ({
-              name: typeof task === 'string' ? task : task.name,
-              operational_request_id: newMilestone.id,
-              order_index: idx,
-              status: 'pending',
-              assignee_specialist_id: template.specialist_id,
-              deadline: milestoneDeadline,
-            }));
-            const { error: tasksErr } = await supabaseClient.from('tasks').insert(tasksToInsert);
-            if (tasksErr) console.error('Error creating tasks:', tasksErr);
-          }
-        }
-      } else {
-        const { error: msErr } = await supabaseClient
-          .from('operational_requests')
-          .insert({
-            name: correspondingRequest.title,
-            client_id: contract.client_id,
-            operational_project_id: projectId,
-            created_by: createdBy,
-            status: 'pending',
-            financial_request_id: correspondingRequest.id,
-            assignee_specialist_id: template.specialist_id,
-            description: template.notes || `Milestone generado desde plantilla recurrente`,
-            deadline: milestoneDeadline,
-          });
-        if (msErr) console.error('Error creating simple milestone:', msErr);
-      }
-    }
-  } catch (error) {
-    console.error('Error in cloneMilestones:', error);
-  }
-}

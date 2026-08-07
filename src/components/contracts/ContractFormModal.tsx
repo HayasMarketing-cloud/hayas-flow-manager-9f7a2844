@@ -14,9 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { ContractServicesEditor } from './ContractServicesEditor';
-import { ContractProjectCreationModal } from './ContractProjectCreationModal';
-import { useCreateProjectFromContract } from '@/hooks/useCreateProjectFromContract';
-import { Loader2, FileText, Play, Pause, RotateCw, AlertCircle, FolderKanban, ExternalLink } from 'lucide-react';
+import { Loader2, FileText, Play, Pause, RotateCw, AlertCircle, ExternalLink } from 'lucide-react';
 import { ContractRecurringTemplatesSection } from './ContractRecurringTemplatesSection';
 interface ContractFormModalProps {
   isOpen: boolean;
@@ -29,8 +27,6 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [showProjectModal, setShowProjectModal] = useState(false);
-  const createProjectMutation = useCreateProjectFromContract();
   const [formData, setFormData] = useState({
     title: '',
     client_id: '',
@@ -148,24 +144,6 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         budgets: budgetsResult.count || 0,
         requests: requestsResult.count || 0,
       };
-    },
-    enabled: !!contract?.id && isOpen,
-  });
-
-  // Query para verificar si ya existe un proyecto operativo para este contrato
-  const { data: existingProject } = useQuery({
-    queryKey: ['contract-operational-project', contract?.id],
-    queryFn: async () => {
-      if (!contract?.id) return null;
-      
-      const { data, error } = await supabase
-        .from('operational_projects')
-        .select('id, name')
-        .eq('contract_id', contract.id)
-        .maybeSingle();
-      
-      if (error) throw error;
-      return data;
     },
     enabled: !!contract?.id && isOpen,
   });
@@ -390,34 +368,9 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
     generateRequestsMutation.mutate();
   };
 
-  const handleCreateProject = () => {
-    if (!contract || !user) return;
-    
-    createProjectMutation.mutate(
-      {
-        projectData: {
-          name: contract.title,
-          client_id: contract.client_id,
-          contract_id: contract.id,
-          description: contract.description,
-          owner_user_id: contract.pm_user_id || contract.am_user_id || user.id,
-          created_by: user.id,
-          hub_project_url: contract.hub_project_url,
-        },
-      },
-      {
-        onSuccess: (data) => {
-          setShowProjectModal(false);
-          navigate(`/proyectos-operativos/${data.project.id}`);
-        },
-      }
-    );
-  };
-
   const isViewMode = mode === 'view';
   const canEdit = !isViewMode;
   const hasRelatedData = (relatedData?.budgets || 0) > 0 || (relatedData?.requests || 0) > 0;
-  const canCreateProject = isViewMode && contract?.status === 'active' && !existingProject && (contractRequestsCount || 0) > 0;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -717,21 +670,6 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
                 <RotateCw className="h-4 w-4 mr-2" />
                 Generar Requests del mes
               </Button>
-              {canCreateProject && (
-                <Button variant="default" onClick={() => setShowProjectModal(true)}>
-                  <FolderKanban className="h-4 w-4 mr-2" />
-                  Crear Proyecto
-                </Button>
-              )}
-              {existingProject && (
-                <Button
-                  variant="outline"
-                  onClick={() => navigate(`/proyectos-operativos/${existingProject.id}`)}
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Ver Proyecto
-                </Button>
-              )}
             </>
           )}
 
@@ -744,21 +682,6 @@ export const ContractFormModal = ({ isOpen, onClose, contract, mode = 'create' }
         </DialogFooter>
       </DialogContent>
 
-      {contract && (
-        <ContractProjectCreationModal
-          isOpen={showProjectModal}
-          onClose={() => setShowProjectModal(false)}
-          contract={{
-            id: contract.id,
-            title: contract.title,
-            code: contract.code,
-            client: contract.client,
-          }}
-          requestsCount={contractRequestsCount || 0}
-          onCreateProject={handleCreateProject}
-          isCreating={createProjectMutation.isPending}
-        />
-      )}
     </Dialog>
   );
 };

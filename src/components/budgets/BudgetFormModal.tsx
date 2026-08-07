@@ -13,7 +13,6 @@ import { BudgetItemsEditor } from './BudgetItemsEditor';
 import { calculateBudgetTotal, getMilestoneAmount } from '@/lib/budget-utils';
 import { Loader2, FileText, User, FileSignature } from 'lucide-react';
 import { useApproveBudget } from '@/hooks/useApproveBudget';
-import { ProjectCreationModal } from './ProjectCreationModal';
 import { PaymentPlanEditor, PaymentMilestone } from './PaymentPlanEditor';
 import { useUserRole } from '@/hooks/useUserRole';
 
@@ -22,7 +21,6 @@ interface BudgetFormModalProps {
   onClose: () => void;
   budget?: any;
   mode?: 'create' | 'edit' | 'view';
-  onProjectCreationRequest?: (budget: any) => void;
 }
 
 export const BudgetFormModal = ({ 
@@ -30,7 +28,6 @@ export const BudgetFormModal = ({
   onClose, 
   budget, 
   mode = 'create',
-  onProjectCreationRequest 
 }: BudgetFormModalProps) => {
   const { user } = useAuth();
   const { isAccountManager, isProjectManager } = useUserRole();
@@ -51,8 +48,6 @@ export const BudgetFormModal = ({
   });
   const [items, setItems] = useState<any[]>([]);
   const [paymentPlan, setPaymentPlan] = useState<PaymentMilestone[]>([]);
-  const [showProjectModal, setShowProjectModal] = useState(false);
-  const [approvedBudgetData, setApprovedBudgetData] = useState<any>(null);
 
   const approveBudgetMutation = useApproveBudget();
 
@@ -413,13 +408,6 @@ export const BudgetFormModal = ({
     saveMutation.mutate();
   };
 
-  const handleCreateProject = () => {
-    setShowProjectModal(false);
-    if (onProjectCreationRequest && approvedBudgetData) {
-      onProjectCreationRequest(approvedBudgetData);
-    }
-  };
-
   const isViewMode = mode === 'view';
   const canEdit = !isViewMode; // Permitir edición en cualquier estado
 
@@ -702,12 +690,6 @@ export const BudgetFormModal = ({
       </DialogContent>
     </Dialog>
 
-    <ProjectCreationModal
-      isOpen={showProjectModal}
-      onClose={() => setShowProjectModal(false)}
-      budget={approvedBudgetData}
-      onCreateProject={handleCreateProject}
-    />
   </>
   );
 };

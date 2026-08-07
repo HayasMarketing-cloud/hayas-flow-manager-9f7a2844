@@ -482,11 +482,15 @@ export const RequestFormModal = ({
 
 
       if (initialData) {
-        const { error } = await supabase
-          .from('financial_requests')
-          .update(requestData)
-          .eq('id', initialData.id);
-        if (error) throw error;
+        await mustAffectRows(
+          supabase
+            .from('financial_requests')
+            .update(requestData)
+            .eq('id', initialData.id)
+            .select('id'),
+          { entity: 'el request', action: 'actualizar' },
+        );
+
         
         // Sincronizar specialist en operational_request vinculado (si cambió)
         if (requestData.specialist_id !== initialData.specialist_id) {

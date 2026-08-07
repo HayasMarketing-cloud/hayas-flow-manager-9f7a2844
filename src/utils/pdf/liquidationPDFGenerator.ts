@@ -242,8 +242,11 @@ const createLiquidationPDFDocument = async (data: LiquidationData) => {
     // Calculate total
     const calculatedTotal = liquidationView.grandTotal;
 
+    // Bloque de anticipos y regularizaciones (diferenciado de los trabajos)
+    const afterAdvancesY = renderAdvancesBlock(doc, liquidationView, (doc as any).lastAutoTable.finalY, pageWidth);
+
     // Total
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    const finalY = afterAdvancesY + 10;
     const totalsX = pageWidth - 75;
     
     doc.setFont('helvetica', 'bold');

@@ -28,6 +28,8 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { AddToLiquidationModal } from '@/components/liquidations/AddToLiquidationModal';
 import { AddToInvoiceModal } from '@/components/invoices/AddToInvoiceModal';
 import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
+import { mustAffectRows, reportMutationError } from '@/lib/db-mutations';
+
 
 const Solicitudes = () => {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');

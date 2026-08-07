@@ -192,7 +192,18 @@ const handler = async (req: Request): Promise<Response> => {
         await supabase.from('request_action_token_items')
           .update({ status: 'accepted', processed_at: now })
           .eq('id', item.id);
+
+        // Registro de auditoría del lote (sin usuario autenticado)
+        await supabase.from('activity_log').insert({
+          user_id: null,
+          source: 'token',
+          entity_type: 'financial_request',
+          entity_id: r.id,
+          action: action === 'accept' ? 'batch_accepted' : 'batch_rejected',
+          changes: { from: r.status, to: newStatus, token_id: tokenRow.id, comments: comments || null },
+        });
       }
+
 
       // Marcar el token como usado
       await supabase

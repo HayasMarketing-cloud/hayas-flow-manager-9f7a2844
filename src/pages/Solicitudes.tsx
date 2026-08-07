@@ -258,26 +258,34 @@ const Solicitudes = () => {
   };
 
   const handleDeleteRequest = async (requestId: string) => {
-    // First, unlink any operational_requests that reference this financial_request
-    await supabase
-      .from('operational_requests')
-      .update({ financial_request_id: null })
-      .eq('financial_request_id', requestId);
+    const target = requests?.find((r: any) => r.id === requestId);
+    try {
+      // First, unlink any operational_requests that reference this financial_request
+      await supabase
+        .from('operational_requests')
+        .update({ financial_request_id: null })
+        .eq('financial_request_id', requestId);
 
-    const { error } = await supabase
-      .from('financial_requests')
-      .delete()
-      .eq('id', requestId);
+      await mustAffectRows(
+        supabase.from('financial_requests').delete().eq('id', requestId).select('id'),
+        { entity: 'el request' },
+      );
 
-    if (error) {
-      toast.error('Error al eliminar el request');
-    } else {
+      await logActivity({
+        entityId: requestId,
+        action: 'deleted',
+        changes: { code: target?.code ?? null, title: target?.title ?? null },
+      });
+
       toast.success('Request eliminado correctamente');
       queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
+    } catch (err) {
+      reportMutationError(err, 'Error al eliminar el request');
     }
     setDeleteConfirmOpen(false);
     setRequestToDelete(null);
   };
+
 
   const handleCloneRequest = async (request: any) => {
     // Exclude all relational and auto-generated fields

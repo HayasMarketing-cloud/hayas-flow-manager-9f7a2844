@@ -196,7 +196,7 @@ export function SpecialistFormModal({
           hourly_rate: values.hourly_rate || 0,
           website_url: values.website_url || null,
           payment_terms: values.payment_terms || null,
-        payment_terms: values.payment_terms || null,
+
           notes: values.notes || null,
           team_leader_id: values.team_leader_id || null,
         })

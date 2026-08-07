@@ -229,14 +229,17 @@ export const RequestTableView = ({
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onDelete(request)}
-                            title="Eliminar"
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          {canDelete && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onDelete(request)}
+                              title="Eliminar"
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
+
                         </>
                       )}
                     </div>

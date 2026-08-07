@@ -59,6 +59,10 @@ Deno.serve(async (req) => {
         quantity,
         unit_price,
         total,
+        item_type,
+        source_invoice_id,
+        settles_item_id,
+
         financial_request:financial_requests(
           id,
           title,

@@ -29,6 +29,7 @@ interface RequestTableViewProps {
   onDelete: (request: any) => void;
   onClone: (request: any) => void;
   canManage: boolean;
+  canDelete?: boolean;
   selectedIds: string[];
   onSelectAll: (checked: boolean) => void;
   onSelectOne: (id: string, checked: boolean) => void;
@@ -42,6 +43,7 @@ export const RequestTableView = ({
   onDelete,
   onClone,
   canManage,
+  canDelete = false,
   selectedIds,
   onSelectAll,
   onSelectOne,

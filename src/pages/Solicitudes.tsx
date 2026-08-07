@@ -925,6 +925,7 @@ const Solicitudes = () => {
                   onClone={handleCloneRequest}
                   onAddToLiquidation={handleAddToLiquidation}
                   canManage={canManage}
+                  canDelete={canDelete}
                   onRefresh={handleSuccess}
                 />
               ))}
@@ -937,6 +938,7 @@ const Solicitudes = () => {
               onDelete={confirmDelete}
               onClone={handleCloneRequest}
               canManage={canManage}
+              canDelete={canDelete}
               selectedIds={selectedIds}
               onSelectAll={handleSelectAll}
               onSelectOne={handleSelectOne}

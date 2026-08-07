@@ -337,6 +337,76 @@ const createLiquidationPDFDocument = async (data: LiquidationData) => {
   return doc;
 };
 
+// Bloque diferenciado de anticipos y regularizaciones.
+// Devuelve la nueva Y. Si no hay líneas de este tipo, no dibuja nada.
+const renderAdvancesBlock = (
+  doc: jsPDF,
+  view: LiquidationView,
+  startY: number,
+  pageWidth: number
+): number => {
+  if (!view.advances.length) return startY;
+
+  let currentY = startY + 12;
+  if (currentY > 235) {
+    doc.addPage();
+    currentY = 25;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(90, 90, 90);
+  doc.text('ANTICIPOS Y REGULARIZACIONES', 15, currentY);
+  doc.setTextColor(0, 0, 0);
+  currentY += 4;
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [['Descripción', 'Fecha', 'Importe']],
+    body: view.advances.map((item: any) => {
+      const amount = Number(item.total) || 0;
+      const invoiceCode = item.source_invoice?.code || item.source_invoice_code;
+      const description = invoiceCode
+        ? `${item.description} — Factura ${invoiceCode}`
+        : item.description;
+      return [
+        description,
+        item.created_at
+          ? new Date(item.created_at).toLocaleDateString('es-ES', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+            })
+          : '-',
+        {
+          content: formatCurrency(amount),
+          styles: { halign: 'right', textColor: amount < 0 ? [180, 40, 40] : [0, 0, 0] },
+        },
+      ];
+    }),
+    theme: 'plain',
+    headStyles: { fillColor: [110, 110, 110], textColor: 255, fontSize: 9, fontStyle: 'bold' },
+    styles: { fontSize: 9, cellPadding: 3 },
+    columnStyles: {
+      0: { cellWidth: 110 },
+      1: { cellWidth: 30, halign: 'center' },
+      2: { cellWidth: 40, halign: 'right' },
+    },
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 5;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text(
+    `Subtotal anticipos: ${formatCurrency(view.advancesTotal)}`,
+    pageWidth - 15,
+    currentY,
+    { align: 'right' }
+  );
+  return currentY;
+};
+
+
 export const generateLiquidationPDF = async (data: LiquidationData) => {
   const doc = await createLiquidationPDFDocument(data);
   const fileMonthName = getMonthName(data.liquidation.period_month, 'short').toLowerCase();

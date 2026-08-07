@@ -443,7 +443,7 @@ const buildHierarchicalTableData = (view: LiquidationView, commissionDetails?: R
 const ensureConsistentView = (view: LiquidationView, expectedTotal?: number | string | null): LiquidationView => {
   const groupedTotal = view.groups.reduce((clientSum, client) => (
     clientSum + client.projectBudgets.reduce((projectSum, project) => projectSum + project.subtotal, 0)
-  ), 0);
+  ), 0) + view.advancesTotal;
 
   if (Math.abs(groupedTotal - view.grandTotal) > 0.005) {
     throw new Error(

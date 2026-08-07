@@ -1,117 +1,120 @@
-# F4 — Máquina de estados, forzado auditado e higiene de borrado
+# F5 — Anticipos a especialistas y regularizaciones
 
-Objetivo: una única definición de las transiciones válidas de `financial_requests.status`, consumida por UI y BD; forzado de estado sólo para admin/finanzas con motivo registrado; y fin del "éxito silencioso" en borrados y actualizaciones.
+Objetivo: permitir adelantar caja a un especialista mediante una línea de anticipo en su liquidación, y regularizarla más tarde con una línea negativa enlazada, sin tocar el modelo económico del request (unidad indivisible, se liquida una vez, entera, a su coste).
 
-## 1. Fuente única de transiciones
+## 1. Modelo de datos
 
-Diseño: **tabla de datos + funciones de lectura**, no constantes duplicadas.
+Se **extiende `liquidation_items`**, no se crea tabla nueva. Motivos: el anticipo ya es económicamente una línea de liquidación (importe, descripción, sin request), el PDF, el total firmado, la firma, la validación AM y el marcado de pago consumen esa tabla, y una tabla paralela obligaría a duplicar toda esa lógica.
 
-- Tabla `public.request_status_transitions` (`from_status financial_request_status`, `to_status financial_request_status`, `pk (from, to)`), sembrada con la matriz aprobada:
+Columnas nuevas en `public.liquidation_items`:
+
+| Columna | Tipo | Uso |
+| --- | --- | --- |
+| `item_type` | `liquidation_item_type` (enum: `work`, `advance`, `advance_settlement`) NOT NULL DEFAULT `work` | Clasifica la línea |
+| `source_invoice_id` | `uuid NULL REFERENCES public.invoices(id) ON DELETE SET NULL` | Factura de cliente que origina el anticipo |
+| `settles_item_id` | `uuid NULL REFERENCES public.liquidation_items(id) ON DELETE RESTRICT` | Autorreferencia: la regularización apunta al anticipo |
+
+Reglas por trigger de validación (no CHECK, dependen de otras filas):
+
+- `advance`: `financial_request_id IS NULL`, `total > 0`, `settles_item_id IS NULL`.
+- `advance_settlement`: `financial_request_id IS NULL`, `total < 0`, `settles_item_id` obligatorio y debe apuntar a una línea `advance` **del mismo especialista** (vía `liquidations.specialist_id`).
+- `work`: se comporta exactamente como hoy; las líneas actuales quedan como `work` por el DEFAULT.
+
+Nada de saldos persistidos, ni jobs, ni cobertura anticipo→requests.
+
+`public.specialists`: nueva columna `payment_terms text NULL`.
+
+Paso 0 de la migración: `CREATE TABLE _backup_liquidation_items_<fecha> AS SELECT * FROM public.liquidation_items;` y lo mismo para `specialists`.
+
+## 2. Consulta del saldo pendiente
+
+Función `public.specialist_pending_advances(_specialist_id uuid)` — `STABLE SECURITY INVOKER` (respeta la RLS actual de liquidaciones, así que el banner sólo muestra lo que el usuario puede ver):
+
+```sql
+SELECT a.id, a.description, a.total AS amount,
+       l.id AS liquidation_id, l.code AS liquidation_code,
+       l.period_year, l.period_month, a.created_at,
+       a.source_invoice_id, i.code AS invoice_code,
+       a.total + COALESCE(SUM(s.total), 0) AS pending
+FROM liquidation_items a
+JOIN liquidations l ON l.id = a.liquidation_id
+LEFT JOIN invoices i ON i.id = a.source_invoice_id
+LEFT JOIN liquidation_items s ON s.settles_item_id = a.id
+WHERE a.item_type = 'advance' AND l.specialist_id = _specialist_id
+GROUP BY a.id, l.id, i.code
+HAVING a.total + COALESCE(SUM(s.total), 0) > 0.005;
+```
+
+Las regularizaciones son negativas, por eso se suman. `pending` nunca se guarda.
+
+## 3. Ficheros afectados
+
+**Backend**
+- Migración: enum, 3 columnas, trigger de validación, `payment_terms`, función de saldo, respaldos.
+- `supabase/functions/get-liquidation-items/index.ts`: devolver `item_type`, `settles_item_id`, y el código de la factura de origen, para que el PDF del especialista (vía token) tenga los mismos datos que la vista interna.
+- `supabase/functions/process-signature/index.ts`: no cambia su lógica; ya usa `liquidations.subtotal`, que pasa a incluir anticipos y regularizaciones (ver §5).
+
+**Frontend**
+- `src/lib/liquidation-advances.ts` (nuevo): tipos, `isAdvance/isSettlement`, `splitItemsByType`, hook `useSpecialistPendingAdvances(specialistId)`.
+- `src/lib/liquidation-grouping.ts`: excluir las líneas de anticipo/regularización del árbol Cliente → Proyecto; se devuelven aparte en un bloque propio.
+- `src/lib/liquidation-totals.ts`: `grandTotal` sigue siendo la suma de **todas** las líneas (los negativos restan); se añade `advances` y `advancesTotal` a la vista.
+- `src/components/liquidations/LiquidationFormModal.tsx`: bloque "Anticipos" junto al de conceptos manuales — alta de anticipo (importe, nota, selector opcional de factura de cliente) y alta de regularización (selector de anticipo pendiente + importe negativo). Banner informativo de anticipos pendientes y nota de `payment_terms`.
+- `src/components/liquidations/PendingAdvancesBanner.tsx` (nuevo): banner discreto (`Alert`, no modal) con fecha, nota, factura de origen, importe y pendiente por anticipo.
+- `src/pages/LiquidacionDetalle.tsx`: sección visual diferenciada para anticipos/regularizaciones + banner.
+- `src/components/liquidations/GroupedLiquidationItemsTable.tsx`: renderiza el bloque separado.
+- `src/utils/pdf/liquidationPDFGenerator.ts`: bloque PDF (ver §4).
+- `src/components/modals/SpecialistFormModal.tsx` y `src/pages/EspecialistaDetalle.tsx`: campo `payment_terms`.
+
+## 4. Render en PDF
+
+Tras la tabla jerárquica de trabajos y antes del total general, un bloque propio:
 
 ```text
-draft              -> pending_specialist, cancelled
-pending_specialist -> in_progress, draft, cancelled
-in_progress        -> pending_review, cancelled
-pending_review     -> completed, in_progress
-completed          -> in_progress
-cancelled          -> draft
+ANTICIPOS Y REGULARIZACIONES
+Descripción                                  Fecha       Importe
+Anticipo hito 50% — Factura FAC-2026-071     12/06/2026  1.500,00 €
+Regularización anticipo 12/06/2026            07/08/2026  -1.500,00 €
+                            Subtotal anticipos:      0,00 €
 ```
 
-- GRANT `SELECT` a `authenticated` (es catálogo, no dato sensible); `ALL` a `service_role`. RLS activada con política de lectura para cualquier usuario autenticado.
-- `public.allowed_request_transitions(_from financial_request_status) RETURNS financial_request_status[]` — `STABLE SECURITY DEFINER`, lee la tabla. La UI la llama por RPC.
-- `public.is_valid_request_transition(_from, _to) RETURNS boolean`.
-- Trigger `BEFORE UPDATE OF status ON financial_requests` → `enforce_request_status_transition()`: si `OLD.status IS DISTINCT FROM NEW.status` y la transición no está en la tabla, `RAISE EXCEPTION` con mensaje legible (`Transición no permitida: % → %`). Se salta la validación cuando la sesión lleva la marca de forzado (ver punto 2).
+- Cabecera en gris para distinguirlo del azul de trabajos.
+- Importes negativos en rojo y con signo.
+- El **TOTAL GENERAL** sigue siendo `subtotal` (trabajos + anticipos + regularizaciones); `ensureConsistentView` sigue comparándolo contra el `subtotal` de BD, así que una discrepancia sigue siendo visible.
+- En liquidación de equipo, los anticipos se muestran en el bloque del especialista al que pertenecen (líder o miembro), nunca agregados.
 
-Consumo desde la UI: hook `useRequestTransitions()` que cachea el resultado del RPC `allowed_request_transitions` (uno por estado, `staleTime` alto). `RequestFormModal` y `RequestFlowActions` derivan sus opciones de ahí; se elimina cualquier lista hardcodeada de estados.
+## 5. Efecto en `process-signature`
 
-### Casos reales que la matriz no cubre (a decidir antes de ejecutar)
+Ninguno estructural. La función firma `liquidation.subtotal` y lo muestra al especialista; como los anticipos y regularizaciones son líneas de la misma liquidación, `subtotal` ya es el importe neto que se le abonará. Lo que **firma** el especialista es por tanto el neto, que es lo correcto: si en el mes hay una regularización de un anticipo cobrado antes, firma la cantidad que realmente recibirá. Los emails y el PDF adjunto usan la misma cifra, así que no hay divergencia entre lo firmado y lo mostrado.
 
-1. **Rollback de `process-request-action`** (`supabase/functions/process-request-action/index.ts:388`): si falla el email tras aceptar, revierte `in_progress → pending_specialist`. Esa transición **no está en la matriz** y el trigger la rechazaría. Propuesta: añadir `in_progress → pending_specialist` a la tabla (es también el "devolver al especialista" natural desde gestión). Alternativa: que el rollback use el RPC de forzado con motivo de sistema.
-2. **`pending_review → cancelled`**: hoy no está permitido; un trabajo entregado que el cliente anula tendría que pasar por `in_progress` primero. Propuesta: añadirla.
-3. **`completed → cancelled`** no se añade: un completado ya facturable se reabre a `in_progress` y se cancela desde ahí (deja rastro).
+Sí se revisa que el recálculo de `subtotal` en `LiquidationFormModal` (líneas ~392-397 y ~462-470) incluya las nuevas líneas, y que `SpecialistInvoiceImportModal` compare la factura del especialista contra el neto.
 
-Si prefieres la matriz literal tal cual la diste, se implementa así y el rollback del punto 1 pasa por forzado.
+## 6. Riesgos
 
-## 2. Selector de estados y forzado auditado
+- **Total firmado distinto del esperado por el especialista**: si nadie le explicó el anticipo, ve un mes con importe reducido. Mitigación: el bloque del PDF nombra el anticipo y su fecha.
+- **Borrado de un anticipo ya regularizado**: `ON DELETE RESTRICT` en `settles_item_id` lo impide con error de BD; se traduce a mensaje legible en la UI.
+- **Regularización que excede el saldo**: permitida (axioma: avisar, no bloquear), con aviso en el modal antes de guardar.
+- **Anticipos de otro especialista**: el selector y el trigger filtran por `liquidations.specialist_id`.
+- **Paridad vista interna / vista pública del especialista**: si `get-liquidation-items` no devuelve los nuevos campos, el PDF por token pierde el bloque. Va en el mismo despliegue.
+- **RLS**: los anticipos heredan las políticas de `liquidation_items`; no se añaden políticas nuevas, así que el alcance de AM/finanzas/especialista no cambia.
 
-- **Creación**: sólo `draft` y `pending_specialist`.
-- **Edición (AM/PM)**: estado actual + `allowed_request_transitions(actual)`.
-- **Edición (admin/finanzas)**: lo mismo, más un ítem "Forzar estado…" que abre un diálogo con selector libre de los 7 estados y **motivo obligatorio** (mínimo ~10 caracteres). Sin motivo, el botón de confirmar queda deshabilitado.
+## 7. Checks
 
-Mecanismo del forzado:
-
-```
-force_request_status(_request_id uuid, _new_status financial_request_status, _reason text)
-  RETURNS void  LANGUAGE plpgsql  SECURITY DEFINER
-```
-
-1. Comprueba `has_role(auth.uid(),'admin') OR has_role(auth.uid(),'finanzas')` → si no, excepción.
-2. Comprueba `_reason` no vacío tras `btrim` → si no, excepción `El forzado de estado requiere un motivo`.
-3. Marca la sesión: `PERFORM set_config('app.force_status','on', true)` (ámbito transacción).
-4. `UPDATE financial_requests SET status = _new_status`. El trigger lee `current_setting('app.force_status', true)` y salta la validación.
-5. Inserta en `activity_log` (`action = 'status_forced'`, `changes = {from, to, reason}`, `user_id = auth.uid()`, `source = 'force_rpc'`) en la **misma transacción**.
-
-Como el flag es transaction-local y sólo se activa dentro del RPC, un `UPDATE` directo del cliente nunca lo tiene: transición inválida por PostgREST → rechazada.
-
-## 3. activity_log
-
-- `SELECT`: se añade `finanzas` a la política existente (hoy admin + project_manager).
-- `user_id` pasa a **nullable** y se añade `source text` (`'ui'` por defecto, `'cron'`, `'edge'`, `'force_rpc'`, `'token'`). La política de INSERT se ajusta: `auth.uid() = user_id` **o** `user_id IS NULL` cuando el insert viene de `service_role`.
-- Registro nuevo: transiciones forzadas (RPC), borrados de requests (código, título, autor, origen) y las aceptaciones/rechazos de lote de F3 desde `process-request-action` (`source = 'token'`, `user_id = NULL`, un registro por request procesado con el resultado accepted/skipped).
-
-## 4. Higiene de borrado y éxito silencioso
-
-Inventario: **44 llamadas a `.delete()`** en 25 ficheros; ninguna comprueba filas afectadas — el patrón actual es `if (error) throw`, y RLS devuelve `200 []` sin error (mismo síntoma del check 10c de F2).
-
-Helper compartido nuevo `src/lib/db-mutations.ts`:
-
-```ts
-mustAffectRows(builder, { entity, action })  // fuerza .select('id'), lanza si data.length === 0
-```
-
-Aplicación en F4 (los tres flujos pedidos), dejando el resto para una pasada posterior:
-
-- Requests: `src/pages/Solicitudes.tsx` (`handleDeleteRequest`, línea ~260), `src/pages/SolicitudDetalle.tsx`, `src/components/modals/RequestFormModal.tsx` (update).
-- Presupuestos: `src/pages/Presupuestos.tsx`, `src/pages/PresupuestoDetalle.tsx`, `src/components/budgets/BudgetFormModal.tsx`.
-- Liquidaciones: `src/pages/Liquidaciones.tsx`, `src/pages/LiquidacionDetalle.tsx`, `src/components/liquidations/LiquidationFormModal.tsx`.
-
-Visibilidad del botón de borrar: `src/pages/Solicitudes.tsx:50` usa `canManage = canAccessFinance() || canAccessOperations()`, lo que muestra borrar a project_manager cuando la RLS de `financial_requests` sólo permite `DELETE` a admin/finanzas. Se separa en `canManage` (crear/editar) y `canDelete = canAccessFinance()`, y se propaga a `RequestTableView` / `RequestCard`.
-
-## 5. Estados fantasma
-
-`src/components/requests/RequestProcessTimeline.tsx` declara un tipo local con `accepted`, `rejected` y `billed`, y `statusOrder` los usa para calcular el índice del paso actual. Se sustituye por el enum real (`Database['public']['Enums']['financial_request_status']`) y se reordena `statusOrder` a `draft → pending_specialist → in_progress → pending_review → completed`; el estado facturado se sigue mostrando como paso derivado de la factura vinculada, no como estado. Grep final para asegurar que no quedan literales muertos en otros componentes.
-
-## 6. Restricciones
-
-Paso 0 de respaldo (`_backup_financial_requests_<fecha>` y `_backup_activity_log_<fecha>`) en la migración. Sin tocar liquidaciones/facturación ni `operational_projects`. Antes de activar el trigger, consulta de los estados actuales para confirmar que ninguna automatización viva depende de una transición fuera de la matriz.
-
-## Riesgos
-
-- **Trigger demasiado estricto rompe automatismos**: el rollback de `process-request-action` y cualquier edge function que mueva estados. Mitigación: inventario previo de todos los `update({status:...})` en `supabase/functions/` y decisión explícita (matriz ampliada o forzado con `source='edge'`).
-- **`set_config` transaction-local**: si algún día el update se hace fuera de la transacción del RPC, el forzado fallaría en silencio con excepción. Mitigación: el RPC hace el update él mismo, nunca delega al cliente.
-- **`user_id` nullable en activity_log**: relaja la política de INSERT. Mitigación: sólo `service_role` puede insertar filas con `user_id IS NULL`.
-- **`mustAffectRows` cambia el contrato de mutaciones existentes**: un update legítimo que no cambia filas (idempotente) pasaría a mostrar error. Mitigación: aplicarlo sólo a borrados y a updates de acción explícita del usuario.
-- **Cachear el RPC de transiciones**: si se edita la tabla, la UI tarda en verlo. Mitigación: `staleTime` de 5 min e invalidación al abrir el modal.
-
-## Checks propuestos
-
-1. `UPDATE financial_requests SET status='completed'` desde `draft` por SQL directo → rechazado por el trigger, con mensaje literal.
-2. `force_request_status(id, 'completed', '')` → rechazado por falta de motivo.
-3. `force_request_status(id, 'completed', 'motivo real')` como admin → aplicado, y fila en `activity_log` con `action='status_forced'`, `user_id` del admin y el motivo.
-4. `force_request_status` como AM → rechazado por rol.
-5. Usuario con rol `finanzas` lee `activity_log` (antes: 0 filas; después: filas visibles).
-6. Borrado de request por un project_manager → error real en UI ("no tienes permiso"), no toast de éxito; y el botón ya no se le muestra.
-7. Aceptación de lote por token de F3 (`pending_specialist → in_progress` en N requests) sigue funcionando tras activar el trigger; rechazo (`→ draft`) también.
-8. Gestión avanza un request de un especialista sin acceso a FLOW paso a paso: `pending_specialist → in_progress → pending_review → completed`, todos aceptados sin forzado.
-9. `RequestFormModal` en creación ofrece exactamente 2 estados; en edición desde `in_progress` ofrece exactamente `pending_review` y `cancelled` (más el actual) para un AM.
-10. Grep: cero referencias a `billed` / `accepted` / `approved` como estado de request en `src/`.
+1. Crear anticipo de 1.500 € vinculado a una factura de cliente → PDF con bloque diferenciado, factura citada y total general correcto.
+2. Nueva liquidación del mismo especialista → banner listando el anticipo con fecha, nota, factura, importe y pendiente 1.500 €.
+3. Añadir regularización de -1.500 € enlazada → `specialist_pending_advances` devuelve 0 filas para ese especialista.
+4. Regularización de -2.000 € sobre saldo de 1.500 € → aviso en UI, guardado permitido, pendiente derivado negativo no mostrado como pendiente.
+5. Flujo completo de firma de una liquidación con anticipo: envío con PDF, apertura del enlace, importe mostrado = neto, firma → estado `accepted`, aviso Slack correcto.
+6. Liquidación mensual de contrato de un especialista con anticipo pendiente → banner presente, ciclo (requests, validación AM, marcado de pago) intacto.
+7. `payment_terms` editable en `SpecialistFormModal`, visible en el maestro y como nota al crear/editar liquidaciones de ese especialista.
+8. Intento de borrar un anticipo regularizado → error legible, no éxito silencioso.
+9. Trigger: insertar `advance_settlement` con importe positivo, o `advance` con `financial_request_id` → rechazados.
+10. Liquidación de equipo con anticipo del líder → aparece sólo en su bloque; totales de equipo cuadran.
 
 ## Complejidad estimada
 
 | Punto | Complejidad |
 | --- | --- |
-| 1. Fuente única + trigger | Alta |
-| 2. Selector por rol + forzado | Alta |
-| 3. activity_log | Media |
-| 4. Higiene de borrado | Media |
-| 5. Estados fantasma | Baja |
+| Migración + trigger + función de saldo | Media |
+| UI de alta y banner | Media |
+| PDF y paridad edge function | Media |
+| `payment_terms` | Baja |

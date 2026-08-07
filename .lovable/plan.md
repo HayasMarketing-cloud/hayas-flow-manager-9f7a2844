@@ -27,7 +27,12 @@ El timeline y el email de recepción leen de `liquidation_invoices` (una entrada
 
 1. **Semántica de estado cerrada.** `status='paid'` sólo cuando la suma de pagos registrados cubre el total (tolerancia 0,005 €). Con pagos parciales el estado queda en `pending_payment`. El email de pagada se dispara únicamente en el pago que completa la cobertura.
 2. **Cash-flow corregido.** Base única: hitos pagados con su fecha real. Fallback al total sólo sin plan de pagos.
-3. **Asimetría del cotejo resuelta.** Hoy el candidato se busca por `total_amount` (±5%) y la validación al confirmar compara `subtotal` (±1 €). Se unifica en **`total_amount`** con tolerancia ±2% en ambos pasos (es el importe que el especialista factura, incluye impuestos y anticipos). El criterio se documenta en un comentario del módulo y se muestra en el aviso. Todo desajuste es aviso, nunca bloqueo.
+3. **Asimetría del cotejo resuelta — base imponible como única referencia.** Hoy el candidato se busca por `total_amount` (±5%) y la validación al confirmar compara `subtotal` (±1 €). Se unifica en **base imponible**: `liquidations.subtotal` (neto de impuestos) frente a la base de la factura del especialista, en el matching de candidatos y en la validación al confirmar. Tolerancia ±1% sobre base.
+   - La extracción IA del PDF debe identificar y devolver la **base imponible** de la factura (no el total): el prompt y el esquema de salida se ajustan para exigir `subtotal` como campo primario, con IVA/IGIC e IRPF como campos informativos.
+   - Cotejo (a) factura por el proyecto completo: base de la factura vs. `subtotal` de la liquidación.
+   - Cotejo (b) factura parcial: base de la factura vs. importe de un hito del plan, o vs. pendiente. Los hitos se expresan sobre base.
+   - Desajuste → aviso mostrando ambas cifras (base de la factura y base de referencia), nunca bloqueo.
+   - Comentario de cabecera en el módulo: "todas las comparaciones de facturas de especialista se hacen sobre base imponible; IVA/IGIC/IRPF varían por régimen fiscal y no son base de cotejo".
 4. **Puntero legacy retirado.** Según (e).
 
 ## Corrección de datos LIQ-2026-070 (paso final)
@@ -48,7 +53,8 @@ Ficheros afectados:
 - `src/components/liquidations/LiquidationProcessTimeline.tsx` (225-247) — lista desde `liquidation_invoices`.
 - `src/components/liquidations/SpecialistInvoiceUpload.tsx` (100-105) — deja de escribir `specialist_invoice_url`; aviso si la suma de facturas excede el total.
 - `supabase/functions/upload-specialist-invoice/index.ts` (388-392) — ídem.
-- `src/components/liquidations/SpecialistInvoiceImportModal.tsx` (132-138, 272-279) — base de cotejo unificada.
+- `src/components/liquidations/SpecialistInvoiceImportModal.tsx` (132-138, 272-279) — cotejo unificado sobre base imponible (±1%), aviso con ambas cifras.
+- Función de extracción IA de facturas de especialista — prompt/esquema exigen base imponible como campo primario.
 - `src/hooks/useDashboardMensualData.tsx` (424-427) — sin cambio de firma, hereda la base corregida.
 - `src/utils/pdf/liquidationPDFGenerator.ts` y `EmailPreviewModal.tsx` — reflejan hitos pagados y facturas recibidas.
 
@@ -58,13 +64,14 @@ Sin migración de esquema: el plan vive en `liquidations.payment_plan` (JSONB) y
 
 - Liquidaciones históricas en `paid` sin plan: intactas por el fallback.
 - Liquidaciones de equipo: el registro de pago actúa sobre la liquidación cabecera, igual que hoy.
-- Cambiar la base de cotejo a total puede reclasificar candidatos de importaciones antiguas; sólo afecta a sugerencias, nunca bloquea.
+- Pasar el cotejo a base imponible puede reclasificar candidatos de importaciones antiguas cuyo total incluía impuestos; sólo afecta a sugerencias, nunca bloquea.
+- Facturas antiguas sin base extraída: el aviso lo señala y permite continuar.
 
 ## Checks (con output literal)
 
 1. Registrar pago parcial en una liquidación de prueba → chip "Pago parcial 50% · pend. X" y estado `pending_payment`; sin email.
 2. Registrar el pago final → estado `paid`, `paid_at` fijado y email de pagada enviado una sola vez.
 3. Subir una segunda factura de especialista → timeline con dos entradas enlazadas; aviso sólo si la suma supera el total.
-4. Cotejo: factura con total dentro de ±2% → candidato propuesto y confirmación sin aviso; fuera de rango → aviso, permite continuar.
+4. Cotejo con la factura real de Leah: base extraída 2.800 € → casa con el subtotal de LIQ-2026-070 sin aviso. Factura parcial de 1.400 € → casa con el hito 1 (base) sin aviso. Base fuera de ±1% → aviso con ambas cifras, permite continuar.
 5. LIQ-2026-070 corregida: card con chip "50% · pend. 1.400 €", detalle con hito 1 pagado el 7/8/2026, cash-flow de agosto 2026 con 1.400 €.
 6. Consulta de estado en BD de LIQ-2026-070 antes y después de la corrección.

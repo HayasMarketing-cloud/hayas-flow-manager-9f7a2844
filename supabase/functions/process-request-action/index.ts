@@ -200,7 +200,7 @@ const handler = async (req: Request): Promise<Response> => {
           entity_type: 'financial_request',
           entity_id: r.id,
           action: action === 'accept' ? 'batch_accepted' : 'batch_rejected',
-          changes: { from: r.status, to: newStatus, token_id: tokenRow.id, comments: comments || null },
+          changes: { from: r.status, to: newStatus, token_id: tokenData.id, comments: comments || null },
         });
       }
 

@@ -1,111 +1,117 @@
-# F3 — Notificaciones
+# F4 — Máquina de estados, forzado auditado e higiene de borrado
 
-Objetivo: un único email por especialista al asignar un lote de requests, aceptación de lote en un clic, y destinatarios de gestión resueltos dinámicamente (fin de `info@hayas.es`).
+Objetivo: una única definición de las transiciones válidas de `financial_requests.status`, consumida por UI y BD; forzado de estado sólo para admin/finanzas con motivo registrado; y fin del "éxito silencioso" en borrados y actualizaciones.
 
-## Alcance
+## 1. Fuente única de transiciones
 
-1. Email agrupado de asignación (generación desde presupuesto y asignación en lote de requests existentes).
-2. Tokens de lote mediante tabla puente `request_action_token_items`.
-3. Destinatarios de gestión dinámicos (AM de origen + admin/finanzas, deduplicados).
-4. Reglas por origen: presupuesto → agrupado; manual individual → email actual; recurrentes de contrato → sin email.
-5. Normalización y autocompletado de `phase` — **ya implementado** en el turno anterior (`normalizePhase` / `canonicalizePhase` en `src/lib/budget-request-generation.ts` y datalist en el modal). En F3 solo queda verificarlo.
+Diseño: **tabla de datos + funciones de lectura**, no constantes duplicadas.
 
-## Esquema (migración única, con paso 0 de respaldo)
+- Tabla `public.request_status_transitions` (`from_status financial_request_status`, `to_status financial_request_status`, `pk (from, to)`), sembrada con la matriz aprobada:
 
-Paso 0: `CREATE TABLE public._backup_request_action_tokens_<fecha> AS SELECT * FROM public.request_action_tokens;`
+```text
+draft              -> pending_specialist, cancelled
+pending_specialist -> in_progress, draft, cancelled
+in_progress        -> pending_review, cancelled
+pending_review     -> completed, in_progress
+completed          -> in_progress
+cancelled          -> draft
+```
 
-Cambios:
+- GRANT `SELECT` a `authenticated` (es catálogo, no dato sensible); `ALL` a `service_role`. RLS activada con política de lectura para cualquier usuario autenticado.
+- `public.allowed_request_transitions(_from financial_request_status) RETURNS financial_request_status[]` — `STABLE SECURITY DEFINER`, lee la tabla. La UI la llama por RPC.
+- `public.is_valid_request_transition(_from, _to) RETURNS boolean`.
+- Trigger `BEFORE UPDATE OF status ON financial_requests` → `enforce_request_status_transition()`: si `OLD.status IS DISTINCT FROM NEW.status` y la transición no está en la tabla, `RAISE EXCEPTION` con mensaje legible (`Transición no permitida: % → %`). Se salta la validación cuando la sesión lleva la marca de forzado (ver punto 2).
 
-- `request_action_tokens`: `request_id` pasa a **nullable** (los tokens de lote no apuntan a un request único), se añade `action_type = 'specialist_batch_response'` como valor admitido y una columna **`specialist_id uuid references specialists(id)`** que persiste el especialista al que se emitió el token (base de la verificación anti-reasignación; no se infiere del request). Los tokens existentes conservan su `request_id` y siguen funcionando sin cambios.
-- Nueva tabla `request_action_token_items`:
-  - `id uuid pk`, `token_id uuid not null references request_action_tokens(id) on delete cascade`, `request_id uuid not null references financial_requests(id) on delete cascade`, `status text not null default 'pending'` (`pending` | `accepted` | `skipped`), `skip_reason text`, `processed_at timestamptz`, `created_at timestamptz`.
-  - `unique (token_id, request_id)`.
-  - Índices por `token_id` y por `request_id`.
-  - GRANTs: solo `service_role` (todo el ciclo pasa por Edge Functions). Sin GRANT a `anon`/`authenticated`.
-  - RLS activada; política de lectura únicamente para admin/finanzas (igual que `request_action_tokens`). Ninguna política para `anon`.
-- Check de integridad por trigger: un token con `action_type = 'specialist_batch_response'` debe tener `request_id IS NULL`, `specialist_id NOT NULL` y al menos una fila en la tabla puente; un token individual debe tener `request_id NOT NULL`.
+Consumo desde la UI: hook `useRequestTransitions()` que cachea el resultado del RPC `allowed_request_transitions` (uno por estado, `staleTime` alto). `RequestFormModal` y `RequestFlowActions` derivan sus opciones de ahí; se elimina cualquier lista hardcodeada de estados.
 
-### Ciclo de vida del token de lote
+### Casos reales que la matriz no cubre (a decidir antes de ejecutar)
 
-- **Generación**: al confirmar el modal de generación (o la asignación en lote), la función `send-batch-assignment-notification` agrupa los requests por especialista y, por cada especialista, crea **un** token (`uuid` v4 aleatorio, columna `token`) con `expires_at = now() + 7 días`, `status = 'pending'`, más N filas en `request_action_token_items`. Antes de crearlo, invalida (`status = 'expired'`) tokens pendientes previos que cubran esos mismos requests.
-- **Validación**: `validate-request-action-token` se amplía; si el token es de lote devuelve la lista de requests del lote con su estado actual en lugar de un único request. Comprueba existencia, `expires_at > now()` y `status = 'pending'`.
-- **Un solo uso**: al procesarse, el token pasa a `accepted`/`rejected` con `acted_at`, IP y user-agent. Cualquier reintento cae en la comprobación `status <> 'pending'` → rechazo.
-- **Anti-falsificación**: el token es un UUID aleatorio de 122 bits generado en servidor, nunca derivado de datos del request; la tabla no es legible por `anon` ni `authenticated`; toda la resolución ocurre en Edge Functions con `service_role`; el alcance del lote lo fija la tabla puente en el momento de emisión, así que manipular la URL no permite añadir requests. El formato UUID se valida antes de consultar.
+1. **Rollback de `process-request-action`** (`supabase/functions/process-request-action/index.ts:388`): si falla el email tras aceptar, revierte `in_progress → pending_specialist`. Esa transición **no está en la matriz** y el trigger la rechazaría. Propuesta: añadir `in_progress → pending_specialist` a la tabla (es también el "devolver al especialista" natural desde gestión). Alternativa: que el rollback use el RPC de forzado con motivo de sistema.
+2. **`pending_review → cancelled`**: hoy no está permitido; un trabajo entregado que el cliente anula tendría que pasar por `in_progress` primero. Propuesta: añadirla.
+3. **`completed → cancelled`** no se añade: un completado ya facturable se reabre a `in_progress` y se cancela desde ahí (deja rastro).
 
-### Decisión completa y lote parcial
+Si prefieres la matriz literal tal cual la diste, se implementa así y el rollback del punto 1 pasa por forzado.
 
-La decisión del especialista sobre el lote es **completa**: aceptar todo o rechazar todo, sin selección por ítem. El email y la página del token incluyen una línea explícita para discrepancias puntuales: contactar antes de aceptar, o aceptar y comentar, dejando claro que horas y deadline son ajustables tras la aceptación.
+## 2. Selector de estados y forzado auditado
 
-Al aceptar, la función recorre las filas puente y aplica, por request:
+- **Creación**: sólo `draft` y `pending_specialist`.
+- **Edición (AM/PM)**: estado actual + `allowed_request_transitions(actual)`.
+- **Edición (admin/finanzas)**: lo mismo, más un ítem "Forzar estado…" que abre un diálogo con selector libre de los 7 estados y **motivo obligatorio** (mínimo ~10 caracteres). Sin motivo, el botón de confirmar queda deshabilitado.
 
-- `status = 'pending_specialist'` **y** `specialist_id` coincide con el `specialist_id` persistido en el token → pasa a `in_progress`, `specialist_acceptance = true`, item `accepted`.
-- cualquier otro caso (ya avanzado, cancelado, o reasignado a otro especialista) → no se toca, item `skipped` con el estado/motivo encontrado.
+Mecanismo del forzado:
 
-El token se marca usado igualmente. La respuesta devuelve `{ accepted: [...], skipped: [{code, status, reason}] }` y la página `/solicitud/accion/:token` muestra ambos bloques. Un lote donde **todos** los items estén skipped no se considera error: se informa de que ya no había nada pendiente. Rechazo (`reject`) aplica la misma lógica devolviendo los pendientes a `draft`.
+```
+force_request_status(_request_id uuid, _new_status financial_request_status, _reason text)
+  RETURNS void  LANGUAGE plpgsql  SECURITY DEFINER
+```
 
+1. Comprueba `has_role(auth.uid(),'admin') OR has_role(auth.uid(),'finanzas')` → si no, excepción.
+2. Comprueba `_reason` no vacío tras `btrim` → si no, excepción `El forzado de estado requiere un motivo`.
+3. Marca la sesión: `PERFORM set_config('app.force_status','on', true)` (ámbito transacción).
+4. `UPDATE financial_requests SET status = _new_status`. El trigger lee `current_setting('app.force_status', true)` y salta la validación.
+5. Inserta en `activity_log` (`action = 'status_forced'`, `changes = {from, to, reason}`, `user_id = auth.uid()`, `source = 'force_rpc'`) en la **misma transacción**.
 
-## Funciones y ficheros afectados
+Como el flag es transaction-local y sólo se activa dentro del RPC, un `UPDATE` directo del cliente nunca lo tiene: transición inválida por PostgREST → rechazada.
 
-- **Nueva** `supabase/functions/send-batch-assignment-notification/index.ts`: agrupa por especialista, crea tokens + items (con `specialist_id`), compone y envía el email agrupado vía Gmail (mismo mecanismo de impersonación @hayas.es ya usado en `send-request-notification`). Acepta `resend: true` para reemitir el lote de un especialista concreto.
-- **Nuevo** `supabase/functions/_shared/management-recipients.ts`: resuelve destinatarios de gestión — AM/PM del presupuesto o contrato de origen (o `client_assignments` como fallback) + usuarios con rol `admin` y `finanzas` vía `user_roles → profiles.email`, filtrado `@hayas.es` y deduplicado por email en minúsculas. Mismo patrón que `send-liquidation-email`.
-- `supabase/functions/process-request-action/index.ts`: rama de lote (recorrido de items, parciales, verificación anti-reasignación) y sustitución del bloque de destinatarios actual (líneas 364-372) por el helper compartido. **Esta misma función compone y envía la notificación agregada de vuelta a gestión**: un único email por acto de lote, con tabla de aceptados y de omitidos (código, título, motivo) y totales, en lugar de un email por request. Los eventos individuales (creación manual, terminado, correcciones, aprobado) siguen generando emails unitarios.
-- `supabase/functions/validate-request-action-token/index.ts`: soporte de tokens de lote.
-- `src/pages/AccionRequest.tsx`: render de lote (tabla de requests, aviso de discrepancias, resultado con aceptados/omitidos).
-- `src/components/requests/RequestFlowActions.tsx`: elimina `managementEmail = 'info@hayas.es'` (línea 248); los eventos de flujo dejan de pasar un destinatario fijo y el envío resuelve destinatarios en el servidor.
-- `src/pages/SolicitudDetalle.tsx` y `src/hooks/useOperationalProjects.tsx`: ajustan la invocación al nuevo contrato (sin `recipientEmail` para eventos hacia gestión).
-- `src/lib/budget-request-generation.ts` + `src/hooks/useGenerateBudgetRequests.tsx`: tras insertar, invocan la notificación agrupada con los ids creados.
-- `src/pages/PresupuestoDetalle.tsx`: **punto de reenvío**. En el bloque de requests del presupuesto, agrupados por especialista, una acción "Reenviar asignación a {especialista}" (visible para gestión) que invoca la función con `resend: true`; invalida el token pendiente anterior y emite uno nuevo con 7 días. Se muestra el estado del último envío (fecha, o "no enviado") por especialista.
-- `supabase/functions/generate-monthly-requests/index.ts`: se verifica que no invoca ninguna notificación (regla 4); sin cambios previstos.
+## 3. activity_log
 
+- `SELECT`: se añade `finanzas` a la política existente (hoy admin + project_manager).
+- `user_id` pasa a **nullable** y se añade `source text` (`'ui'` por defecto, `'cron'`, `'edge'`, `'force_rpc'`, `'token'`). La política de INSERT se ajusta: `auth.uid() = user_id` **o** `user_id IS NULL` cuando el insert viene de `service_role`.
+- Registro nuevo: transiciones forzadas (RPC), borrados de requests (código, título, autor, origen) y las aceptaciones/rechazos de lote de F3 desde `process-request-action` (`source = 'token'`, `user_id = NULL`, un registro por request procesado con el resultado accepted/skipped).
 
-### Estructura del email agrupado (asignación → especialista)
+## 4. Higiene de borrado y éxito silencioso
 
-1. Cabecera Hayas + asunto `N nuevos trabajos asignados — {Cliente}` (o `{Cliente} · {Presupuesto}`).
-2. Saludo al especialista y una línea de contexto (cliente, presupuesto de origen).
-3. Tabla: **Código · Título · Fase · Horas · Deadline**.
-4. Fila de totales: nº de requests, horas totales, coste total para ese especialista.
-5. CTA principal "Aceptar asignación" (acepta el lote completo) + enlace secundario "Ver en FLOW".
-6. Línea de discrepancias: si algún detalle no encaja, contactar antes de aceptar o aceptar y comentar; horas y deadline son ajustables después de la aceptación.
-7. Nota de caducidad (7 días) y aviso de que los requests que ya hayan cambiado de estado no se verán afectados.
-8. Pie estándar.
+Inventario: **44 llamadas a `.delete()`** en 25 ficheros; ninguna comprueba filas afectadas — el patrón actual es `if (error) throw`, y RLS devuelve `200 []` sin error (mismo síntoma del check 10c de F2).
 
-### Estructura del email agregado de vuelta a gestión
+Helper compartido nuevo `src/lib/db-mutations.ts`:
 
-Compuesto y enviado por `process-request-action` (una sola vez por acto de lote):
+```ts
+mustAffectRows(builder, { entity, action })  // fuerza .select('id'), lanza si data.length === 0
+```
 
-1. Asunto `{Especialista} aceptó/rechazó N trabajos — {Cliente}`.
-2. Bloque de aceptados: tabla código · título · horas.
-3. Bloque de omitidos (si los hay): código · estado actual · motivo (ya avanzado / reasignado / cancelado).
-4. Totales y comentarios del especialista, si los dejó.
-5. Evidencia digital (IP, fecha) y enlace al presupuesto/listado.
+Aplicación en F4 (los tres flujos pedidos), dejando el resto para una pasada posterior:
+
+- Requests: `src/pages/Solicitudes.tsx` (`handleDeleteRequest`, línea ~260), `src/pages/SolicitudDetalle.tsx`, `src/components/modals/RequestFormModal.tsx` (update).
+- Presupuestos: `src/pages/Presupuestos.tsx`, `src/pages/PresupuestoDetalle.tsx`, `src/components/budgets/BudgetFormModal.tsx`.
+- Liquidaciones: `src/pages/Liquidaciones.tsx`, `src/pages/LiquidacionDetalle.tsx`, `src/components/liquidations/LiquidationFormModal.tsx`.
+
+Visibilidad del botón de borrar: `src/pages/Solicitudes.tsx:50` usa `canManage = canAccessFinance() || canAccessOperations()`, lo que muestra borrar a project_manager cuando la RLS de `financial_requests` sólo permite `DELETE` a admin/finanzas. Se separa en `canManage` (crear/editar) y `canDelete = canAccessFinance()`, y se propaga a `RequestTableView` / `RequestCard`.
+
+## 5. Estados fantasma
+
+`src/components/requests/RequestProcessTimeline.tsx` declara un tipo local con `accepted`, `rejected` y `billed`, y `statusOrder` los usa para calcular el índice del paso actual. Se sustituye por el enum real (`Database['public']['Enums']['financial_request_status']`) y se reordena `statusOrder` a `draft → pending_specialist → in_progress → pending_review → completed`; el estado facturado se sigue mostrando como paso derivado de la factura vinculada, no como estado. Grep final para asegurar que no quedan literales muertos en otros componentes.
+
+## 6. Restricciones
+
+Paso 0 de respaldo (`_backup_financial_requests_<fecha>` y `_backup_activity_log_<fecha>`) en la migración. Sin tocar liquidaciones/facturación ni `operational_projects`. Antes de activar el trigger, consulta de los estados actuales para confirmar que ninguna automatización viva depende de una transición fuera de la matriz.
 
 ## Riesgos
 
-- **Envío parcial**: si falla el email de un especialista, los requests ya están creados. Mitigación: la notificación no bloquea la generación; se reporta por toast y el reenvío está disponible en el detalle del presupuesto.
-- **Reasignación posterior**: un token de lote emitido para el especialista A cubre requests que pueden reasignarse a B. Mitigación: se compara el `specialist_id` persistido en el token con el actual del request; si difiere, el item se marca `skipped` y el request de B no se toca.
-- **Volumen de emails de gestión**: admin + finanzas + AM puede dar varios destinatarios por evento. Mitigación: deduplicación y filtro `@hayas.es`.
-- **Cuota Gmail API**: un envío por especialista y evento; sigue muy por debajo del límite, pero se registran fallos por destinatario sin abortar el resto.
-- **Tokens huérfanos**: `on delete cascade` en ambas FKs evita filas puente sin request o sin token.
+- **Trigger demasiado estricto rompe automatismos**: el rollback de `process-request-action` y cualquier edge function que mueva estados. Mitigación: inventario previo de todos los `update({status:...})` en `supabase/functions/` y decisión explícita (matriz ampliada o forzado con `source='edge'`).
+- **`set_config` transaction-local**: si algún día el update se hace fuera de la transacción del RPC, el forzado fallaría en silencio con excepción. Mitigación: el RPC hace el update él mismo, nunca delega al cliente.
+- **`user_id` nullable en activity_log**: relaja la política de INSERT. Mitigación: sólo `service_role` puede insertar filas con `user_id IS NULL`.
+- **`mustAffectRows` cambia el contrato de mutaciones existentes**: un update legítimo que no cambia filas (idempotente) pasaría a mostrar error. Mitigación: aplicarlo sólo a borrados y a updates de acción explícita del usuario.
+- **Cachear el RPC de transiciones**: si se edita la tabla, la UI tarda en verlo. Mitigación: `staleTime` de 5 min e invalidación al abrir el modal.
 
-## Checks de verificación
+## Checks propuestos
 
-1. Especialista con 5 requests generados en un mismo acto recibe **1** email con 5 filas y totales (nº, horas, coste) correctos.
-2. Aceptar el lote mueve exactamente esos 5 requests a `in_progress` y ninguno más (verificación por consulta antes/después).
-3. Token caducado → rechazo con mensaje claro; token ya usado → rechazo.
-4. Lote parcial: se avanza manualmente 1 de los 5 antes de aceptar; el resultado acepta 4 e informa del omitido, sin error.
-5. Evento de flujo (aceptado / terminado / correcciones / aprobado) llega al AM del presupuesto + admin + finanzas, deduplicado si el AM es también admin, y **no** a `info@hayas.es`.
-6. Ejecución del cron de recurrentes: 0 emails enviados (log de la función y ausencia de tokens nuevos).
-7. Grep en el repo: cero ocurrencias de `info@hayas.es` como destinatario.
-8. Autocompletado de `phase` en el modal sugiere las fases existentes del presupuesto y `" fase  1 "` se guarda como `Fase 1` reutilizando la grafía existente.
-9. Al aceptar un lote de 5, gestión recibe **exactamente 1** email con los 5 listados (no 5 emails).
-10. Caso negativo de reasignación: token emitido para el especialista A sobre un request reasignado a B → ese item queda `skipped` y el request sigue asignado a B con su estado intacto.
+1. `UPDATE financial_requests SET status='completed'` desde `draft` por SQL directo → rechazado por el trigger, con mensaje literal.
+2. `force_request_status(id, 'completed', '')` → rechazado por falta de motivo.
+3. `force_request_status(id, 'completed', 'motivo real')` como admin → aplicado, y fila en `activity_log` con `action='status_forced'`, `user_id` del admin y el motivo.
+4. `force_request_status` como AM → rechazado por rol.
+5. Usuario con rol `finanzas` lee `activity_log` (antes: 0 filas; después: filas visibles).
+6. Borrado de request por un project_manager → error real en UI ("no tienes permiso"), no toast de éxito; y el botón ya no se le muestra.
+7. Aceptación de lote por token de F3 (`pending_specialist → in_progress` en N requests) sigue funcionando tras activar el trigger; rechazo (`→ draft`) también.
+8. Gestión avanza un request de un especialista sin acceso a FLOW paso a paso: `pending_specialist → in_progress → pending_review → completed`, todos aceptados sin forzado.
+9. `RequestFormModal` en creación ofrece exactamente 2 estados; en edición desde `in_progress` ofrece exactamente `pending_review` y `cancelled` (más el actual) para un AM.
+10. Grep: cero referencias a `billed` / `accepted` / `approved` como estado de request en `src/`.
 
 ## Complejidad estimada
 
 | Punto | Complejidad |
 | --- | --- |
-| 1. Email agrupado | Alta |
-| 2. Tabla puente y tokens de lote | Media |
-| 3. Destinatarios dinámicos | Media |
-| 4. Reglas por origen | Baja |
-| 5. Phase (ya hecho, solo verificación) | Baja |
+| 1. Fuente única + trigger | Alta |
+| 2. Selector por rol + forzado | Alta |
+| 3. activity_log | Media |
+| 4. Higiene de borrado | Media |
+| 5. Estados fantasma | Baja |

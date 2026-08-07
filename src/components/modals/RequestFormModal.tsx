@@ -162,6 +162,44 @@ export const RequestFormModal = ({
 
   const { canAccessFinance, isAdmin } = useUserRole();
   const canEditClientPrice = canAccessFinance() || isAdmin();
+  const canForceStatus = canAccessFinance() || isAdmin();
+
+  // Fuente única de transiciones (BD)
+  const currentStatus: RequestStatus | null = initialData?.status ?? null;
+  const { allowed: allowedTransitions } = useRequestTransitions(
+    isCreateMode ? null : currentStatus,
+  );
+
+  const statusOptions: RequestStatus[] = isCreateMode
+    ? CREATION_STATUSES
+    : currentStatus
+      ? [currentStatus, ...allowedTransitions.filter((s) => s !== currentStatus)]
+      : REQUEST_STATUSES;
+
+  const [forceOpen, setForceOpen] = useState(false);
+  const [forceStatus, setForceStatus] = useState<RequestStatus | ''>('');
+  const [forceReason, setForceReason] = useState('');
+  const [forcing, setForcing] = useState(false);
+
+  const handleForceStatus = async () => {
+    if (!initialData?.id || !forceStatus) return;
+    setForcing(true);
+    try {
+      await forceRequestStatus(initialData.id, forceStatus, forceReason);
+      toast.success(`Estado forzado a ${REQUEST_STATUS_LABELS[forceStatus]}`);
+      setForceOpen(false);
+      setForceReason('');
+      setForceStatus('');
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      onSuccess();
+      onOpenChange(false);
+    } catch (err: any) {
+      toast.error(err?.message || 'No se pudo forzar el estado');
+    } finally {
+      setForcing(false);
+    }
+  };
+
 
   // Watch sale_type for conditional rendering
   const saleType = useWatch({ control: form.control, name: 'sale_type' });

@@ -289,6 +289,10 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
   });
 
   const selectedSpecialistId = watch('specialist_id');
+  const selectedSpecialist = useMemo(
+    () => specialists?.find((s) => s.id === selectedSpecialistId) || null,
+    [specialists, selectedSpecialistId]
+  );
   const selectedSpecialistUserId = useMemo(() => {
     if (!selectedSpecialistId || !specialists) return null;
     return specialists.find(s => s.id === selectedSpecialistId)?.user_id || null;

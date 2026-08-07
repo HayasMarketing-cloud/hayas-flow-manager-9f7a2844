@@ -1289,7 +1289,42 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
             />
           )}
 
+          {/* Condiciones de pago del especialista (nota informativa) */}
+          {!isViewMode && selectedSpecialist?.payment_terms && (
+            <div className="text-xs text-muted-foreground border rounded-md px-3 py-2">
+              <span className="font-medium text-foreground">Condiciones de pago: </span>
+              {selectedSpecialist.payment_terms}
+            </div>
+          )}
+
+          {/* Aviso de anticipos con saldo abierto (nunca bloqueante) */}
+          {!isViewMode && selectedSpecialistId && (
+            <PendingAdvancesBanner
+              specialistId={selectedSpecialistId}
+              excludeItemIds={advanceItems.map((i: any) => i.id)}
+            />
+          )}
+
+          {/* Bloque de anticipos y regularizaciones */}
+          {mode === 'edit' && liquidation?.id && selectedSpecialistId && (
+            <LiquidationAdvancesSection
+              liquidationId={liquidation.id}
+              specialistId={selectedSpecialistId}
+              items={advanceItems}
+              editable={isEditable}
+            />
+          )}
+          {isViewMode && advanceItems.length > 0 && liquidation?.id && (
+            <LiquidationAdvancesSection
+              liquidationId={liquidation.id}
+              specialistId={liquidation.specialist_id}
+              items={advanceItems}
+              editable={false}
+            />
+          )}
+
           {/* Items existentes de la liquidación - Visible en VIEW y EDIT */}
+
           {(isViewMode || mode === 'edit') && itemsGroupedByClient.length > 0 && (
             <div className="border rounded-lg p-4 space-y-3">
               <Label className="text-base font-semibold">

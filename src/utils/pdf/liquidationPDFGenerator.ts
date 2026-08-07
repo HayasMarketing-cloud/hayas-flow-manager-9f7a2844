@@ -140,9 +140,12 @@ const createLiquidationPDFDocument = async (data: LiquidationData) => {
       },
     });
 
+    currentY = (doc as any).lastAutoTable.finalY;
+    currentY = renderAdvancesBlock(doc, leaderView, currentY, pageWidth);
+
     // Leader subtotal
     const leaderTotal = leaderView.grandTotal;
-    currentY = (doc as any).lastAutoTable.finalY + 5;
+    currentY += 5;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.text(`Subtotal ${data.specialist.name}:  ${formatCurrency(leaderTotal)}`, pageWidth - 15, currentY, { align: 'right' });

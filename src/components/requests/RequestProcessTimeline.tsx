@@ -17,16 +17,9 @@ import {
 import { format, parseISO, isPast } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-type RequestStatus = 
-  | 'draft'
-  | 'pending_specialist'
-  | 'accepted'
-  | 'rejected'
-  | 'in_progress'
-  | 'pending_review'
-  | 'completed'
-  | 'billed'
-  | 'cancelled';
+import type { Database } from '@/integrations/supabase/types';
+
+type RequestStatus = Database['public']['Enums']['financial_request_status'];
 
 type TimelineStepStatus = 'completed' | 'current' | 'pending' | 'error' | 'warning' | 'skipped';
 
@@ -68,11 +61,9 @@ interface RequestProcessTimelineProps {
 const statusOrder: RequestStatus[] = [
   'draft',
   'pending_specialist',
-  'accepted',
   'in_progress',
   'pending_review',
   'completed',
-  'billed'
 ];
 
 const getStatusIndex = (status: RequestStatus): number => {
@@ -140,7 +131,7 @@ const buildTimelineSteps = (
   }
 
   // 3. Respuesta del especialista
-  if (request.status === 'rejected') {
+  if (request.status === 'draft' && actionToken?.status === 'rejected') {
     steps.push({
       id: 'specialist_response',
       label: 'Rechazado por especialista',
@@ -176,7 +167,7 @@ const buildTimelineSteps = (
           : 'Pendiente respuesta del especialista',
       });
     }
-  } else if (currentStatusIndex >= getStatusIndex('accepted')) {
+  } else if (currentStatusIndex >= getStatusIndex('in_progress')) {
     steps.push({
       id: 'specialist_response',
       label: 'Aceptado por especialista',
@@ -187,7 +178,7 @@ const buildTimelineSteps = (
   }
 
   // Skip remaining steps if rejected or cancelled
-  if (request.status === 'rejected' || request.status === 'cancelled') {
+  if (request.status === 'cancelled') {
     return steps;
   }
 
@@ -237,12 +228,12 @@ const buildTimelineSteps = (
   }
 
   // 7. Completado
-  if (request.status === 'completed' || request.status === 'billed') {
+  if (request.status === 'completed') {
     steps.push({
       id: 'completed',
       label: 'Completado',
       status: 'completed',
-      date: request.status === 'completed' ? formatDate(request.updated_at) : undefined,
+      date: formatDate(request.updated_at),
       description: 'Trabajo finalizado',
     });
   } else {
@@ -250,17 +241,6 @@ const buildTimelineSteps = (
       id: 'completed',
       label: 'Completado',
       status: 'pending',
-    });
-  }
-
-  // 8. Facturado (optional)
-  if (request.status === 'billed') {
-    steps.push({
-      id: 'billed',
-      label: 'Facturado',
-      status: 'completed',
-      date: formatDate(request.updated_at),
-      description: 'Incluido en factura',
     });
   }
 
@@ -291,7 +271,6 @@ const getStepIcon = (stepId: string, status: TimelineStepStatus) => {
     case 'pending_review':
       return <AlertCircle {...iconProps} />;
     case 'completed':
-    case 'billed':
       return <CheckCircle2 {...iconProps} />;
     default:
       return <Clock {...iconProps} />;

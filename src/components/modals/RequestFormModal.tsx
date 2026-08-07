@@ -293,6 +293,16 @@ export const RequestFormModal = ({
   const selectedClient = formData?.clients?.find(c => c.id === selectedClientId);
   const selectedSpecialist = formData?.specialists?.find(s => s.id === selectedSpecialistId);
 
+  // F3-style toggle: notificar al especialista al crear directamente en pending_specialist.
+  // Se precarga desde receives_flow_notifications del maestro y es desmarcable por acto.
+  const [notifySpecialist, setNotifySpecialist] = useState(true);
+  useEffect(() => {
+    setNotifySpecialist((selectedSpecialist as any)?.receives_flow_notifications !== false);
+  }, [selectedSpecialistId, selectedSpecialist]);
+  const showNotifyToggle =
+    !initialData && !isViewMode && !!selectedSpecialistId && watchedStatus === 'pending_specialist';
+
+
   // Load contracts for selected client
   const { data: contracts } = useQuery({
     queryKey: ['contracts-for-client', selectedClientId],

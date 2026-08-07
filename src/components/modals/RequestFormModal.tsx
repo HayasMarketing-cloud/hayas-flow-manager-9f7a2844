@@ -1536,18 +1536,71 @@ export const RequestFormModal = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="draft">Borrador</SelectItem>
-                      <SelectItem value="pending_specialist">Pend. Especialista</SelectItem>
-                      <SelectItem value="in_progress">En Progreso</SelectItem>
-                      <SelectItem value="pending_review">Pend. Revisión</SelectItem>
-                      <SelectItem value="completed">Completado</SelectItem>
-                      <SelectItem value="cancelled">Cancelado</SelectItem>
+                      {statusOptions.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {REQUEST_STATUS_LABELS[s]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  <FormDescription>
+                    {isCreateMode
+                      ? 'Al crear solo puedes elegir Borrador o Pend. Especialista.'
+                      : 'Solo se muestran las transiciones permitidas desde el estado actual.'}
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            {!isViewMode && !isCreateMode && canForceStatus && initialData?.id && (
+              <div className="rounded-md border border-dashed p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium">Forzar estado</p>
+                    <p className="text-xs text-muted-foreground">
+                      Salta la matriz de transiciones. Requiere motivo y queda registrado.
+                    </p>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setForceOpen((v) => !v)}>
+                    {forceOpen ? 'Cancelar' : 'Forzar estado…'}
+                  </Button>
+                </div>
+
+                {forceOpen && (
+                  <div className="space-y-2 pt-2">
+                    <Select value={forceStatus} onValueChange={(v) => setForceStatus(v as RequestStatus)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Estado destino" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {REQUEST_STATUSES.filter((s) => s !== currentStatus).map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {REQUEST_STATUS_LABELS[s]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Textarea
+                      placeholder="Motivo del forzado (mínimo 10 caracteres)"
+                      value={forceReason}
+                      onChange={(e) => setForceReason(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      disabled={forcing || !forceStatus || forceReason.trim().length < 10}
+                      onClick={handleForceStatus}
+                    >
+                      {forcing && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                      Confirmar forzado
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
 
             {!isViewMode && (
               <div className="flex justify-end gap-2 pt-4">

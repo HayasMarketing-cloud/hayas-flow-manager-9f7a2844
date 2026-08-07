@@ -1047,11 +1047,22 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     return matched;
   }, [liquidationItems, linkedCommissionDetails]);
 
-  // Líneas de anticipo / regularización van en su propio bloque
+  // Líneas de anticipo / regularización van en su propio bloque.
+  // Atribución estricta: sólo se gestionan las de la liquidación individual abierta;
+  // las de miembros del equipo se muestran en modo lectura.
   const advanceItems = useMemo(
     () => (liquidationItems || []).filter((item: any) => isAdvanceRelated(item)),
     [liquidationItems]
   );
+  const ownAdvanceItems = useMemo(
+    () => advanceItems.filter((item: any) => item.liquidation_id === liquidation?.id),
+    [advanceItems, liquidation?.id]
+  );
+  const memberAdvanceItems = useMemo(
+    () => advanceItems.filter((item: any) => item.liquidation_id !== liquidation?.id),
+    [advanceItems, liquidation?.id]
+  );
+
 
   // Agrupar items por cliente (items manuales van a "Otros conceptos")
   const itemsGroupedByClient = useMemo(() => {

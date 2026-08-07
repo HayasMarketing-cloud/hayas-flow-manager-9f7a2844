@@ -228,6 +228,7 @@ export const RequestFormModal = ({
   const selectedBudgetId = useWatch({ control: form.control, name: 'budget_id' });
   const selectedServiceId = useWatch({ control: form.control, name: 'service_id' });
   const selectedSpecialistId = useWatch({ control: form.control, name: 'specialist_id' });
+  const watchedStatus = useWatch({ control: form.control, name: 'status' });
   const isRecurringTemplate = useWatch({ control: form.control, name: 'is_recurring_template' });
   const recurrenceActive = useWatch({ control: form.control, name: 'recurrence_active' });
   const billSeparately = useWatch({ control: form.control, name: 'bill_separately' });
@@ -257,7 +258,7 @@ export const RequestFormModal = ({
           .order('name'),
         supabase
           .from('specialists')
-          .select('id, name, hourly_rate, user_id, email')
+          .select('id, name, hourly_rate, user_id, email, receives_flow_notifications')
           .eq('active', true)
           .order('name'),
       ]);

@@ -1040,6 +1040,12 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     return matched;
   }, [liquidationItems, linkedCommissionDetails]);
 
+  // Líneas de anticipo / regularización van en su propio bloque
+  const advanceItems = useMemo(
+    () => (liquidationItems || []).filter((item: any) => isAdvanceRelated(item)),
+    [liquidationItems]
+  );
+
   // Agrupar items por cliente (items manuales van a "Otros conceptos")
   const itemsGroupedByClient = useMemo(() => {
     if (!liquidationItems) return [];
@@ -1047,6 +1053,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     const grouped: { [clientName: string]: { items: typeof liquidationItems; subtotal: number } } = {};
     
     liquidationItems.forEach((item) => {
+      if (isAdvanceRelated(item)) return;
       // Items sin financial_request son manuales
       const clientName = item.financial_request_id 
         ? (item.financial_request?.client?.name || 'Sin cliente')
@@ -1065,6 +1072,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       subtotal: data.subtotal,
     }));
   }, [liquidationItems]);
+
 
   // Calcular subtotal existente en modo edit (usando el campo total del item)
   const existingSubtotal = useMemo(() => {

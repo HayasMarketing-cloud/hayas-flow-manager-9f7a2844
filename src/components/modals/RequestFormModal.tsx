@@ -543,6 +543,7 @@ export const RequestFormModal = ({
           code: newRequest?.code,
           specialistData,
           status: data.status,
+          notify: notifySpecialist,
           clientId: data.client_id,
           title: data.title,
           deadline: data.deadline ?? null,
@@ -562,13 +563,16 @@ export const RequestFormModal = ({
       
       // Notify specialist if assigned with pending_specialist status
       if (result?.isNew && result?.specialistData && result?.status === 'pending_specialist') {
+        // Toggle por acto: si el usuario desmarcó "Notificar al especialista",
+        // no se envía email (por tanto no se crea token) ni notificación in-app.
+        const shouldNotify = result.notify !== false;
         const client = formData?.clients?.find(c => c.id === result.clientId);
         const specialistName = result.specialistData.name || 'Especialista';
         let hasInAppNotification = false;
         let hasEmailNotification = false;
         
         // In-app notification (if specialist has user_id)
-        if (result.specialistData.user_id) {
+        if (shouldNotify && result.specialistData.user_id) {
           await notifySpecialistAssigned(
             result.specialistData.user_id,
             result.code || `Solicitud`,
@@ -580,7 +584,7 @@ export const RequestFormModal = ({
         
         // Email notification (if specialist has email and sender has @hayas.es email)
         const senderEmail = user?.email;
-        if (result.specialistData.email && senderEmail?.endsWith('@hayas.es')) {
+        if (shouldNotify && result.specialistData.email && senderEmail?.endsWith('@hayas.es')) {
           try {
             const appUrl = window.location.origin;
             await supabase.functions.invoke('send-request-notification', {
@@ -707,6 +711,7 @@ export const RequestFormModal = ({
           recurrence_active: true,
           bill_separately: false,
         });
+        setNotifySpecialist(true);
       }
     }
   }, [open, initialData, form]);

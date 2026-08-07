@@ -64,7 +64,8 @@ Sin migración de esquema: el plan vive en `liquidations.payment_plan` (JSONB) y
 
 - Liquidaciones históricas en `paid` sin plan: intactas por el fallback.
 - Liquidaciones de equipo: el registro de pago actúa sobre la liquidación cabecera, igual que hoy.
-- Cambiar la base de cotejo a total puede reclasificar candidatos de importaciones antiguas; sólo afecta a sugerencias, nunca bloquea.
+- Pasar el cotejo a base imponible puede reclasificar candidatos de importaciones antiguas cuyo total incluía impuestos; sólo afecta a sugerencias, nunca bloquea.
+- Facturas antiguas sin base extraída: el aviso lo señala y permite continuar.
 
 ## Checks (con output literal)
 

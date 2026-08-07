@@ -1,4 +1,6 @@
-# F6 — Pagos parciales de liquidaciones: estado, cash-flow, cotejo y facturas
+# Fix de pagos parciales de liquidaciones: estado, cash-flow, cotejo y facturas
+
+Trabajo independiente del sprint (no es F6).
 
 Objetivo: que el pago parcial de una liquidación sea un hecho registrable y coherente en card, detalle, tesorería, PDF y emails. Caso de referencia: LIQ-2026-070 (Leah Pérez, 2.800 €, 1.400 € pagados el 7/8/2026).
 
@@ -14,11 +16,13 @@ El botón actual desaparece. En su lugar, "Registrar pago" abre un diálogo con:
 - sólo cuando el pago es el último (cobertura total) pasa a `paid`, fija `paid_at` y envía el email de "liquidación pagada" al especialista.
 Un pago parcial no envía email de pagada.
 
+**Persistencia del "pago sin hito"**: si la liquidación no tiene plan, registrar un pago **crea un hito ad-hoc** en `payment_plan` con concepto "Pago DD/MM/AAAA", el importe registrado, la fecha real y `paid: true`. No existe la vía de marcar pago fuera del JSONB: toda la derivación (estado, chip, cash-flow, PDF, email) lee siempre de `payment_plan`, sin excepciones.
+
 ### (c) Estado derivado y chip coherente
 El chip de la card y del detalle se calcula del plan: "Pago parcial 50% · pend. 1.400 €". Con cobertura total: "Pagada". El estado `paid` deja de poder fijarse a mano.
 
 ### (d) Cash-flow por hitos
-`getLiquidationCashOutflow` pasa a derivar de hitos pagados siempre que exista plan; el fallback "status paid → total" queda reservado a liquidaciones sin plan. `getLiquidationCashOutflowForMonth` ya imputa por fecha real: se alinea con la misma base.
+`getLiquidationCashOutflow` deriva siempre de los hitos pagados del JSONB. El fallback "status paid → total" queda reservado exclusivamente a liquidaciones históricas sin plan y sin pagos registrados. `getLiquidationCashOutflowForMonth` imputa por fecha real de cada hito.
 
 ### (e) Facturas del especialista sin puntero legacy
 El timeline y el email de recepción leen de `liquidation_invoices` (una entrada por factura, con número, importe y fecha). Se muestran todas las entradas con enlace individual. `specialist_invoice_url` deja de escribirse desde el front y desde la edge function; se conserva la columna sólo como histórico de lectura para registros antiguos.
@@ -51,7 +55,7 @@ Ficheros afectados:
 - `src/components/liquidations/LiquidationPaymentPlanBadge.tsx` — chip con % y pendiente.
 - `src/pages/Liquidaciones.tsx` — card usa el chip derivado.
 - `src/components/liquidations/LiquidationProcessTimeline.tsx` (225-247) — lista desde `liquidation_invoices`.
-- `src/components/liquidations/SpecialistInvoiceUpload.tsx` (100-105) — deja de escribir `specialist_invoice_url`; aviso si la suma de facturas excede el total.
+- `src/components/liquidations/SpecialistInvoiceUpload.tsx` (100-105) — deja de escribir `specialist_invoice_url`; aviso si la **suma de bases** de las facturas recibidas excede el `subtotal` de la liquidación (misma regla de base imponible en todo el módulo, nunca sobre totales).
 - `supabase/functions/upload-specialist-invoice/index.ts` (388-392) — ídem.
 - `src/components/liquidations/SpecialistInvoiceImportModal.tsx` (132-138, 272-279) — cotejo unificado sobre base imponible (±1%), aviso con ambas cifras.
 - Función de extracción IA de facturas de especialista — prompt/esquema exigen base imponible como campo primario.
@@ -71,7 +75,11 @@ Sin migración de esquema: el plan vive en `liquidations.payment_plan` (JSONB) y
 
 1. Registrar pago parcial en una liquidación de prueba → chip "Pago parcial 50% · pend. X" y estado `pending_payment`; sin email.
 2. Registrar el pago final → estado `paid`, `paid_at` fijado y email de pagada enviado una sola vez.
-3. Subir una segunda factura de especialista → timeline con dos entradas enlazadas; aviso sólo si la suma supera el total.
+3. Subir una segunda factura de especialista → timeline con dos entradas enlazadas; aviso sólo si la suma de bases supera el `subtotal` de la liquidación.
 4. Cotejo con la factura real de Leah: base extraída 2.800 € → casa con el subtotal de LIQ-2026-070 sin aviso. Factura parcial de 1.400 € → casa con el hito 1 (base) sin aviso. Base fuera de ±1% → aviso con ambas cifras, permite continuar.
 5. LIQ-2026-070 corregida: card con chip "50% · pend. 1.400 €", detalle con hito 1 pagado el 7/8/2026, cash-flow de agosto 2026 con 1.400 €.
 6. Consulta de estado en BD de LIQ-2026-070 antes y después de la corrección.
+
+## Nota sobre F6 (vista Proyectos)
+
+No puedo planificar F6 todavía: el briefing del sprint llegó como fichero adjunto (`briefing-sprint-flow-requests.md`) y no está guardado en el repositorio, así que no tengo delante el enunciado de F6 ni las dos peticiones pendientes que mencionas. Vuelve a compartir esa sección (o el fichero completo) y preparo el plan de F6 en cuanto cerremos este fix.

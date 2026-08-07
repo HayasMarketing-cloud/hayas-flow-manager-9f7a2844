@@ -1320,23 +1320,37 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
             />
           )}
 
-          {/* Bloque de anticipos y regularizaciones */}
+          {/* Bloque de anticipos y regularizaciones (sólo los de esta liquidación) */}
           {mode === 'edit' && liquidation?.id && selectedSpecialistId && (
             <LiquidationAdvancesSection
               liquidationId={liquidation.id}
               specialistId={selectedSpecialistId}
-              items={advanceItems}
+              items={ownAdvanceItems}
               editable={isEditable}
             />
           )}
-          {isViewMode && advanceItems.length > 0 && liquidation?.id && (
+          {isViewMode && ownAdvanceItems.length > 0 && liquidation?.id && (
             <LiquidationAdvancesSection
               liquidationId={liquidation.id}
               specialistId={liquidation.specialist_id}
-              items={advanceItems}
+              items={ownAdvanceItems}
               editable={false}
             />
           )}
+          {memberAdvanceItems.length > 0 && liquidation?.id && (
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">
+                Anticipos de miembros del equipo (sólo lectura, se gestionan en su liquidación)
+              </p>
+              <LiquidationAdvancesSection
+                liquidationId={liquidation.id}
+                specialistId={liquidation.specialist_id}
+                items={memberAdvanceItems}
+                editable={false}
+              />
+            </div>
+          )}
+
 
           {/* Items existentes de la liquidación - Visible en VIEW y EDIT */}
 

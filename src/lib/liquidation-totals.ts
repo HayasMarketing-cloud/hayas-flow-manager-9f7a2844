@@ -11,9 +11,13 @@ import {
   type CommissionSourceInfo,
   type GroupedClient,
 } from './liquidation-grouping';
+import { splitItemsByType } from './liquidation-advances';
 
 export interface LiquidationView {
   groups: GroupedClient[];
+  /** Líneas de anticipo y regularización, fuera del árbol cliente/proyecto */
+  advances: any[];
+  advancesTotal: number;
   grandTotal: number;
   itemCount: number;
 }
@@ -31,13 +35,16 @@ export const buildLiquidationView = (
   commissionDetails?: Record<string, CommissionSourceInfo>,
 ): LiquidationView => {
   const safeItems = items || [];
-  const groups = groupItemsByClientAndProject(safeItems, commissionDetails);
+  const { work, advances } = splitItemsByType(safeItems);
+  const groups = groupItemsByClientAndProject(work, commissionDetails);
   // Derive grandTotal directly from item.total to guarantee parity with
   // the DB-stored subtotal. (Group subtotals are built from the same
   // rule inside groupItemsByClientAndProject.)
   const grandTotal = sumItemTotals(safeItems);
   return {
     groups,
+    advances,
+    advancesTotal: sumItemTotals(advances),
     grandTotal,
     itemCount: safeItems.length,
   };

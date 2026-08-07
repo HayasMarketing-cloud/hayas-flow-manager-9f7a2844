@@ -53,7 +53,8 @@ Ficheros afectados:
 - `src/components/liquidations/LiquidationProcessTimeline.tsx` (225-247) — lista desde `liquidation_invoices`.
 - `src/components/liquidations/SpecialistInvoiceUpload.tsx` (100-105) — deja de escribir `specialist_invoice_url`; aviso si la suma de facturas excede el total.
 - `supabase/functions/upload-specialist-invoice/index.ts` (388-392) — ídem.
-- `src/components/liquidations/SpecialistInvoiceImportModal.tsx` (132-138, 272-279) — base de cotejo unificada.
+- `src/components/liquidations/SpecialistInvoiceImportModal.tsx` (132-138, 272-279) — cotejo unificado sobre base imponible (±1%), aviso con ambas cifras.
+- Función de extracción IA de facturas de especialista — prompt/esquema exigen base imponible como campo primario.
 - `src/hooks/useDashboardMensualData.tsx` (424-427) — sin cambio de firma, hereda la base corregida.
 - `src/utils/pdf/liquidationPDFGenerator.ts` y `EmailPreviewModal.tsx` — reflejan hitos pagados y facturas recibidas.
 

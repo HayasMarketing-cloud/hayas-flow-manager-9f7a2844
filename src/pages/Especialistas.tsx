@@ -61,7 +61,7 @@ export default function Especialistas() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("specialists")
-        .select("id, name, email, type, active, notes, user_id, created_at, hourly_rate, team_leader_id, website_url")
+        .select("id, name, email, type, active, notes, user_id, created_at, hourly_rate, team_leader_id, website_url, payment_terms, receives_flow_notifications")
         .order("name");
       if (error) throw error;
       return data as Specialist[];

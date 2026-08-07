@@ -26,6 +26,7 @@ import { generateLiquidationPDFBase64 } from '@/utils/pdf/liquidationPDFGenerato
 import { useAuth } from '@/contexts/AuthContext';
 import { useCurrentSpecialist } from '@/hooks/useCurrentSpecialist';
 import { formatCurrency } from '@/lib/liquidation-utils';
+import { mustAffectRows } from '@/lib/db-mutations';
 
 export default function Liquidaciones() {
   const navigate = useNavigate();
@@ -280,12 +281,10 @@ export default function Liquidaciones() {
       if (itemsError) throw itemsError;
 
       // Delete the liquidation
-      const { error } = await supabase
-        .from('liquidations')
-        .delete()
-        .eq('id', liquidationId);
-      
-      if (error) throw error;
+      await mustAffectRows(
+        supabase.from('liquidations').delete().eq('id', liquidationId).select('id'),
+        { entity: 'la liquidación' },
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['liquidations'] });

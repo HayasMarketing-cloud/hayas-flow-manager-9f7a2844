@@ -75,7 +75,7 @@ Sin migración de esquema: el plan vive en `liquidations.payment_plan` (JSONB) y
 
 1. Registrar pago parcial en una liquidación de prueba → chip "Pago parcial 50% · pend. X" y estado `pending_payment`; sin email.
 2. Registrar el pago final → estado `paid`, `paid_at` fijado y email de pagada enviado una sola vez.
-3. Subir una segunda factura de especialista → timeline con dos entradas enlazadas; aviso sólo si la suma supera el total.
+3. Subir una segunda factura de especialista → timeline con dos entradas enlazadas; aviso sólo si la suma de bases supera el `subtotal` de la liquidación.
 4. Cotejo con la factura real de Leah: base extraída 2.800 € → casa con el subtotal de LIQ-2026-070 sin aviso. Factura parcial de 1.400 € → casa con el hito 1 (base) sin aviso. Base fuera de ±1% → aviso con ambas cifras, permite continuar.
 5. LIQ-2026-070 corregida: card con chip "50% · pend. 1.400 €", detalle con hito 1 pagado el 7/8/2026, cash-flow de agosto 2026 con 1.400 €.
 6. Consulta de estado en BD de LIQ-2026-070 antes y después de la corrección.

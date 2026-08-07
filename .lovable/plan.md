@@ -27,7 +27,12 @@ El timeline y el email de recepción leen de `liquidation_invoices` (una entrada
 
 1. **Semántica de estado cerrada.** `status='paid'` sólo cuando la suma de pagos registrados cubre el total (tolerancia 0,005 €). Con pagos parciales el estado queda en `pending_payment`. El email de pagada se dispara únicamente en el pago que completa la cobertura.
 2. **Cash-flow corregido.** Base única: hitos pagados con su fecha real. Fallback al total sólo sin plan de pagos.
-3. **Asimetría del cotejo resuelta.** Hoy el candidato se busca por `total_amount` (±5%) y la validación al confirmar compara `subtotal` (±1 €). Se unifica en **`total_amount`** con tolerancia ±2% en ambos pasos (es el importe que el especialista factura, incluye impuestos y anticipos). El criterio se documenta en un comentario del módulo y se muestra en el aviso. Todo desajuste es aviso, nunca bloqueo.
+3. **Asimetría del cotejo resuelta — base imponible como única referencia.** Hoy el candidato se busca por `total_amount` (±5%) y la validación al confirmar compara `subtotal` (±1 €). Se unifica en **base imponible**: `liquidations.subtotal` (neto de impuestos) frente a la base de la factura del especialista, en el matching de candidatos y en la validación al confirmar. Tolerancia ±1% sobre base.
+   - La extracción IA del PDF debe identificar y devolver la **base imponible** de la factura (no el total): el prompt y el esquema de salida se ajustan para exigir `subtotal` como campo primario, con IVA/IGIC e IRPF como campos informativos.
+   - Cotejo (a) factura por el proyecto completo: base de la factura vs. `subtotal` de la liquidación.
+   - Cotejo (b) factura parcial: base de la factura vs. importe de un hito del plan, o vs. pendiente. Los hitos se expresan sobre base.
+   - Desajuste → aviso mostrando ambas cifras (base de la factura y base de referencia), nunca bloqueo.
+   - Comentario de cabecera en el módulo: "todas las comparaciones de facturas de especialista se hacen sobre base imponible; IVA/IGIC/IRPF varían por régimen fiscal y no son base de cotejo".
 4. **Puntero legacy retirado.** Según (e).
 
 ## Corrección de datos LIQ-2026-070 (paso final)

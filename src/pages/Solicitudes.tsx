@@ -50,6 +50,9 @@ const Solicitudes = () => {
   const { logActivity } = useRequestActivityLog();
   const { assignedClientIds, isLoading: assignedLoading, needsFiltering } = useAssignedClients();
   const canManage = canAccessFinance() || canAccessOperations();
+  // El DELETE de financial_requests sólo lo permite la RLS a admin/finanzas
+  const canDelete = canAccessFinance();
+
   const showMyRequestsButton = isSpecialist() && !!specialistId;
 
   const { data: requests, isLoading, error } = useQuery({

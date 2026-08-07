@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Package, UserCheck, FileText, Calculator, FileCheck, Receipt, Wallet, BarChart3, Shield, Briefcase, CheckSquare, DollarSign, Bell, HelpCircle, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Users, Package, UserCheck, FileText, Calculator, FileCheck, Receipt, Wallet, BarChart3, Shield, Briefcase, DollarSign, Bell, HelpCircle, CreditCard } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
   Sidebar,
@@ -24,11 +24,10 @@ interface NavItem {
 }
 
 const operationsItems: NavItem[] = [
-  { title: 'Proyectos', url: '/proyectos-operativos', icon: Briefcase, requiredRoles: ['admin', 'project_manager', 'especialista', 'account_manager'] },
+  { title: 'Proyectos', url: '/proyectos', icon: Briefcase, requiredRoles: ['admin', 'finanzas', 'project_manager', 'especialista', 'account_manager'] },
   { title: 'Requests', url: '/solicitudes', icon: FileCheck, requiredRoles: ['admin', 'finanzas', 'project_manager', 'account_manager', 'especialista'] },
   { title: 'Mi Dashboard', url: '/dashboard-especialista', icon: UserCheck, requiredRoles: ['especialista'] },
   { title: 'Presupuestos', url: '/presupuestos', icon: Calculator },
-  { title: 'Mis Tareas', url: '/mis-tareas', icon: CheckSquare, requiredRoles: ['admin', 'project_manager', 'account_manager', 'especialista'] },
   { title: 'Notificaciones', url: '/notificaciones', icon: Bell },
   { title: 'Guía Rápida', url: '/guia-rapida', icon: HelpCircle },
 ];

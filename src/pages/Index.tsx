@@ -11,7 +11,7 @@ const Index = () => {
       const storedRedirect = user ? sessionStorage.getItem('postAuthRedirect') : null;
       const nextTarget = storedRedirect && storedRedirect.startsWith('/')
         ? storedRedirect
-        : (user ? '/proyectos-operativos' : '/auth');
+        : (user ? '/proyectos' : '/auth');
 
       if (storedRedirect) {
         sessionStorage.removeItem('postAuthRedirect');

@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { SplashScreen } from "@/components/SplashScreen";
@@ -34,9 +34,7 @@ import Usuarios from "./pages/Usuarios";
 import Perfil from "./pages/Perfil";
 import Comisiones from "./pages/Comisiones";
 import NotFound from "./pages/NotFound";
-import OperationalProjects from "./pages/operations/OperationalProjects";
-import OperationalProjectDetail from "./pages/operations/OperationalProjectDetail";
-import MyTasks from "./pages/operations/MyTasks";
+import Proyectos from "./pages/Proyectos";
 import FirmaLiquidacion from "./pages/FirmaLiquidacion";
 import AccionRequest from "./pages/AccionRequest";
 import TestEmail from "./pages/TestEmail";
@@ -111,13 +109,14 @@ const App = () => {
               <Route path="/usuarios" element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
               <Route path="/comisiones" element={<ProtectedRoute><Comisiones /></ProtectedRoute>} />
               <Route path="/perfil" element={<ProtectedRoute><Perfil /></ProtectedRoute>} />
-              <Route path="/proyectos-operativos" element={<ProtectedRoute><OperationalProjects /></ProtectedRoute>} />
-              <Route path="/operaciones/proyectos/:id" element={<ProtectedRoute><OperationalProjectDetail /></ProtectedRoute>} />
-              <Route path="/mis-tareas" element={<ProtectedRoute><MyTasks /></ProtectedRoute>} />
+              <Route path="/proyectos" element={<ProtectedRoute><Proyectos /></ProtectedRoute>} />
               <Route path="/notificaciones" element={<ProtectedRoute><Notificaciones /></ProtectedRoute>} />
               <Route path="/guia-rapida" element={<ProtectedRoute><GuiaRapida /></ProtectedRoute>} />
               <Route path="/test-email" element={<ProtectedRoute><TestEmail /></ProtectedRoute>} />
               <Route path="/ajustes/b2brouter" element={<ProtectedRoute><B2BRouterSettings /></ProtectedRoute>} />
+              <Route path="/proyectos-operativos/*" element={<Navigate to="/proyectos" replace />} />
+              <Route path="/operaciones/*" element={<Navigate to="/proyectos" replace />} />
+              <Route path="/mis-tareas" element={<Navigate to="/proyectos" replace />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>

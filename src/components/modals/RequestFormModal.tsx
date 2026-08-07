@@ -41,6 +41,16 @@ import { notifySpecialistAssigned } from '@/lib/notification-utils';
 import { notificationFeedback } from '@/lib/notification-feedback';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useRequestTransitions } from '@/hooks/useRequestTransitions';
+import {
+  CREATION_STATUSES,
+  REQUEST_STATUSES,
+  REQUEST_STATUS_LABELS,
+  forceRequestStatus,
+  type RequestStatus,
+} from '@/lib/request-status-utils';
+import { mustAffectRows } from '@/lib/db-mutations';
+
 
 import { useDefaultRates, getRateSourceLabel } from '@/hooks/useDefaultRates';
 

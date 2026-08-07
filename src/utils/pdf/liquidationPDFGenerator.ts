@@ -193,8 +193,8 @@ const createLiquidationPDFDocument = async (data: LiquidationData) => {
         },
       });
 
-      // Member subtotal
-      currentY = (doc as any).lastAutoTable.finalY + 5;
+      // Member advances + subtotal
+      currentY = renderAdvancesBlock(doc, memberView, (doc as any).lastAutoTable.finalY, pageWidth) + 5;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.text(`Subtotal ${member.specialist.name}:  ${formatCurrency(member.calculated_total)}`, pageWidth - 15, currentY, { align: 'right' });

@@ -41,7 +41,7 @@ async function sendToManagement(
     );
     for (const to of emails) {
       try {
-        if (await sendGmail(accessToken, senderEmail, to, subject, html)) sent++;
+        if (await sendGmail(accessToken, senderEmail, to, subject, html, 'management_batch_response')) sent++;
       } catch (e) {
         console.error(`Failed to send to ${to}:`, e);
       }

@@ -482,6 +482,42 @@ export type Database = {
         }
         Relationships: []
       }
+      _backup_liquidation_items_20260807: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          financial_request_id: string | null
+          id: string | null
+          liquidation_id: string | null
+          quantity: number | null
+          total: number | null
+          unit_price: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          financial_request_id?: string | null
+          id?: string | null
+          liquidation_id?: string | null
+          quantity?: number | null
+          total?: number | null
+          unit_price?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          financial_request_id?: string | null
+          id?: string | null
+          liquidation_id?: string | null
+          quantity?: number | null
+          total?: number | null
+          unit_price?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       _backup_request_action_tokens_20260806: {
         Row: {
           acted_at: string | null
@@ -521,6 +557,57 @@ export type Database = {
           status?: string | null
           token?: string | null
           user_agent?: string | null
+        }
+        Relationships: []
+      }
+      _backup_specialists_20260807: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          created_by: string | null
+          email: string | null
+          hourly_rate: number | null
+          id: string | null
+          name: string | null
+          notes: string | null
+          receives_flow_notifications: boolean | null
+          team_leader_id: string | null
+          type: Database["public"]["Enums"]["specialist_type"] | null
+          updated_at: string | null
+          user_id: string | null
+          website_url: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          created_by?: string | null
+          email?: string | null
+          hourly_rate?: number | null
+          id?: string | null
+          name?: string | null
+          notes?: string | null
+          receives_flow_notifications?: boolean | null
+          team_leader_id?: string | null
+          type?: Database["public"]["Enums"]["specialist_type"] | null
+          updated_at?: string | null
+          user_id?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          created_by?: string | null
+          email?: string | null
+          hourly_rate?: number | null
+          id?: string | null
+          name?: string | null
+          notes?: string | null
+          receives_flow_notifications?: boolean | null
+          team_leader_id?: string | null
+          type?: Database["public"]["Enums"]["specialist_type"] | null
+          updated_at?: string | null
+          user_id?: string | null
+          website_url?: string | null
         }
         Relationships: []
       }
@@ -2003,8 +2090,11 @@ export type Database = {
           description: string
           financial_request_id: string | null
           id: string
+          item_type: Database["public"]["Enums"]["liquidation_item_type"]
           liquidation_id: string
           quantity: number
+          settles_item_id: string | null
+          source_invoice_id: string | null
           total: number
           unit_price: number
           updated_at: string
@@ -2014,8 +2104,11 @@ export type Database = {
           description: string
           financial_request_id?: string | null
           id?: string
+          item_type?: Database["public"]["Enums"]["liquidation_item_type"]
           liquidation_id: string
           quantity?: number
+          settles_item_id?: string | null
+          source_invoice_id?: string | null
           total: number
           unit_price: number
           updated_at?: string
@@ -2025,8 +2118,11 @@ export type Database = {
           description?: string
           financial_request_id?: string | null
           id?: string
+          item_type?: Database["public"]["Enums"]["liquidation_item_type"]
           liquidation_id?: string
           quantity?: number
+          settles_item_id?: string | null
+          source_invoice_id?: string | null
           total?: number
           unit_price?: number
           updated_at?: string
@@ -2051,6 +2147,20 @@ export type Database = {
             columns: ["financial_request_id"]
             isOneToOne: false
             referencedRelation: "specialist_my_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidation_items_settles_item_id_fkey"
+            columns: ["settles_item_id"]
+            isOneToOne: false
+            referencedRelation: "liquidation_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidation_items_source_invoice_id_fkey"
+            columns: ["source_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
         ]
@@ -2837,6 +2947,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          payment_terms: string | null
           receives_flow_notifications: boolean
           team_leader_id: string | null
           type: Database["public"]["Enums"]["specialist_type"] | null
@@ -2853,6 +2964,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          payment_terms?: string | null
           receives_flow_notifications?: boolean
           team_leader_id?: string | null
           type?: Database["public"]["Enums"]["specialist_type"] | null
@@ -2869,6 +2981,7 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          payment_terms?: string | null
           receives_flow_notifications?: boolean
           team_leader_id?: string | null
           type?: Database["public"]["Enums"]["specialist_type"] | null
@@ -3185,6 +3298,22 @@ export type Database = {
         Args: { _request_id: string; _url: string }
         Returns: undefined
       }
+      specialist_pending_advances: {
+        Args: { _specialist_id: string }
+        Returns: {
+          amount: number
+          created_at: string
+          description: string
+          invoice_code: string
+          item_id: string
+          liquidation_code: string
+          liquidation_id: string
+          pending: number
+          period_month: number
+          period_year: number
+          source_invoice_id: string
+        }[]
+      }
     }
     Enums: {
       app_role:
@@ -3208,6 +3337,7 @@ export type Database = {
         | "completed"
         | "cancelled"
       invoice_status: "draft" | "sent" | "paid" | "overdue" | "cancelled"
+      liquidation_item_type: "work" | "advance" | "advance_settlement"
       liquidation_status:
         | "draft"
         | "validated"
@@ -3380,6 +3510,7 @@ export const Constants = {
         "cancelled",
       ],
       invoice_status: ["draft", "sent", "paid", "overdue", "cancelled"],
+      liquidation_item_type: ["work", "advance", "advance_settlement"],
       liquidation_status: [
         "draft",
         "validated",

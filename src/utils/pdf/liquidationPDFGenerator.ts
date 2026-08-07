@@ -140,9 +140,12 @@ const createLiquidationPDFDocument = async (data: LiquidationData) => {
       },
     });
 
+    currentY = (doc as any).lastAutoTable.finalY;
+    currentY = renderAdvancesBlock(doc, leaderView, currentY, pageWidth);
+
     // Leader subtotal
     const leaderTotal = leaderView.grandTotal;
-    currentY = (doc as any).lastAutoTable.finalY + 5;
+    currentY += 5;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.text(`Subtotal ${data.specialist.name}:  ${formatCurrency(leaderTotal)}`, pageWidth - 15, currentY, { align: 'right' });
@@ -190,8 +193,8 @@ const createLiquidationPDFDocument = async (data: LiquidationData) => {
         },
       });
 
-      // Member subtotal
-      currentY = (doc as any).lastAutoTable.finalY + 5;
+      // Member advances + subtotal
+      currentY = renderAdvancesBlock(doc, memberView, (doc as any).lastAutoTable.finalY, pageWidth) + 5;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.text(`Subtotal ${member.specialist.name}:  ${formatCurrency(member.calculated_total)}`, pageWidth - 15, currentY, { align: 'right' });
@@ -239,8 +242,11 @@ const createLiquidationPDFDocument = async (data: LiquidationData) => {
     // Calculate total
     const calculatedTotal = liquidationView.grandTotal;
 
+    // Bloque de anticipos y regularizaciones (diferenciado de los trabajos)
+    const afterAdvancesY = renderAdvancesBlock(doc, liquidationView, (doc as any).lastAutoTable.finalY, pageWidth);
+
     // Total
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    const finalY = afterAdvancesY + 10;
     const totalsX = pageWidth - 75;
     
     doc.setFont('helvetica', 'bold');
@@ -330,6 +336,76 @@ const createLiquidationPDFDocument = async (data: LiquidationData) => {
 
   return doc;
 };
+
+// Bloque diferenciado de anticipos y regularizaciones.
+// Devuelve la nueva Y. Si no hay líneas de este tipo, no dibuja nada.
+const renderAdvancesBlock = (
+  doc: jsPDF,
+  view: LiquidationView,
+  startY: number,
+  pageWidth: number
+): number => {
+  if (!view.advances.length) return startY;
+
+  let currentY = startY + 12;
+  if (currentY > 235) {
+    doc.addPage();
+    currentY = 25;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(90, 90, 90);
+  doc.text('ANTICIPOS Y REGULARIZACIONES', 15, currentY);
+  doc.setTextColor(0, 0, 0);
+  currentY += 4;
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [['Descripción', 'Fecha', 'Importe']],
+    body: view.advances.map((item: any) => {
+      const amount = Number(item.total) || 0;
+      const invoiceCode = item.source_invoice?.code || item.source_invoice_code;
+      const description = invoiceCode
+        ? `${item.description} — Factura ${invoiceCode}`
+        : item.description;
+      return [
+        description,
+        item.created_at
+          ? new Date(item.created_at).toLocaleDateString('es-ES', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+            })
+          : '-',
+        {
+          content: formatCurrency(amount),
+          styles: { halign: 'right', textColor: amount < 0 ? [180, 40, 40] : [0, 0, 0] },
+        },
+      ];
+    }),
+    theme: 'plain',
+    headStyles: { fillColor: [110, 110, 110], textColor: 255, fontSize: 9, fontStyle: 'bold' },
+    styles: { fontSize: 9, cellPadding: 3 },
+    columnStyles: {
+      0: { cellWidth: 110 },
+      1: { cellWidth: 30, halign: 'center' },
+      2: { cellWidth: 40, halign: 'right' },
+    },
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 5;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text(
+    `Subtotal anticipos: ${formatCurrency(view.advancesTotal)}`,
+    pageWidth - 15,
+    currentY,
+    { align: 'right' }
+  );
+  return currentY;
+};
+
 
 export const generateLiquidationPDF = async (data: LiquidationData) => {
   const doc = await createLiquidationPDFDocument(data);
@@ -443,7 +519,7 @@ const buildHierarchicalTableData = (view: LiquidationView, commissionDetails?: R
 const ensureConsistentView = (view: LiquidationView, expectedTotal?: number | string | null): LiquidationView => {
   const groupedTotal = view.groups.reduce((clientSum, client) => (
     clientSum + client.projectBudgets.reduce((projectSum, project) => projectSum + project.subtotal, 0)
-  ), 0);
+  ), 0) + view.advancesTotal;
 
   if (Math.abs(groupedTotal - view.grandTotal) > 0.005) {
     throw new Error(

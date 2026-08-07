@@ -48,6 +48,7 @@ const formSchema = z.object({
   receives_flow_notifications: z.boolean(),
   hourly_rate: z.coerce.number().min(0, "La tarifa no puede ser negativa").optional(),
   website_url: z.string().optional(),
+  payment_terms: z.string().optional(),
   notes: z.string().optional(),
   team_leader_id: z.string().nullable().optional(),
 });
@@ -63,6 +64,7 @@ interface Specialist {
   receives_flow_notifications?: boolean | null;
   hourly_rate: number | null;
   website_url: string | null;
+  payment_terms?: string | null;
   notes: string | null;
   team_leader_id: string | null;
 }
@@ -117,6 +119,7 @@ export function SpecialistFormModal({
       receives_flow_notifications: true,
       hourly_rate: 0,
       website_url: "",
+      payment_terms: "",
       notes: "",
       team_leader_id: null,
     },
@@ -133,6 +136,7 @@ export function SpecialistFormModal({
           (specialist as any).receives_flow_notifications !== false,
         hourly_rate: specialist.hourly_rate || 0,
         website_url: (specialist as any).website_url || "",
+        payment_terms: (specialist as any).payment_terms || "",
         notes: specialist.notes || "",
         team_leader_id: specialist.team_leader_id || null,
       });
@@ -161,6 +165,7 @@ export function SpecialistFormModal({
         receives_flow_notifications: values.receives_flow_notifications,
         hourly_rate: values.hourly_rate || 0,
         website_url: values.website_url || null,
+        payment_terms: values.payment_terms || null,
         notes: values.notes || null,
         team_leader_id: values.team_leader_id || null,
         created_by: user!.id,
@@ -190,6 +195,8 @@ export function SpecialistFormModal({
           receives_flow_notifications: values.receives_flow_notifications,
           hourly_rate: values.hourly_rate || 0,
           website_url: values.website_url || null,
+          payment_terms: values.payment_terms || null,
+
           notes: values.notes || null,
           team_leader_id: values.team_leader_id || null,
         })
@@ -325,6 +332,27 @@ export function SpecialistFormModal({
                       value={field.value || ""}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="payment_terms"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Condiciones de pago</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Ej: 30 días fecha factura"
+                      {...field}
+                      value={field.value || ""}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Nota informativa: se muestra al crear o editar liquidaciones de este especialista.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

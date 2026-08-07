@@ -23,6 +23,9 @@ import { SpecialistLiquidationTimeline } from './SpecialistLiquidationTimeline';
 import { useUserRole } from '@/hooks/useUserRole';
 import { LiquidationPaymentPlanEditor } from './LiquidationPaymentPlanEditor';
 import { LiquidationPaymentMilestone, normalizeLiquidationPaymentPlan } from '@/lib/liquidation-payment-plan';
+import { isAdvanceRelated } from '@/lib/liquidation-advances';
+import { PendingAdvancesBanner } from './PendingAdvancesBanner';
+import { LiquidationAdvancesSection } from './LiquidationAdvancesSection';
 
 type LiquidationStatus = Database['public']['Enums']['liquidation_status'];
 
@@ -277,7 +280,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     queryFn: async () => {
       const { data, error } = await supabase
         .from('specialists')
-        .select('id, name, user_id')
+        .select('id, name, user_id, payment_terms')
         .eq('active', true)
         .order('name');
       if (error) throw error;
@@ -286,6 +289,10 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
   });
 
   const selectedSpecialistId = watch('specialist_id');
+  const selectedSpecialist = useMemo(
+    () => specialists?.find((s) => s.id === selectedSpecialistId) || null,
+    [specialists, selectedSpecialistId]
+  );
   const selectedSpecialistUserId = useMemo(() => {
     if (!selectedSpecialistId || !specialists) return null;
     return specialists.find(s => s.id === selectedSpecialistId)?.user_id || null;
@@ -1040,6 +1047,12 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     return matched;
   }, [liquidationItems, linkedCommissionDetails]);
 
+  // Líneas de anticipo / regularización van en su propio bloque
+  const advanceItems = useMemo(
+    () => (liquidationItems || []).filter((item: any) => isAdvanceRelated(item)),
+    [liquidationItems]
+  );
+
   // Agrupar items por cliente (items manuales van a "Otros conceptos")
   const itemsGroupedByClient = useMemo(() => {
     if (!liquidationItems) return [];
@@ -1047,6 +1060,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
     const grouped: { [clientName: string]: { items: typeof liquidationItems; subtotal: number } } = {};
     
     liquidationItems.forEach((item) => {
+      if (isAdvanceRelated(item)) return;
       // Items sin financial_request son manuales
       const clientName = item.financial_request_id 
         ? (item.financial_request?.client?.name || 'Sin cliente')
@@ -1065,6 +1079,7 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
       subtotal: data.subtotal,
     }));
   }, [liquidationItems]);
+
 
   // Calcular subtotal existente en modo edit (usando el campo total del item)
   const existingSubtotal = useMemo(() => {
@@ -1278,7 +1293,42 @@ export const LiquidationFormModal = ({ isOpen, onClose, liquidation, mode }: Liq
             />
           )}
 
+          {/* Condiciones de pago del especialista (nota informativa) */}
+          {!isViewMode && selectedSpecialist?.payment_terms && (
+            <div className="text-xs text-muted-foreground border rounded-md px-3 py-2">
+              <span className="font-medium text-foreground">Condiciones de pago: </span>
+              {selectedSpecialist.payment_terms}
+            </div>
+          )}
+
+          {/* Aviso de anticipos con saldo abierto (nunca bloqueante) */}
+          {!isViewMode && selectedSpecialistId && (
+            <PendingAdvancesBanner
+              specialistId={selectedSpecialistId}
+              excludeItemIds={advanceItems.map((i: any) => i.id)}
+            />
+          )}
+
+          {/* Bloque de anticipos y regularizaciones */}
+          {mode === 'edit' && liquidation?.id && selectedSpecialistId && (
+            <LiquidationAdvancesSection
+              liquidationId={liquidation.id}
+              specialistId={selectedSpecialistId}
+              items={advanceItems}
+              editable={isEditable}
+            />
+          )}
+          {isViewMode && advanceItems.length > 0 && liquidation?.id && (
+            <LiquidationAdvancesSection
+              liquidationId={liquidation.id}
+              specialistId={liquidation.specialist_id}
+              items={advanceItems}
+              editable={false}
+            />
+          )}
+
           {/* Items existentes de la liquidación - Visible en VIEW y EDIT */}
+
           {(isViewMode || mode === 'edit') && itemsGroupedByClient.length > 0 && (
             <div className="border rounded-lg p-4 space-y-3">
               <Label className="text-base font-semibold">

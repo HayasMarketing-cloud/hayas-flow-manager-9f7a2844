@@ -1,4 +1,6 @@
-# F6 — Pagos parciales de liquidaciones: estado, cash-flow, cotejo y facturas
+# Fix de pagos parciales de liquidaciones: estado, cash-flow, cotejo y facturas
+
+Trabajo independiente del sprint (no es F6).
 
 Objetivo: que el pago parcial de una liquidación sea un hecho registrable y coherente en card, detalle, tesorería, PDF y emails. Caso de referencia: LIQ-2026-070 (Leah Pérez, 2.800 €, 1.400 € pagados el 7/8/2026).
 

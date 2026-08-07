@@ -37,6 +37,7 @@ import { BudgetInvoicingSummary } from '@/components/budgets/BudgetInvoicingSumm
 import { GenerateRequestsConfirmModal } from '@/components/budgets/GenerateRequestsConfirmModal';
 import { useGenerateBudgetRequests } from '@/hooks/useGenerateBudgetRequests';
 import { sendBatchAssignmentNotification } from '@/lib/budget-request-generation';
+import { mustAffectRows } from '@/lib/db-mutations';
 
 
 export default function PresupuestoDetalle() {
@@ -237,12 +238,10 @@ export default function PresupuestoDetalle() {
         .eq('budget_id', id);
 
       // 6. Eliminar presupuesto
-      const { error } = await supabase
-        .from('budgets')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      await mustAffectRows(
+        supabase.from('budgets').delete().eq('id', id).select('id'),
+        { entity: 'el presupuesto' },
+      );
 
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
       toast.success('Presupuesto y datos asociados eliminados correctamente');

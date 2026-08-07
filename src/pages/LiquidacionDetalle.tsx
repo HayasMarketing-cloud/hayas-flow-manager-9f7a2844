@@ -32,6 +32,7 @@ import { useState } from 'react';
 import { notifyLiquidationSent } from '@/lib/notification-utils';
 import { useTeamMembers, useTeamLiquidations } from '@/hooks/useTeamMembers';
 import { LiquidationAmReviewPanel } from '@/components/liquidations/LiquidationAmReviewPanel';
+import { mustAffectRows } from '@/lib/db-mutations';
 
 // Component for pending requests section
 function PendingRequestsSection({ 
@@ -586,12 +587,10 @@ export default function LiquidacionDetalle() {
       if (signaturesError) throw signaturesError;
 
       // Delete the liquidation
-      const { error } = await supabase
-        .from('liquidations')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      await mustAffectRows(
+        supabase.from('liquidations').delete().eq('id', id).select('id'),
+        { entity: 'la liquidación' },
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['liquidations'] });

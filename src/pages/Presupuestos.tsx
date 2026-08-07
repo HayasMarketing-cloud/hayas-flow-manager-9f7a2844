@@ -24,6 +24,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useCurrentSpecialist } from '@/hooks/useCurrentSpecialist';
 import { useUserBudgetIds } from '@/hooks/useAssignedClients';
+import { mustAffectRows } from '@/lib/db-mutations';
 
 export default function Presupuestos() {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -426,12 +427,10 @@ export default function Presupuestos() {
         .eq('budget_id', budgetToDelete.id);
 
       // 6. Eliminar presupuesto
-      const { error } = await supabase
-        .from('budgets')
-        .delete()
-        .eq('id', budgetToDelete.id);
-
-      if (error) throw error;
+      await mustAffectRows(
+        supabase.from('budgets').delete().eq('id', budgetToDelete.id).select('id'),
+        { entity: 'el presupuesto' },
+      );
 
       queryClient.invalidateQueries({ queryKey: ['budgets'] });
       queryClient.invalidateQueries({ queryKey: ['financial_requests'] });

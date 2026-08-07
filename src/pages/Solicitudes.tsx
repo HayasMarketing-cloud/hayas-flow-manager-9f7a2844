@@ -28,6 +28,8 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { AddToLiquidationModal } from '@/components/liquidations/AddToLiquidationModal';
 import { AddToInvoiceModal } from '@/components/invoices/AddToInvoiceModal';
 import { useRequestActivityLog } from '@/hooks/useRequestActivityLog';
+import { mustAffectRows, reportMutationError } from '@/lib/db-mutations';
+
 
 const Solicitudes = () => {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -48,6 +50,9 @@ const Solicitudes = () => {
   const { logActivity } = useRequestActivityLog();
   const { assignedClientIds, isLoading: assignedLoading, needsFiltering } = useAssignedClients();
   const canManage = canAccessFinance() || canAccessOperations();
+  // El DELETE de financial_requests sólo lo permite la RLS a admin/finanzas
+  const canDelete = canAccessFinance();
+
   const showMyRequestsButton = isSpecialist() && !!specialistId;
 
   const { data: requests, isLoading, error } = useQuery({
@@ -258,26 +263,34 @@ const Solicitudes = () => {
   };
 
   const handleDeleteRequest = async (requestId: string) => {
-    // First, unlink any operational_requests that reference this financial_request
-    await supabase
-      .from('operational_requests')
-      .update({ financial_request_id: null })
-      .eq('financial_request_id', requestId);
+    const target = requests?.find((r: any) => r.id === requestId);
+    try {
+      // First, unlink any operational_requests that reference this financial_request
+      await supabase
+        .from('operational_requests')
+        .update({ financial_request_id: null })
+        .eq('financial_request_id', requestId);
 
-    const { error } = await supabase
-      .from('financial_requests')
-      .delete()
-      .eq('id', requestId);
+      await mustAffectRows(
+        supabase.from('financial_requests').delete().eq('id', requestId).select('id'),
+        { entity: 'el request' },
+      );
 
-    if (error) {
-      toast.error('Error al eliminar el request');
-    } else {
+      await logActivity({
+        entityId: requestId,
+        action: 'deleted',
+        changes: { code: target?.code ?? null, title: target?.title ?? null },
+      });
+
       toast.success('Request eliminado correctamente');
       queryClient.invalidateQueries({ queryKey: ['financial_requests'] });
+    } catch (err) {
+      reportMutationError(err, 'Error al eliminar el request');
     }
     setDeleteConfirmOpen(false);
     setRequestToDelete(null);
   };
+
 
   const handleCloneRequest = async (request: any) => {
     // Exclude all relational and auto-generated fields
@@ -912,6 +925,7 @@ const Solicitudes = () => {
                   onClone={handleCloneRequest}
                   onAddToLiquidation={handleAddToLiquidation}
                   canManage={canManage}
+                  canDelete={canDelete}
                   onRefresh={handleSuccess}
                 />
               ))}
@@ -924,6 +938,7 @@ const Solicitudes = () => {
               onDelete={confirmDelete}
               onClone={handleCloneRequest}
               canManage={canManage}
+              canDelete={canDelete}
               selectedIds={selectedIds}
               onSelectAll={handleSelectAll}
               onSelectOne={handleSelectOne}

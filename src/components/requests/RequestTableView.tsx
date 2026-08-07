@@ -29,6 +29,7 @@ interface RequestTableViewProps {
   onDelete: (request: any) => void;
   onClone: (request: any) => void;
   canManage: boolean;
+  canDelete?: boolean;
   selectedIds: string[];
   onSelectAll: (checked: boolean) => void;
   onSelectOne: (id: string, checked: boolean) => void;
@@ -42,6 +43,7 @@ export const RequestTableView = ({
   onDelete,
   onClone,
   canManage,
+  canDelete = false,
   selectedIds,
   onSelectAll,
   onSelectOne,
@@ -227,14 +229,17 @@ export const RequestTableView = ({
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onDelete(request)}
-                            title="Eliminar"
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          {canDelete && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onDelete(request)}
+                              title="Eliminar"
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
+
                         </>
                       )}
                     </div>

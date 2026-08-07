@@ -42,10 +42,11 @@ interface RequestCardProps {
   onClone: (request: any) => void;
   onAddToLiquidation?: (request: any) => void;
   canManage: boolean;
+  canDelete?: boolean;
   onRefresh?: () => void;
 }
 
-export const RequestCard = ({ request, invoiceLink, onEdit, onDelete, onClone, onAddToLiquidation, canManage, onRefresh }: RequestCardProps) => {
+export const RequestCard = ({ request, invoiceLink, onEdit, onDelete, onClone, onAddToLiquidation, canManage, canDelete = false, onRefresh }: RequestCardProps) => {
   const navigate = useNavigate();
   const isLiquidated = !!request.liquidation_id;
   const [editingNotes, setEditingNotes] = useState(false);
@@ -383,14 +384,17 @@ export const RequestCard = ({ request, invoiceLink, onEdit, onDelete, onClone, o
               >
                 <Copy className="h-4 w-4" />
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onDelete(request)}
-                title="Eliminar"
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
+              {canDelete && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onDelete(request)}
+                  title="Eliminar"
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              )}
+
             </>
           )}
         </div>

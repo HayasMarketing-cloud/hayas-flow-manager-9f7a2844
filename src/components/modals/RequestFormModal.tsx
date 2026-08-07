@@ -41,6 +41,16 @@ import { notifySpecialistAssigned } from '@/lib/notification-utils';
 import { notificationFeedback } from '@/lib/notification-feedback';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useRequestTransitions } from '@/hooks/useRequestTransitions';
+import {
+  CREATION_STATUSES,
+  REQUEST_STATUSES,
+  REQUEST_STATUS_LABELS,
+  forceRequestStatus,
+  type RequestStatus,
+} from '@/lib/request-status-utils';
+import { mustAffectRows } from '@/lib/db-mutations';
+
 
 import { useDefaultRates, getRateSourceLabel } from '@/hooks/useDefaultRates';
 
@@ -162,6 +172,44 @@ export const RequestFormModal = ({
 
   const { canAccessFinance, isAdmin } = useUserRole();
   const canEditClientPrice = canAccessFinance() || isAdmin();
+  const canForceStatus = canAccessFinance() || isAdmin();
+
+  // Fuente única de transiciones (BD)
+  const currentStatus: RequestStatus | null = initialData?.status ?? null;
+  const { allowed: allowedTransitions } = useRequestTransitions(
+    isCreateMode ? null : currentStatus,
+  );
+
+  const statusOptions: RequestStatus[] = isCreateMode
+    ? CREATION_STATUSES
+    : currentStatus
+      ? [currentStatus, ...allowedTransitions.filter((s) => s !== currentStatus)]
+      : REQUEST_STATUSES;
+
+  const [forceOpen, setForceOpen] = useState(false);
+  const [forceStatus, setForceStatus] = useState<RequestStatus | ''>('');
+  const [forceReason, setForceReason] = useState('');
+  const [forcing, setForcing] = useState(false);
+
+  const handleForceStatus = async () => {
+    if (!initialData?.id || !forceStatus) return;
+    setForcing(true);
+    try {
+      await forceRequestStatus(initialData.id, forceStatus, forceReason);
+      toast.success(`Estado forzado a ${REQUEST_STATUS_LABELS[forceStatus]}`);
+      setForceOpen(false);
+      setForceReason('');
+      setForceStatus('');
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      onSuccess();
+      onOpenChange(false);
+    } catch (err: any) {
+      toast.error(err?.message || 'No se pudo forzar el estado');
+    } finally {
+      setForcing(false);
+    }
+  };
+
 
   // Watch sale_type for conditional rendering
   const saleType = useWatch({ control: form.control, name: 'sale_type' });
@@ -434,11 +482,15 @@ export const RequestFormModal = ({
 
 
       if (initialData) {
-        const { error } = await supabase
-          .from('financial_requests')
-          .update(requestData)
-          .eq('id', initialData.id);
-        if (error) throw error;
+        await mustAffectRows(
+          supabase
+            .from('financial_requests')
+            .update(requestData)
+            .eq('id', initialData.id)
+            .select('id'),
+          { entity: 'el request', action: 'actualizar' },
+        );
+
         
         // Sincronizar specialist en operational_request vinculado (si cambió)
         if (requestData.specialist_id !== initialData.specialist_id) {
@@ -1488,18 +1540,71 @@ export const RequestFormModal = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="draft">Borrador</SelectItem>
-                      <SelectItem value="pending_specialist">Pend. Especialista</SelectItem>
-                      <SelectItem value="in_progress">En Progreso</SelectItem>
-                      <SelectItem value="pending_review">Pend. Revisión</SelectItem>
-                      <SelectItem value="completed">Completado</SelectItem>
-                      <SelectItem value="cancelled">Cancelado</SelectItem>
+                      {statusOptions.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {REQUEST_STATUS_LABELS[s]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  <FormDescription>
+                    {isCreateMode
+                      ? 'Al crear solo puedes elegir Borrador o Pend. Especialista.'
+                      : 'Solo se muestran las transiciones permitidas desde el estado actual.'}
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            {!isViewMode && !isCreateMode && canForceStatus && initialData?.id && (
+              <div className="rounded-md border border-dashed p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium">Forzar estado</p>
+                    <p className="text-xs text-muted-foreground">
+                      Salta la matriz de transiciones. Requiere motivo y queda registrado.
+                    </p>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setForceOpen((v) => !v)}>
+                    {forceOpen ? 'Cancelar' : 'Forzar estado…'}
+                  </Button>
+                </div>
+
+                {forceOpen && (
+                  <div className="space-y-2 pt-2">
+                    <Select value={forceStatus} onValueChange={(v) => setForceStatus(v as RequestStatus)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Estado destino" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {REQUEST_STATUSES.filter((s) => s !== currentStatus).map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {REQUEST_STATUS_LABELS[s]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Textarea
+                      placeholder="Motivo del forzado (mínimo 10 caracteres)"
+                      value={forceReason}
+                      onChange={(e) => setForceReason(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      disabled={forcing || !forceStatus || forceReason.trim().length < 10}
+                      onClick={handleForceStatus}
+                    >
+                      {forcing && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                      Confirmar forzado
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
 
             {!isViewMode && (
               <div className="flex justify-end gap-2 pt-4">

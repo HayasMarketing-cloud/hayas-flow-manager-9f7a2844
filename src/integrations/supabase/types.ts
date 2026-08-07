@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      _backup_activity_log_20260807: {
+        Row: {
+          action: string | null
+          changes: Json | null
+          created_at: string | null
+          entity_id: string | null
+          entity_type: string | null
+          id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action?: string | null
+          changes?: Json | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string | null
+          changes?: Json | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       _backup_budget_items_20260806: {
         Row: {
           budget_id: string | null
@@ -164,6 +194,148 @@ export type Database = {
           partner_reference?: string | null
           quantity?: number | null
           recurrence_active?: boolean | null
+          sale_amount?: number | null
+          sale_hours?: number | null
+          sale_rate?: number | null
+          sale_type?: Database["public"]["Enums"]["price_rule_type"] | null
+          service_id?: string | null
+          specialist_acceptance?: boolean | null
+          specialist_id?: string | null
+          status?:
+            | Database["public"]["Enums"]["financial_request_status"]
+            | null
+          template_source_id?: string | null
+          title?: string | null
+          unit_price?: number | null
+          updated_at?: string | null
+          work_month?: number | null
+          work_year?: number | null
+        }
+        Relationships: []
+      }
+      _backup_financial_requests_20260807: {
+        Row: {
+          approved_by: string | null
+          bill_separately: boolean | null
+          billed_invoice_id: string | null
+          budget_id: string | null
+          budget_item_id: string | null
+          client_contact_id: string | null
+          client_id: string | null
+          code: string | null
+          completed_at: string | null
+          contract_id: string | null
+          cost_rate: number | null
+          cost_to_agency: number | null
+          cost_type: Database["public"]["Enums"]["cost_type"] | null
+          created_at: string | null
+          deadline: string | null
+          deliverable_filename: string | null
+          deliverable_url: string | null
+          description: string | null
+          fixed_cost: number | null
+          hours: number | null
+          id: string | null
+          is_recurring_template: boolean | null
+          liquidation_id: string | null
+          notes: string | null
+          partner_reference: string | null
+          phase: string | null
+          quantity: number | null
+          recurrence_active: boolean | null
+          requires_deliverable: boolean | null
+          sale_amount: number | null
+          sale_hours: number | null
+          sale_rate: number | null
+          sale_type: Database["public"]["Enums"]["price_rule_type"] | null
+          service_id: string | null
+          specialist_acceptance: boolean | null
+          specialist_id: string | null
+          status: Database["public"]["Enums"]["financial_request_status"] | null
+          template_source_id: string | null
+          title: string | null
+          unit_price: number | null
+          updated_at: string | null
+          work_month: number | null
+          work_year: number | null
+        }
+        Insert: {
+          approved_by?: string | null
+          bill_separately?: boolean | null
+          billed_invoice_id?: string | null
+          budget_id?: string | null
+          budget_item_id?: string | null
+          client_contact_id?: string | null
+          client_id?: string | null
+          code?: string | null
+          completed_at?: string | null
+          contract_id?: string | null
+          cost_rate?: number | null
+          cost_to_agency?: number | null
+          cost_type?: Database["public"]["Enums"]["cost_type"] | null
+          created_at?: string | null
+          deadline?: string | null
+          deliverable_filename?: string | null
+          deliverable_url?: string | null
+          description?: string | null
+          fixed_cost?: number | null
+          hours?: number | null
+          id?: string | null
+          is_recurring_template?: boolean | null
+          liquidation_id?: string | null
+          notes?: string | null
+          partner_reference?: string | null
+          phase?: string | null
+          quantity?: number | null
+          recurrence_active?: boolean | null
+          requires_deliverable?: boolean | null
+          sale_amount?: number | null
+          sale_hours?: number | null
+          sale_rate?: number | null
+          sale_type?: Database["public"]["Enums"]["price_rule_type"] | null
+          service_id?: string | null
+          specialist_acceptance?: boolean | null
+          specialist_id?: string | null
+          status?:
+            | Database["public"]["Enums"]["financial_request_status"]
+            | null
+          template_source_id?: string | null
+          title?: string | null
+          unit_price?: number | null
+          updated_at?: string | null
+          work_month?: number | null
+          work_year?: number | null
+        }
+        Update: {
+          approved_by?: string | null
+          bill_separately?: boolean | null
+          billed_invoice_id?: string | null
+          budget_id?: string | null
+          budget_item_id?: string | null
+          client_contact_id?: string | null
+          client_id?: string | null
+          code?: string | null
+          completed_at?: string | null
+          contract_id?: string | null
+          cost_rate?: number | null
+          cost_to_agency?: number | null
+          cost_type?: Database["public"]["Enums"]["cost_type"] | null
+          created_at?: string | null
+          deadline?: string | null
+          deliverable_filename?: string | null
+          deliverable_url?: string | null
+          description?: string | null
+          fixed_cost?: number | null
+          hours?: number | null
+          id?: string | null
+          is_recurring_template?: boolean | null
+          liquidation_id?: string | null
+          notes?: string | null
+          partner_reference?: string | null
+          phase?: string | null
+          quantity?: number | null
+          recurrence_active?: boolean | null
+          requires_deliverable?: boolean | null
           sale_amount?: number | null
           sale_hours?: number | null
           sale_rate?: number | null
@@ -360,7 +532,8 @@ export type Database = {
           entity_id: string
           entity_type: string
           id: string
-          user_id: string
+          source: string
+          user_id: string | null
         }
         Insert: {
           action: string
@@ -369,7 +542,8 @@ export type Database = {
           entity_id: string
           entity_type: string
           id?: string
-          user_id: string
+          source?: string
+          user_id?: string | null
         }
         Update: {
           action?: string
@@ -378,7 +552,8 @@ export type Database = {
           entity_id?: string
           entity_type?: string
           id?: string
-          user_id?: string
+          source?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -2492,6 +2667,21 @@ export type Database = {
           },
         ]
       }
+      request_status_transitions: {
+        Row: {
+          from_status: Database["public"]["Enums"]["financial_request_status"]
+          to_status: Database["public"]["Enums"]["financial_request_status"]
+        }
+        Insert: {
+          from_status: Database["public"]["Enums"]["financial_request_status"]
+          to_status: Database["public"]["Enums"]["financial_request_status"]
+        }
+        Update: {
+          from_status?: Database["public"]["Enums"]["financial_request_status"]
+          to_status?: Database["public"]["Enums"]["financial_request_status"]
+        }
+        Relationships: []
+      }
       sales_commissions: {
         Row: {
           base_amount: number
@@ -2936,6 +3126,10 @@ export type Database = {
       }
     }
     Functions: {
+      allowed_request_transitions: {
+        Args: { _from: Database["public"]["Enums"]["financial_request_status"] }
+        Returns: Database["public"]["Enums"]["financial_request_status"][]
+      }
       can_view_liquidation_as_assigned_am: {
         Args: { _liquidation_id: string }
         Returns: boolean
@@ -2943,6 +3137,14 @@ export type Database = {
       can_view_specialist: {
         Args: { _specialist_id: string }
         Returns: boolean
+      }
+      force_request_status: {
+        Args: {
+          _new_status: Database["public"]["Enums"]["financial_request_status"]
+          _reason: string
+          _request_id: string
+        }
+        Returns: undefined
       }
       generate_code: { Args: { sequence_name: string }; Returns: string }
       get_current_specialist_id: { Args: never; Returns: string }
@@ -2969,6 +3171,13 @@ export type Database = {
       }
       is_team_leader_liquidation: {
         Args: { _liquidation_id: string }
+        Returns: boolean
+      }
+      is_valid_request_transition: {
+        Args: {
+          _from: Database["public"]["Enums"]["financial_request_status"]
+          _to: Database["public"]["Enums"]["financial_request_status"]
+        }
         Returns: boolean
       }
       link_my_specialist: { Args: never; Returns: string }

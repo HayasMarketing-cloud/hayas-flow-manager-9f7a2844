@@ -16,11 +16,13 @@ El botón actual desaparece. En su lugar, "Registrar pago" abre un diálogo con:
 - sólo cuando el pago es el último (cobertura total) pasa a `paid`, fija `paid_at` y envía el email de "liquidación pagada" al especialista.
 Un pago parcial no envía email de pagada.
 
+**Persistencia del "pago sin hito"**: si la liquidación no tiene plan, registrar un pago **crea un hito ad-hoc** en `payment_plan` con concepto "Pago DD/MM/AAAA", el importe registrado, la fecha real y `paid: true`. No existe la vía de marcar pago fuera del JSONB: toda la derivación (estado, chip, cash-flow, PDF, email) lee siempre de `payment_plan`, sin excepciones.
+
 ### (c) Estado derivado y chip coherente
 El chip de la card y del detalle se calcula del plan: "Pago parcial 50% · pend. 1.400 €". Con cobertura total: "Pagada". El estado `paid` deja de poder fijarse a mano.
 
 ### (d) Cash-flow por hitos
-`getLiquidationCashOutflow` pasa a derivar de hitos pagados siempre que exista plan; el fallback "status paid → total" queda reservado a liquidaciones sin plan. `getLiquidationCashOutflowForMonth` ya imputa por fecha real: se alinea con la misma base.
+`getLiquidationCashOutflow` deriva siempre de los hitos pagados del JSONB. El fallback "status paid → total" queda reservado exclusivamente a liquidaciones históricas sin plan y sin pagos registrados. `getLiquidationCashOutflowForMonth` imputa por fecha real de cada hito.
 
 ### (e) Facturas del especialista sin puntero legacy
 El timeline y el email de recepción leen de `liquidation_invoices` (una entrada por factura, con número, importe y fecha). Se muestran todas las entradas con enlace individual. `specialist_invoice_url` deja de escribirse desde el front y desde la edge function; se conserva la columna sólo como histórico de lectura para registros antiguos.
